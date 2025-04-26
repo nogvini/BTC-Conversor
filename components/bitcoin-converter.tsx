@@ -265,16 +265,19 @@ export default function BitcoinConverter() {
         >
           <TabsList className="grid grid-cols-3 mb-4">
             <TabsTrigger value="converter" className="text-xs sm:text-sm">
-              <ArrowRightLeft className="mr-2 h-4 w-4 hidden sm:inline-block" />
-              Conversor
+              <ArrowRightLeft className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Conversor</span>
+              <span className="sm:hidden inline">C</span>
             </TabsTrigger>
             <TabsTrigger value="chart" className="text-xs sm:text-sm">
-              <TrendingUp className="mr-2 h-4 w-4 hidden sm:inline-block" />
-              Gráficos
+              <TrendingUp className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Gráficos</span>
+              <span className="sm:hidden inline">G</span>
             </TabsTrigger>
             <TabsTrigger value="calculator" className="text-xs sm:text-sm">
-              <Calculator className="mr-2 h-4 w-4 hidden sm:inline-block" />
-              Calculadora
+              <Calculator className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Calculadora</span>
+              <span className="sm:hidden inline">$</span>
             </TabsTrigger>
           </TabsList>
 

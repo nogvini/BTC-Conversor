@@ -1,6 +1,15 @@
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
+
+function Redirector() {
+  redirect('/?tab=converter')
+  return null
+}
 
 export default function ConverterPage() {
-  // Redireciona para a página principal com a aba do conversor ativa
-  redirect('/?tab=converter')
+  return (
+    <Suspense fallback={<div>Redirecionando...</div>}>
+      <Redirector />
+    </Suspense>
+  )
 } 

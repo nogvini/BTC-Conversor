@@ -1,6 +1,15 @@
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
+
+function Redirector() {
+  redirect('/?tab=chart')
+  return null
+}
 
 export default function ChartPage() {
-  // Redireciona para a página principal com a aba de gráficos ativa
-  redirect('/?tab=chart')
+  return (
+    <Suspense fallback={<div>Redirecionando...</div>}>
+      <Redirector />
+    </Suspense>
+  )
 } 

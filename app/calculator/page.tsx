@@ -1,6 +1,15 @@
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
+
+function Redirector() {
+  redirect('/?tab=calculator')
+  return null
+}
 
 export default function CalculatorPage() {
-  // Redireciona para a página principal com a aba da calculadora ativa
-  redirect('/?tab=calculator')
+  return (
+    <Suspense fallback={<div>Redirecionando...</div>}>
+      <Redirector />
+    </Suspense>
+  )
 } 

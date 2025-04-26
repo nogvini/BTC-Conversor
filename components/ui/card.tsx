@@ -51,7 +51,7 @@ CardDescription.displayName = "CardDescription"
 type CardContentProps = React.HTMLAttributes<HTMLDivElement>
 
 const CardContent: React.FC<CardContentProps> = ({ className, ...props }) => (
-  <div ref={props.ref} className={cn("p-6 pt-0", className)} {...props} />
+  <div className={cn("p-6 pt-0", className)} {...props} />
 )
 CardContent.displayName = "CardContent"
 
