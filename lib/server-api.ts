@@ -70,8 +70,12 @@ async function fetchHistoricalData(currency = 'usd', days = 30): Promise<Histori
     const response = await fetch(
       `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`,
       {
-        headers: { 'Accept': 'application/json' },
-        next: { revalidate: 3600 } // Cache de 1 hora
+        headers: { 
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store', // Não usar cache
+        next: { revalidate: 0 } // Não reutilizar cache
       }
     );
     
@@ -382,5 +386,83 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     
     // Usar dados de exemplo como último recurso
     return generateSampleHistoricalData(days, currency);
+  }
+}
+
+// Adicionar nova função para forçar atualização sem respeitar cache
+export async function forceUpdateAllData(): Promise<AppData> {
+  try {
+    const now = Date.now();
+    
+    // Buscar novos dados diretamente das APIs, ignorando o cache
+    let btcUsdPrice = 0;
+    let usdToBrlRate = 0;
+    let historicalDataUSD: HistoricalDataPoint[] = [];
+    let historicalDataBRL: HistoricalDataPoint[] = [];
+    let isUsingFallback = false;
+    
+    try {
+      btcUsdPrice = await fetchBitcoinUsdPrice();
+      usdToBrlRate = await fetchUsdToBrlRate();
+      
+      // Buscar dados históricos
+      historicalDataUSD = await fetchHistoricalData('usd', 30);
+      
+      // Converter dados históricos USD para BRL
+      historicalDataBRL = historicalDataUSD.map(dataPoint => ({
+        ...dataPoint,
+        price: dataPoint.price * usdToBrlRate
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar dados externos:", error);
+      isUsingFallback = true;
+      
+      // Se falhar, tentar usar dados salvos
+      const savedData = await getAppData();
+      if (savedData) {
+        btcUsdPrice = savedData.currentPrice.usd;
+        usdToBrlRate = savedData.currentPrice.brl / savedData.currentPrice.usd;
+        historicalDataUSD = savedData.historicalDataUSD;
+        historicalDataBRL = savedData.historicalDataBRL;
+      } else {
+        // Criar dados de fallback se não houver nada salvo
+        const fallbackData = createFallbackAppData();
+        btcUsdPrice = fallbackData.currentPrice.usd;
+        usdToBrlRate = fallbackData.currentPrice.brl / fallbackData.currentPrice.usd;
+        historicalDataUSD = fallbackData.historicalDataUSD;
+        historicalDataBRL = fallbackData.historicalDataBRL;
+      }
+    }
+    
+    // Criar objeto de preço atual
+    const currentPrice: BitcoinPrice = {
+      usd: btcUsdPrice,
+      brl: btcUsdPrice * usdToBrlRate,
+      timestamp: now,
+      isUsingCache: isUsingFallback
+    };
+    
+    // Criar objeto de dados completo
+    const appData: AppData = {
+      currentPrice,
+      historicalDataUSD,
+      historicalDataBRL,
+      lastFetched: now,
+      isUsingCache: isUsingFallback,
+      historicalData: {
+        usd: historicalDataUSD,
+        brl: historicalDataBRL
+      }
+    };
+    
+    // Salvar dados para uso futuro
+    await saveAppData(appData);
+    
+    return appData;
+  } catch (error) {
+    console.error('Erro ao forçar atualização de todos os dados:', error);
+    
+    // Se tudo falhar, usar dados de fallback
+    return createFallbackAppData();
   }
 } 
