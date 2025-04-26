@@ -18,6 +18,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { useSearchParams } from "next/navigation"
+import { MobileNavigation } from "./mobile-navigation"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -246,7 +247,11 @@ export default function BitcoinConverter() {
       </Suspense>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
+          <div className="flex items-center gap-3">
+            {/* Menu de navegação para mobile */}
+            <MobileNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+            <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
+          </div>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
@@ -265,21 +270,19 @@ export default function BitcoinConverter() {
           onValueChange={setActiveTab} 
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
+          {/* TabsList visível apenas em telas maiores que mobile */}
+          <TabsList className="hidden sm:grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
             <TabsTrigger value="converter" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <ArrowRightLeft className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Conversor</span>
-              <span className="sm:hidden inline">C</span>
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <span>Conversor</span>
             </TabsTrigger>
             <TabsTrigger value="chart" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <TrendingUp className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Gráficos</span>
-              <span className="sm:hidden inline">G</span>
+              <TrendingUp className="mr-2 h-4 w-4" />
+              <span>Gráficos</span>
             </TabsTrigger>
             <TabsTrigger value="calculator" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <Calculator className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Calculadora</span>
-              <span className="sm:hidden inline">$</span>
+              <Calculator className="mr-2 h-4 w-4" />
+              <span>Calculadora</span>
             </TabsTrigger>
           </TabsList>
 

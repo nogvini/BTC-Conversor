@@ -545,9 +545,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       const typeCell = row.getCell(2);
       typeCell.alignment = { vertical: 'middle', horizontal: 'center' };
       
-      // Definir cores para lucro e perda
-      const isProfitRow = data[i-2].Tipo === 'Lucro';
-      const typeColor = isProfitRow ? 'FF10B981' : 'FFE11D48'; // Verde/Vermelho
+      // Usar sempre verde para o tipo (sempre lucro)
+      const typeColor = 'FF10B981'; // Verde
       const typeTextColor = 'FFFFFFFF'; // Texto branco
       
       // Aplicar estilo à célula de tipo
@@ -561,16 +560,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Aplicar formatação aos valores numéricos
       const valueCell = row.getCell(3); // Valor Cripto
       valueCell.alignment = { vertical: 'middle', horizontal: 'right' };
-      valueCell.font = { color: { argb: isProfitRow ? 'FF10B981' : 'FFE11D48' } };
+      valueCell.font = { color: { argb: 'FF10B981' } }; // Sempre verde
       
       // Formatar as células de valores monetários
       for (let col = 4; col <= 6; col++) {
         const cell = row.getCell(col);
         cell.alignment = { vertical: 'middle', horizontal: 'right' };
-        // Destacar valores negativos em vermelho, positivos em verde
-        const value = parseFloat(cell.value as string);
         cell.font = { 
-          color: { argb: value >= 0 ? 'FF10B981' : 'FFE11D48' },
+          color: { argb: 'FF10B981' }, // Sempre verde (lucros)
           bold: col === 4 // Destacar valor em BTC
         };
       }
@@ -593,20 +590,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       };
     }
     
-    // Calcular saldo total
+    // Calcular saldo total (agora sempre somando, pois são apenas lucros)
     const totalBTC = data.reduce((sum, item) => {
       const btcValue = parseFloat(item.ValorBTC);
-      return item.Tipo === 'Lucro' ? sum + btcValue : sum - btcValue;
+      return sum + btcValue;
     }, 0);
     
     const totalUSD = data.reduce((sum, item) => {
       const usdValue = parseFloat(item.ValorUSD);
-      return item.Tipo === 'Lucro' ? sum + usdValue : sum - usdValue;
+      return sum + usdValue;
     }, 0);
     
     const totalBRL = data.reduce((sum, item) => {
       const brlValue = parseFloat(item.ValorBRL);
-      return item.Tipo === 'Lucro' ? sum + brlValue : sum - brlValue;
+      return sum + brlValue;
     }, 0);
     
     // Adicionar linha com totais
@@ -627,8 +624,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       color: { argb: 'FFFFFFFF' }
     };
     
-    // Colorir a linha de total de acordo com o saldo (positivo/negativo)
-    const totalColor = totalBTC >= 0 ? 'FF10B981' : 'FFE11D48';
+    // Colorir a linha de total com verde (pois são lucros)
     totalRow.fill = {
       type: 'pattern',
       pattern: 'solid',
@@ -649,7 +645,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       cell.font = { 
         bold: true, 
         size: 12,
-        color: { argb: totalBTC >= 0 ? 'FFFFFFFF' : 'FFFFFFFF' } 
+        color: { argb: 'FFFFFFFF' } 
       };
       // Adicionar borda inferior mais grossa
       cell.border = {
@@ -663,7 +659,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       `Relatório gerado em: ${new Date().toLocaleString()}`,
       '',
       '',
-      totalBTC >= 0 ? 'LUCRO TOTAL' : 'PREJUÍZO TOTAL',
+      'LUCRO TOTAL',
       '',
       ''
     ]);
@@ -678,17 +674,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     infoDateCell.font = { italic: true, color: { argb: 'FFBBBBBB' } };
     infoDateCell.alignment = { horizontal: 'left' };
     
-    // Estilo para a célula de status (lucro/prejuízo)
+    // Estilo para a célula de status (lucro)
     const infoStatusCell = infoRow.getCell(4);
     infoStatusCell.font = { 
       bold: true, 
       size: 12,
-      color: { argb: totalBTC >= 0 ? 'FF10B981' : 'FFE11D48' } 
+      color: { argb: 'FF10B981' } // Sempre verde (lucro)
     };
     infoStatusCell.alignment = { horizontal: 'right' };
-    
-    // Adicionar imagem ou logotipo do Bitcoin (opcional)
-    // Esta parte pode ser implementada se tiver uma imagem disponível
     
     // Congelar o cabeçalho para facilitar a visualização
     worksheet.views = [
@@ -715,7 +708,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Exportação de todos os tempos
       dataToExport = profits.map(profit => ({
         Data: new Date(profit.date).toLocaleDateString(),
-        Tipo: profit.isProfit ? 'Lucro' : 'Perda',
+        Tipo: 'Lucro', // Sempre usar "Lucro" em vez de "Perda"
         Valor: formatCryptoAmount(profit.amount, profit.unit),
         ValorBTC: convertToBtc(profit.amount, profit.unit).toFixed(8),
         ValorUSD: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd).toFixed(2),
@@ -737,7 +730,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       dataToExport = monthProfits.map(profit => ({
         Data: new Date(profit.date).toLocaleDateString(),
-        Tipo: profit.isProfit ? 'Lucro' : 'Perda',
+        Tipo: 'Lucro', // Sempre usar "Lucro" em vez de "Perda"
         Valor: formatCryptoAmount(profit.amount, profit.unit),
         ValorBTC: convertToBtc(profit.amount, profit.unit).toFixed(8),
         ValorUSD: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd).toFixed(2),
@@ -753,16 +746,27 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     const sheetTitle = allTime ? 'Relatório Bitcoin - Histórico Completo' : 
                                `Relatório Bitcoin - ${format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}`;
     
-    // Exportar dados
-    exportToExcel(dataToExport, filename, sheetTitle);
-
-    toast({
-      title: "Exportação concluída",
-      description: allTime ? 
-        "O relatório histórico completo foi exportado com sucesso." : 
-        `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado com sucesso.`,
-      variant: "success"
-    });
+    try {
+      // Exportar dados
+      exportToExcel(dataToExport, filename, sheetTitle);
+      
+      // Notificação de sucesso usando o toast
+      toast({
+        title: "Exportação concluída",
+        description: allTime ? 
+          "O relatório histórico completo foi exportado com sucesso." : 
+          `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado com sucesso.`,
+        variant: "success"
+      });
+    } catch (error) {
+      // Notificação de erro usando o toast
+      toast({
+        title: "Erro na exportação",
+        description: "Não foi possível exportar o relatório. Tente novamente.",
+        variant: "destructive"
+      });
+      console.error("Erro ao exportar dados:", error);
+    }
   }
 
   return (
@@ -1298,7 +1302,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
             <Card className="panel border-purple-700/50 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg">Lucros/Perdas do Mês</CardTitle>
+                <CardTitle className="text-lg">Lucros do Mês</CardTitle>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -1324,26 +1328,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardHeader>
               <CardContent>
                 {monthProfits.length > 0 ? (
-                  <ScrollArea className="h-[220px]">
+                  <ScrollArea className="h-[300px]">
                     <Table>
-                      <TableHeader className="bg-black/40 sticky top-0">
-                        <TableRow>
-                          <TableHead className="w-1/4">Data</TableHead>
-                          <TableHead className="w-1/4">Tipo</TableHead>
-                          <TableHead className="w-1/3">Valor</TableHead>
-                          <TableHead className="w-1/6 text-right">Ações</TableHead>
+                      <TableHeader>
+                        <TableRow className="bg-black/40 hover:bg-black/40">
+                          <TableHead className="w-[120px]">Data</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {monthProfits.map((profit) => (
                           <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
-                            <TableCell className="py-2">{format(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
-                            <TableCell className={profit.isProfit ? "text-green-500 py-2" : "text-red-500 py-2"}>
-                              {profit.isProfit ? "Lucro" : "Perda"}
+                            <TableCell className="font-medium py-2">{new Date(profit.date).toLocaleDateString()}</TableCell>
+                            <TableCell className="py-2">
+                              <span className="bg-green-600/20 text-green-500 px-2 py-0.5 rounded-full text-xs font-medium">
+                                Lucro
+                              </span>
                             </TableCell>
-                            <TableCell className={profit.isProfit ? "text-green-500 py-2" : "text-red-500 py-2"}>
-                              {profit.isProfit ? "+" : "-"} {formatCryptoAmount(profit.amount, profit.unit)}
-                            </TableCell>
+                            <TableCell className="py-2">{formatCryptoAmount(profit.amount, profit.unit)}</TableCell>
                             <TableCell className="text-right py-2">
                               <Button
                                 variant="ghost"
@@ -1360,7 +1364,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </Table>
                   </ScrollArea>
                 ) : (
-                  <div className="text-center py-4 text-gray-400">Nenhum lucro/perda registrado neste mês</div>
+                  <div className="text-center py-4 text-gray-400">Nenhum lucro registrado neste mês</div>
                 )}
               </CardContent>
             </Card>
