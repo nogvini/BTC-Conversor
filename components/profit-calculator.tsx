@@ -34,9 +34,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import AnimatedCounter from "./animated-counter"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getCurrentBitcoinPrice } from "@/lib/api"
+import { getCurrentBitcoinPrice } from "@/lib/client-api"
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { useIsMobile } from "@/hooks/use-mobile"
+import { ResponsiveContainer } from "@/components/ui/responsive-container"
 
 type CurrencyUnit = "BTC" | "SATS"
 type CurrencyType = "BTC" | "SATS" | "USD" | "BRL"
@@ -93,6 +95,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS")
   const [profitDate, setProfitDate] = useState<Date>(new Date())
   const [isProfit, setIsProfit] = useState<boolean>(true)
+
+  const isMobile = useIsMobile()
 
   // Atualizar as taxas de conversão quando as props mudarem
   useEffect(() => {
@@ -460,117 +464,232 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setDisplayCurrency(displayCurrency === "USD" ? "BRL" : "USD")
   }
 
-  // Substituir a função exportToCSV por esta implementação com ExcelJS
-  const exportToExcel = async (data: any[], filename: string) => {
+  // Função melhorada para exportação Excel com melhor visualização
+  const exportToExcel = async (data: any[], filename: string, sheetTitle: string) => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Lucros Bitcoin');
     
-    // Definir colunas com estilos
-    const columns = Object.keys(data[0]).map(key => ({
-      header: key,
-      key: key,
-      width: 20
-    }));
+    // Adicionar informações ao arquivo
+    workbook.creator = 'BTC Conversor';
+    workbook.lastModifiedBy = 'BTC Conversor';
+    workbook.created = new Date();
+    workbook.modified = new Date();
     
-    worksheet.columns = columns;
+    // Criar uma planilha com nome mais amigável
+    const worksheet = workbook.addWorksheet(sheetTitle, {
+      properties: { tabColor: { argb: 'FF9955FF' } }
+    });
     
-    // Adicionar cabeçalho com formatação
+    // Definir colunas com larguras otimizadas
+    worksheet.columns = [
+      { header: 'Data', key: 'Data', width: 15, style: { numFmt: 'dd/mm/yyyy' } },
+      { header: 'Tipo', key: 'Tipo', width: 12 },
+      { header: 'Valor Cripto', key: 'Valor', width: 20 },
+      { header: 'BTC', key: 'ValorBTC', width: 18, style: { numFmt: '0.00000000' } },
+      { header: 'USD', key: 'ValorUSD', width: 15, style: { numFmt: '"$"#,##0.00' } },
+      { header: 'BRL', key: 'ValorBRL', width: 15, style: { numFmt: '"R$"#,##0.00' } }
+    ];
+    
+    // Melhorar o estilo do cabeçalho
     const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.height = 28; // Altura aumentada
+    headerRow.font = { 
+      bold: true, 
+      color: { argb: 'FFFFFFFF' },
+      size: 12
+    };
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF6B46C1' } // Cor púrpura
+      fgColor: { argb: 'FF7030A0' } // Roxo mais vibrante
     };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    
+    // Melhorar alinhamento e estilo do cabeçalho
+    headerRow.eachCell((cell) => {
+      cell.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center',
+        wrapText: true
+      };
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FFFFFFFF' } },
+        left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+        bottom: { style: 'medium', color: { argb: 'FFFFFFFF' } },
+        right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
+      };
+    });
     
     // Adicionar linhas de dados
     data.forEach(item => {
       worksheet.addRow(item);
     });
     
-    // Estilizar tabela
+    // Melhorar visualização de cada linha de dados
     for (let i = 2; i <= data.length + 1; i++) {
       const row = worksheet.getRow(i);
+      row.height = 22; // Altura consistente
       
-      // Verificar se é uma linha de lucro ou perda para colorir adequadamente
-      if (data[i-2].Tipo === 'Lucro') {
-        row.getCell('Tipo').font = { color: { argb: 'FF10B981' } }; // Verde
-        row.getCell('Valor').font = { color: { argb: 'FF10B981' } };
-      } else {
-        row.getCell('Tipo').font = { color: { argb: 'FFE11D48' } }; // Vermelho
-        row.getCell('Valor').font = { color: { argb: 'FFE11D48' } };
+      // Aplicar estilos específicos aos valores
+      // Célula de Data (coluna A)
+      const dateCell = row.getCell(1);
+      dateCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      
+      // Célula de Tipo (coluna B)
+      const typeCell = row.getCell(2);
+      typeCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      
+      // Definir cores para lucro e perda
+      const isProfitRow = data[i-2].Tipo === 'Lucro';
+      const typeColor = isProfitRow ? 'FF10B981' : 'FFE11D48'; // Verde/Vermelho
+      const typeTextColor = 'FFFFFFFF'; // Texto branco
+      
+      // Aplicar estilo à célula de tipo
+      typeCell.font = { bold: true, color: { argb: typeTextColor } };
+      typeCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: typeColor }
+      };
+      
+      // Aplicar formatação aos valores numéricos
+      const valueCell = row.getCell(3); // Valor Cripto
+      valueCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      valueCell.font = { color: { argb: isProfitRow ? 'FF10B981' : 'FFE11D48' } };
+      
+      // Formatar as células de valores monetários
+      for (let col = 4; col <= 6; col++) {
+        const cell = row.getCell(col);
+        cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        // Destacar valores negativos em vermelho, positivos em verde
+        const value = parseFloat(cell.value as string);
+        cell.font = { 
+          color: { argb: value >= 0 ? 'FF10B981' : 'FFE11D48' },
+          bold: col === 4 // Destacar valor em BTC
+        };
       }
       
-      // Aplicar bordas e alinhamento
+      // Aplicar bordas e estilo de fundo para zebrar
       row.eachCell(cell => {
         cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
+          top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+          left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+          bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+          right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
         };
-        cell.alignment = { vertical: 'middle' };
       });
       
-      // Zebrar linhas
-      if (i % 2 === 0) {
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF1F2937' } // Cinza escuro
-        };
-      } else {
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF111827' } // Cinza mais escuro
-        };
-      }
+      // Cores de fundo alternadas (zebrado)
+      row.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: i % 2 === 0 ? 'FF1F2937' : 'FF111827' } // Alternância de tons
+      };
     }
     
-    // Adicionar rodapé com totais
+    // Calcular saldo total
+    const totalBTC = data.reduce((sum, item) => {
+      const btcValue = parseFloat(item.ValorBTC);
+      return item.Tipo === 'Lucro' ? sum + btcValue : sum - btcValue;
+    }, 0);
+    
+    const totalUSD = data.reduce((sum, item) => {
+      const usdValue = parseFloat(item.ValorUSD);
+      return item.Tipo === 'Lucro' ? sum + usdValue : sum - usdValue;
+    }, 0);
+    
+    const totalBRL = data.reduce((sum, item) => {
+      const brlValue = parseFloat(item.ValorBRL);
+      return item.Tipo === 'Lucro' ? sum + brlValue : sum - brlValue;
+    }, 0);
+    
+    // Adicionar linha com totais
     const totalRow = worksheet.addRow({
       Data: 'TOTAL',
       Tipo: '',
       Valor: '',
-      ValorBTC: data.reduce((sum, item) => {
-        const btcValue = parseFloat(item.ValorBTC);
-        if (item.Tipo === 'Lucro') {
-          return sum + btcValue;
-        } else {
-          return sum - btcValue;
-        }
-      }, 0).toFixed(8),
-      ValorUSD: data.reduce((sum, item) => {
-        const usdValue = parseFloat(item.ValorUSD);
-        if (item.Tipo === 'Lucro') {
-          return sum + usdValue;
-        } else {
-          return sum - usdValue;
-        }
-      }, 0).toFixed(2),
-      ValorBRL: data.reduce((sum, item) => {
-        const brlValue = parseFloat(item.ValorBRL);
-        if (item.Tipo === 'Lucro') {
-          return sum + brlValue;
-        } else {
-          return sum - brlValue;
-        }
-      }, 0).toFixed(2)
+      ValorBTC: totalBTC.toFixed(8),
+      ValorUSD: totalUSD.toFixed(2),
+      ValorBRL: totalBRL.toFixed(2)
     });
     
     // Estilizar linha de total
-    totalRow.font = { bold: true };
+    totalRow.height = 28;
+    totalRow.font = { 
+      bold: true, 
+      size: 12,
+      color: { argb: 'FFFFFFFF' }
+    };
+    
+    // Colorir a linha de total de acordo com o saldo (positivo/negativo)
+    const totalColor = totalBTC >= 0 ? 'FF10B981' : 'FFE11D48';
     totalRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF4C1D95' } // Púrpura escuro
+      fgColor: { argb: 'FF4C1D95' } // Púrpura destacado
     };
     
     // Mesclar células para o rótulo "TOTAL"
     worksheet.mergeCells(`A${data.length + 2}:C${data.length + 2}`);
-    totalRow.getCell('Data').alignment = { horizontal: 'center' };
+    totalRow.getCell('Data').alignment = { 
+      horizontal: 'center', 
+      vertical: 'middle'
+    };
+    
+    // Ajustar o alinhamento das células de valor na linha de total
+    for (let col = 4; col <= 6; col++) {
+      const cell = totalRow.getCell(col);
+      cell.alignment = { vertical: 'middle', horizontal: 'right' };
+      cell.font = { 
+        bold: true, 
+        size: 12,
+        color: { argb: totalBTC >= 0 ? 'FFFFFFFF' : 'FFFFFFFF' } 
+      };
+      // Adicionar borda inferior mais grossa
+      cell.border = {
+        bottom: { style: 'medium', color: { argb: 'FFFFFFFF' } },
+        top: { style: 'medium', color: { argb: 'FFFFFFFF' } }
+      };
+    }
+    
+    // Adicionar uma linha para informações resumidas
+    const infoRow = worksheet.addRow([
+      `Relatório gerado em: ${new Date().toLocaleString()}`,
+      '',
+      '',
+      totalBTC >= 0 ? 'LUCRO TOTAL' : 'PREJUÍZO TOTAL',
+      '',
+      ''
+    ]);
+    
+    // Estilizar linha de informações
+    worksheet.mergeCells(`A${data.length + 3}:C${data.length + 3}`);
+    worksheet.mergeCells(`D${data.length + 3}:F${data.length + 3}`);
+    infoRow.height = 24;
+    
+    // Estilo para a primeira célula (data de geração)
+    const infoDateCell = infoRow.getCell(1);
+    infoDateCell.font = { italic: true, color: { argb: 'FFBBBBBB' } };
+    infoDateCell.alignment = { horizontal: 'left' };
+    
+    // Estilo para a célula de status (lucro/prejuízo)
+    const infoStatusCell = infoRow.getCell(4);
+    infoStatusCell.font = { 
+      bold: true, 
+      size: 12,
+      color: { argb: totalBTC >= 0 ? 'FF10B981' : 'FFE11D48' } 
+    };
+    infoStatusCell.alignment = { horizontal: 'right' };
+    
+    // Adicionar imagem ou logotipo do Bitcoin (opcional)
+    // Esta parte pode ser implementada se tiver uma imagem disponível
+    
+    // Congelar o cabeçalho para facilitar a visualização
+    worksheet.views = [
+      { state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2', activeCell: 'A2' }
+    ];
+    
+    // Ajustes finais no formato da planilha
+    worksheet.properties.defaultRowHeight = 20;
+    worksheet.properties.outlineLevelRow = 1;
     
     // Gerar arquivo Excel
     const buffer = await workbook.xlsx.writeBuffer();
@@ -579,23 +698,61 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Substituir a função exportProfitData para usar a nova exportação Excel
-  const exportProfitData = () => {
+  const exportProfitData = (allTime: boolean = false) => {
     // Preparar dados em formato adequado para exportação
-    const dataToExport = profits.map(profit => ({
-      Data: new Date(profit.date).toLocaleDateString(),
-      Tipo: profit.isProfit ? 'Lucro' : 'Perda',
-      Valor: formatCryptoAmount(profit.amount, profit.unit),
-      ValorBTC: convertToBtc(profit.amount, profit.unit).toFixed(8),
-      ValorUSD: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd).toFixed(2),
-      ValorBRL: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2)
-    }));
+    let dataToExport;
+    let filename;
+    
+    if (allTime) {
+      // Exportação de todos os tempos
+      dataToExport = profits.map(profit => ({
+        Data: new Date(profit.date).toLocaleDateString(),
+        Tipo: profit.isProfit ? 'Lucro' : 'Perda',
+        Valor: formatCryptoAmount(profit.amount, profit.unit),
+        ValorBTC: convertToBtc(profit.amount, profit.unit).toFixed(8),
+        ValorUSD: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd).toFixed(2),
+        ValorBRL: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2)
+      }));
+      
+      // Nome do arquivo com "histórico-completo"
+      filename = `relatório-btc-histórico-completo-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    } else {
+      // Exportação do mês atual
+      const monthStart = startOfMonth(selectedMonth);
+      const monthEnd = endOfMonth(selectedMonth);
+      
+      // Filtrar apenas lucros do mês selecionado
+      const monthProfits = profits.filter(profit => {
+        const profitDate = new Date(profit.date);
+        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+      });
+      
+      dataToExport = monthProfits.map(profit => ({
+        Data: new Date(profit.date).toLocaleDateString(),
+        Tipo: profit.isProfit ? 'Lucro' : 'Perda',
+        Valor: formatCryptoAmount(profit.amount, profit.unit),
+        ValorBTC: convertToBtc(profit.amount, profit.unit).toFixed(8),
+        ValorUSD: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd).toFixed(2),
+        ValorBRL: (convertToBtc(profit.amount, profit.unit) * currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2)
+      }));
+      
+      // Nome do arquivo incluindo o mês e ano
+      const monthName = format(selectedMonth, 'MMMM-yyyy', { locale: ptBR });
+      filename = `relatório-btc-${monthName}.xlsx`;
+    }
 
+    // Título da planilha incluindo o período
+    const sheetTitle = allTime ? 'Relatório Bitcoin - Histórico Completo' : 
+                               `Relatório Bitcoin - ${format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}`;
+    
     // Exportar dados
-    exportToExcel(dataToExport, `lucros-bitcoin-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    exportToExcel(dataToExport, filename, sheetTitle);
 
     toast({
       title: "Exportação concluída",
-      description: "Os dados foram exportados com sucesso para Excel.",
+      description: allTime ? 
+        "O relatório histórico completo foi exportado com sucesso." : 
+        `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado com sucesso.`,
       variant: "success"
     });
   }
@@ -704,9 +861,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={addInvestment} className="w-full bg-purple-700 hover:bg-purple-600">
-                  <Coins className="mr-2 h-4 w-4" />
-                  Registrar Aporte
+                <Button 
+                  onClick={addInvestment} 
+                  disabled={!investmentAmount || loading} 
+                  size={isMobile ? "sm" : "default"}
+                  responsive
+                  className="mt-2"
+                >
+                  <Plus size={16} />
+                  Adicionar Investimento
                 </Button>
               </CardFooter>
             </Card>
@@ -802,12 +965,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
               </CardContent>
               <CardFooter>
-                <Button
-                  onClick={addProfitRecord}
-                  className={`w-full ${isProfit ? "bg-green-700 hover:bg-green-600" : "bg-red-700 hover:bg-red-600"}`}
+                <Button 
+                  onClick={addProfitRecord} 
+                  disabled={!profitAmount || loading}
+                  variant={isProfit ? "default" : "destructive"}
+                  size={isMobile ? "sm" : "default"}
+                  responsive
+                  className="mt-2"
                 >
-                  {isProfit ? <ArrowUpRight className="mr-2 h-4 w-4" /> : <ArrowDownRight className="mr-2 h-4 w-4" />}
-                  Registrar {isProfit ? "Lucro" : "Perda"}
+                  {isProfit ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                  Adicionar {isProfit ? "Lucro" : "Perda"}
                 </Button>
               </CardFooter>
             </Card>
@@ -821,22 +988,44 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <CardTitle className="text-lg">Relatório Mensal</CardTitle>
                 <div className="flex items-center space-x-2">
                   <Button
-                    variant="outline"
-                    size="icon"
                     onClick={goToPreviousMonth}
-                    className="h-8 w-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="font-medium">{format(selectedMonth, "MMMM yyyy", { locale: ptBR })}</span>
-                  <Button
                     variant="outline"
-                    size="icon"
-                    onClick={goToNextMonth}
-                    disabled={!canGoNext}
-                    className="h-8 w-8 bg-gray-900 border-purple-700 hover:bg-gray-800 disabled:opacity-50"
+                    size={isMobile ? "icon-sm" : "icon"}
+                    aria-label="Mês anterior"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronLeft />
+                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size={isMobile ? "sm" : "default"}
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !selectedMonth && "text-muted-foreground"
+                        )}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedMonth}
+                        onSelect={(date) => date && setSelectedMonth(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button
+                    onClick={goToNextMonth}
+                    variant="outline"
+                    size={isMobile ? "icon-sm" : "icon"}
+                    aria-label="Próximo mês"
+                    disabled={isCurrentMonth(selectedMonth)}
+                  >
+                    <ChevronRight />
                   </Button>
                 </div>
               </div>
@@ -854,24 +1043,54 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     Atualizar Taxas
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
                     onClick={toggleDisplayCurrency}
-                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    variant="secondary"
+                    size={isMobile ? "sm" : "default"}
                   >
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    {displayCurrency === "USD" ? "USD" : "BRL"}
+                    {displayCurrency === "USD" ? (
+                      <>
+                        <span className="font-bold mr-1">R$</span> BRL
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="h-4 w-4 mr-1" /> USD
+                      </>
+                    )}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={exportProfitData}
-                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
-                    title="Exportar dados para Excel"
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    Exportar
-                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size={isMobile ? "sm" : "default"}
+                        className="sm:ml-auto"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Exportar Dados
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto bg-gray-900 border-purple-700">
+                      <div className="grid gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => exportProfitData()}
+                          className="w-full justify-start"
+                        >
+                          <FileText className="mr-2 h-4 w-4" />
+                          Exportar Mês Atual
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => exportProfitData(true)}
+                          className="w-full justify-start"
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Exportar Histórico Completo
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CardHeader>
@@ -1064,9 +1283,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             <TableCell className="text-right py-2">
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 onClick={() => deleteInvestment(investment.id)}
-                                className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-900/20"
+                                className="text-muted-foreground hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1085,16 +1304,28 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <Card className="bg-gray-800 border-purple-700 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-lg">Lucros/Perdas do Mês</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportProfitData}
-                  className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
-                  title="Exportar dados para Excel"
-                >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Exportar
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportProfitData()}
+                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    title="Exportar dados do mês atual para Excel"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Exportar Mês
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportProfitData(true)}
+                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    title="Exportar histórico completo para Excel"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Histórico Completo
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {monthProfits.length > 0 ? (
@@ -1121,9 +1352,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             <TableCell className="text-right py-2">
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 onClick={() => deleteProfit(profit.id)}
-                                className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-900/20"
+                                className="text-muted-foreground hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

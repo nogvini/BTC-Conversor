@@ -19,9 +19,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle } from "lucide-react"
-import { CardTitle } from "@/components/ui/card"
-import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/api"
+import { CardTitle, CardHeader, CardContent } from "@/components/ui/card"
+import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/client-api"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
@@ -44,6 +46,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [error, setError] = useState<string | null>(null)
   const [usingFallbackData, setUsingFallbackData] = useState<boolean>(false)
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
+  const isMobile = useIsMobile()
 
   // Modify the fetchHistoricalData function to better handle errors
   const fetchHistoricalData = useCallback(async () => {
@@ -288,309 +291,181 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:space-y-0 sm:space-x-4">
-        <div className="space-y-2">
-          <Label htmlFor="timeRange">Período</Label>
-          <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-            <SelectTrigger
-              id="timeRange"
-              className="bg-gray-800 border-purple-700 focus:border-purple-500 text-white w-full sm:w-32"
+    <Card className="w-full">
+      <CardHeader className="pb-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <CardTitle className="text-xl">
+            Histórico de Preços do Bitcoin
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size={isMobile ? "sm" : "default"}
+              disabled={loading}
             >
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-purple-700 text-white">
-              <SelectItem value="1d">1 Dia</SelectItem>
-              <SelectItem value="7d">1 Semana</SelectItem>
-              <SelectItem value="30d">1 Mês</SelectItem>
-              <SelectItem value="90d">3 Meses</SelectItem>
-              <SelectItem value="1y">1 Ano</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Moeda</Label>
-          <RadioGroup
-            value={currency}
-            onValueChange={(value) => setCurrency(value as CurrencyType)}
-            className="flex space-x-2"
-          >
-            <div className="flex items-center space-x-1 bg-gray-800 px-3 py-2 rounded-md border border-purple-700">
-              <RadioGroupItem value="USD" id="usd-chart" className="text-purple-500" />
-              <Label htmlFor="usd-chart" className="cursor-pointer">
-                USD
-              </Label>
-            </div>
-            <div className="flex items-center space-x-1 bg-gray-800 px-3 py-2 rounded-md border border-purple-700">
-              <RadioGroupItem value="BRL" id="brl-chart" className="text-purple-500" />
-              <Label htmlFor="brl-chart" className="cursor-pointer">
-                BRL
-              </Label>
-            </div>
-          </RadioGroup>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Tipo de Gráfico</Label>
-          <Select value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-            <SelectTrigger className="bg-gray-800 border-purple-700 focus:border-purple-500 text-white w-full sm:w-32">
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-purple-700 text-white">
-              <SelectItem value="line">Linha</SelectItem>
-              <SelectItem value="area">Área</SelectItem>
-              <SelectItem value="candlestick">Candles</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="w-full h-64">
-          <Skeleton className="h-full w-full bg-gray-800" />
-        </div>
-      ) : (
-        <>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="text-lg">Preço do Bitcoin</CardTitle>
-              <p className="text-sm text-gray-400">
-                Últimos {getTimeRangeLabel(timeRange)}
-                {usingFallbackData && " (Dados Simulados)"}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="text-right">
-                <p className="text-lg font-bold">
-                  {currency === "USD" ? "$" : "R$"}
-                  {formatCurrency(chartData[chartData.length - 1]?.price || 0)}
-                </p>
-                <p className={`text-sm ${isPriceUp ? "text-green-500" : "text-red-500"}`}>
-                  {isPriceUp ? "↑" : "↓"} {currency === "USD" ? "$" : "R$"}
-                  {formatCurrency(Math.abs(priceChange.change))} ({priceChange.percentage.toFixed(2)}%)
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/50"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+              <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+              {loading ? "Atualizando..." : "Atualizar"}
+            </Button>
+            <Select
+              value={timeRange}
+              onValueChange={(value) => setTimeRange(value as TimeRange)}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1d">1 Dia</SelectItem>
+                <SelectItem value="7d">1 Semana</SelectItem>
+                <SelectItem value="30d">1 Mês</SelectItem>
+                <SelectItem value="90d">3 Meses</SelectItem>
+                <SelectItem value="1y">1 Ano</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={currency}
+              onValueChange={(value) => setCurrency(value as CurrencyType)}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD</SelectItem>
+                <SelectItem value="BRL">BRL</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        </div>
+      </CardHeader>
 
-          {error && (
-            <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-200 px-3 py-2 rounded-md text-sm mb-2 flex items-center">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              {error}
-              <Button
-                variant="link"
-                size="sm"
-                onClick={handleRefresh}
-                className="text-yellow-200 hover:text-yellow-100 ml-2 p-0 h-auto"
-              >
-                Tentar novamente
-              </Button>
+      <CardContent className="p-0 sm:p-6">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-4 mb-4">
+          <Card className="border-l-4 border-l-purple-600">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Preço Atual</p>
+              <p className="text-2xl font-bold">
+                {chartData.length > 0
+                  ? formatCurrency(chartData[chartData.length - 1].price)
+                  : "Carregando..."}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className={`border-l-4 ${priceChange.percentage >= 0 ? "border-l-green-500" : "border-l-red-500"}`}>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Variação no Período</p>
+              <p className="text-2xl font-bold">
+                {priceChange.percentage >= 0 ? "+" : ""}
+                {priceChange.percentage.toFixed(2)}%
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Máxima no Período</p>
+              <p className="text-2xl font-bold">{formatCurrency(priceStats.max)}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-amber-500">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Mínima no Período</p>
+              <p className="text-2xl font-bold">{formatCurrency(priceStats.min)}</p>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <Tabs value={chartType} onValueChange={(v) => setChartType(v as ChartType)} className="mb-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-[240px]">
+            <TabsTrigger value="line">Linha</TabsTrigger>
+            <TabsTrigger value="area">Área</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="w-full h-[350px]">
+          {loading ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">Carregando dados históricos...</p>
+              </div>
             </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === "area" ? (
+                <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <defs>
+                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(date) => formatDateForTimeRange(new Date(date), timeRangeToDays(timeRange))}
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                  />
+                  <YAxis
+                    tickFormatter={(price) => formatCurrency(price, true)}
+                    domain={["auto", "auto"]}
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatCurrency(value), "Preço"]}
+                    labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="price"
+                    stroke="hsl(var(--chart-1))"
+                    fillOpacity={1}
+                    fill="url(#colorPrice)"
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                </AreaChart>
+              ) : (
+                <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(date) => formatDateForTimeRange(new Date(date), timeRangeToDays(timeRange))}
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                  />
+                  <YAxis
+                    tickFormatter={(price) => formatCurrency(price, true)}
+                    domain={["auto", "auto"]}
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatCurrency(value), "Preço"]}
+                    labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke="hsl(var(--chart-1))"
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
           )}
+        </div>
 
-          <Tabs defaultValue="chart" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-gray-800">
-              <TabsTrigger value="chart" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Gráfico
-              </TabsTrigger>
-              <TabsTrigger value="stats" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">
-                <Info className="h-4 w-4 mr-2" />
-                Estatísticas
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="chart" className="mt-4">
-              <div className="w-full h-64 bg-gray-800 rounded-md border border-purple-700 p-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  {chartType === "line" ? (
-                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                      <XAxis
-                        dataKey="formattedDate"
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                      />
-                      <YAxis
-                        domain={["auto", "auto"]}
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                        tickFormatter={(value) =>
-                          currency === "USD"
-                            ? `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                            : `R${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        }
-                      />
-                      <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), "Preço"]}
-                        labelFormatter={(label) => `Data: ${label}`}
-                        contentStyle={{ backgroundColor: "#333", borderColor: "#7e22ce", color: "white" }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="price"
-                        stroke="#a855f7"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 6, fill: "#a855f7", stroke: "#fff" }}
-                      />
-                    </LineChart>
-                  ) : chartType === "area" ? (
-                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                      <XAxis
-                        dataKey="formattedDate"
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                      />
-                      <YAxis
-                        domain={["auto", "auto"]}
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                        tickFormatter={(value) =>
-                          currency === "USD"
-                            ? `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                            : `R${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        }
-                      />
-                      <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), "Preço"]}
-                        labelFormatter={(label) => `Data: ${label}`}
-                        contentStyle={{ backgroundColor: "#333", borderColor: "#7e22ce", color: "white" }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="price"
-                        stroke="#a855f7"
-                        fill="url(#colorPrice)"
-                        strokeWidth={2}
-                        activeDot={{ r: 6, fill: "#a855f7", stroke: "#fff" }}
-                      />
-                      <defs>
-                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />
-                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0.1} />
-                        </linearGradient>
-                      </defs>
-                    </AreaChart>
-                  ) : (
-                    <LineChart data={candlestickData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                      />
-                      <YAxis
-                        domain={["auto", "auto"]}
-                        tick={{ fill: "#aaa", fontSize: 12 }}
-                        axisLine={{ stroke: "#555" }}
-                        tickLine={{ stroke: "#555" }}
-                        tickFormatter={(value) =>
-                          currency === "USD"
-                            ? `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                            : `R${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        }
-                      />
-                      <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), ""]}
-                        labelFormatter={(label) => `Data: ${label}`}
-                        contentStyle={{ backgroundColor: "#333", borderColor: "#7e22ce", color: "white" }}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="high" name="Máxima" stroke="#22c55e" dot={false} strokeWidth={2} />
-                      <Line type="monotone" dataKey="low" name="Mínima" stroke="#ef4444" dot={false} strokeWidth={2} />
-                      <Line
-                        type="monotone"
-                        dataKey="close"
-                        name="Fechamento"
-                        stroke="#a855f7"
-                        dot={true}
-                        strokeWidth={2}
-                        activeDot={{ r: 6, fill: "#a855f7", stroke: "#fff" }}
-                      />
-                    </LineChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="stats" className="mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Preço Atual</div>
-                  <div className="text-xl font-bold text-white">
-                    {currency === "USD" ? "$" : "R$"}
-                    {formatCurrency(chartData[chartData.length - 1]?.price || 0)}
-                  </div>
-                </div>
-
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Preço Máximo</div>
-                  <div className="text-xl font-bold text-green-500">
-                    {currency === "USD" ? "$" : "R$"}
-                    {formatCurrency(priceStats.max)}
-                  </div>
-                </div>
-
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Preço Mínimo</div>
-                  <div className="text-xl font-bold text-red-500">
-                    {currency === "USD" ? "$" : "R$"}
-                    {formatCurrency(priceStats.min)}
-                  </div>
-                </div>
-
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Preço Médio</div>
-                  <div className="text-xl font-bold text-blue-400">
-                    {currency === "USD" ? "$" : "R$"}
-                    {formatCurrency(priceStats.avg)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Variação no Período</div>
-                  <div className={`text-xl font-bold ${isPriceUp ? "text-green-500" : "text-red-500"}`}>
-                    {isPriceUp ? (
-                      <TrendingUp className="inline h-5 w-5 mr-1" />
-                    ) : (
-                      <TrendingDown className="inline h-5 w-5 mr-1" />
-                    )}
-                    {priceChange.percentage.toFixed(2)}%
-                    <span className="text-sm ml-1">
-                      ({currency === "USD" ? "$" : "R$"}
-                      {formatCurrency(Math.abs(priceChange.change))})
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-gray-800 p-4 rounded-md border border-purple-700">
-                  <div className="text-sm text-gray-400">Volatilidade Anualizada</div>
-                  <div className="text-xl font-bold text-purple-400">{volatility.toFixed(2)}%</div>
-                  <div className="text-xs text-gray-400 mt-1">Baseada no desvio padrão dos retornos diários</div>
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
+        {error && (
+          <div className="bg-yellow-500/10 text-yellow-500 rounded-lg p-3 mt-4 flex items-start">
+            <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

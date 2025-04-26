@@ -1,12 +1,11 @@
 import BitcoinConverter from "@/components/bitcoin-converter"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function Home() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-      <main className="min-h-screen bg-background p-4 py-8">
-        <BitcoinConverter />
-      </main>
-    </ThemeProvider>
+    <main className="min-h-screen bg-background p-4 py-8 md:py-12">
+      <BitcoinConverter />
+      <Toaster />
+    </main>
   )
 }
