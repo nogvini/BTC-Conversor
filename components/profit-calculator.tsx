@@ -473,231 +473,244 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   }
 
   // Função melhorada para exportação Excel com melhor visualização
-  const exportToExcel = async (data: any[], filename: string, sheetTitle: string) => {
+  const exportToExcel = async (data: any[], filename: string, sheetTitle: string, investmentInfo?: {
+    totalInvestedBTC: number;
+    totalInvestedUSD: number;
+    totalInvestedBRL: number;
+  }) => {
+    // Criar novo workbook
     const workbook = new ExcelJS.Workbook();
-    
-    // Adicionar informações ao arquivo
-    workbook.creator = 'BTC Conversor';
-    workbook.lastModifiedBy = 'BTC Conversor';
+    workbook.creator = 'BTC Tracker';
+    workbook.lastModifiedBy = 'BTC Tracker';
     workbook.created = new Date();
     workbook.modified = new Date();
     
-    // Criar uma planilha com nome mais amigável
-    const worksheet = workbook.addWorksheet(sheetTitle, {
-      properties: { tabColor: { argb: 'FF9955FF' } }
+    // Adicionar uma planilha
+    const worksheet = workbook.addWorksheet('Relatório', {
+      properties: { tabColor: { argb: '6b21a8' } }, // Cor roxa
     });
     
-    // Definir colunas com larguras otimizadas
-    worksheet.columns = [
-      { header: 'Data', key: 'Data', width: 15, style: { numFmt: 'dd/mm/yyyy' } },
-      { header: 'Tipo', key: 'Tipo', width: 12 },
-      { header: 'Valor Cripto', key: 'Valor', width: 20 },
-      { header: 'BTC', key: 'ValorBTC', width: 18, style: { numFmt: '0.00000000' } },
-      { header: 'USD', key: 'ValorUSD', width: 15, style: { numFmt: '"$"#,##0.00' } },
-      { header: 'BRL', key: 'ValorBRL', width: 15, style: { numFmt: '"R$"#,##0.00' } }
-    ];
-    
-    // Melhorar o estilo do cabeçalho
-    const headerRow = worksheet.getRow(1);
-    headerRow.height = 28; // Altura aumentada
-    headerRow.font = { 
-      bold: true, 
-      color: { argb: 'FFFFFFFF' },
-      size: 12
-    };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF7030A0' } // Roxo mais vibrante
-    };
-    
-    // Melhorar alinhamento e estilo do cabeçalho
-    headerRow.eachCell((cell) => {
-      cell.alignment = { 
-        vertical: 'middle', 
-        horizontal: 'center',
-        wrapText: true
-      };
-      cell.border = {
-        top: { style: 'medium', color: { argb: 'FFFFFFFF' } },
-        left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        bottom: { style: 'medium', color: { argb: 'FFFFFFFF' } },
-        right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
-      };
-    });
-    
-    // Adicionar linhas de dados
-    data.forEach(item => {
-      worksheet.addRow(item);
-    });
-    
-    // Melhorar visualização de cada linha de dados
-    for (let i = 2; i <= data.length + 1; i++) {
-      const row = worksheet.getRow(i);
-      row.height = 22; // Altura consistente
-      
-      // Aplicar estilos específicos aos valores
-      // Célula de Data (coluna A)
-      const dateCell = row.getCell(1);
-      dateCell.alignment = { vertical: 'middle', horizontal: 'center' };
-      
-      // Célula de Tipo (coluna B)
-      const typeCell = row.getCell(2);
-      typeCell.alignment = { vertical: 'middle', horizontal: 'center' };
-      
-      // Definir cores para lucro e perda
-      const isProfitRow = data[i-2].Tipo === 'Lucro';
-      const typeColor = isProfitRow ? 'FF10B981' : 'FFE11D48'; // Verde/Vermelho
-      const typeTextColor = 'FFFFFFFF'; // Texto branco
-      
-      // Aplicar estilo à célula de tipo
-      typeCell.font = { bold: true, color: { argb: typeTextColor } };
-      typeCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: typeColor }
-      };
-      
-      // Aplicar formatação aos valores numéricos
-      const valueCell = row.getCell(3); // Valor Cripto
-      valueCell.alignment = { vertical: 'middle', horizontal: 'right' };
-      valueCell.font = { color: { argb: isProfitRow ? 'FF10B981' : 'FFE11D48' } };
-      
-      // Formatar as células de valores monetários
-      for (let col = 4; col <= 6; col++) {
-        const cell = row.getCell(col);
-        cell.alignment = { vertical: 'middle', horizontal: 'right' };
-        // Destacar valores negativos em vermelho, positivos em verde
-        const value = parseFloat(cell.value as string);
-        cell.font = { 
-          color: { argb: value >= 0 ? 'FF10B981' : 'FFE11D48' },
-          bold: col === 4 // Destacar valor em BTC
-        };
-      }
-      
-      // Aplicar bordas e estilo de fundo para zebrar
-      row.eachCell(cell => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-          left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-          bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-          right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
-        };
-      });
-      
-      // Cores de fundo alternadas (zebrado)
-      row.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: i % 2 === 0 ? 'FF1F2937' : 'FF111827' } // Alternância de tons
-      };
-    }
-    
-    // Calcular saldo total
-    const totalBTC = data.reduce((sum, item) => {
-      const btcValue = parseFloat(item.ValorBTC);
-      return item.Tipo === 'Lucro' ? sum + btcValue : sum - btcValue;
-    }, 0);
-    
-    const totalUSD = data.reduce((sum, item) => {
-      const usdValue = parseFloat(item.ValorUSD);
-      return item.Tipo === 'Lucro' ? sum + usdValue : sum - usdValue;
-    }, 0);
-    
-    const totalBRL = data.reduce((sum, item) => {
-      const brlValue = parseFloat(item.ValorBRL);
-      return item.Tipo === 'Lucro' ? sum + brlValue : sum - brlValue;
-    }, 0);
-    
-    // Adicionar linha com totais
-    const totalRow = worksheet.addRow({
-      Data: 'TOTAL',
-      Tipo: '',
-      Valor: '',
-      ValorBTC: totalBTC.toFixed(8),
-      ValorUSD: totalUSD.toFixed(2),
-      ValorBRL: totalBRL.toFixed(2)
-    });
-    
-    // Estilizar linha de total
-    totalRow.height = 28;
-    totalRow.font = { 
-      bold: true, 
-      size: 12,
+    // Definir título da planilha
+    worksheet.mergeCells('A1:F1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = sheetTitle;
+    titleCell.font = {
+      bold: true,
+      size: 16,
       color: { argb: 'FFFFFFFF' }
     };
-    
-    // Colorir a linha de total de acordo com o saldo (positivo/negativo)
-    const totalColor = totalBTC >= 0 ? 'FF10B981' : 'FFE11D48';
-    totalRow.fill = {
+    titleCell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF4C1D95' } // Púrpura destacado
+      fgColor: { argb: '6b21a8' }
     };
-    
-    // Mesclar células para o rótulo "TOTAL"
-    worksheet.mergeCells(`A${data.length + 2}:C${data.length + 2}`);
-    totalRow.getCell('Data').alignment = { 
-      horizontal: 'center', 
-      vertical: 'middle'
+    titleCell.alignment = {
+      horizontal: 'center'
     };
+    worksheet.getRow(1).height = 30;
     
-    // Ajustar o alinhamento das células de valor na linha de total
-    for (let col = 4; col <= 6; col++) {
-      const cell = totalRow.getCell(col);
-      cell.alignment = { vertical: 'middle', horizontal: 'right' };
-      cell.font = { 
-        bold: true, 
-        size: 12,
-        color: { argb: totalBTC >= 0 ? 'FFFFFFFF' : 'FFFFFFFF' } 
-      };
-      // Adicionar borda inferior mais grossa
-      cell.border = {
-        bottom: { style: 'medium', color: { argb: 'FFFFFFFF' } },
-        top: { style: 'medium', color: { argb: 'FFFFFFFF' } }
-      };
-    }
+    // Adicionar linha em branco
+    worksheet.addRow([]);
     
-    // Adicionar uma linha para informações resumidas
-    const infoRow = worksheet.addRow([
-      `Relatório gerado em: ${new Date().toLocaleString()}`,
-      '',
-      '',
-      totalBTC >= 0 ? 'LUCRO TOTAL' : 'PREJUÍZO TOTAL',
-      '',
-      ''
+    // Definir cabeçalhos
+    const headerRow = worksheet.addRow(['Data', 'Tipo', 'Valor', 'Valor BTC', 'Valor USD', 'Valor BRL']);
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        bold: true,
+        color: { argb: 'FFFFFFFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4c1d95' }
+      };
+      cell.alignment = {
+        horizontal: 'center'
+      };
+    });
+    headerRow.height = 25;
+    
+    // Adicionar dados
+    let totalBTC = 0;
+    let totalUSD = 0;
+    let totalBRL = 0;
+    
+    data.forEach(item => {
+      // Converter strings para números para cálculos
+      const btcValue = parseFloat(item.ValorBTC);
+      const usdValue = parseFloat(item.ValorUSD);
+      const brlValue = parseFloat(item.ValorBRL);
+      
+      // Calcular totais
+      totalBTC += item.Tipo === 'Lucro' ? btcValue : -btcValue;
+      totalUSD += item.Tipo === 'Lucro' ? usdValue : -usdValue;
+      totalBRL += item.Tipo === 'Lucro' ? brlValue : -brlValue;
+      
+      // Adicionar linha de dados
+      const row = worksheet.addRow([
+        item.Data,
+        item.Tipo,
+        item.Valor,
+        item.ValorBTC,
+        `$${item.ValorUSD}`,
+        `R$${item.ValorBRL}`
+      ]);
+      
+      // Formatar células de lucro/perda
+      const isProfitRow = item.Tipo === 'Lucro';
+      const colorCode = isProfitRow ? 'FF10B981' : 'FFE11D48'; // Verde para lucro, vermelho para perda
+      
+      row.getCell(2).font = {
+        color: { argb: colorCode }
+      };
+      
+      // Alinhar colunas
+      row.getCell(1).alignment = { horizontal: 'center' };
+      row.getCell(2).alignment = { horizontal: 'center' };
+      row.getCell(3).alignment = { horizontal: 'right' };
+      row.getCell(4).alignment = { horizontal: 'right' };
+      row.getCell(5).alignment = { horizontal: 'right' };
+      row.getCell(6).alignment = { horizontal: 'right' };
+    });
+    
+    // Adicionar linha de totais
+    worksheet.addRow([]);
+    const totalRow = worksheet.addRow(['TOTAL', '', '', 
+      totalBTC.toFixed(8),
+      `$${totalUSD.toFixed(2)}`,
+      `R$${totalBRL.toFixed(2)}`
     ]);
     
-    // Estilizar linha de informações
-    worksheet.mergeCells(`A${data.length + 3}:C${data.length + 3}`);
-    worksheet.mergeCells(`D${data.length + 3}:F${data.length + 3}`);
-    infoRow.height = 24;
+    // Formatar células de totais
+    totalRow.font = { bold: true };
+    totalRow.height = 22;
     
-    // Estilo para a primeira célula (data de geração)
-    const infoDateCell = infoRow.getCell(1);
-    infoDateCell.font = { italic: true, color: { argb: 'FFBBBBBB' } };
-    infoDateCell.alignment = { horizontal: 'left' };
-    
-    // Estilo para a célula de status (lucro/prejuízo)
-    const infoStatusCell = infoRow.getCell(4);
-    infoStatusCell.font = { 
-      bold: true, 
-      size: 12,
-      color: { argb: totalBTC >= 0 ? 'FF10B981' : 'FFE11D48' } 
+    // Cor dos totais baseada em lucro/perda
+    const totalColorCode = totalBTC >= 0 ? 'FF10B981' : 'FFE11D48';
+    totalRow.getCell(1).font = {
+      bold: true,
+      color: { argb: 'FFFFFFFF' }
     };
-    infoStatusCell.alignment = { horizontal: 'right' };
+    totalRow.getCell(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4c1d95' }
+    };
     
-    // Adicionar imagem ou logotipo do Bitcoin (opcional)
-    // Esta parte pode ser implementada se tiver uma imagem disponível
+    totalRow.getCell(4).font = {
+      bold: true,
+      color: { argb: totalColorCode }
+    };
+    totalRow.getCell(5).font = {
+      bold: true,
+      color: { argb: totalColorCode }
+    };
+    totalRow.getCell(6).font = {
+      bold: true,
+      color: { argb: totalColorCode }
+    };
     
-    // Congelar o cabeçalho para facilitar a visualização
-    worksheet.views = [
-      { state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2', activeCell: 'A2' }
-    ];
+    // Alinhar células
+    totalRow.getCell(1).alignment = { horizontal: 'center' };
+    totalRow.getCell(4).alignment = { horizontal: 'right' };
+    totalRow.getCell(5).alignment = { horizontal: 'right' };
+    totalRow.getCell(6).alignment = { horizontal: 'right' };
     
-    // Ajustes finais no formato da planilha
-    worksheet.properties.defaultRowHeight = 20;
-    worksheet.properties.outlineLevelRow = 1;
+    // Adicionar informações de investimento se fornecidas
+    if (investmentInfo) {
+      // Adicionar linha em branco para separar
+      worksheet.addRow([]);
+      
+      // Adicionar linha de resumo de investimentos
+      const investmentRow = worksheet.addRow([
+        'Aporte BTC:',
+        investmentInfo.totalInvestedBTC.toFixed(8),
+        'Aporte USD:',
+        `$${investmentInfo.totalInvestedUSD.toFixed(2)}`,
+        'Aporte BRL:',
+        `R$${investmentInfo.totalInvestedBRL.toFixed(2)}`
+      ]);
+      investmentRow.font = { bold: true };
+      investmentRow.height = 22;
+      
+      // Formatar as células
+      for (let i = 1; i <= 6; i++) {
+        if (i % 2 === 1) { // Células de título
+          investmentRow.getCell(i).font = { bold: true, color: { argb: 'FFBBBBBB' } };
+          investmentRow.getCell(i).alignment = { horizontal: 'right' };
+        } else { // Células de valor
+          investmentRow.getCell(i).font = { bold: true, color: { argb: 'FF10B981' } };
+          investmentRow.getCell(i).alignment = { horizontal: 'left' };
+        }
+      }
+      
+      // Calcular lucro total em BTC
+      const totalProfitBTC = data.reduce((sum, item) => {
+        const btcValue = parseFloat(item.ValorBTC);
+        return item.Tipo === 'Lucro' ? sum + btcValue : sum - btcValue;
+      }, 0);
+      
+      // Calcular porcentagens de lucro
+      const profitPercentageBTC = investmentInfo.totalInvestedBTC > 0 ? 
+        (totalProfitBTC / investmentInfo.totalInvestedBTC) * 100 : 0;
+      
+      const profitPercentageUSD = investmentInfo.totalInvestedUSD > 0 ?
+        (totalUSD / investmentInfo.totalInvestedUSD) * 100 : 0;
+        
+      const profitPercentageBRL = investmentInfo.totalInvestedBRL > 0 ?
+        (totalBRL / investmentInfo.totalInvestedBRL) * 100 : 0;
+      
+      // Adicionar informações de lucro/perda vs investimento
+      const profitRow = worksheet.addRow([
+        'Retorno BTC:',
+        `${profitPercentageBTC.toFixed(2)}%`,
+        'Retorno USD:',
+        `${profitPercentageUSD.toFixed(2)}%`,
+        'Retorno BRL:',
+        `${profitPercentageBRL.toFixed(2)}%`
+      ]);
+      
+      // Formatar as células
+      for (let i = 1; i <= 6; i++) {
+        if (i % 2 === 1) { // Células de título
+          profitRow.getCell(i).font = { bold: true, color: { argb: 'FFBBBBBB' } };
+          profitRow.getCell(i).alignment = { horizontal: 'right' };
+        } else { // Células de valor
+          const profitValue = i === 2 ? profitPercentageBTC : 
+                             i === 4 ? profitPercentageUSD : profitPercentageBRL;
+          const colorCode = profitValue >= 0 ? 'FF10B981' : 'FFE11D48';
+          profitRow.getCell(i).font = { bold: true, color: { argb: colorCode } };
+          profitRow.getCell(i).alignment = { horizontal: 'left' };
+        }
+      }
+      
+      // Adicionar linha de lucro/perda vs investimento em valores absolutos
+      const absoluteProfitRow = worksheet.addRow([
+        'Lucro/Perda BTC:',
+        totalProfitBTC.toFixed(8),
+        'Lucro/Perda USD:',
+        `$${totalUSD.toFixed(2)}`,
+        'Lucro/Perda BRL:',
+        `R$${totalBRL.toFixed(2)}`
+      ]);
+      
+      // Formatar as células
+      for (let i = 1; i <= 6; i++) {
+        if (i % 2 === 1) { // Células de título
+          absoluteProfitRow.getCell(i).font = { bold: true, color: { argb: 'FFBBBBBB' } };
+          absoluteProfitRow.getCell(i).alignment = { horizontal: 'right' };
+        } else { // Células de valor
+          const valueToCheck = i === 2 ? totalProfitBTC : 
+                               i === 4 ? totalUSD : totalBRL;
+          const colorCode = valueToCheck >= 0 ? 'FF10B981' : 'FFE11D48';
+          absoluteProfitRow.getCell(i).font = { bold: true, color: { argb: colorCode } };
+          absoluteProfitRow.getCell(i).alignment = { horizontal: 'left' };
+        }
+      }
+      
+      // Adicionar linha em branco para separar
+      worksheet.addRow([]);
+    }
     
     // Gerar arquivo Excel
     const buffer = await workbook.xlsx.writeBuffer();
@@ -710,6 +723,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     // Preparar dados em formato adequado para exportação
     let dataToExport;
     let filename;
+    
+    // Calcular o total investido em BTC
+    const totalInvestedBTC = calculateTotalInvestments();
+    const totalInvestedUSD = totalInvestedBTC * currentRates.btcToUsd;
+    const totalInvestedBRL = totalInvestedUSD * currentRates.brlToUsd;
     
     if (allTime) {
       // Exportação de todos os tempos
@@ -754,7 +772,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                `Relatório Bitcoin - ${format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}`;
     
     // Exportar dados
-    exportToExcel(dataToExport, filename, sheetTitle);
+    exportToExcel(dataToExport, filename, sheetTitle, {
+      totalInvestedBTC,
+      totalInvestedUSD,
+      totalInvestedBRL
+    });
 
     toast({
       title: "Exportação concluída",
@@ -763,6 +785,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado com sucesso.`,
       variant: "success"
     });
+  }
+
+  // Adicionar função para lidar com o clique no botão de exportação
+  const handleExportButtonClick = () => {
+    if (profits.length === 0) {
+      toast({
+        title: "Sem dados para exportar",
+        description: "Não há registros de lucros ou perdas para exportar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Exportar o mês selecionado por padrão
+    exportProfitData(false);
   }
 
   return (
@@ -1068,7 +1105,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => exportProfitData()}
+                          onClick={handleExportButtonClick}
                           className="w-full justify-start bg-purple-800 hover:bg-purple-700"
                         >
                           <FileText className="mr-2 h-4 w-4" />
@@ -1299,28 +1336,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <Card className="panel border-purple-700/50 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-lg">Lucros/Perdas do Mês</CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportProfitData()}
-                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
-                    title="Exportar dados do mês atual para Excel"
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    Exportar Mês
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportProfitData(true)}
-                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
-                    title="Exportar histórico completo para Excel"
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Histórico Completo
-                  </Button>
-                </div>
               </CardHeader>
               <CardContent>
                 {monthProfits.length > 0 ? (

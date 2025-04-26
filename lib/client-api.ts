@@ -11,9 +11,16 @@ const API_BASE_URL = '/api/bitcoin';
 /**
  * Buscar todos os dados necessários para a aplicação
  */
-export async function fetchAllAppData(): Promise<AppData> {
+export async function fetchAllAppData(force: boolean = false): Promise<AppData> {
   try {
-    const response = await fetch(`${API_BASE_URL}/data`);
+    const url = force 
+      ? `${API_BASE_URL}/data?force=true` 
+      : `${API_BASE_URL}/data`;
+      
+    const response = await fetch(url, {
+      cache: force ? 'no-store' : 'default',
+      next: force ? { revalidate: 0 } : { revalidate: 300 } // 5 minutos se não for forçado
+    });
     
     if (!response.ok) {
       throw new Error(`Erro ao buscar dados: ${response.status}`);
