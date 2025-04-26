@@ -24,6 +24,7 @@ import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/client
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { toast } from "@/components/ui/use-toast"
 
 type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
@@ -60,7 +61,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       
       // Se temos dados históricos disponíveis via props, usar eles
       if (historicalData) {
-        const sourceData = currency === 'usd' ? historicalData.usd : historicalData.brl
+        const sourceData = currency.toLowerCase() === 'usd' ? historicalData.usd : historicalData.brl
         
         // Verificar se temos o número necessário de dias
         if (sourceData && sourceData.length >= days) {
@@ -78,7 +79,16 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData))
       }
       
+      // Ordenar dados por data (mais antigos primeiro)
+      data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
       setChartData(data)
+
+      // Mostrar feedback ao usuário
+      toast({
+        title: "Dados atualizados",
+        description: `Dados históricos de ${days} dias em ${currency} carregados.`,
+      })
 
       // Verificar se estamos usando dados de fallback gerados
       if (data.some((item) => item.isSampleData === true)) {
@@ -110,9 +120,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     }
   }, [timeRange, currency, historicalData])
 
+  // Atualizar dados quando o intervalo de tempo ou moeda mudar
   useEffect(() => {
     fetchHistoricalData()
-  }, [fetchHistoricalData])
+  }, [fetchHistoricalData, timeRange, currency])
 
   const timeRangeToDays = (range: TimeRange): number => {
     switch (range) {
@@ -131,11 +142,12 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     }
   }
 
-  const formatCurrency = (value: number): string => {
+  // Formatação melhorada para moedas
+  const formatCurrency = (value: number, showSymbol: boolean = false): string => {
     if (currency === "USD") {
-      return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      return `${showSymbol ? '$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     } else {
-      return `R${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      return `${showSymbol ? 'R$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     }
   }
 
@@ -167,306 +179,477 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     return { change, percentage }
   }
 
-  // Calcular máximos e mínimos para o período
-  const priceStats = useMemo(() => {
-    if (chartData.length === 0) return { min: 0, max: 0, avg: 0 }
-
-    const prices = chartData.map((item) => item.price)
-    const min = Math.min(...prices)
-    const max = Math.max(...prices)
-    const avg = prices.reduce((sum, price) => sum + price, 0) / prices.length
-
-    return { min, max, avg }
-  }, [chartData])
-
-  // Calcular volatilidade (desvio padrão dos retornos diários)
-  const volatility = useMemo(() => {
-    if (chartData.length < 2) return 0
-
-    // Calcular retornos diários
-    const returns = []
-    for (let i = 1; i < chartData.length; i++) {
-      const dailyReturn = (chartData[i].price - chartData[i - 1].price) / chartData[i - 1].price
-      returns.push(dailyReturn)
-    }
-
-    // Calcular média dos retornos
-    const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length
-
-    // Calcular desvio padrão
-    const squaredDiffs = returns.map((ret) => Math.pow(ret - avgReturn, 2))
-    const variance = squaredDiffs.reduce((sum, diff) => sum + diff, 0) / returns.length
-    const stdDev = Math.sqrt(variance)
-
-    // Anualizar a volatilidade (multiplicar pelo sqrt do número de dias de negociação em um ano)
-    const annualizedVolatility = stdDev * Math.sqrt(365) * 100
-
-    return annualizedVolatility
-  }, [chartData])
-
   const priceChange = calculatePriceChange()
   const isPriceUp = priceChange.change >= 0
 
-  const handleRefresh = () => {
-    fetchHistoricalData()
-  }
-
   // Preparar dados para o gráfico de velas (simulado)
   const candlestickData = useMemo(() => {
-    if (chartData.length < 7) return []
+    if (chartData.length === 0) return []
+    return prepareCandlestickData(chartData)
+  }, [chartData])
 
-    // Agrupar dados por dia ou período apropriado
-    const groupedData = []
-    let groupSize = 1
+  // Calcular a volatilidade anualizada
+  const annualizedVolatility = useMemo(() => {
+    return calculateAnnualizedVolatility(chartData)
+  }, [chartData])
 
-    // Ajustar o tamanho do grupo com base no intervalo de tempo
-    if (timeRange === "30d") groupSize = 1
-    else if (timeRange === "90d") groupSize = 3
-    else if (timeRange === "1y") groupSize = 7
+  const formatDateForTimeRange = (date: string): string => {
+    const d = new Date(date)
+    
+    switch (timeRange) {
+      case "1d":
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      case "7d":
+        return d.toLocaleDateString([], { weekday: 'short', day: 'numeric' })
+      case "30d":
+      case "90d":
+        return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+      case "1y":
+        return d.toLocaleDateString([], { month: 'short', year: '2-digit' })
+      default:
+        return d.toLocaleDateString()
+    }
+  }
 
-    for (let i = 0; i < chartData.length; i += groupSize) {
-      const group = chartData.slice(i, i + groupSize)
-      if (group.length > 0) {
-        const prices = group.map((item) => item.price)
-        groupedData.push({
-          date: group[0].formattedDate,
-          open: prices[0],
-          close: prices[prices.length - 1],
-          high: Math.max(...prices),
-          low: Math.min(...prices),
-          timestamp: group[0].timestamp,
-        })
+  // Encontrar o preço máximo e mínimo
+  const priceStats = useMemo(() => {
+    if (chartData.length === 0) return { max: 0, min: 0, maxDate: '', minDate: '' }
+    
+    let max = chartData[0].price
+    let min = chartData[0].price
+    let maxDate = chartData[0].date
+    let minDate = chartData[0].date
+    
+    chartData.forEach(item => {
+      if (item.price > max) {
+        max = item.price
+        maxDate = item.date
       }
-    }
-
-    return groupedData
-  }, [chartData, timeRange])
-
-  // Add a helper function to generate sample data directly in the component
-  const generateSampleHistoricalData = (days: number, currency: string): HistoricalDataPoint[] => {
-    const data: HistoricalDataPoint[] = []
-    const today = new Date()
-
-    // Preço base e volatilidade
-    let basePrice = currency.toLowerCase() === "usd" ? 65000 : 65000 * 5.2
-    const volatility = 0.02 // 2% volatilidade diária
-
-    // Fatores de tendência
-    const trendFactor = 1.0005 // Leve tendência de alta
-
-    // Gerar pontos de dados
-    for (let i = days; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-
-      // Adicionar aleatoriedade e tendência
-      const randomFactor = 1 + (Math.random() * volatility * 2 - volatility)
-      basePrice = basePrice * randomFactor * trendFactor
-
-      // Adicionar padrões cíclicos
-      const cyclicalFactor = 1 + 0.01 * Math.sin((i / 7) * Math.PI)
-      const price = basePrice * cyclicalFactor
-
-      data.push({
-        date: date.toISOString().split("T")[0],
-        price: Math.round(price * 100) / 100,
-        formattedDate: formatDateForTimeRange(date, days),
-        timestamp: date.getTime(),
-        isSampleData: true, // Marcar como dados de exemplo
-      })
-    }
-
-    return data
-  }
-
-  // Helper function to format dates based on time range
-  const formatDateForTimeRange = (date: Date, days: number): string => {
-    if (days <= 1) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    } else if (days <= 7) {
-      return date.toLocaleDateString([], { weekday: "short" })
-    } else {
-      return date.toLocaleDateString([], { month: "short", day: "numeric" })
-    }
-  }
+      if (item.price < min) {
+        min = item.price
+        minDate = item.date
+      }
+    })
+    
+    return { max, min, maxDate, minDate }
+  }, [chartData])
 
   return (
-    <Card className="panel w-full">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <CardTitle className="text-xl">
-            Histórico de Preços do Bitcoin
-          </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={handleRefresh}
-              variant="outline"
-              size={isMobile ? "sm" : "default"}
-              disabled={loading}
-              className="bg-black/20 border border-purple-700/50 hover:bg-purple-900/20"
-            >
-              <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
-              {loading ? "Atualizando..." : "Atualizar"}
-            </Button>
-            <Select
-              value={timeRange}
-              onValueChange={(value) => setTimeRange(value as TimeRange)}
-            >
-              <SelectTrigger className="w-[130px] bg-black/20 border-purple-700/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-black/90 border border-purple-800/60">
-                <SelectItem value="1d">1 Dia</SelectItem>
-                <SelectItem value="7d">1 Semana</SelectItem>
-                <SelectItem value="30d">1 Mês</SelectItem>
-                <SelectItem value="90d">3 Meses</SelectItem>
-                <SelectItem value="1y">1 Ano</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={currency}
-              onValueChange={(value) => setCurrency(value as CurrencyType)}
-            >
-              <SelectTrigger className="w-[100px] bg-black/20 border-purple-700/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-black/90 border border-purple-800/60">
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="BRL">BRL</SelectItem>
-              </SelectContent>
-            </Select>
+    <div className="w-full">
+      <Card className="bg-background/60 backdrop-blur-sm border border-border/50 overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="text-lg font-medium">Histórico de Preços do Bitcoin</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={fetchHistoricalData}
+                variant="outline"
+                size={isMobile ? "sm" : "default"}
+                disabled={loading}
+                className="h-8"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-1 h-4 w-4" />
+                    Atualizar Gráfico
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md flex items-center gap-2 text-yellow-500">
+              <AlertTriangle className="h-4 w-4" />
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
 
-      <CardContent className="p-0 sm:p-6">
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-4 mb-4">
-          <Card className="dark-card border-l-4 border-l-purple-600">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Preço Atual</p>
-              <p className="text-2xl font-bold">
-                {chartData.length > 0
-                  ? formatCurrency(chartData[chartData.length - 1].price)
-                  : "Carregando..."}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className={`dark-card border-l-4 ${priceChange.percentage >= 0 ? "border-l-green-500" : "border-l-red-500"}`}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Variação no Período</p>
-              <p className="text-2xl font-bold">
-                {priceChange.percentage >= 0 ? "+" : ""}
-                {priceChange.percentage.toFixed(2)}%
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="dark-card border-l-4 border-l-blue-500">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Máxima no Período</p>
-              <p className="text-2xl font-bold">{formatCurrency(priceStats.max)}</p>
-            </CardContent>
-          </Card>
-          <Card className="dark-card border-l-4 border-l-amber-500">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Mínima no Período</p>
-              <p className="text-2xl font-bold">{formatCurrency(priceStats.min)}</p>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <Tabs value={chartType} onValueChange={(v) => setChartType(v as ChartType)} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[240px] bg-black/30 border border-purple-800/40">
-            <TabsTrigger value="line" className="data-[state=active]:bg-purple-800/70">Linha</TabsTrigger>
-            <TabsTrigger value="area" className="data-[state=active]:bg-purple-800/70">Área</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <div className="mb-4 space-y-2">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                    <span>Preço Atual</span>
+                  </div>
+                  {loading ? (
+                    <Skeleton className="h-9 w-48" />
+                  ) : (
+                    <div className="text-2xl font-bold">
+                      {chartData.length > 0
+                        ? `${currency === 'USD' ? '$' : 'R$'} ${formatCurrency(chartData[chartData.length - 1].price)}`
+                        : `${currency === 'USD' ? '$' : 'R$'} 0.00`}
+                    </div>
+                  )}
+                </div>
 
-        <div className="w-full h-[350px] bg-black/10 p-1 rounded-lg border border-purple-900/20">
-          {loading ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">Carregando dados históricos...</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-4">
+                  <div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                      <span>Variação</span>
+                    </div>
+                    {loading ? (
+                      <Skeleton className="h-6 w-24" />
+                    ) : (
+                      <div className={`flex items-center ${isPriceUp ? 'text-green-500' : 'text-red-500'}`}>
+                        {isPriceUp ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
+                        <span className="font-medium">
+                          {formatCurrency(Math.abs(priceChange.change), true)} ({priceChange.percentage.toFixed(2)}%)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                      <span>Máximo</span>
+                    </div>
+                    {loading ? (
+                      <Skeleton className="h-6 w-24" />
+                    ) : (
+                      <div className="font-medium">
+                        {formatCurrency(priceStats.max, true)}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {formatDateForTimeRange(priceStats.maxDate)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                      <span>Mínimo</span>
+                    </div>
+                    {loading ? (
+                      <Skeleton className="h-6 w-24" />
+                    ) : (
+                      <div className="font-medium">
+                        {formatCurrency(priceStats.min, true)}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {formatDateForTimeRange(priceStats.minDate)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4 items-start">
+                <div className="space-y-1">
+                  <Label htmlFor="timeRange" className="text-sm">Período</Label>
+                  <Select
+                    value={timeRange}
+                    onValueChange={(value) => setTimeRange(value as TimeRange)}
+                    disabled={loading}
+                  >
+                    <SelectTrigger id="timeRange" className="w-32 h-8">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1d">{getTimeRangeLabel("1d")}</SelectItem>
+                      <SelectItem value="7d">{getTimeRangeLabel("7d")}</SelectItem>
+                      <SelectItem value="30d">{getTimeRangeLabel("30d")}</SelectItem>
+                      <SelectItem value="90d">{getTimeRangeLabel("90d")}</SelectItem>
+                      <SelectItem value="1y">{getTimeRangeLabel("1y")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="currency" className="text-sm">Moeda</Label>
+                  <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyType)} disabled={loading}>
+                    <SelectTrigger id="currency" className="w-32 h-8">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="BRL">BRL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm">Tipo de Gráfico</Label>
+                  <RadioGroup
+                    value={chartType}
+                    onValueChange={(value) => setChartType(value as ChartType)}
+                    className="flex gap-2"
+                    disabled={loading}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <RadioGroupItem value="line" id="line" className="h-3 w-3" />
+                      <Label htmlFor="line" className="text-xs cursor-pointer">Linha</Label>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <RadioGroupItem value="area" id="area" className="h-3 w-3" />
+                      <Label htmlFor="area" className="text-xs cursor-pointer">Área</Label>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <RadioGroupItem value="candlestick" id="candlestick" className="h-3 w-3" />
+                      <Label htmlFor="candlestick" className="text-xs cursor-pointer">Candlestick</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
               </div>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === "area" ? (
-                <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          </div>
+
+          <div className="w-full h-[350px]">
+            {loading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Carregando dados históricos...</span>
+                </div>
+              </div>
+            ) : chartData.length === 0 ? (
+              <div className="w-full h-full flex items-center justify-center border border-dashed rounded-lg">
+                <div className="text-center text-muted-foreground">
+                  <Info className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                  <p>Nenhum dado histórico disponível</p>
+                  <Button onClick={fetchHistoricalData} variant="link" size="sm" className="mt-2">
+                    Tentar novamente
+                  </Button>
+                </div>
+              </div>
+            ) : chartType === "area" ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={chartData}
+                  margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(date) => formatDateForTimeRange(new Date(date), timeRangeToDays(timeRange))}
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                    tickFormatter={formatDateForTimeRange}
+                    dy={10}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    tickMargin={5}
+                    stroke="hsl(var(--muted-foreground))"
                   />
                   <YAxis
-                    tickFormatter={(price) => formatCurrency(price, true)}
-                    domain={["auto", "auto"]}
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                    tickFormatter={(value) => formatCurrency(value)}
+                    dx={-5}
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
                   />
                   <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), "Preço"]}
-                    labelFormatter={(date) => new Date(date).toLocaleDateString()}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
+                    formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      color: "hsl(var(--foreground))",
+                    }}
                   />
                   <Area
                     type="monotone"
                     dataKey="price"
-                    stroke="hsl(var(--chart-1))"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#colorPrice)"
-                    dot={false}
-                    activeDot={{ r: 6 }}
+                    activeDot={{ r: 6, fill: "#8b5cf6" }}
                   />
                 </AreaChart>
-              ) : (
-                <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+              </ResponsiveContainer>
+            ) : chartType === "line" ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(date) => formatDateForTimeRange(new Date(date), timeRangeToDays(timeRange))}
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                    tickFormatter={formatDateForTimeRange}
+                    dy={10}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    tickMargin={5}
+                    stroke="hsl(var(--muted-foreground))"
                   />
                   <YAxis
-                    tickFormatter={(price) => formatCurrency(price, true)}
-                    domain={["auto", "auto"]}
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={{ stroke: "hsl(var(--muted))" }}
+                    tickFormatter={(value) => formatCurrency(value)}
+                    dx={-5}
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
                   />
                   <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), "Preço"]}
-                    labelFormatter={(date) => new Date(date).toLocaleDateString()}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}
+                    formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      color: "hsl(var(--foreground))",
+                    }}
                   />
                   <Line
                     type="monotone"
                     dataKey="price"
-                    stroke="hsl(var(--chart-1))"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
                     dot={false}
-                    activeDot={{ r: 6 }}
+                    activeDot={{ r: 6, fill: "#8b5cf6" }}
                   />
                 </LineChart>
-              )}
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {error && (
-          <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 mt-4 flex items-start">
-            <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full"> 
+                {/* Implementação do gráfico de candlestick vem aqui */}
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={candlestickData}
+                    margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={formatDateForTimeRange}
+                      dy={10}
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                      tickMargin={5}
+                      stroke="hsl(var(--muted-foreground))"
+                    />
+                    <YAxis
+                      tickFormatter={(value) => formatCurrency(value)}
+                      dx={-5}
+                      orientation="right"
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                      stroke="hsl(var(--muted-foreground))"
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
+                      labelFormatter={(label) => new Date(label).toLocaleString()}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="close"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, fill: "#8b5cf6" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {!loading && chartData.length > 0 && (
+            <div className="mt-4 flex flex-col items-center gap-1 text-xs text-muted-foreground">
+              <div className="text-center">
+                Volatilidade Anualizada: <span className="font-semibold">{annualizedVolatility.toFixed(2)}%</span>
+              </div>
+              <div className="text-center text-xs opacity-70">
+                Última atualização: {new Date().toLocaleString()}
+                {isUsingCachedData && <span className="ml-1 text-yellow-500">(Usando dados em cache)</span>}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
+}
+
+// Função para calcular a volatilidade anualizada
+function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
+  if (data.length < 2) return 0
+  
+  // Calcular retornos diários
+  const returns: number[] = []
+  for (let i = 1; i < data.length; i++) {
+    const dailyReturn = (data[i].price - data[i-1].price) / data[i-1].price
+    returns.push(dailyReturn)
+  }
+  
+  // Calcular desvio padrão dos retornos
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length
+  const variance = returns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / returns.length
+  const stdDev = Math.sqrt(variance)
+  
+  // Anualizar (aproximadamente 252 dias de negociação em um ano)
+  const annualizedVol = stdDev * Math.sqrt(252) * 100
+  
+  return annualizedVol
+}
+
+// Função para preparar dados no formato de candlestick
+function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
+  if (data.length === 0) return []
+  
+  // Para um gráfico de candlestick real, precisaríamos de dados OHLC
+  // Aqui estamos simulando com base nos dados disponíveis
+  const result = []
+  const step = Math.max(1, Math.floor(data.length / 20)) // Agrupar para reduzir número de candles
+  
+  for (let i = 0; i < data.length; i += step) {
+    const chunk = data.slice(i, Math.min(i + step, data.length))
+    if (chunk.length > 0) {
+      const open = chunk[0].price
+      const close = chunk[chunk.length-1].price
+      const high = Math.max(...chunk.map(item => item.price))
+      const low = Math.min(...chunk.map(item => item.price))
+      
+      result.push({
+        date: chunk[0].date,
+        open,
+        high,
+        low,
+        close,
+        volume: Math.random() * 1000 // Simulado, não temos dados de volume
+      })
+    }
+  }
+  
+  return result
+}
+
+// Função para gerar dados históricos de exemplo
+function generateSampleHistoricalData(days: number, currency: string): HistoricalDataPoint[] {
+  const data: HistoricalDataPoint[] = []
+  const today = new Date()
+  let basePrice = currency === 'usd' ? 45000 : 225000 // Preço base aproximado em USD e BRL
+  
+  // Adicionar variação aleatória com tendência
+  const trend = (Math.random() - 0.3) * 0.0015 // Leve tendência de alta
+  
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(today)
+    date.setDate(today.getDate() - i)
+    
+    // Variação diária com alguma volatilidade
+    const dailyChange = (Math.random() - 0.5) * 0.03 + trend
+    
+    // Ajustar preço
+    basePrice = basePrice * (1 + dailyChange)
+    
+    data.push({
+      date: date.toISOString(),
+      price: basePrice,
+      volume: Math.random() * 10000,
+      isSampleData: true
+    })
+  }
+  
+  return data
 }

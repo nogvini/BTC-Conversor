@@ -301,7 +301,7 @@ export default function BitcoinConverter() {
                       placeholder="Digite o valor..."
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="text-lg bg-[hsl(var(--input))] border-[hsl(var(--panel-border))]"
+                      className="text-lg bg-black/30 border-[hsl(var(--panel-border))]"
                     />
                   </div>
                   
@@ -316,7 +316,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
                         <Label
                           htmlFor="BTC"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <Bitcoin className="mb-1" />
                           BTC
@@ -327,7 +327,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="SATS" id="SATS" className="peer sr-only" />
                         <Label
                           htmlFor="SATS"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <Bitcoin className="mb-1" />
                           SATS
@@ -338,7 +338,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="USD" id="USD" className="peer sr-only" />
                         <Label
                           htmlFor="USD"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <DollarSign className="mb-1" />
                           USD
@@ -349,7 +349,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="BRL" id="BRL" className="peer sr-only" />
                         <Label
                           htmlFor="BRL"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <span className="mb-1 font-bold">R$</span>
                           BRL
@@ -393,7 +393,9 @@ export default function BitcoinConverter() {
                 <p className="text-sm text-muted-foreground">
                   {rates && (
                     <>
-                      Atualizado em {rates.lastUpdated.toLocaleString()}
+                      Atualizado em {rates.lastUpdated.toLocaleString()} • 
+                      <span className="ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)} • 
+                      1 USD = R${formatCurrency(rates.BRL_USD)}</span>
                     </>
                   )}
                 </p>
