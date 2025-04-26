@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { Bitcoin, Calendar, AlertTriangle, DollarSign } from "lucide-react"
+import { Bitcoin, RefreshCw, Calendar, TrendingUp, ArrowRightLeft, AlertTriangle, DollarSign, Calculator } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,15 +16,58 @@ import { fetchAllAppData } from "@/lib/client-api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
+import { MobileNavigation } from "./mobile-navigation"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
+
+// Importar a interface AppData do componente ProfitCalculator
+interface AppData {
+  currentPrice: {
+    usd: number
+    brl: number
+    timestamp: number
+    isUsingCache: boolean
+  }
+  isUsingCache: boolean
+  historicalData?: {
+    usd: any[]
+    brl: any[]
+  }
+}
 
 interface ConversionRates {
   BTC_USD: number
   BRL_USD: number
   lastUpdated: Date
   isUsingFallback: boolean
+}
+
+// Hook para gerenciar a aba ativa com parâmetros de URL
+function useActiveTab(): [string, (tab: string) => void] {
+  const [activeTab, setActiveTabState] = useState<string>("converter")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
+  // Efeito para sincronizar com parâmetros de URL
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
+      setActiveTabState(tabParam)
+    }
+  }, [searchParams])
+  
+  // Função para atualizar a aba com parâmetros de URL
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab)
+    
+    // Atualizar URL
+    const newParams = new URLSearchParams(searchParams.toString())
+    newParams.set('tab', tab)
+    router.push(`?${newParams.toString()}`)
+  }
+  
+  return [activeTab, setActiveTab]
 }
 
 // Função para formatar valores monetários corretamente
@@ -228,13 +271,13 @@ export default function BitcoinConverter() {
 
   return (
     <ResponsiveContainer>
-      {/* Componente para lidar com parâmetros de URL */}
-      <Suspense>
-        <TabParamHandler setActiveTab={setActiveTab} />
-      </Suspense>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
+          <div className="flex items-center gap-3">
+            {/* Menu de navegação para mobile */}
+            <MobileNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+            <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
+          </div>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
@@ -253,21 +296,19 @@ export default function BitcoinConverter() {
           onValueChange={setActiveTab} 
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
+          {/* TabsList visível apenas em telas maiores que mobile */}
+          <TabsList className="hidden sm:grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
             <TabsTrigger value="converter" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <ArrowRightLeft className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Conversor</span>
-              <span className="sm:hidden inline">C</span>
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <span>Conversor</span>
             </TabsTrigger>
             <TabsTrigger value="chart" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <TrendingUp className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Gráficos</span>
-              <span className="sm:hidden inline">G</span>
+              <TrendingUp className="mr-2 h-4 w-4" />
+              <span>Gráficos</span>
             </TabsTrigger>
             <TabsTrigger value="calculator" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <Calculator className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
-              <span className="sm:inline hidden">Calculadora</span>
-              <span className="sm:hidden inline">$</span>
+              <Calculator className="mr-2 h-4 w-4" />
+              <span>Calculadora</span>
             </TabsTrigger>
           </TabsList>
 
