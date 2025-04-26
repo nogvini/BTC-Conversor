@@ -17,6 +17,7 @@ import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { useSearchParams } from "next/navigation"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -66,6 +67,16 @@ export default function BitcoinConverter() {
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
+  
+  // Verificar parâmetros de URL para definir a aba ativa
+  const searchParams = useSearchParams()
+  
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   // Carregar todos os dados da aplicação de uma vez
   const fetchData = async () => {

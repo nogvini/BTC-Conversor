@@ -459,6 +459,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     return nextMonth <= new Date()
   }, [selectedMonth])
 
+  // Verifica se o mês selecionado é o mês atual
+  const isCurrentMonth = (date: Date): boolean => {
+    const today = new Date()
+    return (
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    )
+  }
+
   // Função para alternar a moeda de exibição
   const toggleDisplayCurrency = () => {
     setDisplayCurrency(displayCurrency === "USD" ? "BRL" : "USD")
@@ -1023,7 +1032,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size={isMobile ? "icon-sm" : "icon"}
                     aria-label="Próximo mês"
-                    disabled={isCurrentMonth(selectedMonth)}
+                    disabled={!canGoNext}
                   >
                     <ChevronRight />
                   </Button>
