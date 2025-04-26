@@ -116,13 +116,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   }, [btcToUsd, brlToUsd, appData])
 
   // Função para atualizar as taxas de conversão
-  // Simplificada pois agora vamos confiar na atualização dos dados pelo componente pai
   const updateRates = async () => {
     if (appData) {
       // Se temos appData, o componente pai já está cuidando da atualização
       toast({
         title: "Atualizando...",
-        description: "Use o botão na tela principal para atualizar todas as taxas.",
+        description: "Use o botão 'Atualizar Preços' no topo da página para atualizar todas as taxas.",
       })
     } else {
       // Versão antiga se não tivermos appData
@@ -772,14 +771,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 px-3 py-2 rounded-md text-sm mb-2 flex items-center">
           <AlertTriangle className="h-4 w-4 mr-2" />
           Usando taxas de câmbio simuladas. Os valores podem não refletir o mercado atual.
-          <Button
-            variant="link"
-            size="sm"
-            onClick={updateRates}
-            className="text-yellow-200 hover:text-yellow-100 ml-2 p-0 h-auto"
-          >
-            Tentar atualizar
-          </Button>
+          <span className="ml-2 text-yellow-200">Use o botão "Atualizar Preços" no topo da página.</span>
         </div>
       )}
 
@@ -812,7 +804,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     placeholder="Valor"
                     value={investmentAmount}
                     onChange={(e) => setInvestmentAmount(e.target.value)}
-                    className="bg-[hsl(var(--input))] border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
+                    className="bg-black/30 border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
                   />
                 </div>
 
@@ -898,7 +890,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     placeholder="Valor"
                     value={profitAmount}
                     onChange={(e) => setProfitAmount(e.target.value)}
-                    className="bg-[hsl(var(--input))] border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
+                    className="bg-black/30 border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
                   />
                 </div>
 
@@ -1044,16 +1036,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <div className="flex justify-between items-center">
                 <CardDescription>Lucro total em {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}</CardDescription>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={updateRates}
-                    disabled={loading}
-                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-                    Atualizar Taxas
-                  </Button>
                   <Button
                     onClick={toggleDisplayCurrency}
                     variant="secondary"

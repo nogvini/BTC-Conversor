@@ -128,41 +128,43 @@ export default function BitcoinConverter() {
   // Atualizar apenas o preço atual do Bitcoin
   const updateCurrentPrice = async () => {
     try {
-      // Buscar apenas o preço atual
-      const priceData = await getCurrentBitcoinPrice()
+      // Aqui está o problema: estamos apenas atualizando o preço atual, não os dados completos
+      // Vamos mudar para buscar todos os dados da aplicação para atualizar também os gráficos
+      const data = await fetchAllAppData()
+      setAppData(data)
       
-      if (appData) {
-        // Atualizar o appData com o novo preço
-        const updatedAppData = {
-          ...appData,
-          currentPrice: priceData,
-          lastFetched: Date.now()
-        }
-        setAppData(updatedAppData)
-        
-        // Atualizar também as taxas de conversão
-        const newRates: ConversionRates = {
-          BTC_USD: priceData.usd,
-          BRL_USD: priceData.brl / priceData.usd,
-          lastUpdated: new Date(priceData.timestamp),
-          isUsingFallback: priceData.isUsingCache,
-        }
-        
-        setRates(newRates)
-        
-        if (priceData.isUsingCache) {
-          setApiError(true)
-        } else {
-          setApiError(false)
-          toast({
-            title: "Preços atualizados",
-            description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD`,
-          })
-        }
+      // Extrair as taxas de conversão dos dados
+      const newRates: ConversionRates = {
+        BTC_USD: data.currentPrice.usd,
+        BRL_USD: data.currentPrice.brl / data.currentPrice.usd,
+        lastUpdated: new Date(data.currentPrice.timestamp),
+        isUsingFallback: data.isUsingCache || data.currentPrice.isUsingCache,
+      }
+      
+      setRates(newRates)
+      
+      if (data.isUsingCache) {
+        setApiError(true)
+        toast({
+          title: "Aviso",
+          description: "Usando dados em cache. Os valores podem não refletir o mercado atual.",
+          variant: "warning",
+        })
+      } else {
+        setApiError(false)
+        toast({
+          title: "Dados atualizados",
+          description: `1 BTC = ${formatCurrency(data.currentPrice.usd, "$")} USD`,
+        })
       }
     } catch (error) {
-      console.error("Erro ao atualizar preço:", error)
-      // Não alterar o estado de erro aqui para não interferir com a interface
+      console.error("Erro ao atualizar dados:", error)
+      setApiError(true)
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar os dados. Usando versão em cache.",
+        variant: "destructive",
+      })
     }
   }
 
