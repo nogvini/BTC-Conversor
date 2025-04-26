@@ -1,24 +1,22 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { Bitcoin, RefreshCw, Calendar, TrendingUp, ArrowRightLeft, AlertTriangle, DollarSign, Calculator } from "lucide-react"
+import { Bitcoin, Calendar, AlertTriangle, DollarSign } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
-import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
+import { fetchAllAppData } from "@/lib/client-api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { useSearchParams } from "next/navigation"
-import { MobileNavigation } from "./mobile-navigation"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -57,28 +55,14 @@ const formatBtc = (value: string | number): string => {
   return numValue.toFixed(8);
 };
 
-// Componente para lidar com parâmetros de URL
-function TabParamHandler({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
-  const searchParams = useSearchParams()
-  
-  useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
-      setActiveTab(tabParam)
-    }
-  }, [searchParams, setActiveTab])
-  
-  return null
-}
-
 export default function BitcoinConverter() {
   const [amount, setAmount] = useState<string>("")
   const [selectedUnit, setSelectedUnit] = useState<CurrencyUnit>("SATS")
   const [rates, setRates] = useState<ConversionRates | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
-  const [activeTab, setActiveTab] = useState<string>("converter")
   const [apiError, setApiError] = useState<boolean>(false)
   const [appData, setAppData] = useState<AppData | null>(null)
+  const [activeTab, setActiveTab] = useActiveTab()
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
@@ -129,10 +113,11 @@ export default function BitcoinConverter() {
   // Atualizar apenas o preço atual do Bitcoin
   const updateCurrentPrice = async () => {
     try {
-      // Aqui está o problema: estamos apenas atualizando o preço atual, não os dados completos
-      // Vamos mudar para buscar todos os dados da aplicação para atualizar também os gráficos
-      const data = await fetchAllAppData()
-      setAppData(data)
+      setLoading(true);
+      
+      // Forçar a atualização dos dados, ignorando o cache
+      const data = await fetchAllAppData(true);
+      setAppData(data);
       
       // Extrair as taxas de conversão dos dados
       const newRates: ConversionRates = {
@@ -140,32 +125,34 @@ export default function BitcoinConverter() {
         BRL_USD: data.currentPrice.brl / data.currentPrice.usd,
         lastUpdated: new Date(data.currentPrice.timestamp),
         isUsingFallback: data.isUsingCache || data.currentPrice.isUsingCache,
-      }
+      };
       
-      setRates(newRates)
+      setRates(newRates);
       
       if (data.isUsingCache) {
-        setApiError(true)
+        setApiError(true);
         toast({
           title: "Aviso",
           description: "Usando dados em cache. Os valores podem não refletir o mercado atual.",
           variant: "warning",
-        })
+        });
       } else {
-        setApiError(false)
+        setApiError(false);
         toast({
           title: "Dados atualizados",
           description: `1 BTC = ${formatCurrency(data.currentPrice.usd, "$")} USD`,
-        })
+        });
       }
     } catch (error) {
-      console.error("Erro ao atualizar dados:", error)
-      setApiError(true)
+      console.error("Erro ao atualizar dados:", error);
+      setApiError(true);
       toast({
         title: "Erro ao atualizar",
         description: "Não foi possível atualizar os dados. Usando versão em cache.",
         variant: "destructive",
-      })
+      });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -247,11 +234,7 @@ export default function BitcoinConverter() {
       </Suspense>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            {/* Menu de navegação para mobile */}
-            <MobileNavigation activeTab={activeTab} onTabChange={setActiveTab} />
-            <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
-          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
@@ -270,19 +253,21 @@ export default function BitcoinConverter() {
           onValueChange={setActiveTab} 
           className="w-full"
         >
-          {/* TabsList visível apenas em telas maiores que mobile */}
-          <TabsList className="hidden sm:grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
+          <TabsList className="grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
             <TabsTrigger value="converter" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
-              <span>Conversor</span>
+              <ArrowRightLeft className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Conversor</span>
+              <span className="sm:hidden inline">C</span>
             </TabsTrigger>
             <TabsTrigger value="chart" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              <span>Gráficos</span>
+              <TrendingUp className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Gráficos</span>
+              <span className="sm:hidden inline">G</span>
             </TabsTrigger>
             <TabsTrigger value="calculator" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
-              <Calculator className="mr-2 h-4 w-4" />
-              <span>Calculadora</span>
+              <Calculator className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
+              <span className="sm:inline hidden">Calculadora</span>
+              <span className="sm:hidden inline">$</span>
             </TabsTrigger>
           </TabsList>
 

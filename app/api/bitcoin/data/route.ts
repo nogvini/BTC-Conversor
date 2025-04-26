@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { fetchAllAppData } from '@/lib/server-api';
+import { fetchAllAppData, forceUpdateAllData } from '@/lib/server-api';
 
 // GET /api/bitcoin/data
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Buscar todos os dados necessários
-    const data = await fetchAllAppData();
+    // Verificar se devemos forçar a atualização (ignorar cache)
+    const url = new URL(request.url);
+    const forceUpdate = url.searchParams.get('force') === 'true';
+    
+    // Buscar dados, com ou sem cache dependendo do parâmetro force
+    const data = forceUpdate 
+      ? await forceUpdateAllData() 
+      : await fetchAllAppData();
     
     // Retornar os dados como JSON
     return NextResponse.json(data);
