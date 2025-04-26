@@ -291,7 +291,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   }
 
   return (
-    <Card className="w-full">
+    <Card className="panel w-full">
       <CardHeader className="pb-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <CardTitle className="text-xl">
@@ -303,6 +303,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               variant="outline"
               size={isMobile ? "sm" : "default"}
               disabled={loading}
+              className="bg-black/20 border border-purple-700/50 hover:bg-purple-900/20"
             >
               <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
               {loading ? "Atualizando..." : "Atualizar"}
@@ -311,10 +312,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               value={timeRange}
               onValueChange={(value) => setTimeRange(value as TimeRange)}
             >
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[130px] bg-black/20 border-purple-700/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-black/90 border border-purple-800/60">
                 <SelectItem value="1d">1 Dia</SelectItem>
                 <SelectItem value="7d">1 Semana</SelectItem>
                 <SelectItem value="30d">1 Mês</SelectItem>
@@ -326,10 +327,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               value={currency}
               onValueChange={(value) => setCurrency(value as CurrencyType)}
             >
-              <SelectTrigger className="w-[100px]">
+              <SelectTrigger className="w-[100px] bg-black/20 border-purple-700/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-black/90 border border-purple-800/60">
                 <SelectItem value="USD">USD</SelectItem>
                 <SelectItem value="BRL">BRL</SelectItem>
               </SelectContent>
@@ -340,7 +341,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
       <CardContent className="p-0 sm:p-6">
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-4 mb-4">
-          <Card className="border-l-4 border-l-purple-600">
+          <Card className="dark-card border-l-4 border-l-purple-600">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Preço Atual</p>
               <p className="text-2xl font-bold">
@@ -350,7 +351,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </p>
             </CardContent>
           </Card>
-          <Card className={`border-l-4 ${priceChange.percentage >= 0 ? "border-l-green-500" : "border-l-red-500"}`}>
+          <Card className={`dark-card border-l-4 ${priceChange.percentage >= 0 ? "border-l-green-500" : "border-l-red-500"}`}>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Variação no Período</p>
               <p className="text-2xl font-bold">
@@ -359,13 +360,13 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-blue-500">
+          <Card className="dark-card border-l-4 border-l-blue-500">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Máxima no Período</p>
               <p className="text-2xl font-bold">{formatCurrency(priceStats.max)}</p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-amber-500">
+          <Card className="dark-card border-l-4 border-l-amber-500">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Mínima no Período</p>
               <p className="text-2xl font-bold">{formatCurrency(priceStats.min)}</p>
@@ -374,13 +375,13 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         </div>
         
         <Tabs value={chartType} onValueChange={(v) => setChartType(v as ChartType)} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[240px]">
-            <TabsTrigger value="line">Linha</TabsTrigger>
-            <TabsTrigger value="area">Área</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 max-w-[240px] bg-black/30 border border-purple-800/40">
+            <TabsTrigger value="line" className="data-[state=active]:bg-purple-800/70">Linha</TabsTrigger>
+            <TabsTrigger value="area" className="data-[state=active]:bg-purple-800/70">Área</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="w-full h-[350px]">
+        <div className="w-full h-[350px] bg-black/10 p-1 rounded-lg border border-purple-900/20">
           {loading ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
@@ -460,7 +461,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         </div>
 
         {error && (
-          <div className="bg-yellow-500/10 text-yellow-500 rounded-lg p-3 mt-4 flex items-start">
+          <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 mt-4 flex items-start">
             <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
             <p className="text-sm">{error}</p>
           </div>

@@ -29,6 +29,48 @@
     --color-running: var(--chart-1);
     --color-swimming: var(--chart-2);
   }
+
+  /* Design unificado com tema escuro */
+  :root {
+    --background: 240 10% 3.9%; /* Fundo principal mais escuro */
+    --foreground: 0 0% 98%; /* Texto mais claro para contraste */
+    
+    --card: 240 10% 5%; /* Cards ligeiramente mais escuro que o fundo */
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 4.5%; /* Popover mais escuro */
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 267 90% 45%; /* Roxo vibrante como cor principal */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 5% 10%; /* Secundária mais escura */
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 5% 75%;
+    
+    --accent: 267 80% 50%; /* Accent como variação do roxo */
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 75% 42%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 5% 14%; /* Bordas subtis */
+    --input: 240 10% 8%; /* Fundo dos inputs um pouco mais escuro */
+    --ring: 267 85% 45%; /* Ring roxo para foco */
+    
+    --radius: 0.5rem;
+    
+    /* Cores de gráficos */
+    --chart-1: 267 90% 55%; /* Roxo vibrante para gráficos */
+    --chart-2: 47 100% 55%; /* Amarelo/dourado para contraste */
+    
+    /* Cores específicas padronizadas */
+    --panel-bg: 240 10% 6%; /* Para painéis */
+    --panel-border: 267 40% 25%; /* Bordas roxas escuras para painéis */
+    --hover-bg: 240 8% 10%; /* Estado hover */
+  }
 }
 
 @layer base {
@@ -37,5 +79,20 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Estilos personalizados para manter o design consistente */
+@layer components {
+  .dark-card {
+    @apply bg-black/40 border border-purple-800/40 shadow-md;
+  }
+  
+  .panel {
+    @apply bg-[hsl(var(--panel-bg))] border border-[hsl(var(--panel-border))] rounded-lg shadow-md;
+  }
+  
+  .data-display {
+    @apply bg-black/30 p-3 rounded-md border border-purple-700/50;
   }
 }

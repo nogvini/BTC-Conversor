@@ -244,14 +244,14 @@ export default function BitcoinConverter() {
       </Suspense>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold">Bitcoin Calculator</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
             size={isMobile ? "sm" : "default"}
             responsive
             disabled={loading}
-            className="flex items-center"
+            className="flex items-center bg-black/20 border border-purple-700/50 hover:bg-purple-900/20"
           >
             {loading ? "Atualizando..." : "Atualizar Preços"}
             <RefreshCw className={cn("ml-2", loading && "animate-spin")} />
@@ -263,18 +263,18 @@ export default function BitcoinConverter() {
           onValueChange={setActiveTab} 
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="converter" className="text-xs sm:text-sm">
+          <TabsList className="grid grid-cols-3 mb-4 bg-black/30 border border-purple-800/40">
+            <TabsTrigger value="converter" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
               <ArrowRightLeft className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
               <span className="sm:inline hidden">Conversor</span>
               <span className="sm:hidden inline">C</span>
             </TabsTrigger>
-            <TabsTrigger value="chart" className="text-xs sm:text-sm">
+            <TabsTrigger value="chart" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
               <TrendingUp className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
               <span className="sm:inline hidden">Gráficos</span>
               <span className="sm:hidden inline">G</span>
             </TabsTrigger>
-            <TabsTrigger value="calculator" className="text-xs sm:text-sm">
+            <TabsTrigger value="calculator" className="text-xs sm:text-sm data-[state=active]:bg-purple-800/70">
               <Calculator className="mr-0 sm:mr-2 h-4 w-4 sm:inline-flex" />
               <span className="sm:inline hidden">Calculadora</span>
               <span className="sm:hidden inline">$</span>
@@ -282,7 +282,7 @@ export default function BitcoinConverter() {
           </TabsList>
 
           <TabsContent value="converter" className="space-y-4">
-            <Card>
+            <Card className="panel">
               <CardHeader className="pb-4">
                 <CardTitle className="text-xl">Conversor Bitcoin</CardTitle>
                 <CardDescription>
@@ -301,7 +301,7 @@ export default function BitcoinConverter() {
                       placeholder="Digite o valor..."
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="text-lg"
+                      className="text-lg bg-[hsl(var(--input))] border-[hsl(var(--panel-border))]"
                     />
                   </div>
                   
@@ -316,7 +316,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
                         <Label
                           htmlFor="BTC"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <Bitcoin className="mb-1" />
                           BTC
@@ -327,7 +327,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="SATS" id="SATS" className="peer sr-only" />
                         <Label
                           htmlFor="SATS"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <Bitcoin className="mb-1" />
                           SATS
@@ -338,7 +338,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="USD" id="USD" className="peer sr-only" />
                         <Label
                           htmlFor="USD"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <DollarSign className="mb-1" />
                           USD
@@ -349,7 +349,7 @@ export default function BitcoinConverter() {
                         <RadioGroupItem value="BRL" id="BRL" className="peer sr-only" />
                         <Label
                           htmlFor="BRL"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
                         >
                           <span className="mb-1 font-bold">R$</span>
                           BRL
@@ -361,26 +361,26 @@ export default function BitcoinConverter() {
                 
                 {/* Resultados da Conversão */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-                  <div className="flex justify-between items-center bg-gray-800 p-3 rounded-md border border-purple-700">
+                  <div className="data-display flex justify-between items-center">
                     <span className="font-medium">Bitcoin:</span>
                     <span className="font-bold text-yellow-500">₿ {formatBtc(convertedValues.BTC)} </span>
                   </div>
-                  <div className="flex justify-between items-center bg-gray-800 p-3 rounded-md border border-purple-700">
+                  <div className="data-display flex justify-between items-center">
                     <span className="font-medium">Satoshis:</span>
                     <span className="font-bold text-yellow-500">丰 {parseInt(convertedValues.SATS).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center bg-gray-800 p-3 rounded-md border border-purple-700">
+                  <div className="data-display flex justify-between items-center">
                     <span className="font-medium">Dólares:</span>
                     <span className="font-bold text-green-500">$ {formatCurrency(convertedValues.USD)}</span>
                   </div>
-                  <div className="flex justify-between items-center bg-gray-800 p-3 rounded-md border border-purple-700">
+                  <div className="data-display flex justify-between items-center">
                     <span className="font-medium">Reais:</span>
                     <span className="font-bold text-green-500">R$ {formatCurrency(convertedValues.BRL)}</span>
                   </div>
                 </div>
                 
                 {apiError && (
-                  <div className="bg-yellow-500/10 text-yellow-500 rounded-lg p-3 flex items-start">
+                  <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 flex items-start">
                     <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
                     <p className="text-sm">
                       Atenção: Usando dados em cache que podem não refletir os valores atuais de mercado.
@@ -405,7 +405,7 @@ export default function BitcoinConverter() {
             {appData ? (
               <HistoricalRatesChart historicalData={appData.historicalData} />
             ) : (
-              <Card>
+              <Card className="panel">
                 <CardContent className="py-10">
                   <div className="flex justify-center">
                     <Skeleton className="h-[350px] w-full" />

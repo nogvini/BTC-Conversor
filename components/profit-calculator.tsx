@@ -769,7 +769,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   return (
     <div className="space-y-6">
       {usingFallbackRates && (
-        <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-200 px-3 py-2 rounded-md text-sm mb-2 flex items-center">
+        <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 px-3 py-2 rounded-md text-sm mb-2 flex items-center">
           <AlertTriangle className="h-4 w-4 mr-2" />
           Usando taxas de câmbio simuladas. Os valores podem não refletir o mercado atual.
           <Button
@@ -784,12 +784,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-gray-800">
-          <TabsTrigger value="register" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">
+        <TabsList className="grid w-full grid-cols-2 bg-black/30 border border-purple-800/40">
+          <TabsTrigger value="register" className="data-[state=active]:bg-purple-800/70 data-[state=active]:text-white">
             <Plus className="h-4 w-4 mr-2" />
             Registrar
           </TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">
+          <TabsTrigger value="history" className="data-[state=active]:bg-purple-800/70 data-[state=active]:text-white">
             <TrendingUp className="h-4 w-4 mr-2" />
             Histórico
           </TabsTrigger>
@@ -797,7 +797,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="register" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-gray-800 border-purple-700">
+            <Card className="panel border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Registrar Aporte</CardTitle>
                 <CardDescription>Registre seus investimentos em Bitcoin</CardDescription>
@@ -812,7 +812,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     placeholder="Valor"
                     value={investmentAmount}
                     onChange={(e) => setInvestmentAmount(e.target.value)}
-                    className="bg-gray-900 border-purple-700 focus:border-purple-500 text-white"
+                    className="bg-[hsl(var(--input))] border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
                   />
                 </div>
 
@@ -845,7 +845,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal bg-gray-900 border-purple-700 hover:bg-gray-800",
+                          "w-full justify-start text-left font-normal bg-black/20 border-purple-700/50 hover:bg-purple-900/20",
                           !investmentDate && "text-muted-foreground",
                         )}
                       >
@@ -857,13 +857,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-gray-900 border-purple-700">
+                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
                       <CalendarComponent
                         mode="single"
                         selected={investmentDate}
                         onSelect={(date) => date && setInvestmentDate(date)}
                         initialFocus
-                        className="bg-gray-900"
+                        className="bg-[hsl(var(--panel-bg))]"
                       />
                     </PopoverContent>
                   </Popover>
@@ -875,7 +875,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   disabled={!investmentAmount || loading} 
                   size={isMobile ? "sm" : "default"}
                   responsive
-                  className="mt-2"
+                  className="mt-2 bg-purple-800 hover:bg-purple-700"
                 >
                   <Plus size={16} />
                   Adicionar Investimento
@@ -883,7 +883,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardFooter>
             </Card>
 
-            <Card className="bg-gray-800 border-purple-700">
+            <Card className="panel border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Registrar Lucro/Perda</CardTitle>
                 <CardDescription>Registre seus lucros ou perdas diárias</CardDescription>
@@ -898,7 +898,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     placeholder="Valor"
                     value={profitAmount}
                     onChange={(e) => setProfitAmount(e.target.value)}
-                    className="bg-gray-900 border-purple-700 focus:border-purple-500 text-white"
+                    className="bg-[hsl(var(--input))] border-[hsl(var(--panel-border))] focus:border-purple-500 text-white"
                   />
                 </div>
 
@@ -953,7 +953,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal bg-gray-900 border-purple-700 hover:bg-gray-800",
+                          "w-full justify-start text-left font-normal bg-black/20 border-purple-700/50 hover:bg-purple-900/20",
                           !profitDate && "text-muted-foreground",
                         )}
                       >
@@ -961,13 +961,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         {profitDate ? format(profitDate, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-gray-900 border-purple-700">
+                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
                       <CalendarComponent
                         mode="single"
                         selected={profitDate}
                         onSelect={(date) => date && setProfitDate(date)}
                         initialFocus
-                        className="bg-gray-900"
+                        className="bg-[hsl(var(--panel-bg))]"
                       />
                     </PopoverContent>
                   </Popover>
@@ -980,7 +980,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   variant={isProfit ? "default" : "destructive"}
                   size={isMobile ? "sm" : "default"}
                   responsive
-                  className="mt-2"
+                  className={`mt-2 ${isProfit ? "bg-green-600 hover:bg-green-500" : "bg-red-700 hover:bg-red-600"}`}
                 >
                   {isProfit ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                   Adicionar {isProfit ? "Lucro" : "Perda"}
@@ -991,7 +991,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
 
         <TabsContent value="history" className="mt-4 space-y-6">
-          <Card className="bg-gray-800 border-purple-700">
+          <Card className="panel border-purple-700/50">
             <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg">Relatório Mensal</CardTitle>
@@ -1001,6 +1001,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size={isMobile ? "icon-sm" : "icon"}
                     aria-label="Mês anterior"
+                    className="bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                   >
                     <ChevronLeft />
                   </Button>
@@ -1010,7 +1011,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         variant="outline"
                         size={isMobile ? "sm" : "default"}
                         className={cn(
-                          "justify-start text-left font-normal",
+                          "justify-start text-left font-normal bg-black/20 border-purple-700/50 hover:bg-purple-900/20",
                           !selectedMonth && "text-muted-foreground"
                         )}
                       >
@@ -1018,12 +1019,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
                       <CalendarComponent
                         mode="single"
                         selected={selectedMonth}
                         onSelect={(date) => date && setSelectedMonth(date)}
                         initialFocus
+                        className="bg-[hsl(var(--panel-bg))]"
                       />
                     </PopoverContent>
                   </Popover>
@@ -1033,6 +1035,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     size={isMobile ? "icon-sm" : "icon"}
                     aria-label="Próximo mês"
                     disabled={isCurrentMonth(selectedMonth)}
+                    className="bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                   >
                     <ChevronRight />
                   </Button>
@@ -1046,7 +1049,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     size="sm"
                     onClick={updateRates}
                     disabled={loading}
-                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                   >
                     <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
                     Atualizar Taxas
@@ -1055,6 +1058,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     onClick={toggleDisplayCurrency}
                     variant="secondary"
                     size={isMobile ? "sm" : "default"}
+                    className="bg-purple-900/40 hover:bg-purple-800/40"
                   >
                     {displayCurrency === "USD" ? (
                       <>
@@ -1071,19 +1075,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <Button
                         variant="outline"
                         size={isMobile ? "sm" : "default"}
-                        className="sm:ml-auto"
+                        className="sm:ml-auto bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                       >
                         <FileText className="mr-2 h-4 w-4" />
                         Exportar Dados
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto bg-gray-900 border-purple-700">
+                    <PopoverContent className="w-auto bg-black/90 border-purple-800/60">
                       <div className="grid gap-2">
                         <Button
                           variant="default"
                           size="sm"
                           onClick={() => exportProfitData()}
-                          className="w-full justify-start"
+                          className="w-full justify-start bg-purple-800 hover:bg-purple-700"
                         >
                           <FileText className="mr-2 h-4 w-4" />
                           Exportar Mês Atual
@@ -1092,7 +1096,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           variant="default"
                           size="sm"
                           onClick={() => exportProfitData(true)}
-                          className="w-full justify-start"
+                          className="w-full justify-start bg-purple-800 hover:bg-purple-700"
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Exportar Histórico Completo
@@ -1105,7 +1109,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Total em BTC</div>
                   <div
                     className={`text-xl font-bold ${calculateMonthProfits.btc >= 0 ? "text-green-500" : "text-red-500"}`}
@@ -1118,7 +1122,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     />
                   </div>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Total em SATS</div>
                   <div
                     className={`text-xl font-bold ${calculateMonthProfits.sats >= 0 ? "text-green-500" : "text-red-500"}`}
@@ -1130,7 +1134,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     />
                   </div>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Total em {displayCurrency}</div>
                   <div
                     className={`text-xl font-bold ${
@@ -1160,7 +1164,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     />
                   </div>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Rendimento</div>
                   <div className={`text-xl font-bold ${profitPercentage >= 0 ? "text-green-500" : "text-red-500"}`}>
                     <AnimatedCounter
@@ -1174,7 +1178,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </div>
 
               {/* Saldo Total */}
-              <div className="bg-purple-900/30 p-4 rounded-md border border-purple-500 shadow-md">
+              <div className="bg-purple-900/30 p-4 rounded-md border border-purple-500/40 shadow-md">
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="text-sm text-purple-300">Saldo Total</div>
@@ -1196,7 +1200,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Valor Investido no Período</div>
                   <div className="text-lg font-bold text-yellow-500">
                     <AnimatedCounter value={calculatePeriodInvestments.btc} decimals={8} suffix=" BTC" />
@@ -1211,7 +1215,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </div>
                 </div>
 
-                <div className="bg-gray-900 p-4 rounded-md border border-purple-700 shadow-sm">
+                <div className="data-display bg-black/30 p-4 rounded-md border border-purple-700/50 shadow-sm">
                   <div className="text-sm text-gray-400">Lucro/Perda do Mês</div>
                   <div
                     className={`text-lg font-bold ${calculateMonthProfits.btc >= 0 ? "text-green-500" : "text-red-500"}`}
@@ -1241,7 +1245,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </div>
 
               {/* Total Investido - Movido para baixo e com coloração diferente */}
-              <div className="bg-gray-800/60 p-4 rounded-md border border-gray-600 shadow-sm">
+              <div className="p-4 rounded-md border shadow-sm bg-gradient-to-r from-black/40 to-purple-900/10 border-purple-800/20">
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="text-sm text-gray-400">Total Investido (Histórico)</div>
@@ -1269,7 +1273,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="bg-gray-800 border-purple-700 shadow-md">
+            <Card className="panel border-purple-700/50 shadow-md">
               <CardHeader>
                 <CardTitle className="text-lg">Aportes do Mês</CardTitle>
               </CardHeader>
@@ -1277,7 +1281,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 {monthInvestments.length > 0 ? (
                   <ScrollArea className="h-[220px]">
                     <Table>
-                      <TableHeader className="bg-gray-900 sticky top-0">
+                      <TableHeader className="bg-black/40 sticky top-0">
                         <TableRow>
                           <TableHead className="w-1/3">Data</TableHead>
                           <TableHead className="w-1/3">Valor</TableHead>
@@ -1286,7 +1290,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </TableHeader>
                       <TableBody>
                         {monthInvestments.map((investment) => (
-                          <TableRow key={investment.id} className="hover:bg-gray-700">
+                          <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                             <TableCell className="py-2">{format(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
                             <TableCell className="py-2">{formatCryptoAmount(investment.amount, investment.unit)}</TableCell>
                             <TableCell className="text-right py-2">
@@ -1294,7 +1298,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => deleteInvestment(investment.id)}
-                                className="text-muted-foreground hover:text-destructive"
+                                className="text-muted-foreground hover:text-red-500 hover:bg-red-900/10"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1310,7 +1314,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-800 border-purple-700 shadow-md">
+            <Card className="panel border-purple-700/50 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-lg">Lucros/Perdas do Mês</CardTitle>
                 <div className="flex gap-2">
@@ -1318,7 +1322,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size="sm"
                     onClick={() => exportProfitData()}
-                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                     title="Exportar dados do mês atual para Excel"
                   >
                     <FileText className="h-4 w-4 mr-1" />
@@ -1328,7 +1332,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size="sm"
                     onClick={() => exportProfitData(true)}
-                    className="h-8 bg-gray-900 border-purple-700 hover:bg-gray-800"
+                    className="h-8 bg-black/20 border-purple-700/50 hover:bg-purple-900/20"
                     title="Exportar histórico completo para Excel"
                   >
                     <Download className="h-4 w-4 mr-1" />
@@ -1340,7 +1344,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 {monthProfits.length > 0 ? (
                   <ScrollArea className="h-[220px]">
                     <Table>
-                      <TableHeader className="bg-gray-900 sticky top-0">
+                      <TableHeader className="bg-black/40 sticky top-0">
                         <TableRow>
                           <TableHead className="w-1/4">Data</TableHead>
                           <TableHead className="w-1/4">Tipo</TableHead>
@@ -1350,7 +1354,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </TableHeader>
                       <TableBody>
                         {monthProfits.map((profit) => (
-                          <TableRow key={profit.id} className="hover:bg-gray-700">
+                          <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                             <TableCell className="py-2">{format(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
                             <TableCell className={profit.isProfit ? "text-green-500 py-2" : "text-red-500 py-2"}>
                               {profit.isProfit ? "Lucro" : "Perda"}
@@ -1363,7 +1367,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                 variant="ghost"
                                 size="icon-sm"
                                 onClick={() => deleteProfit(profit.id)}
-                                className="text-muted-foreground hover:text-destructive"
+                                className="text-muted-foreground hover:text-red-500 hover:bg-red-900/10"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1384,7 +1388,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
       {/* Diálogo de sucesso */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="bg-gray-900 border-purple-700 text-white">
+        <DialogContent className="bg-black/90 border-purple-700/50 text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center text-green-500">
               <Check className="h-5 w-5 mr-2" />
@@ -1393,7 +1397,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <DialogDescription className="text-gray-300">{successMessage.description}</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
-            <Button onClick={() => setShowSuccessDialog(false)} className="bg-purple-700 hover:bg-purple-600">
+            <Button onClick={() => setShowSuccessDialog(false)} className="bg-purple-800 hover:bg-purple-700">
               Fechar
             </Button>
           </div>
