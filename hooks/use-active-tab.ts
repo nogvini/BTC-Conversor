@@ -11,18 +11,20 @@ export function useActiveTab(): [Tab, (tab: Tab) => void] {
   const searchParams = useSearchParams()
   
   useEffect(() => {
-    // Verifica o pathname
-    if (pathname.includes('/chart')) {
-      setActiveTab('chart')
-    } else if (pathname.includes('/calculator')) {
-      setActiveTab('calculator')
-    } else if (pathname.includes('/converter')) {
-      setActiveTab('converter')
-    } else {
-      // Verifica os parâmetros de URL
-      const tabParam = searchParams.get('tab')
-      if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
+    // Verificar parâmetros de URL primeiro
+    const tabParam = searchParams.get('tab')
+    if (tabParam) {
+      if (tabParam === 'chart' || tabParam === 'calculator' || tabParam === 'converter') {
         setActiveTab(tabParam as Tab)
+      }
+    } else {
+      // Se não tiver parâmetros, verificar pelo pathname
+      if (pathname.includes('/chart')) {
+        setActiveTab('chart')
+      } else if (pathname.includes('/calculator')) {
+        setActiveTab('calculator')
+      } else if (pathname.includes('/converter')) {
+        setActiveTab('converter')
       }
     }
   }, [pathname, searchParams])

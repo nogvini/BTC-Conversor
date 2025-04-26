@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,15 +15,31 @@ interface NavigationBarProps {
 export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isMobile = useIsMobile()
   
   // Determinar qual botão está ativo com base no pathname ou parâmetro de URL
   let activeTab = "converter"
   
-  if (pathname.includes("chart") || pathname.includes("?tab=chart")) {
-    activeTab = "chart"
-  } else if (pathname.includes("calculator") || pathname.includes("?tab=calculator")) {
-    activeTab = "calculator"
+  // Verificar parâmetros de URL primeiro
+  const tabParam = searchParams.get('tab')
+  if (tabParam) {
+    if (tabParam === "chart") {
+      activeTab = "chart"
+    } else if (tabParam === "calculator") {
+      activeTab = "calculator"
+    } else if (tabParam === "converter") {
+      activeTab = "converter"
+    }
+  } else {
+    // Se não tiver parâmetros, verificar pelo pathname
+    if (pathname.includes("/chart")) {
+      activeTab = "chart"
+    } else if (pathname.includes("/calculator")) {
+      activeTab = "calculator"
+    } else if (pathname.includes("/converter")) {
+      activeTab = "converter"
+    }
   }
   
   return (
@@ -36,7 +52,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             variant="ghost"
             size={isMobile ? "sm" : "default"}
             className={cn(
-              "text-xs sm:text-sm rounded-md",
+              "text-xs sm:text-sm rounded-md transition-colors duration-200",
               activeTab === "converter" 
                 ? "bg-purple-800/70 text-white"
                 : "hover:bg-purple-800/20 hover:text-white"
@@ -52,7 +68,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             variant="ghost"
             size={isMobile ? "sm" : "default"}
             className={cn(
-              "text-xs sm:text-sm rounded-md",
+              "text-xs sm:text-sm rounded-md transition-colors duration-200",
               activeTab === "chart" 
                 ? "bg-purple-800/70 text-white"
                 : "hover:bg-purple-800/20 hover:text-white"
@@ -68,7 +84,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             variant="ghost"
             size={isMobile ? "sm" : "default"}
             className={cn(
-              "text-xs sm:text-sm rounded-md",
+              "text-xs sm:text-sm rounded-md transition-colors duration-200",
               activeTab === "calculator" 
                 ? "bg-purple-800/70 text-white"
                 : "hover:bg-purple-800/20 hover:text-white"
@@ -87,10 +103,10 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             variant="outline" 
             size={isMobile ? "sm" : "default"}
             disabled={loading}
-            className="flex items-center bg-black/20 border border-purple-700/50 hover:bg-purple-900/20"
+            className="group flex items-center bg-black/20 border border-purple-700/50 hover:bg-purple-900/20 transition-colors duration-200"
           >
             {loading ? "Atualizando..." : "Atualizar"}
-            <RefreshCw className={cn("ml-2", loading && "animate-spin")} />
+            <RefreshCw className={cn("ml-2 transition-transform duration-300", loading ? "animate-spin" : "group-hover:rotate-90")} />
           </Button>
         )}
       </div>
