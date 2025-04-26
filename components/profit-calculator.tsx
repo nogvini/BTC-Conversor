@@ -1032,7 +1032,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size={isMobile ? "icon-sm" : "icon"}
                     aria-label="Próximo mês"
-                    disabled={!canGoNext}
+                    disabled={isCurrentMonth(selectedMonth)}
                   >
                     <ChevronRight />
                   </Button>

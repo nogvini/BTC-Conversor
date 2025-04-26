@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Bitcoin, RefreshCw, Calendar, TrendingUp, ArrowRightLeft, AlertTriangle, DollarSign, Calculator } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -56,6 +56,20 @@ const formatBtc = (value: string | number): string => {
   return numValue.toFixed(8);
 };
 
+// Componente para lidar com parâmetros de URL
+function TabParamHandler({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
+  const searchParams = useSearchParams()
+  
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams, setActiveTab])
+  
+  return null
+}
+
 export default function BitcoinConverter() {
   const [amount, setAmount] = useState<string>("")
   const [selectedUnit, setSelectedUnit] = useState<CurrencyUnit>("SATS")
@@ -68,16 +82,6 @@ export default function BitcoinConverter() {
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
   
-  // Verificar parâmetros de URL para definir a aba ativa
-  const searchParams = useSearchParams()
-  
-  useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    if (tabParam && ['converter', 'chart', 'calculator'].includes(tabParam)) {
-      setActiveTab(tabParam)
-    }
-  }, [searchParams])
-
   // Carregar todos os dados da aplicação de uma vez
   const fetchData = async () => {
     setLoading(true)
@@ -234,6 +238,10 @@ export default function BitcoinConverter() {
 
   return (
     <ResponsiveContainer>
+      {/* Componente para lidar com parâmetros de URL */}
+      <Suspense>
+        <TabParamHandler setActiveTab={setActiveTab} />
+      </Suspense>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h1 className="text-2xl md:text-3xl font-bold">Bitcoin Calculator</h1>
