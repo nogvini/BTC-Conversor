@@ -47,7 +47,6 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
               <span className="text-purple-500 mr-2">₿</span>
               Bitcoin Calculator
             </h2>
-            <p className="text-sm text-white/60 mt-1">Navegue entre as seções</p>
           </div>
           
           <nav className="flex-1 p-4">
