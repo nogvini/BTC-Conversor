@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, Fragment } from "react"
 import {
   Line,
   LineChart,
@@ -600,7 +600,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full"> 
-                {/* Implementação real do gráfico de candlestick */}
+                {/* Implementação simplificada do gráfico de candlestick */}
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={candlestickData}
@@ -625,6 +625,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                     <Tooltip
                       formatter={(value: number, name: string) => {
                         if (name === 'candle') return [null, null];
+                        if (name === 'open') return [`${formatCurrency(value, true)}`, 'Abertura'];
+                        if (name === 'close') return [`${formatCurrency(value, true)}`, 'Fechamento'];
+                        if (name === 'high') return [`${formatCurrency(value, true)}`, 'Máxima'];
+                        if (name === 'low') return [`${formatCurrency(value, true)}`, 'Mínima'];
                         return [`${formatCurrency(value, true)}`, name.charAt(0).toUpperCase() + name.slice(1)];
                       }}
                       labelFormatter={(label) => new Date(label).toLocaleString()}
@@ -635,62 +639,53 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       }}
                     />
                     
-                    {/* Linha de tendência/fechamento */}
+                    {/* Linhas de máxima e mínima */}
                     <Line
                       type="monotone"
-                      dataKey="close"
+                      dataKey="high"
                       stroke="#8b5cf6"
-                      strokeWidth={2}
+                      strokeWidth={1}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="low"
+                      stroke="#8b5cf6"
+                      strokeWidth={1}
                       dot={false}
                     />
                     
                     {/* Barras para as velas */}
+                    <Bar 
+                      dataKey="open" 
+                      fill="transparent" 
+                      stackId="stack"
+                    />
+                    <Bar 
+                      dataKey="close" 
+                      fill="transparent" 
+                      stackId="stack"
+                    />
+                    
+                    {/* Barras para o corpo das velas */}
                     <Bar
                       dataKey="candle"
-                      fill="transparent"
-                      stroke="transparent"
+                      name="Preço"
                     >
                       {candlestickData.map((entry, index) => {
-                        // Determina a cor com base no preço de abertura e fechamento
-                        const color = entry.open > entry.close ? '#ef4444' : '#10b981';
+                        const isUp = entry.close >= entry.open;
+                        const color = isUp ? '#10b981' : '#ef4444';
+                        const height = Math.abs(entry.close - entry.open);
                         
                         return (
-                          <Cell key={`cell-${index}`} fill="transparent" />
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={color} 
+                            stroke={color}
+                          />
                         );
                       })}
                     </Bar>
-                    
-                    {/* Renderizar as velas individualmente */}
-                    {candlestickData.map((entry, index) => {
-                      const isUp = entry.close >= entry.open;
-                      const color = isUp ? '#10b981' : '#ef4444';
-                      
-                      return (
-                        <React.Fragment key={`candle-${index}`}>
-                          {/* Linha de máxima/mínima (sombra) */}
-                          <ReferenceLine
-                            segment={[
-                              { x: index, y: entry.low },
-                              { x: index, y: entry.high }
-                            ]}
-                            stroke={color}
-                            strokeWidth={1}
-                            isFront={true}
-                          />
-                          
-                          {/* Corpo da vela */}
-                          <ReferenceLine
-                            segment={[
-                              { x: index, y: entry.open },
-                              { x: index, y: entry.close }
-                            ]}
-                            stroke={color}
-                            strokeWidth={6}
-                            isFront={true}
-                          />
-                        </React.Fragment>
-                      );
-                    })}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
