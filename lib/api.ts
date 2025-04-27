@@ -18,6 +18,7 @@ export interface HistoricalDataPoint {
   timestamp: number
   isSampleData?: boolean
   isUsingCache?: boolean // Indica se estamos usando dados em cache
+  source?: string // Indica a fonte dos dados (tradingview, coingecko, etc.)
 }
 
 // Interface para os dados completos da aplicação

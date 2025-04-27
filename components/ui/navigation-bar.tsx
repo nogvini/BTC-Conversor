@@ -193,7 +193,12 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   return (
     <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
       <div className="flex w-full items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-white/90">Bitcoin Calculator</h1>
+        {/* Reorganização do layout mobile: Menu à esquerda, título no centro */}
+        {isMobile && (
+          <MobileNavigation />
+        )}
+        
+        <h1 className={cn("text-2xl md:text-3xl font-bold text-white/90", isMobile && "flex-1 text-center")}>Bitcoin Calculator</h1>
         
         <div className="flex items-center gap-2">
           {/* Desktop Navigation */}
@@ -215,22 +220,17 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             </Button>
           )}
           
-          {/* Mobile Navigation */}
-          {isMobile && (
-            <div className="flex items-center gap-2">
-              {onRefresh && (
-                <Button 
-                  onClick={onRefresh} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={loading}
-                  className="group flex items-center bg-black/20 border border-purple-700/50 hover:bg-purple-900/20 transition-colors duration-200"
-                >
-                  <RefreshCw className={cn("transition-transform duration-300", loading ? "animate-spin" : "group-hover:rotate-90")} />
-                </Button>
-              )}
-              <MobileNavigation />
-            </div>
+          {/* Mobile Refresh Button - Movido para a direita enquanto menu está à esquerda */}
+          {isMobile && onRefresh && (
+            <Button 
+              onClick={onRefresh} 
+              variant="outline" 
+              size="sm"
+              disabled={loading}
+              className="group flex items-center bg-black/20 border border-purple-700/50 hover:bg-purple-900/20 transition-colors duration-200"
+            >
+              <RefreshCw className={cn("transition-transform duration-300", loading ? "animate-spin" : "group-hover:rotate-90")} />
+            </Button>
           )}
         </div>
       </div>

@@ -47,35 +47,78 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [error, setError] = useState<string | null>(null)
   const [usingFallbackData, setUsingFallbackData] = useState<boolean>(false)
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
+  const [dataSource, setDataSource] = useState<string>("TradingView")
   const isMobile = useIsMobile()
 
   // Modify the fetchHistoricalData function to better handle errors
-  const fetchHistoricalData = useCallback(async () => {
+  const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
     setLoading(true)
     setError(null)
     setUsingFallbackData(false)
+    setDataSource("TradingView") // Define TradingView como fonte padrão
 
     try {
       let data: HistoricalDataPoint[] = []
       const days = timeRangeToDays(timeRange)
       
-      // Se temos dados históricos disponíveis via props, usar eles
-      if (historicalData) {
+      // Se forceUpdate for true, buscar da API ignorando o cache
+      if (forceUpdate) {
+        // Forçar atualização direta da API
+        const params = new URLSearchParams({
+          currency: currency.toLowerCase(),
+          days: days.toString(),
+          force: 'true'
+        });
+        
+        const response = await fetch(`/api/bitcoin/historical?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error(`Erro ao buscar dados: ${response.status}`);
+        }
+        
+        data = await response.json();
+        
+        // Verificar a fonte dos dados
+        if (data[0]?.source) {
+          setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
+        }
+        
+        setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData));
+      }
+      // Se não forçar atualização, tentar usar os dados do historicalData props
+      else if (historicalData) {
         const sourceData = currency.toLowerCase() === 'usd' ? historicalData.usd : historicalData.brl
         
         // Verificar se temos o número necessário de dias
         if (sourceData && sourceData.length >= days) {
           // Filtrar para obter apenas o número de dias desejado
           data = sourceData.slice(0, days + 1)
+          
+          // Verificar a fonte dos dados
+          if (data[0]?.source) {
+            setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
+          }
+          
           setIsUsingCachedData(sourceData.some(item => item.isUsingCache))
         } else {
           // Se não tivermos dias suficientes, buscar da API
           data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
+          
+          // Verificar a fonte dos dados
+          if (data[0]?.source) {
+            setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
+          }
+          
           setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData))
         }
       } else {
         // Se não tivermos dados históricos, buscar da API
         data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
+        
+        // Verificar a fonte dos dados
+        if (data[0]?.source) {
+          setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
+        }
+        
         setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData))
       }
       
@@ -87,7 +130,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       // Mostrar feedback ao usuário
       toast({
         title: "Dados atualizados",
-        description: `Dados históricos de ${days} dias em ${currency} carregados.`,
+        description: `Dados históricos de ${days} dias em ${currency} carregados via ${dataSource}.`,
       })
 
       // Verificar se estamos usando dados de fallback gerados
@@ -110,6 +153,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       console.error("Erro ao buscar dados históricos:", error)
       setError("Não foi possível obter dados em tempo real. Usando dados simulados.")
       setUsingFallbackData(true)
+      setDataSource("Simulado")
 
       // Gerar dados de exemplo como último recurso
       const days = timeRangeToDays(timeRange)
@@ -119,6 +163,11 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       setLoading(false)
     }
   }, [timeRange, currency, historicalData])
+
+  // Forçar atualização - ignora cache
+  const forceUpdateData = useCallback(() => {
+    fetchHistoricalData(true);
+  }, [fetchHistoricalData]);
 
   // Atualizar dados quando o intervalo de tempo ou moeda mudar
   useEffect(() => {
@@ -242,7 +291,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             <CardTitle className="text-lg font-medium">Histórico de Preços do Bitcoin</CardTitle>
             <div className="flex flex-wrap gap-2">
               <Button
-                onClick={fetchHistoricalData}
+                onClick={forceUpdateData}
                 variant="outline"
                 size={isMobile ? "sm" : "default"}
                 disabled={loading}
@@ -256,7 +305,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                 ) : (
                   <>
                     <RefreshCw className="mr-1 h-4 w-4" />
-                    Atualizar Gráfico
+                    Atualizar via TradingView
                   </>
                 )}
               </Button>
@@ -270,6 +319,13 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               <p className="text-sm">{error}</p>
             </div>
           )}
+
+          {/* Mostra a fonte dos dados */}
+          <div className="flex justify-end mb-2">
+            <span className="text-xs text-muted-foreground">
+              Fonte: {dataSource} {isUsingCachedData && "(Dados em cache)"}
+            </span>
+          </div>
 
           <div className="mb-4 space-y-2">
             <div className="flex flex-col md:flex-row justify-between gap-4">

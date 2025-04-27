@@ -343,9 +343,11 @@ export default function BitcoinConverter() {
               <p className="text-sm text-muted-foreground">
                 {rates && (
                   <>
-                    Atualizado em {rates.lastUpdated.toLocaleString()} • 
-                    <span className="ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)} • 
-                    1 USD = R${formatCurrency(rates.BRL_USD)}</span>
+                    Atualizado em {rates.lastUpdated.toLocaleString()}
+                    <span className="hidden sm:inline"> • </span>
+                    <span className="block sm:inline sm:ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)}</span>
+                    <span className="hidden sm:inline"> • </span>
+                    <span className="block sm:inline sm:ml-0 font-medium">1 USD = R${formatCurrency(rates.BRL_USD)}</span>
                   </>
                 )}
               </p>

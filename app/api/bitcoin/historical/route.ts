@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getHistoricalData } from '@/lib/server-api';
+import { getHistoricalData, forceUpdateHistoricalData } from '@/lib/server-api';
 
-// GET /api/bitcoin/historical?currency=usd&days=30
+// GET /api/bitcoin/historical?currency=usd&days=30&force=true
 export async function GET(request: Request) {
   try {
     // Obter parâmetros da requisição
     const { searchParams } = new URL(request.url);
     const currency = searchParams.get('currency') || 'usd';
     const days = parseInt(searchParams.get('days') || '30', 10);
+    const forceUpdate = searchParams.get('force') === 'true';
     
     // Validar parâmetros
     if (isNaN(days) || days < 1 || days > 365) {
@@ -24,8 +25,10 @@ export async function GET(request: Request) {
       );
     }
     
-    // Buscar dados históricos
-    const historicalData = await getHistoricalData(currency.toLowerCase(), days);
+    // Buscar dados históricos, com opção de forçar atualização
+    const historicalData = forceUpdate 
+      ? await forceUpdateHistoricalData(currency.toLowerCase(), days)
+      : await getHistoricalData(currency.toLowerCase(), days);
     
     // Retornar os dados como JSON
     return NextResponse.json(historicalData);
