@@ -12,6 +12,10 @@ import {
   Area,
   AreaChart,
   Legend,
+  Bar,
+  BarChart,
+  Cell,
+  ReferenceLine,
 } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -596,9 +600,9 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full"> 
-                {/* Implementação do gráfico de candlestick vem aqui */}
+                {/* Implementação real do gráfico de candlestick */}
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
+                  <BarChart
                     data={candlestickData}
                     margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
                   >
@@ -619,7 +623,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       stroke="hsl(var(--muted-foreground))"
                     />
                     <Tooltip
-                      formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
+                      formatter={(value: number, name: string) => {
+                        if (name === 'candle') return [null, null];
+                        return [`${formatCurrency(value, true)}`, name.charAt(0).toUpperCase() + name.slice(1)];
+                      }}
                       labelFormatter={(label) => new Date(label).toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
@@ -627,15 +634,64 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                         color: "hsl(var(--foreground))",
                       }}
                     />
+                    
+                    {/* Linha de tendência/fechamento */}
                     <Line
                       type="monotone"
                       dataKey="close"
                       stroke="#8b5cf6"
                       strokeWidth={2}
                       dot={false}
-                      activeDot={{ r: 6, fill: "#8b5cf6" }}
                     />
-                  </LineChart>
+                    
+                    {/* Barras para as velas */}
+                    <Bar
+                      dataKey="candle"
+                      fill="transparent"
+                      stroke="transparent"
+                    >
+                      {candlestickData.map((entry, index) => {
+                        // Determina a cor com base no preço de abertura e fechamento
+                        const color = entry.open > entry.close ? '#ef4444' : '#10b981';
+                        
+                        return (
+                          <Cell key={`cell-${index}`} fill="transparent" />
+                        );
+                      })}
+                    </Bar>
+                    
+                    {/* Renderizar as velas individualmente */}
+                    {candlestickData.map((entry, index) => {
+                      const isUp = entry.close >= entry.open;
+                      const color = isUp ? '#10b981' : '#ef4444';
+                      
+                      return (
+                        <React.Fragment key={`candle-${index}`}>
+                          {/* Linha de máxima/mínima (sombra) */}
+                          <ReferenceLine
+                            segment={[
+                              { x: index, y: entry.low },
+                              { x: index, y: entry.high }
+                            ]}
+                            stroke={color}
+                            strokeWidth={1}
+                            isFront={true}
+                          />
+                          
+                          {/* Corpo da vela */}
+                          <ReferenceLine
+                            segment={[
+                              { x: index, y: entry.open },
+                              { x: index, y: entry.close }
+                            ]}
+                            stroke={color}
+                            strokeWidth={6}
+                            isFront={true}
+                          />
+                        </React.Fragment>
+                      );
+                    })}
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
