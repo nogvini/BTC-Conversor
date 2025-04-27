@@ -601,11 +601,11 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full"> 
-                {/* Implementação corrigida do gráfico de candlestick */}
+                {/* Implementação simplificada do gráfico de candlestick */}
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={candlestickData}
-                    margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis
@@ -622,63 +622,79 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       orientation="right"
                       tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                       stroke="hsl(var(--muted-foreground))"
-                      domain={['auto', 'auto']}
+                      domain={['dataMin', 'dataMax']}
                     />
                     <Tooltip
-                      formatter={(value: number, name: string, props: any) => {
-                        if (name === 'value' || name === 'height') return [null, null];
+                      formatter={(value: number, name: string) => {
+                        if (name === 'bodyHeight') return [null, null];
                         if (name === 'open') return [`${formatCurrency(value, true)}`, 'Abertura'];
                         if (name === 'close') return [`${formatCurrency(value, true)}`, 'Fechamento'];
                         if (name === 'high') return [`${formatCurrency(value, true)}`, 'Máxima'];
                         if (name === 'low') return [`${formatCurrency(value, true)}`, 'Mínima'];
-                        return [`${formatCurrency(value, true)}`, name.charAt(0).toUpperCase() + name.slice(1)];
+                        return [formatCurrency(value, true), name];
                       }}
                       labelFormatter={(label) => new Date(label).toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--border))",
-                        color: "hsl(var(--foreground))",
+                        color: "hsl(var(--foreground))"
                       }}
                     />
                     
-                    {/* Linhas de alta e baixa (shadow) */}
+                    {/* Renderizar as linhas verticais para cada vela (sombras) */}
                     {candlestickData.map((entry, index) => (
-                      <Line
-                        key={`line-${index}`}
-                        data={[
-                          { x: index, y: entry.low },
-                          { x: index, y: entry.high }
-                        ]}
-                        dataKey="y"
-                        stroke={entry.isUp ? '#10b981' : '#ef4444'}
-                        strokeWidth={1}
-                        dot={false}
-                        activeDot={false}
-                        type="linear"
+                      <Bar 
+                        key={`bar-${index}`}
+                        dataKey="bodyHeight"
+                        name="Preço"
+                        stackId="a"
+                        barSize={6}
+                        fill={entry.color}
+                        stroke={entry.color}
+                        shape={(props) => {
+                          const { x, y, width, height, fill } = props;
+                          const yStart = entry.direction > 0 
+                            ? y + height  // Para velas de alta, começa de baixo
+                            : y;          // Para velas de baixa, começa de cima
+                          
+                          return (
+                            <g>
+                              {/* Sombra vertical (linha completa de min a max) */}
+                              <line 
+                                x1={x + width/2} 
+                                y1={entry.low} 
+                                x2={x + width/2} 
+                                y2={entry.high} 
+                                stroke={entry.color} 
+                                strokeWidth={1} 
+                              />
+                              
+                              {/* Corpo da vela */}
+                              <rect 
+                                x={x} 
+                                y={entry.bodyStart} 
+                                width={width} 
+                                height={entry.bodyHeight} 
+                                fill={fill} 
+                                stroke={fill}
+                              />
+                            </g>
+                          );
+                        }}
                       />
                     ))}
                     
-                    {/* Renderizar as barras como corpos das velas */}
-                    <Bar dataKey="height" maxBarSize={8}>
-                      {candlestickData.map((entry, index) => {
-                        // Cor verde para alta, vermelha para baixa
-                        const color = entry.isUp ? '#10b981' : '#ef4444';
-                        
-                        return (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={color}
-                            stroke={color}
-                          />
-                        );
-                      })}
-                    </Bar>
-                    
-                    {/* Linha base para referência */}
+                    {/* Linha para manter a escala */}
                     <Line 
-                      type="linear"
-                      dataKey="close"
-                      stroke="transparent" 
+                      type="monotone"
+                      dataKey="high"
+                      stroke="transparent"
+                      dot={false}
+                    />
+                    <Line 
+                      type="monotone"
+                      dataKey="low"
+                      stroke="transparent"
                       dot={false}
                     />
                   </ComposedChart>
@@ -730,7 +746,6 @@ function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
 function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
   if (data.length === 0) return []
   
-  // Para um gráfico de candlestick real, precisaríamos de dados OHLC
   const result = []
   const step = Math.max(1, Math.floor(data.length / 30)) // Agrupar para reduzir número de candles
   
@@ -741,22 +756,21 @@ function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
       const close = chunk[chunk.length-1].price
       const high = Math.max(...chunk.map(item => item.price))
       const low = Math.min(...chunk.map(item => item.price))
-      const isUp = close >= open
       
-      // Para um gráfico de candlestick, precisamos representar cada parte da vela
+      // Uma vela é de alta quando o fechamento é maior que a abertura
+      const isUp = close > open
+      
       result.push({
         date: chunk[0].date,
         open,
         close,
         high,
         low,
-        // Para o gráfico de barras customizado
-        value: isUp ? close : open, // O valor base da barra
-        height: Math.abs(close - open), // Altura da barra
-        fullHeight: high - low, // Altura total incluindo sombras
-        shadowTop: high - Math.max(open, close), // Parte superior da sombra
-        shadowBottom: Math.min(open, close) - low, // Parte inferior da sombra
-        isUp
+        direction: isUp ? 1 : -1,
+        color: isUp ? '#10b981' : '#ef4444', // Verde para alta, vermelho para baixa
+        bodyStart: Math.min(open, close),
+        bodyEnd: Math.max(open, close),
+        bodyHeight: Math.abs(close - open)
       })
     }
   }
