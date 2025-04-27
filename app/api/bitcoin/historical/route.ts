@@ -10,6 +10,8 @@ export async function GET(request: Request) {
     const days = parseInt(searchParams.get('days') || '30', 10);
     const forceUpdate = searchParams.get('force') === 'true';
     
+    console.log(`API: Requisição de dados históricos - moeda: ${currency}, dias: ${days}${forceUpdate ? ', força atualização' : ''}`);
+    
     // Validar parâmetros
     if (isNaN(days) || days < 1 || days > 365) {
       return NextResponse.json(
@@ -26,12 +28,27 @@ export async function GET(request: Request) {
     }
     
     // Buscar dados históricos, com opção de forçar atualização
+    const startTime = Date.now();
     const historicalData = forceUpdate 
       ? await forceUpdateHistoricalData(currency.toLowerCase(), days)
       : await getHistoricalData(currency.toLowerCase(), days);
+    const endTime = Date.now();
     
-    // Retornar os dados como JSON
-    return NextResponse.json(historicalData);
+    // Verificar se estamos usando cache
+    const isUsingCache = historicalData.some(item => item.isUsingCache);
+    
+    // Preparar os headers de resposta
+    const headers = new Headers();
+    headers.set('X-Data-Source', historicalData[0]?.source || 'unknown');
+    headers.set('X-Using-Cache', isUsingCache ? 'true' : 'false');
+    headers.set('X-Response-Time', `${endTime - startTime}ms`);
+    
+    console.log(`API: Resposta enviada - fonte: ${historicalData[0]?.source || 'unknown'}, cache: ${isUsingCache}, tempo: ${endTime - startTime}ms`);
+    
+    // Retornar os dados como JSON com os headers informativos
+    return NextResponse.json(historicalData, {
+      headers: Object.fromEntries(headers.entries())
+    });
   } catch (error) {
     console.error('Erro na rota de dados históricos do Bitcoin:', error);
     return NextResponse.json(

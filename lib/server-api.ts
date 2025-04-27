@@ -10,6 +10,39 @@ import { BitcoinPrice, HistoricalDataPoint, AppData } from './api';
 // Caminho para o arquivo de dados no servidor
 const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'bitcoin-data.json');
 
+// Adicionar um sistema de cache global no servidor
+// Este cache é compartilhado entre todos os usuários
+const globalCacheData: {
+  historicalData: {
+    [currency: string]: { // currency = 'usd' ou 'brl'
+      [days: string]: { // key = "dias" (ex: "30")
+        data: HistoricalDataPoint[],
+        timestamp: number
+      }
+    }
+  },
+  currentPrice: {
+    data: BitcoinPrice | null,
+    timestamp: number
+  }
+} = {
+  historicalData: {
+    usd: {},
+    brl: {}
+  },
+  currentPrice: {
+    data: null,
+    timestamp: 0
+  }
+};
+
+// Constantes de expiração do cache
+const CACHE_EXPIRATION = {
+  PRICE: 5 * 60 * 1000, // 5 minutos para preço atual
+  HISTORICAL: 60 * 60 * 1000, // 1 hora para dados históricos
+  FORCE_UPDATE: 1 * 60 * 1000 // 1 minuto para força de atualização (proteção contra muitas requisições)
+};
+
 // Garantir que o diretório data existe
 const ensureDataDir = () => {
   const dataDir = path.join(process.cwd(), 'data');
@@ -409,7 +442,18 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
   try {
     const now = Date.now();
     
+    // Verificar se houve uma atualização recente no cache global
+    if (globalCacheData.currentPrice.data && 
+        (now - globalCacheData.currentPrice.timestamp < CACHE_EXPIRATION.PRICE)) {
+      console.log(`Usando preço em cache global - última atualização: ${new Date(globalCacheData.currentPrice.timestamp).toLocaleString()}`);
+      return {
+        ...globalCacheData.currentPrice.data,
+        isUsingCache: true
+      };
+    }
+    
     // Buscar novos dados
+    console.log('Buscando novos dados de preço');
     const btcUsdPrice = await fetchBitcoinUsdPrice();
     const usdToBrlRate = await fetchUsdToBrlRate();
     
@@ -421,7 +465,7 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
       isUsingCache: false
     };
     
-    // Atualizar dados salvos
+    // Atualizar dados salvos no sistema de arquivos
     const savedData = await getAppData();
     if (savedData) {
       const updatedData = {
@@ -432,45 +476,93 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
       await saveAppData(updatedData);
     }
     
+    // Atualizar cache global
+    globalCacheData.currentPrice = {
+      data: currentPrice,
+      timestamp: now
+    };
+    
     return currentPrice;
   } catch (error) {
     console.error('Erro ao atualizar preço atual:', error);
     
+    // Tentar usar o cache global mesmo que expirado
+    if (globalCacheData.currentPrice.data) {
+      console.log('Usando preço em cache global expirado');
+      return {
+        ...globalCacheData.currentPrice.data,
+        isUsingCache: true
+      };
+    }
+    
     // Tentar usar dados salvos
     const savedData = await getAppData();
     if (savedData) {
+      // Atualizar o cache global
+      globalCacheData.currentPrice = {
+        data: savedData.currentPrice,
+        timestamp: savedData.lastFetched
+      };
+      
       return { ...savedData.currentPrice, isUsingCache: true };
     }
     
     // Retornar dados de fallback como último recurso
-    return {
+    const fallbackPrice = {
       usd: 65000,
       brl: 65000 * 5.2,
       timestamp: Date.now(),
       isUsingCache: true
     };
+    
+    // Armazenar no cache global
+    globalCacheData.currentPrice = {
+      data: fallbackPrice,
+      timestamp: Date.now()
+    };
+    
+    return fallbackPrice;
   }
 }
 
 // Função para buscar dados históricos com parâmetros específicos
 export async function getHistoricalData(currency = 'usd', days = 30): Promise<HistoricalDataPoint[]> {
   try {
-    // Verificar se temos dados em cache
-    const cacheKey = `bitcoinHistoricalData_${currency}_${days}`;
+    // Primeiramente, verificar se temos dados no cache global
+    const cacheKey = `${days}`;
+    const globalCache = globalCacheData.historicalData[currency.toLowerCase()][cacheKey];
+    const now = Date.now();
+    
+    // Verificar se os dados do cache global são recentes (menos de 1 hora)
+    if (globalCache && (now - globalCache.timestamp < CACHE_EXPIRATION.HISTORICAL)) {
+      console.log(`Usando cache global para ${currency} ${days} dias - última atualização: ${new Date(globalCache.timestamp).toLocaleString()}`);
+      return globalCache.data.map((item: HistoricalDataPoint) => ({
+        ...item,
+        isUsingCache: true // Indicar que estamos usando cache
+      }));
+    }
+    
+    // Se não temos dados no cache global ou estão desatualizados, tentar o filesystem
     const cacheData = await getAppData();
     
     // Verificar se os dados são recentes (menos de 1 hora)
     if (cacheData) {
       const cacheTime = cacheData.lastFetched;
-      const cacheAge = Date.now() - cacheTime;
+      const cacheAge = now - cacheTime;
       
       // Se os dados foram atualizados há menos de 1 hora, retornar do cache
-      if (cacheAge < 3600000) {
+      if (cacheAge < CACHE_EXPIRATION.HISTORICAL) {
         // Retornar dados históricos apropriados
         const historicalData = currency === 'usd' ? cacheData.historicalDataUSD : cacheData.historicalDataBRL;
         
         // Filtrar para o número de dias solicitado
         if (historicalData.length >= days) {
+          // Atualizar o cache global para futuros usuários
+          globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+            data: historicalData.slice(0, days),
+            timestamp: cacheTime // Usar o timestamp original do cache
+          };
+          
           return historicalData.slice(0, days).map(item => ({
             ...item,
             isUsingCache: true
@@ -480,29 +572,53 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     }
     
     // Se chegamos aqui, precisamos buscar novos dados
+    console.log(`Buscando novos dados para ${currency} ${days} dias`);
     const historicalData = await fetchHistoricalData(currency, days);
     
-    // Atualizar o cache se necessário
+    // Atualizar o cache local
     if (cacheData) {
       if (currency === 'usd') {
         cacheData.historicalDataUSD = historicalData;
       } else {
         cacheData.historicalDataBRL = historicalData;
       }
-      cacheData.lastFetched = Date.now();
+      cacheData.lastFetched = now;
       await saveAppData(cacheData);
     }
+    
+    // Atualizar o cache global
+    globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+      data: historicalData,
+      timestamp: now
+    };
     
     return historicalData;
   } catch (error) {
     console.error(`Erro ao obter dados históricos (${currency}, ${days} dias):`, error);
     
-    // Tentar usar dados salvos
+    // Tentar usar dados do cache global mesmo que estejam expirados
+    const cacheKey = `${days}`;
+    const globalCache = globalCacheData.historicalData[currency.toLowerCase()][cacheKey];
+    if (globalCache) {
+      console.log(`Usando cache global expirado para ${currency} ${days} dias`);
+      return globalCache.data.map((item: HistoricalDataPoint) => ({
+        ...item,
+        isUsingCache: true
+      }));
+    }
+    
+    // Tentar usar dados salvos no sistema de arquivos
     const savedData = await getAppData();
     if (savedData) {
       const historicalData = currency === 'usd' ? savedData.historicalDataUSD : savedData.historicalDataBRL;
       
       if (historicalData && historicalData.length > 0) {
+        // Atualizar o cache global com dados salvos
+        globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+          data: historicalData.slice(0, days),
+          timestamp: savedData.lastFetched
+        };
+        
         return historicalData.slice(0, days).map(item => ({
           ...item,
           isUsingCache: true
@@ -511,14 +627,37 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     }
     
     // Se falhar completamente, retornar dados simulados
-    return generateSampleHistoricalData(days, currency);
+    const sampleData = generateSampleHistoricalData(days, currency);
+    
+    // Armazenar os dados simulados no cache global
+    globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+      data: sampleData,
+      timestamp: Date.now()
+    };
+    
+    return sampleData;
   }
 }
 
 // Nova função para forçar a atualização dos dados históricos
 export async function forceUpdateHistoricalData(currency = 'usd', days = 30): Promise<HistoricalDataPoint[]> {
   try {
+    // Verificar se uma atualização forçada foi feita recentemente para evitar sobrecarga
+    const cacheKey = `${days}`;
+    const currentCache = globalCacheData.historicalData[currency.toLowerCase()][cacheKey];
+    const now = Date.now();
+    
+    // Se já houve uma atualização recente (menos de 1 minuto), usar o cache para evitar sobrecarga
+    if (currentCache && (now - currentCache.timestamp < CACHE_EXPIRATION.FORCE_UPDATE)) {
+      console.log(`Usando cache recente para ${currency} ${days} dias - última atualização: ${new Date(currentCache.timestamp).toLocaleString()}`);
+      return currentCache.data.map((item: HistoricalDataPoint) => ({
+        ...item,
+        isUsingCache: true // Indicar que estamos usando cache
+      }));
+    }
+    
     // Buscar dados diretamente da fonte, ignorando o cache
+    console.log(`Forçando atualização dos dados para ${currency} ${days} dias`);
     const historicalData = await fetchHistoricalData(currency, days);
     
     // Atualizar o cache após a busca
@@ -529,9 +668,15 @@ export async function forceUpdateHistoricalData(currency = 'usd', days = 30): Pr
       } else {
         cacheData.historicalDataBRL = historicalData;
       }
-      cacheData.lastFetched = Date.now();
+      cacheData.lastFetched = now;
       await saveAppData(cacheData);
     }
+    
+    // Atualizar o cache global - disponível para todos os usuários
+    globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+      data: historicalData,
+      timestamp: now
+    };
     
     return historicalData;
   } catch (error) {

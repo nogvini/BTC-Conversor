@@ -9,6 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    // Força o uso do Babel em vez do SWC
+    forceSwcTransforms: false,
+  },
 }
 
 export default nextConfig

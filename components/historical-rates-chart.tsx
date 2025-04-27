@@ -70,19 +70,41 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           force: 'true'
         });
         
+        const startTime = Date.now();
         const response = await fetch(`/api/bitcoin/historical?${params.toString()}`);
+        const endTime = Date.now();
+        
         if (!response.ok) {
           throw new Error(`Erro ao buscar dados: ${response.status}`);
         }
         
+        // Verificar headers informativos
+        const dataSource = response.headers.get('X-Data-Source') || 'tradingview';
+        const isUsingCache = response.headers.get('X-Using-Cache') === 'true';
+        const responseTime = response.headers.get('X-Response-Time');
+        
         data = await response.json();
         
-        // Verificar a fonte dos dados
-        if (data[0]?.source) {
+        // Mostrar informações no console para debugging
+        console.log(`Dados recebidos - Fonte: ${dataSource}, Cache: ${isUsingCache}, Tempo: ${responseTime || `${endTime - startTime}ms`}`);
+        
+        // Definir fonte dos dados com base no header
+        if (dataSource) {
+          setDataSource(dataSource === 'tradingview' ? "TradingView" : "CoinGecko");
+        } else if (data[0]?.source) {
           setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
         }
         
-        setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData));
+        setIsUsingCachedData(isUsingCache || data.some(item => item.isUsingCache || item.isSampleData));
+        
+        // Mostrar feedback ao usuário sobre o compartilhamento de cache
+        if (isUsingCache && responseTime && parseInt(responseTime) < 50) {
+          toast({
+            title: "Dados compartilhados",
+            description: `Usando dados já atualizados por outro usuário (resposta rápida: ${responseTime}).`,
+            duration: 3000,
+          });
+        }
       }
       // Se não forçar atualização, tentar usar os dados do historicalData props
       else if (historicalData) {
@@ -321,10 +343,18 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           )}
 
           {/* Mostra a fonte dos dados */}
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-between mb-2">
             <span className="text-xs text-muted-foreground">
               Fonte: {dataSource} {isUsingCachedData && "(Dados em cache)"}
             </span>
+            {isUsingCachedData && (
+              <span className="text-xs text-purple-400 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Dados compartilhados
+              </span>
+            )}
           </div>
 
           <div className="mb-4 space-y-2">
@@ -462,6 +492,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                 <div className="flex flex-col items-center gap-2">
                   <RefreshCw className="h-8 w-8 animate-spin text-primary" />
                   <span className="text-sm text-muted-foreground">Carregando dados históricos...</span>
+                  <span className="text-xs text-purple-400">Verificando cache compartilhado</span>
                 </div>
               </div>
             ) : chartData.length === 0 ? (
