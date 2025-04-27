@@ -50,14 +50,14 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
-  const [dataSource, setDataSource] = useState<string>("TradingView")
+  const [dataSource, setDataSource] = useState<string>("CoinGecko")
   const isMobile = useIsMobile()
 
   // Modify the fetchHistoricalData function to better handle errors
   const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
     setLoading(true)
     setError(null)
-    setDataSource("TradingView") // Define TradingView como fonte padrão
+    setDataSource("CoinGecko") // Define CoinGecko como fonte padrão
 
     try {
       let data: HistoricalDataPoint[] = []
@@ -81,7 +81,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         }
         
         // Verificar headers informativos
-        const dataSource = response.headers.get('X-Data-Source') || 'tradingview';
+        const dataSource = response.headers.get('X-Data-Source') || 'coingecko';
         const isUsingCache = response.headers.get('X-Using-Cache') === 'true';
         const responseTime = response.headers.get('X-Response-Time');
         
@@ -91,11 +91,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         console.log(`Dados recebidos - Fonte: ${dataSource}, Cache: ${isUsingCache}, Tempo: ${responseTime || `${endTime - startTime}ms`}`);
         
         // Definir fonte dos dados com base no header
-        if (dataSource) {
-          setDataSource(dataSource === 'tradingview' ? "TradingView" : "CoinGecko");
-        } else if (data[0]?.source) {
-          setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
-        }
+        setDataSource("CoinGecko");
         
         setIsUsingCachedData(isUsingCache || data.some(item => item.isUsingCache));
         
@@ -117,20 +113,14 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           // Filtrar para obter apenas o número de dias desejado
           data = sourceData.slice(0, days + 1)
           
-          // Verificar a fonte dos dados
-          if (data[0]?.source) {
-            setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
-          }
+          setDataSource("CoinGecko");
           
           setIsUsingCachedData(sourceData.some(item => item.isUsingCache))
         } else {
           // Se não tivermos dias suficientes, buscar da API
           data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
           
-          // Verificar a fonte dos dados
-          if (data[0]?.source) {
-            setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
-          }
+          setDataSource("CoinGecko");
           
           setIsUsingCachedData(data.some(item => item.isUsingCache));
         }
@@ -138,10 +128,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         // Se não tivermos dados históricos, buscar da API
         data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
         
-        // Verificar a fonte dos dados
-        if (data[0]?.source) {
-          setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
-        }
+        setDataSource("CoinGecko");
         
         setIsUsingCachedData(data.some(item => item.isUsingCache));
       }

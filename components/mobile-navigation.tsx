@@ -45,7 +45,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           <div className="p-6 border-b border-purple-700/30">
             <h2 className="text-xl font-bold text-white/90 flex items-center">
               <span className="text-purple-500 mr-2">₿</span>
-              Bitcoin Calculator
+              Raid Bitcoin Toolkit
             </h2>
           </div>
           
@@ -74,7 +74,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           
           <div className="p-4 mt-auto border-t border-purple-700/30">
             <p className="text-xs text-white/50 text-center">
-              BTC Calculator v1.0
+              Raid BTC Toolkit v1.0
             </p>
           </div>
         </div>

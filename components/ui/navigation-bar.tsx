@@ -112,7 +112,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
         <SheetContent side="left" className="w-4/5 bg-zinc-900 border-r border-purple-800/40 p-0">
           <div className="flex flex-col h-full">
             <SheetHeader className="px-4 py-3 border-b border-purple-800/20 flex justify-between items-center">
-              <SheetTitle className="text-xl font-bold text-white">Bitcoin Calculator</SheetTitle>
+              <SheetTitle className="text-xl font-bold text-white">Menu</SheetTitle>
               <SheetClose asChild>
                 <Button variant="ghost" size="sm" className="p-1">
                   <X className="h-5 w-5" />
@@ -198,7 +198,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           <MobileNavigation />
         )}
         
-        <h1 className={cn("text-2xl md:text-3xl font-bold text-white/90", isMobile && "flex-1 text-center")}>Bitcoin Calculator</h1>
+        <h1 className={cn("text-2xl md:text-3xl font-bold text-white/90", isMobile && "flex-1 text-center")}>Raid Bitcoin Toolkit</h1>
         
         <div className="flex items-center gap-2">
           {/* Desktop Navigation */}

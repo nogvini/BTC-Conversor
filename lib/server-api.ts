@@ -99,15 +99,9 @@ async function fetchUsdToBrlRate(): Promise<number> {
 // Buscar dados históricos do Bitcoin
 async function fetchHistoricalData(currency = 'usd', days = 30): Promise<HistoricalDataPoint[]> {
   try {
-    // Primeiro tentar buscar dados do TradingView - implementação prioritária
-    try {
-      return await fetchHistoricalDataFromTradingView(currency, days);
-    } catch (tradingViewError) {
-      console.error(`Erro ao buscar dados do TradingView (${currency}):`, tradingViewError);
-      // Se falhar, continuar com o fallback para CoinGecko
-    }
+    // Usar diretamente a API do CoinGecko para maior confiabilidade
+    console.log(`Buscando dados históricos do CoinGecko para Bitcoin em ${currency} (${days} dias)`);
     
-    // Fallback: Usando CoinGecko API para dados históricos
     const response = await fetch(
       `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`,
       {
@@ -142,62 +136,6 @@ async function fetchHistoricalData(currency = 'usd', days = 30): Promise<Histori
   } catch (error) {
     console.error(`Erro ao buscar dados históricos (${currency}):`, error);
     throw new Error('Não foi possível obter dados históricos');
-  }
-}
-
-// Nova função para buscar dados do TradingView
-async function fetchHistoricalDataFromTradingView(currency = 'usd', days = 30): Promise<HistoricalDataPoint[]> {
-  // Definir o símbolo correto com base na moeda
-  const symbol = currency.toLowerCase() === 'usd' 
-    ? 'CRYPTO:BTCUSD'  // Bitcoin em USD
-    : 'BINANCE:BTCBRL'; // Bitcoin em BRL na Binance
-    
-  // Definir o intervalo correto com base nos dias solicitados
-  let interval = '1D'; // Padrão: diário
-  if (days <= 1) interval = '15';      // 15 minutos para 1 dia
-  else if (days <= 7) interval = '1H';  // 1 hora para até 7 dias
-  else if (days <= 30) interval = '4H'; // 4 horas para até 30 dias
-  else if (days <= 90) interval = '1D'; // Diário para até 90 dias
-  else interval = '1W';                 // Semanal para mais de 90 dias
-  
-  try {
-    // Aqui deveria implementar a integração real com o TradingView
-    // Como isso requer APIs pagas ou scraping, vamos usar uma implementação 
-    // que busca dados de outras fontes confiáveis mas retorna no formato esperado
-    
-    // Obter dados atuais via API alternativa (ex: CoinGecko, Alpha Vantage, etc)
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`,
-      { 
-        headers: { 'Accept': 'application/json' },
-        next: { revalidate: 300 } // Cache de 5 minutos
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao obter dados históricos: ${response.status}`);
-    }
-    
-    const marketData = await response.json();
-    
-    // Processar dados recebidos
-    const data: HistoricalDataPoint[] = marketData.prices.map(([timestamp, price]: [number, number]) => {
-      const date = new Date(timestamp);
-      return {
-        date: date.toISOString().split('T')[0],
-        price: Math.round(price * 100) / 100,
-        formattedDate: formatDateForTimeRange(date, days),
-        timestamp: date.getTime(),
-        source: 'tradingview', // Marcar a fonte como TradingView (mesmo usando CoinGecko como fonte real)
-        isUsingCache: false
-      };
-    });
-    
-    // Ordenar do mais antigo para o mais recente
-    return data.sort((a, b) => a.timestamp - b.timestamp);
-  } catch (error) {
-    console.error(`Erro ao buscar dados do TradingView (${currency}):`, error);
-    throw error; // Propagação do erro para o caller
   }
 }
 

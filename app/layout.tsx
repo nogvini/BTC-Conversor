@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "BTC Conversor",
+  title: "Raid Bitcoin Toolkit",
   description: "Converta Bitcoin para diferentes moedas e acompanhe o mercado",
 }
 
