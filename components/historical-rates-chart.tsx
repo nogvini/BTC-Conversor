@@ -16,6 +16,7 @@ import {
   BarChart,
   Cell,
   ReferenceLine,
+  ComposedChart,
 } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -600,12 +601,11 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full"> 
-                {/* Implementação melhorada do gráfico de candlestick */}
+                {/* Implementação corrigida do gráfico de candlestick */}
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <ComposedChart
                     data={candlestickData}
-                    margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-                    barSize={8}
+                    margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis
@@ -622,65 +622,66 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       orientation="right"
                       tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                       stroke="hsl(var(--muted-foreground))"
-                      domain={['dataMin', 'dataMax']}
+                      domain={['auto', 'auto']}
                     />
                     <Tooltip
                       formatter={(value: number, name: string, props: any) => {
-                        const item = props.payload;
-                        if (name === 'candle') {
-                          const formattedOpen = formatCurrency(item.open, true);
-                          const formattedClose = formatCurrency(item.close, true);
-                          const formattedHigh = formatCurrency(item.high, true);
-                          const formattedLow = formatCurrency(item.low, true);
-                          
-                          return [
-                            `Abertura: ${formattedOpen}
-Fechamento: ${formattedClose}
-Máxima: ${formattedHigh}
-Mínima: ${formattedLow}`,
-                            'Preço'
-                          ];
-                        }
-                        return [null, null];
+                        if (name === 'value' || name === 'height') return [null, null];
+                        if (name === 'open') return [`${formatCurrency(value, true)}`, 'Abertura'];
+                        if (name === 'close') return [`${formatCurrency(value, true)}`, 'Fechamento'];
+                        if (name === 'high') return [`${formatCurrency(value, true)}`, 'Máxima'];
+                        if (name === 'low') return [`${formatCurrency(value, true)}`, 'Mínima'];
+                        return [`${formatCurrency(value, true)}`, name.charAt(0).toUpperCase() + name.slice(1)];
                       }}
                       labelFormatter={(label) => new Date(label).toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--border))",
                         color: "hsl(var(--foreground))",
-                        whiteSpace: 'pre-line'
                       }}
                     />
                     
-                    {/* Linhas para representar os picos e vales (sombras) */}
+                    {/* Linhas de alta e baixa (shadow) */}
                     {candlestickData.map((entry, index) => (
                       <Line
-                        key={`shadow-${index}`}
-                        type="monotone"
-                        dataKey={() => [entry.low, entry.high]}
+                        key={`line-${index}`}
+                        data={[
+                          { x: index, y: entry.low },
+                          { x: index, y: entry.high }
+                        ]}
+                        dataKey="y"
                         stroke={entry.isUp ? '#10b981' : '#ef4444'}
+                        strokeWidth={1}
                         dot={false}
                         activeDot={false}
-                        isAnimationActive={false}
+                        type="linear"
                       />
                     ))}
                     
-                    {/* Barras para o corpo das velas */}
-                    <Bar
-                      dataKey="candle"
-                      name="Preço"
-                      minPointSize={3}
-                      background={{ fill: 'transparent' }}
-                    >
-                      {candlestickData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.isUp ? '#10b981' : '#ef4444'} 
-                          stroke={entry.isUp ? '#10b981' : '#ef4444'}
-                        />
-                      ))}
+                    {/* Renderizar as barras como corpos das velas */}
+                    <Bar dataKey="height" maxBarSize={8}>
+                      {candlestickData.map((entry, index) => {
+                        // Cor verde para alta, vermelha para baixa
+                        const color = entry.isUp ? '#10b981' : '#ef4444';
+                        
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={color}
+                            stroke={color}
+                          />
+                        );
+                      })}
                     </Bar>
-                  </BarChart>
+                    
+                    {/* Linha base para referência */}
+                    <Line 
+                      type="linear"
+                      dataKey="close"
+                      stroke="transparent" 
+                      dot={false}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             )}
@@ -730,9 +731,8 @@ function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
   if (data.length === 0) return []
   
   // Para um gráfico de candlestick real, precisaríamos de dados OHLC
-  // Aqui estamos simulando com base nos dados disponíveis
   const result = []
-  const step = Math.max(1, Math.floor(data.length / 20)) // Agrupar para reduzir número de candles
+  const step = Math.max(1, Math.floor(data.length / 30)) // Agrupar para reduzir número de candles
   
   for (let i = 0; i < data.length; i += step) {
     const chunk = data.slice(i, Math.min(i + step, data.length))
@@ -741,18 +741,22 @@ function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
       const close = chunk[chunk.length-1].price
       const high = Math.max(...chunk.map(item => item.price))
       const low = Math.min(...chunk.map(item => item.price))
+      const isUp = close >= open
       
+      // Para um gráfico de candlestick, precisamos representar cada parte da vela
       result.push({
         date: chunk[0].date,
         open,
+        close,
         high,
         low,
-        close,
-        // Adicionar um valor para candle baseado na diferença entre open e close
-        candle: Math.abs(close - open),
-        // Adicionar uma flag para indicar se o preço subiu ou desceu
-        isUp: close >= open,
-        volume: Math.random() * 1000 // Simulado, não temos dados de volume
+        // Para o gráfico de barras customizado
+        value: isUp ? close : open, // O valor base da barra
+        height: Math.abs(close - open), // Altura da barra
+        fullHeight: high - low, // Altura total incluindo sombras
+        shadowTop: high - Math.max(open, close), // Parte superior da sombra
+        shadowBottom: Math.min(open, close) - low, // Parte inferior da sombra
+        isUp
       })
     }
   }
