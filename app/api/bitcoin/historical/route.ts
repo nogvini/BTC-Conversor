@@ -29,10 +29,29 @@ export async function GET(request: Request) {
     
     // Buscar dados históricos, com opção de forçar atualização
     const startTime = Date.now();
-    const historicalData = forceUpdate 
-      ? await forceUpdateHistoricalData(currency.toLowerCase(), days)
-      : await getHistoricalData(currency.toLowerCase(), days);
+    let historicalData;
+    
+    try {
+      historicalData = forceUpdate 
+        ? await forceUpdateHistoricalData(currency.toLowerCase(), days)
+        : await getHistoricalData(currency.toLowerCase(), days);
+    } catch (error) {
+      console.error('Erro ao obter dados históricos:', error);
+      return NextResponse.json(
+        { error: 'Não foi possível obter dados históricos do Bitcoin. Por favor, tente novamente mais tarde.' },
+        { status: 503 }
+      );
+    }
+    
     const endTime = Date.now();
+    
+    // Verificar se temos dados
+    if (!historicalData || historicalData.length === 0) {
+      return NextResponse.json(
+        { error: 'Não há dados históricos disponíveis no momento. Por favor, tente novamente mais tarde.' },
+        { status: 404 }
+      );
+    }
     
     // Verificar se estamos usando cache
     const isUsingCache = historicalData.some(item => item.isUsingCache);

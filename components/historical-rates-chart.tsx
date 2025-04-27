@@ -16,7 +16,6 @@ import {
   BarChart,
   Cell,
   ReferenceLine,
-  ComposedChart,
 } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -33,7 +32,7 @@ import { toast } from "@/components/ui/use-toast"
 
 type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
-type ChartType = "line" | "area" | "candlestick"
+type ChartType = "line" | "area"
 
 interface HistoricalRatesChartProps {
   // Dados históricos passados diretamente do componente pai
@@ -50,7 +49,6 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [chartData, setChartData] = useState<HistoricalDataPoint[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [usingFallbackData, setUsingFallbackData] = useState<boolean>(false)
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
   const [dataSource, setDataSource] = useState<string>("TradingView")
   const isMobile = useIsMobile()
@@ -59,7 +57,6 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
     setLoading(true)
     setError(null)
-    setUsingFallbackData(false)
     setDataSource("TradingView") // Define TradingView como fonte padrão
 
     try {
@@ -100,7 +97,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
         }
         
-        setIsUsingCachedData(isUsingCache || data.some(item => item.isUsingCache || item.isSampleData));
+        setIsUsingCachedData(isUsingCache || data.some(item => item.isUsingCache));
         
         // Mostrar feedback ao usuário sobre o compartilhamento de cache
         if (isUsingCache && responseTime && parseInt(responseTime) < 50) {
@@ -135,7 +132,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
           }
           
-          setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData))
+          setIsUsingCachedData(data.some(item => item.isUsingCache));
         }
       } else {
         // Se não tivermos dados históricos, buscar da API
@@ -146,11 +143,16 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           setDataSource(data[0].source === 'tradingview' ? "TradingView" : "CoinGecko");
         }
         
-        setIsUsingCachedData(data.some(item => item.isUsingCache || item.isSampleData))
+        setIsUsingCachedData(data.some(item => item.isUsingCache));
       }
       
       // Ordenar dados por data (mais antigos primeiro)
       data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      // Verificar se algum dado é marcado como amostra (isSampleData)
+      if (data.some((item) => item.isSampleData === true)) {
+        throw new Error("Os dados de exemplo não são permitidos. Apenas dados reais da API ou em cache são aceitáveis.");
+      }
       
       setChartData(data)
 
@@ -159,33 +161,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         title: "Dados atualizados",
         description: `Dados históricos de ${days} dias em ${currency} carregados via ${dataSource}.`,
       })
-
-      // Verificar se estamos usando dados de fallback gerados
-      if (data.some((item) => item.isSampleData === true)) {
-        setUsingFallbackData(true)
-        setError("Usando dados simulados. A API pode estar indisponível ou com limite de requisições excedido.")
-      }
-
-      // Verificar se estamos usando dados de cache
-      const cacheTime = localStorage.getItem(`bitcoinHistoricalData_${currency.toLowerCase()}_${days}_timestamp`)
-      if (cacheTime) {
-        const cacheAge = Date.now() - Number.parseInt(cacheTime)
-        if (cacheAge > 3600000) {
-          // Mais de 1 hora
-          setUsingFallbackData(true)
-          setError("Usando dados em cache. Não foi possível atualizar os dados em tempo real.")
-        }
-      }
     } catch (error) {
       console.error("Erro ao buscar dados históricos:", error)
-      setError("Não foi possível obter dados em tempo real. Usando dados simulados.")
-      setUsingFallbackData(true)
-      setDataSource("Simulado")
-
-      // Gerar dados de exemplo como último recurso
-      const days = timeRangeToDays(timeRange)
-      const sampleData = generateSampleHistoricalData(days, currency.toLowerCase())
-      setChartData(sampleData)
+      setError("Não foi possível obter dados em tempo real. Por favor, tente novamente mais tarde.")
+      setDataSource("Indisponível")
     } finally {
       setLoading(false)
     }
@@ -249,322 +228,188 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
     const firstPrice = chartData[0].price
     const lastPrice = chartData[chartData.length - 1].price
-    const change = lastPrice - firstPrice
-    const percentage = (change / firstPrice) * 100
+    const priceDiff = lastPrice - firstPrice
+    const priceChangePercentage = (priceDiff / firstPrice) * 100
 
-    return { change, percentage }
+    return {
+      change: priceDiff,
+      percentage: priceChangePercentage,
+    }
   }
 
-  const priceChange = calculatePriceChange()
-  const isPriceUp = priceChange.change >= 0
+  const priceChange = useMemo(() => calculatePriceChange(), [chartData])
 
-  // Preparar dados para o gráfico de velas (simulado)
-  const candlestickData = useMemo(() => {
-    if (chartData.length === 0) return []
-    return prepareCandlestickData(chartData)
-  }, [chartData])
+  const formatDateForTimeRange = (date: string): string => {
+    const dateObj = new Date(date)
+    const days = timeRangeToDays(timeRange)
 
-  // Calcular a volatilidade anualizada
+    if (days <= 1) {
+      return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } else if (days <= 7) {
+      return dateObj.toLocaleDateString([], { weekday: 'short' })
+    } else {
+      return dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    }
+  }
+
+  // Calcular volatilidade anualizada com base nos dados históricos reais
   const annualizedVolatility = useMemo(() => {
     return calculateAnnualizedVolatility(chartData)
   }, [chartData])
 
-  const formatDateForTimeRange = (date: string): string => {
-    const d = new Date(date)
-    
-    switch (timeRange) {
-      case "1d":
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      case "7d":
-        return d.toLocaleDateString([], { weekday: 'short', day: 'numeric' })
-      case "30d":
-      case "90d":
-        return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
-      case "1y":
-        return d.toLocaleDateString([], { month: 'short', year: '2-digit' })
-      default:
-        return d.toLocaleDateString()
-    }
-  }
-
-  // Encontrar o preço máximo e mínimo
-  const priceStats = useMemo(() => {
-    if (chartData.length === 0) return { max: 0, min: 0, maxDate: '', minDate: '' }
-    
-    let max = chartData[0].price
-    let min = chartData[0].price
-    let maxDate = chartData[0].date
-    let minDate = chartData[0].date
-    
-    chartData.forEach(item => {
-      if (item.price > max) {
-        max = item.price
-        maxDate = item.date
-      }
-      if (item.price < min) {
-        min = item.price
-        minDate = item.date
-      }
-    })
-    
-    return { max, min, maxDate, minDate }
-  }, [chartData])
-
+  // Render
   return (
     <div className="w-full">
-      <Card className="bg-background/60 backdrop-blur-sm border border-border/50 overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="text-lg font-medium">Histórico de Preços do Bitcoin</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={forceUpdateData}
-                variant="outline"
-                size={isMobile ? "sm" : "default"}
-                disabled={loading}
-                className="h-8"
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">Histórico do Bitcoin</CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mr-2" 
+              onClick={forceUpdateData}
+              disabled={loading}
+            >
+              <RefreshCw className={cn(
+                "h-4 w-4 mr-2", 
+                loading && "animate-spin"
+              )} />
+              Atualizar
+            </Button>
+          </div>
+          
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex-1 space-y-2">
+              <Label>Período</Label>
+              <div className="flex flex-wrap gap-1">
+                {(["1d", "7d", "30d", "90d", "1y"] as TimeRange[]).map((range) => (
+                  <Button
+                    key={range}
+                    size="sm"
+                    variant={timeRange === range ? "default" : "outline"}
+                    onClick={() => setTimeRange(range)}
+                    className="w-15"
+                  >
+                    {getTimeRangeLabel(range)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex w-full flex-col space-y-2 sm:w-auto">
+              <Label>Moeda</Label>
+              <Select
+                value={currency}
+                onValueChange={(value) => setCurrency(value as CurrencyType)}
               >
-                {loading ? (
-                  <>
-                    <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
-                    Carregando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-1 h-4 w-4" />
-                    Atualizar via TradingView
-                  </>
-                )}
-              </Button>
+                <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD (Dólar)</SelectItem>
+                  <SelectItem value="BRL">BRL (Real)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex w-full flex-col space-y-2 sm:w-auto">
+              <Label>Visualização</Label>
+              <RadioGroup 
+                value={chartType} 
+                onValueChange={(value) => setChartType(value as ChartType)}
+                className="flex"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="line" id="line" />
+                  <Label htmlFor="line" className="cursor-pointer">Linha</Label>
+                </div>
+                <div className="flex items-center space-x-2 ml-4">
+                  <RadioGroupItem value="area" id="area" />
+                  <Label htmlFor="area" className="cursor-pointer">Área</Label>
+                </div>
+              </RadioGroup>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md flex items-center gap-2 text-yellow-500">
-              <AlertTriangle className="h-4 w-4" />
-              <p className="text-sm">{error}</p>
-            </div>
-          )}
-
-          {/* Mostra a fonte dos dados */}
-          <div className="flex justify-between mb-2">
-            <span className="text-xs text-muted-foreground">
-              Fonte: {dataSource} {isUsingCachedData && "(Dados em cache)"}
-            </span>
-            {isUsingCachedData && (
-              <span className="text-xs text-purple-400 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                Dados compartilhados
-              </span>
-            )}
-          </div>
-
-          <div className="mb-4 space-y-2">
-            <div className="flex flex-col md:flex-row justify-between gap-4">
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                    <span>Preço Atual</span>
-                  </div>
-                  {loading ? (
-                    <Skeleton className="h-9 w-48" />
+          
+          {/* Exibir a variação de preço */}
+          {!loading && chartData.length > 0 && (
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="flex flex-col justify-center rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">
+                  Inicial
+                </div>
+                <div className="text-xl font-bold">
+                  {formatCurrency(chartData[0].price, true)}
+                </div>
+              </div>
+              
+              <div className="flex flex-col justify-center rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">
+                  Último
+                </div>
+                <div className="text-xl font-bold">
+                  {formatCurrency(chartData[chartData.length - 1].price, true)}
+                </div>
+              </div>
+              
+              <div className="flex flex-col justify-center rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">
+                  Variação
+                </div>
+                <div className={cn(
+                  "flex items-center text-xl font-bold",
+                  priceChange.percentage > 0 ? "text-green-500" : "text-red-500"
+                )}>
+                  {formatCurrency(priceChange.change, true)}
+                  <span className="ml-2 text-sm">
+                    ({priceChange.percentage > 0 ? "+" : ""}
+                    {priceChange.percentage.toFixed(2)}%)
+                  </span>
+                  {priceChange.percentage > 0 ? (
+                    <TrendingUp className="ml-2 h-4 w-4" />
                   ) : (
-                    <div className="text-2xl font-bold">
-                      {chartData.length > 0
-                        ? `${currency === 'USD' ? '$' : 'R$'} ${formatCurrency(chartData[chartData.length - 1].price)}`
-                        : `${currency === 'USD' ? '$' : 'R$'} 0.00`}
-                    </div>
+                    <TrendingDown className="ml-2 h-4 w-4" />
                   )}
                 </div>
-
-                <div className="flex flex-wrap gap-x-6 gap-y-4">
-                  <div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <span>Variação</span>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-6 w-24" />
-                    ) : (
-                      <div className={`flex items-center ${isPriceUp ? 'text-green-500' : 'text-red-500'}`}>
-                        {isPriceUp ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
-                        <span className="font-medium">
-                          {formatCurrency(Math.abs(priceChange.change), true)} ({priceChange.percentage.toFixed(2)}%)
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <span>Máximo</span>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-6 w-24" />
-                    ) : (
-                      <div className="font-medium">
-                        {formatCurrency(priceStats.max, true)}
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          {formatDateForTimeRange(priceStats.maxDate)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <span>Mínimo</span>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-6 w-24" />
-                    ) : (
-                      <div className="font-medium">
-                        {formatCurrency(priceStats.min, true)}
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          {formatDateForTimeRange(priceStats.minDate)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-4 items-start">
-                <div className="space-y-1">
-                  <Label htmlFor="timeRange" className="text-sm">Período</Label>
-                  <Select
-                    value={timeRange}
-                    onValueChange={(value) => setTimeRange(value as TimeRange)}
-                    disabled={loading}
-                  >
-                    <SelectTrigger id="timeRange" className="w-32 h-8">
-                      <SelectValue placeholder="Selecionar" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1d">{getTimeRangeLabel("1d")}</SelectItem>
-                      <SelectItem value="7d">{getTimeRangeLabel("7d")}</SelectItem>
-                      <SelectItem value="30d">{getTimeRangeLabel("30d")}</SelectItem>
-                      <SelectItem value="90d">{getTimeRangeLabel("90d")}</SelectItem>
-                      <SelectItem value="1y">{getTimeRangeLabel("1y")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="currency" className="text-sm">Moeda</Label>
-                  <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyType)} disabled={loading}>
-                    <SelectTrigger id="currency" className="w-32 h-8">
-                      <SelectValue placeholder="Selecionar" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="BRL">BRL</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-sm">Tipo de Gráfico</Label>
-                  <RadioGroup
-                    value={chartType}
-                    onValueChange={(value) => setChartType(value as ChartType)}
-                    className="flex gap-2"
-                    disabled={loading}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="line" id="line" className="h-3 w-3" />
-                      <Label htmlFor="line" className="text-xs cursor-pointer">Linha</Label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="area" id="area" className="h-3 w-3" />
-                      <Label htmlFor="area" className="text-xs cursor-pointer">Área</Label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="candlestick" id="candlestick" className="h-3 w-3" />
-                      <Label htmlFor="candlestick" className="text-xs cursor-pointer">Candlestick</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
               </div>
             </div>
+          )}
+          
+          {/* Informações de fonte de dados e alertas */}
+          <div className="mt-2 flex items-center justify-between">
+            <div className="text-xs text-muted-foreground">
+              Fonte: {dataSource}
+            </div>
+            
+            {error && (
+              <div className="flex items-center gap-1 text-amber-500 text-xs">
+                <AlertTriangle className="h-3 w-3" />
+                {error}
+              </div>
+            )}
           </div>
-
-          <div className="w-full h-[350px]">
+        </CardHeader>
+        
+        <CardContent>
+          {/* Gráfico */}
+          <div className="h-[300px] sm:h-[400px]">
             {loading ? (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2">
-                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Carregando dados históricos...</span>
-                  <span className="text-xs text-purple-400">Verificando cache compartilhado</span>
-                </div>
+              <div className="flex h-full w-full items-center justify-center">
+                <Skeleton className="h-full w-full" />
               </div>
             ) : chartData.length === 0 ? (
-              <div className="w-full h-full flex items-center justify-center border border-dashed rounded-lg">
-                <div className="text-center text-muted-foreground">
-                  <Info className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                  <p>Nenhum dado histórico disponível</p>
-                  <Button onClick={fetchHistoricalData} variant="link" size="sm" className="mt-2">
-                    Tentar novamente
-                  </Button>
-                </div>
+              <div className="flex h-full w-full flex-col items-center justify-center text-center">
+                <Info className="h-10 w-10 text-muted-foreground" />
+                <p className="mt-2 text-lg font-medium">Nenhum dado disponível</p>
+                <p className="text-sm text-muted-foreground">
+                  Não foi possível carregar dados do Bitcoin. Tente novamente mais tarde.
+                </p>
               </div>
-            ) : chartType === "area" ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={formatDateForTimeRange}
-                    dy={10}
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    tickMargin={5}
-                    stroke="hsl(var(--muted-foreground))"
-                  />
-                  <YAxis
-                    tickFormatter={(value) => formatCurrency(value)}
-                    dx={-5}
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    stroke="hsl(var(--muted-foreground))"
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
-                    labelFormatter={(label) => new Date(label).toLocaleString()}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorPrice)"
-                    activeDot={{ r: 6, fill: "#8b5cf6" }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
             ) : chartType === "line" ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={chartData}
-                  margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDateForTimeRange}
@@ -579,127 +424,83 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                     orientation="right"
                     tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                     stroke="hsl(var(--muted-foreground))"
+                    domain={['dataMin', 'dataMax']}
                   />
                   <Tooltip
-                    formatter={(value: number) => [`${formatCurrency(value, true)}`, 'Preço']}
+                    formatter={(value: number) => [formatCurrency(value, true), "Preço"]}
                     labelFormatter={(label) => new Date(label).toLocaleString()}
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
                       borderColor: "hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
+                      color: "hsl(var(--foreground))"
                     }}
                   />
                   <Line
                     type="monotone"
                     dataKey="price"
-                    stroke="#8b5cf6"
+                    stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     dot={false}
-                    activeDot={{ r: 6, fill: "#8b5cf6" }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <ReferenceLine 
+                    y={chartData[0].price} 
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeDasharray="3 3"
                   />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="w-full h-full"> 
-                {/* Implementação simplificada do gráfico de candlestick */}
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={candlestickData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDateForTimeRange}
-                      dy={10}
-                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                      tickMargin={5}
-                      stroke="hsl(var(--muted-foreground))"
-                    />
-                    <YAxis
-                      tickFormatter={(value) => formatCurrency(value)}
-                      dx={-5}
-                      orientation="right"
-                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                      stroke="hsl(var(--muted-foreground))"
-                      domain={['dataMin', 'dataMax']}
-                    />
-                    <Tooltip
-                      formatter={(value: number, name: string) => {
-                        if (name === 'bodyHeight') return [null, null];
-                        if (name === 'open') return [`${formatCurrency(value, true)}`, 'Abertura'];
-                        if (name === 'close') return [`${formatCurrency(value, true)}`, 'Fechamento'];
-                        if (name === 'high') return [`${formatCurrency(value, true)}`, 'Máxima'];
-                        if (name === 'low') return [`${formatCurrency(value, true)}`, 'Mínima'];
-                        return [formatCurrency(value, true), name];
-                      }}
-                      labelFormatter={(label) => new Date(label).toLocaleString()}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderColor: "hsl(var(--border))",
-                        color: "hsl(var(--foreground))"
-                      }}
-                    />
-                    
-                    {/* Renderizar as linhas verticais para cada vela (sombras) */}
-                    {candlestickData.map((entry, index) => (
-                      <Bar 
-                        key={`bar-${index}`}
-                        dataKey="bodyHeight"
-                        name="Preço"
-                        stackId="a"
-                        barSize={6}
-                        fill={entry.color}
-                        stroke={entry.color}
-                        shape={(props) => {
-                          const { x, y, width, height, fill } = props;
-                          const yStart = entry.direction > 0 
-                            ? y + height  // Para velas de alta, começa de baixo
-                            : y;          // Para velas de baixa, começa de cima
-                          
-                          return (
-                            <g>
-                              {/* Sombra vertical (linha completa de min a max) */}
-                              <line 
-                                x1={x + width/2} 
-                                y1={entry.low} 
-                                x2={x + width/2} 
-                                y2={entry.high} 
-                                stroke={entry.color} 
-                                strokeWidth={1} 
-                              />
-                              
-                              {/* Corpo da vela */}
-                              <rect 
-                                x={x} 
-                                y={entry.bodyStart} 
-                                width={width} 
-                                height={entry.bodyHeight} 
-                                fill={fill} 
-                                stroke={fill}
-                              />
-                            </g>
-                          );
-                        }}
-                      />
-                    ))}
-                    
-                    {/* Linha para manter a escala */}
-                    <Line 
-                      type="monotone"
-                      dataKey="high"
-                      stroke="transparent"
-                      dot={false}
-                    />
-                    <Line 
-                      type="monotone"
-                      dataKey="low"
-                      stroke="transparent"
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatDateForTimeRange}
+                    dy={10}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    tickMargin={5}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
+                  <YAxis
+                    tickFormatter={(value) => formatCurrency(value)}
+                    dx={-5}
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={['dataMin', 'dataMax']}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatCurrency(value, true), "Preço"]}
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      color: "hsl(var(--foreground))"
+                    }}
+                  />
+                  <defs>
+                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="price"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorPrice)"
+                    activeDot={{ r: 6 }}
+                  />
+                  <ReferenceLine 
+                    y={chartData[0].price} 
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeDasharray="3 3"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             )}
           </div>
 
@@ -740,70 +541,4 @@ function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
   const annualizedVol = stdDev * Math.sqrt(252) * 100
   
   return annualizedVol
-}
-
-// Função para preparar dados no formato de candlestick
-function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
-  if (data.length === 0) return []
-  
-  const result = []
-  const step = Math.max(1, Math.floor(data.length / 30)) // Agrupar para reduzir número de candles
-  
-  for (let i = 0; i < data.length; i += step) {
-    const chunk = data.slice(i, Math.min(i + step, data.length))
-    if (chunk.length > 0) {
-      const open = chunk[0].price
-      const close = chunk[chunk.length-1].price
-      const high = Math.max(...chunk.map(item => item.price))
-      const low = Math.min(...chunk.map(item => item.price))
-      
-      // Uma vela é de alta quando o fechamento é maior que a abertura
-      const isUp = close > open
-      
-      result.push({
-        date: chunk[0].date,
-        open,
-        close,
-        high,
-        low,
-        direction: isUp ? 1 : -1,
-        color: isUp ? '#10b981' : '#ef4444', // Verde para alta, vermelho para baixa
-        bodyStart: Math.min(open, close),
-        bodyEnd: Math.max(open, close),
-        bodyHeight: Math.abs(close - open)
-      })
-    }
-  }
-  
-  return result
-}
-
-// Função para gerar dados históricos de exemplo
-function generateSampleHistoricalData(days: number, currency: string): HistoricalDataPoint[] {
-  const data: HistoricalDataPoint[] = []
-  const today = new Date()
-  let basePrice = currency === 'usd' ? 45000 : 225000 // Preço base aproximado em USD e BRL
-  
-  // Adicionar variação aleatória com tendência
-  const trend = (Math.random() - 0.3) * 0.0015 // Leve tendência de alta
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(today.getDate() - i)
-    
-    // Variação diária com alguma volatilidade
-    const dailyChange = (Math.random() - 0.5) * 0.03 + trend
-    
-    // Ajustar preço
-    basePrice = basePrice * (1 + dailyChange)
-    
-    data.push({
-      date: date.toISOString(),
-      price: basePrice,
-      volume: Math.random() * 10000,
-      isSampleData: true
-    })
-  }
-  
-  return data
 }
