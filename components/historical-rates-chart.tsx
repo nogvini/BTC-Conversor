@@ -600,11 +600,12 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full"> 
-                {/* Implementação simplificada do gráfico de candlestick */}
+                {/* Implementação melhorada do gráfico de candlestick */}
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={candlestickData}
                     margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+                    barSize={8}
                   >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis
@@ -621,70 +622,63 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       orientation="right"
                       tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                       stroke="hsl(var(--muted-foreground))"
+                      domain={['dataMin', 'dataMax']}
                     />
                     <Tooltip
-                      formatter={(value: number, name: string) => {
-                        if (name === 'candle') return [null, null];
-                        if (name === 'open') return [`${formatCurrency(value, true)}`, 'Abertura'];
-                        if (name === 'close') return [`${formatCurrency(value, true)}`, 'Fechamento'];
-                        if (name === 'high') return [`${formatCurrency(value, true)}`, 'Máxima'];
-                        if (name === 'low') return [`${formatCurrency(value, true)}`, 'Mínima'];
-                        return [`${formatCurrency(value, true)}`, name.charAt(0).toUpperCase() + name.slice(1)];
+                      formatter={(value: number, name: string, props: any) => {
+                        const item = props.payload;
+                        if (name === 'candle') {
+                          const formattedOpen = formatCurrency(item.open, true);
+                          const formattedClose = formatCurrency(item.close, true);
+                          const formattedHigh = formatCurrency(item.high, true);
+                          const formattedLow = formatCurrency(item.low, true);
+                          
+                          return [
+                            `Abertura: ${formattedOpen}
+Fechamento: ${formattedClose}
+Máxima: ${formattedHigh}
+Mínima: ${formattedLow}`,
+                            'Preço'
+                          ];
+                        }
+                        return [null, null];
                       }}
                       labelFormatter={(label) => new Date(label).toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--border))",
                         color: "hsl(var(--foreground))",
+                        whiteSpace: 'pre-line'
                       }}
                     />
                     
-                    {/* Linhas de máxima e mínima */}
-                    <Line
-                      type="monotone"
-                      dataKey="high"
-                      stroke="#8b5cf6"
-                      strokeWidth={1}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="low"
-                      stroke="#8b5cf6"
-                      strokeWidth={1}
-                      dot={false}
-                    />
-                    
-                    {/* Barras para as velas */}
-                    <Bar 
-                      dataKey="open" 
-                      fill="transparent" 
-                      stackId="stack"
-                    />
-                    <Bar 
-                      dataKey="close" 
-                      fill="transparent" 
-                      stackId="stack"
-                    />
+                    {/* Linhas para representar os picos e vales (sombras) */}
+                    {candlestickData.map((entry, index) => (
+                      <Line
+                        key={`shadow-${index}`}
+                        type="monotone"
+                        dataKey={() => [entry.low, entry.high]}
+                        stroke={entry.isUp ? '#10b981' : '#ef4444'}
+                        dot={false}
+                        activeDot={false}
+                        isAnimationActive={false}
+                      />
+                    ))}
                     
                     {/* Barras para o corpo das velas */}
                     <Bar
                       dataKey="candle"
                       name="Preço"
+                      minPointSize={3}
+                      background={{ fill: 'transparent' }}
                     >
-                      {candlestickData.map((entry, index) => {
-                        const isUp = entry.close >= entry.open;
-                        const color = isUp ? '#10b981' : '#ef4444';
-                        const height = Math.abs(entry.close - entry.open);
-                        
-                        return (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={color} 
-                            stroke={color}
-                          />
-                        );
-                      })}
+                      {candlestickData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.isUp ? '#10b981' : '#ef4444'} 
+                          stroke={entry.isUp ? '#10b981' : '#ef4444'}
+                        />
+                      ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -754,6 +748,10 @@ function prepareCandlestickData(data: HistoricalDataPoint[]): any[] {
         high,
         low,
         close,
+        // Adicionar um valor para candle baseado na diferença entre open e close
+        candle: Math.abs(close - open),
+        // Adicionar uma flag para indicar se o preço subiu ou desceu
+        isUp: close >= open,
         volume: Math.random() * 1000 // Simulado, não temos dados de volume
       })
     }
