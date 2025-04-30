@@ -13,11 +13,13 @@ import { toast } from "@/components/ui/use-toast"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
 import { fetchAllAppData } from "@/lib/client-api"
+import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { useActiveTab } from "@/hooks/use-active-tab"
 import { NavigationBar } from "./ui/navigation-bar"
+import { PageTransition } from "./page-transition"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -232,152 +234,150 @@ export default function BitcoinConverter() {
     switch (activeTab) {
       case "converter":
         return (
-          <Card className="panel">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Conversor Bitcoin</CardTitle>
-              <CardDescription>
-                Converta entre Bitcoin, Satoshis, USD e BRL com facilidade.
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {/* Formulário de Conversão */}
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="amount">Valor</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="Digite o valor..."
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="text-lg bg-black/30 border-[hsl(var(--panel-border))]"
-                  />
+          <PageTransition>
+            <Card className="panel">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-xl">Conversor Bitcoin</CardTitle>
+                <CardDescription>
+                  Converta entre Bitcoin, Satoshis, USD e BRL com facilidade.
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent className="space-y-4">
+                {/* Formulário de Conversão */}
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="amount">Valor</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="Digite o valor..."
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="text-lg bg-black/30 border-[hsl(var(--panel-border))]"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Unidade</Label>
+                    <RadioGroup
+                      value={selectedUnit}
+                      onValueChange={(v) => setSelectedUnit(v as CurrencyUnit)}
+                      className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-2"
+                    >
+                      <div>
+                        <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
+                        <Label
+                          htmlFor="BTC"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                        >
+                          <Bitcoin className="mb-1" />
+                          BTC
+                        </Label>
+                      </div>
+                      
+                      <div>
+                        <RadioGroupItem value="SATS" id="SATS" className="peer sr-only" />
+                        <Label
+                          htmlFor="SATS"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                        >
+                          <Bitcoin className="mb-1" />
+                          SATS
+                        </Label>
+                      </div>
+                      
+                      <div>
+                        <RadioGroupItem value="USD" id="USD" className="peer sr-only" />
+                        <Label
+                          htmlFor="USD"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                        >
+                          <DollarSign className="mb-1" />
+                          USD
+                        </Label>
+                      </div>
+                      
+                      <div>
+                        <RadioGroupItem value="BRL" id="BRL" className="peer sr-only" />
+                        <Label
+                          htmlFor="BRL"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                        >
+                          <span className="mb-1 font-bold">R$</span>
+                          BRL
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Unidade</Label>
-                  <RadioGroup
-                    value={selectedUnit}
-                    onValueChange={(v) => setSelectedUnit(v as CurrencyUnit)}
-                    className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-2"
-                  >
-                    <div>
-                      <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
-                      <Label
-                        htmlFor="BTC"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Bitcoin className="mb-1" />
-                        BTC
-                      </Label>
-                    </div>
-                    
-                    <div>
-                      <RadioGroupItem value="SATS" id="SATS" className="peer sr-only" />
-                      <Label
-                        htmlFor="SATS"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Bitcoin className="mb-1" />
-                        SATS
-                      </Label>
-                    </div>
-                    
-                    <div>
-                      <RadioGroupItem value="USD" id="USD" className="peer sr-only" />
-                      <Label
-                        htmlFor="USD"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <DollarSign className="mb-1" />
-                        USD
-                      </Label>
-                    </div>
-                    
-                    <div>
-                      <RadioGroupItem value="BRL" id="BRL" className="peer sr-only" />
-                      <Label
-                        htmlFor="BRL"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <span className="mb-1 font-bold">R$</span>
-                        BRL
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                {/* Resultados da Conversão */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+                  <div className="data-display flex justify-between items-center">
+                    <span className="font-medium">Bitcoin:</span>
+                    <span className="font-bold text-yellow-500">₿ {formatBtc(convertedValues.BTC)} </span>
+                  </div>
+                  <div className="data-display flex justify-between items-center">
+                    <span className="font-medium">Satoshis:</span>
+                    <span className="font-bold text-yellow-500">丰 {parseInt(convertedValues.SATS).toLocaleString()}</span>
+                  </div>
+                  <div className="data-display flex justify-between items-center">
+                    <span className="font-medium">Dólares:</span>
+                    <span className="font-bold text-green-500">$ {formatCurrency(convertedValues.USD)}</span>
+                  </div>
+                  <div className="data-display flex justify-between items-center">
+                    <span className="font-medium">Reais:</span>
+                    <span className="font-bold text-green-500">R$ {formatCurrency(convertedValues.BRL)}</span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Resultados da Conversão */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-                <div className="data-display flex justify-between items-center">
-                  <span className="font-medium">Bitcoin:</span>
-                  <span className="font-bold text-yellow-500">₿ {formatBtc(convertedValues.BTC)} </span>
-                </div>
-                <div className="data-display flex justify-between items-center">
-                  <span className="font-medium">Satoshis:</span>
-                  <span className="font-bold text-yellow-500">丰 {parseInt(convertedValues.SATS).toLocaleString()}</span>
-                </div>
-                <div className="data-display flex justify-between items-center">
-                  <span className="font-medium">Dólares:</span>
-                  <span className="font-bold text-green-500">$ {formatCurrency(convertedValues.USD)}</span>
-                </div>
-                <div className="data-display flex justify-between items-center">
-                  <span className="font-medium">Reais:</span>
-                  <span className="font-bold text-green-500">R$ {formatCurrency(convertedValues.BRL)}</span>
-                </div>
-              </div>
-              
-              {apiError && (
-                <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 flex items-start">
-                  <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm">
-                    Atenção: Usando dados em cache que podem não refletir os valores atuais de mercado.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-            
-            <CardFooter>
-              <p className="text-sm text-muted-foreground">
-                {rates && (
-                  <>
-                    Atualizado em {rates.lastUpdated.toLocaleString()}
-                    <span className="hidden sm:inline"> • </span>
-                    <span className="block sm:inline sm:ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)}</span>
-                    <span className="hidden sm:inline"> • </span>
-                    <span className="block sm:inline sm:ml-0 font-medium">1 USD = R${formatCurrency(rates.BRL_USD)}</span>
-                  </>
+                
+                {apiError && (
+                  <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 flex items-start">
+                    <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm">
+                      Atenção: Usando dados em cache que podem não refletir os valores atuais de mercado.
+                    </p>
+                  </div>
                 )}
-              </p>
-            </CardFooter>
-          </Card>
+              </CardContent>
+              
+              <CardFooter>
+                <p className="text-sm text-muted-foreground">
+                  {rates && (
+                    <>
+                      Atualizado em {rates.lastUpdated.toLocaleString()}
+                      <span className="hidden sm:inline"> • </span>
+                      <span className="block sm:inline sm:ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)}</span>
+                      <span className="hidden sm:inline"> • </span>
+                      <span className="block sm:inline sm:ml-0 font-medium">1 USD = R${formatCurrency(rates.BRL_USD)}</span>
+                    </>
+                  )}
+                </p>
+              </CardFooter>
+            </Card>
+          </PageTransition>
         );
       
       case "chart":
-        return appData ? (
-          <HistoricalRatesChart historicalData={appData.historicalData} />
-        ) : (
-          <Card className="panel">
-            <CardContent className="py-10">
-              <div className="flex justify-center">
-                <Skeleton className="h-[350px] w-full" />
-              </div>
-            </CardContent>
-          </Card>
+        return (
+          <PageTransition>
+            <HistoricalRatesChart historicalData={appData?.historicalData} />
+          </PageTransition>
         );
       
       case "calculator":
-        return rates && (
-          <ProfitCalculator 
-            btcToUsd={rates.BTC_USD} 
-            brlToUsd={rates.BRL_USD} 
-            appData={appData?.currentPrice && {
-              currentPrice: appData.currentPrice,
-              isUsingCache: appData.isUsingCache,
-            }}
-          />
+        return (
+          <PageTransition>
+            <ProfitCalculator 
+              btcToUsd={rates?.BTC_USD || 0} 
+              brlToUsd={rates?.BRL_USD || 0} 
+              appData={appData?.currentPrice && {
+                currentPrice: appData.currentPrice,
+                isUsingCache: appData.isUsingCache,
+              }}
+            />
+          </PageTransition>
         );
       
       default:
