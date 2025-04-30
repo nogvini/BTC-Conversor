@@ -122,41 +122,57 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-4/5 bg-black/95 border-r border-purple-800/40 p-0 backdrop-blur-sm">
-          <div className="flex flex-col h-full">
-            <SheetHeader className="px-4 py-4 border-b border-purple-800/30 bg-gradient-to-r from-purple-900/30 to-transparent flex justify-between items-center">
-              <SheetTitle className="text-xl font-bold text-white flex items-center">
-                <Bitcoin className="h-5 w-5 mr-2 text-purple-500" />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300">
-                  Raid Bitcoin Toolkit
-                </span>
-              </SheetTitle>
-              <SheetClose asChild>
-                <Button variant="ghost" size="sm" className="p-1 hover:bg-purple-900/30 transition-colors duration-200">
-                  <X className="h-5 w-5" />
-                </Button>
-              </SheetClose>
-            </SheetHeader>
+        <SheetContent 
+          side="left" 
+          className="w-4/5 p-0 border-r border-purple-700/30 backdrop-blur-md bg-gradient-to-br from-purple-900/95 via-purple-950/95 to-black/95"
+        >
+          <div className="flex flex-col h-full relative">
+            {/* Botão de fechar posicionado no canto superior esquerdo */}
+            <SheetClose asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="absolute left-3 top-3 p-1.5 rounded-full bg-purple-900/50 border border-purple-700/30 hover:bg-purple-800/70 transition-colors duration-200 z-10"
+                aria-label="Fechar menu"
+              >
+                <X className="h-4 w-4 text-white" />
+              </Button>
+            </SheetClose>
             
-            <div className="flex flex-col p-4 space-y-3">
+            {/* Cabeçalho com logo centralizado */}
+            <div className="pt-14 pb-6 flex justify-center items-center border-b border-purple-800/30 bg-gradient-to-r from-purple-900/70 to-purple-950/70">
+              <div className="flex flex-col items-center">
+                <Bitcoin className="h-10 w-10 text-purple-400 mb-2" />
+                <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300">
+                  Raid Bitcoin Toolkit
+                </h2>
+              </div>
+            </div>
+            
+            {/* Itens do menu */}
+            <div className="flex-1 px-4 py-6 space-y-4 overflow-y-auto">
+              <div className="mb-2 text-xs uppercase text-purple-400/70 font-semibold tracking-wider pl-2">
+                MENU PRINCIPAL
+              </div>
+              
               <Button
                 variant="ghost"
                 size="lg"
                 className={cn(
-                  "justify-start rounded-md transition-all duration-300",
+                  "justify-start w-full rounded-lg transition-all duration-300",
                   activeTab === "converter" 
-                    ? "bg-gradient-to-r from-purple-800/80 to-purple-900/50 text-white shadow-md shadow-purple-900/50 border border-purple-700/50" 
-                    : "hover:bg-purple-900/30 hover:text-white border border-transparent"
+                    ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
+                    : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
                 )}
                 onClick={() => handleNavigate("converter")}
               >
                 <ArrowRightLeft className={cn(
                   "mr-3 h-5 w-5 transition-all duration-300",
-                  activeTab === "converter" ? "text-purple-300 scale-110" : ""
+                  activeTab === "converter" ? "text-purple-400" : "text-white/70"
                 )} />
                 <span className="font-medium">Conversor</span>
                 {activeTab === "converter" && <div className="ml-auto">
-                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
                 </div>}
               </Button>
               
@@ -164,20 +180,20 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                 variant="ghost"
                 size="lg"
                 className={cn(
-                  "justify-start rounded-md transition-all duration-300",
+                  "justify-start w-full rounded-lg transition-all duration-300",
                   activeTab === "chart" 
-                    ? "bg-gradient-to-r from-purple-800/80 to-purple-900/50 text-white shadow-md shadow-purple-900/50 border border-purple-700/50" 
-                    : "hover:bg-purple-900/30 hover:text-white border border-transparent"
+                    ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
+                    : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
                 )}
                 onClick={() => handleNavigate("chart")}
               >
                 <TrendingUp className={cn(
                   "mr-3 h-5 w-5 transition-all duration-300",
-                  activeTab === "chart" ? "text-purple-300 scale-110" : ""
+                  activeTab === "chart" ? "text-purple-400" : "text-white/70"
                 )} />
                 <span className="font-medium">Gráficos</span>
                 {activeTab === "chart" && <div className="ml-auto">
-                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
                 </div>}
               </Button>
               
@@ -185,26 +201,27 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                 variant="ghost"
                 size="lg"
                 className={cn(
-                  "justify-start rounded-md transition-all duration-300",
+                  "justify-start w-full rounded-lg transition-all duration-300",
                   activeTab === "calculator" 
-                    ? "bg-gradient-to-r from-purple-800/80 to-purple-900/50 text-white shadow-md shadow-purple-900/50 border border-purple-700/50" 
-                    : "hover:bg-purple-900/30 hover:text-white border border-transparent"
+                    ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
+                    : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
                 )}
                 onClick={() => handleNavigate("calculator")}
               >
                 <Calculator className={cn(
                   "mr-3 h-5 w-5 transition-all duration-300",
-                  activeTab === "calculator" ? "text-purple-300 scale-110" : ""
+                  activeTab === "calculator" ? "text-purple-400" : "text-white/70"
                 )} />
                 <span className="font-medium">Calculadora</span>
                 {activeTab === "calculator" && <div className="ml-auto">
-                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
                 </div>}
               </Button>
             </div>
 
+            {/* Botão de atualização no rodapé */}
             {onRefresh && (
-              <div className="mt-auto p-4 border-t border-purple-800/20">
+              <div className="p-4 border-t border-purple-800/30 bg-gradient-to-r from-purple-950/70 to-black/70">
                 <Button 
                   onClick={() => {
                     onRefresh()
@@ -213,11 +230,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   variant="outline" 
                   size="default"
                   disabled={loading}
-                  className="w-full group flex items-center justify-center bg-black/30 border border-purple-700/50 hover:bg-purple-900/30 hover:border-purple-600/70 transition-all duration-300 hover:shadow-md hover:shadow-purple-900/30"
+                  className="w-full group flex items-center justify-center bg-purple-900/30 border border-purple-700/50 hover:bg-purple-800/50 hover:border-purple-600/70 transition-all duration-300 hover:shadow-md hover:shadow-purple-900/30"
                 >
                   {loading ? "Atualizando..." : "Atualizar Preços"}
                   <RefreshCw className={cn("ml-2 transition-transform duration-500", loading ? "animate-spin" : "group-hover:rotate-180")} />
                 </Button>
+                
+                <div className="text-center mt-4 text-xs text-purple-400/70">
+                  <p>© Raid Bitcoin Toolkit</p>
+                  <p className="mt-1 text-purple-400/50">v1.0</p>
+                </div>
               </div>
             )}
           </div>

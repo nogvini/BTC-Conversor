@@ -17,13 +17,23 @@ const globalCacheData: {
     [currency: string]: { // currency = 'usd' ou 'brl'
       [days: string]: { // key = "dias" (ex: "30")
         data: HistoricalDataPoint[],
-        timestamp: number
+        timestamp: number,
+        lastRefreshed: number,
+        accessCount: number,
+        source: string
       }
     }
   },
   currentPrice: {
     data: BitcoinPrice | null,
-    timestamp: number
+    timestamp: number,
+    lastRefreshed: number,
+    accessCount: number
+  },
+  metadata: {
+    totalApiCalls: number,
+    cacheHits: number,
+    lastFullUpdate: number
   }
 } = {
   historicalData: {
@@ -32,15 +42,23 @@ const globalCacheData: {
   },
   currentPrice: {
     data: null,
-    timestamp: 0
+    timestamp: 0,
+    lastRefreshed: 0,
+    accessCount: 0
+  },
+  metadata: {
+    totalApiCalls: 0,
+    cacheHits: 0,
+    lastFullUpdate: 0
   }
 };
 
 // Constantes de expiração do cache
 const CACHE_EXPIRATION = {
-  PRICE: 5 * 60 * 1000, // 5 minutos para preço atual
-  HISTORICAL: 60 * 60 * 1000, // 1 hora para dados históricos
-  FORCE_UPDATE: 1 * 60 * 1000 // 1 minuto para força de atualização (proteção contra muitas requisições)
+  PRICE: 10 * 60 * 1000, // 10 minutos para preço atual (aumentado de 5 para 10)
+  HISTORICAL: 3 * 60 * 60 * 1000, // 3 horas para dados históricos (aumentado de 1 para 3)
+  FORCE_UPDATE: 5 * 60 * 1000, // 5 minutos para força de atualização (proteção contra muitas requisições) (aumentado de 1 para 5)
+  BACKGROUND_REFRESH: 30 * 60 * 1000 // 30 minutos para atualização em segundo plano
 };
 
 // Garantir que o diretório data existe
@@ -407,46 +425,86 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     const globalCache = globalCacheData.historicalData[currency.toLowerCase()][cacheKey];
     const now = Date.now();
     
-    // Verificar se os dados do cache global são recentes (menos de 1 hora)
-    if (globalCache && (now - globalCache.timestamp < CACHE_EXPIRATION.HISTORICAL)) {
-      console.log(`Usando cache global para ${currency} ${days} dias - última atualização: ${new Date(globalCache.timestamp).toLocaleString()}`);
+    // Verificar se os dados do cache global são recentes
+    if (globalCache && globalCache.data.length > 0) {
+      // Incrementar contador de acessos
+      globalCache.accessCount++;
+      globalCacheData.metadata.cacheHits++;
+      
+      // Verificar se os dados ainda são válidos (menos de 3 horas)
+      if (now - globalCache.timestamp < CACHE_EXPIRATION.HISTORICAL) {
+        console.log(`Usando cache global para ${currency} ${days} dias - última atualização: ${new Date(globalCache.timestamp).toLocaleString()}`);
+        
+        // Atualizar timestamp de último acesso
+        globalCache.lastRefreshed = now;
+        
+        // Verificar se devemos atualizar em segundo plano
+        // Somente se o cache foi acessado pelo menos 3 vezes e a última atualização foi há mais de 30 minutos
+        if (globalCache.accessCount > 3 && 
+            (now - globalCache.timestamp > CACHE_EXPIRATION.BACKGROUND_REFRESH)) {
+          console.log(`Iniciando atualização em segundo plano para ${currency} ${days} dias`);
+          
+          // Não usar await para não bloquear a resposta
+          refreshCacheInBackground(currency, days);
+        }
+        
+        return globalCache.data.map((item: HistoricalDataPoint) => ({
+          ...item,
+          isUsingCache: true // Indicar que estamos usando cache
+        }));
+      }
+      
+      // Se os dados estão expirados mas ainda temos algum dado, retornar do cache
+      // enquanto iniciamos a atualização em segundo plano
+      console.log(`Cache expirado para ${currency} ${days} dias - iniciando atualização em segundo plano`);
+      
+      // Não usar await para não bloquear a resposta
+      refreshCacheInBackground(currency, days);
+      
       return globalCache.data.map((item: HistoricalDataPoint) => ({
         ...item,
         isUsingCache: true // Indicar que estamos usando cache
       }));
     }
     
-    // Se não temos dados no cache global ou estão desatualizados, tentar o filesystem
+    // Se não temos dados no cache global, tentar o filesystem
     const cacheData = await getAppData();
     
-    // Verificar se os dados são recentes (menos de 1 hora)
+    // Verificar se os dados são existem
     if (cacheData) {
       const cacheTime = cacheData.lastFetched;
       const cacheAge = now - cacheTime;
       
-      // Se os dados foram atualizados há menos de 1 hora, retornar do cache
-      if (cacheAge < CACHE_EXPIRATION.HISTORICAL) {
-        // Retornar dados históricos apropriados
-        const historicalData = currency === 'usd' ? cacheData.historicalDataUSD : cacheData.historicalDataBRL;
+      // Retornar dados históricos apropriados
+      const historicalData = currency === 'usd' ? cacheData.historicalDataUSD : cacheData.historicalDataBRL;
+      
+      // Filtrar para o número de dias solicitado
+      if (historicalData.length >= days) {
+        // Atualizar o cache global para futuros usuários
+        globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+          data: historicalData.slice(0, days),
+          timestamp: cacheTime, // Usar o timestamp original do cache
+          lastRefreshed: now,
+          accessCount: 1,
+          source: 'filesystem'
+        };
         
-        // Filtrar para o número de dias solicitado
-        if (historicalData.length >= days) {
-          // Atualizar o cache global para futuros usuários
-          globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
-            data: historicalData.slice(0, days),
-            timestamp: cacheTime // Usar o timestamp original do cache
-          };
-          
-          return historicalData.slice(0, days).map(item => ({
-            ...item,
-            isUsingCache: true
-          }));
+        // Iniciar atualização em segundo plano se os dados são antigos
+        if (cacheAge > CACHE_EXPIRATION.BACKGROUND_REFRESH) {
+          console.log(`Dados do filesystem estão antigos - iniciando atualização em segundo plano`);
+          refreshCacheInBackground(currency, days);
         }
+        
+        return historicalData.slice(0, days).map(item => ({
+          ...item,
+          isUsingCache: true
+        }));
       }
     }
     
     // Se chegamos aqui, precisamos buscar novos dados
     console.log(`Buscando novos dados para ${currency} ${days} dias`);
+    globalCacheData.metadata.totalApiCalls++;
     const historicalData = await fetchHistoricalData(currency, days);
     
     // Atualizar o cache local
@@ -463,7 +521,10 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     // Atualizar o cache global
     globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
       data: historicalData,
-      timestamp: now
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 1,
+      source: 'coingecko'
     };
     
     return historicalData;
@@ -490,7 +551,10 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
         // Atualizar o cache global com dados salvos
         globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
           data: historicalData.slice(0, days),
-          timestamp: savedData.lastFetched
+          timestamp: savedData.lastFetched,
+          lastRefreshed: now,
+          accessCount: 1,
+          source: 'filesystem-fallback'
         };
         
         return historicalData.slice(0, days).map(item => ({
@@ -506,11 +570,55 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
     // Armazenar os dados vazios no cache global
     globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
       data: emptyData,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      lastRefreshed: Date.now(),
+      accessCount: 1,
+      source: 'empty'
     };
     
     return emptyData;
   }
+}
+
+// Função para atualizar cache em segundo plano
+async function refreshCacheInBackground(currency = 'usd', days = 30): Promise<void> {
+  // Executar em um setTimeout para não bloquear a thread principal
+  setTimeout(async () => {
+    try {
+      console.log(`Iniciando atualização em segundo plano para ${currency} ${days} dias`);
+      const cacheKey = `${days}`;
+      const now = Date.now();
+      globalCacheData.metadata.totalApiCalls++;
+      
+      // Buscar novos dados
+      const historicalData = await fetchHistoricalData(currency, days);
+      
+      // Atualizar o cache global
+      globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+        data: historicalData,
+        timestamp: now,
+        lastRefreshed: now,
+        accessCount: globalCacheData.historicalData[currency.toLowerCase()][cacheKey]?.accessCount || 1,
+        source: 'coingecko-background'
+      };
+      
+      // Atualizar também o cache no sistema de arquivos
+      const cacheData = await getAppData();
+      if (cacheData) {
+        if (currency === 'usd') {
+          cacheData.historicalDataUSD = historicalData;
+        } else {
+          cacheData.historicalDataBRL = historicalData;
+        }
+        cacheData.lastFetched = now;
+        await saveAppData(cacheData);
+      }
+      
+      console.log(`Atualização em segundo plano concluída para ${currency} ${days} dias`);
+    } catch (error) {
+      console.error(`Erro na atualização em segundo plano (${currency}, ${days} dias):`, error);
+    }
+  }, 100); // Atraso mínimo para não bloquear
 }
 
 // Nova função para forçar a atualização dos dados históricos
@@ -549,7 +657,10 @@ export async function forceUpdateHistoricalData(currency = 'usd', days = 30): Pr
     // Atualizar o cache global - disponível para todos os usuários
     globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
       data: historicalData,
-      timestamp: now
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 0,
+      source: 'filesystem'
     };
     
     return historicalData;
