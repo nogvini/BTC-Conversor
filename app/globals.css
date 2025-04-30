@@ -13,7 +13,7 @@
     --primary: 267 75% 40%;
     --primary-foreground: 0 0% 98%;
     --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary-foreground: 240 5% 64.9%;
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
     --accent: 267 75% 40%;
@@ -72,9 +72,10 @@
     --hover-bg: 240 8% 10%; /* Estado hover */
 
     /* Cores do gradiente */
-    --gradient-start: hsl(267, 70%, 25%);
-    --gradient-middle: hsl(267, 50%, 15%);
-    --gradient-end: hsl(240, 10%, 3.9%);
+    --gradient-purple: hsl(267, 90%, 30%);
+    --gradient-deep-purple: hsl(267, 70%, 15%);
+    --gradient-dark-purple: hsl(267, 50%, 10%);
+    --gradient-black: hsl(240, 10%, 3.9%);
   }
 }
 
@@ -102,24 +103,29 @@
     width: 100%;
     height: 100%;
     z-index: -1;
-    background: linear-gradient(135deg, 
-      var(--gradient-start) 0%, 
-      var(--gradient-middle) 50%, 
-      var(--gradient-end) 100%
+    background: radial-gradient(
+      circle at top left,
+      var(--gradient-purple) 0%,
+      var(--gradient-deep-purple) 25%,
+      var(--gradient-dark-purple) 50%,
+      var(--gradient-black) 80%
     );
-    background-size: 300% 300%;
-    animation: gradient-animation 15s ease infinite;
+    background-size: 200% 200%;
+    animation: gradient-pulse 15s ease infinite;
   }
 
-  @keyframes gradient-animation {
+  @keyframes gradient-pulse {
     0% {
-      background-position: 0% 50%;
+      background-position: 0% 0%;
+      opacity: 0.95;
     }
     50% {
-      background-position: 100% 50%;
+      background-position: 100% 100%;
+      opacity: 1;
     }
     100% {
-      background-position: 0% 50%;
+      background-position: 0% 0%;
+      opacity: 0.95;
     }
   }
 }
