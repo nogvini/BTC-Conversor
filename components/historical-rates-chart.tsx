@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, Fragment } from "react"
+import React, { useState, useEffect, useCallback, useMemo, Fragment, useRef } from "react"
 import {
   Line,
   LineChart,
@@ -34,6 +34,16 @@ type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
 type ChartType = "line" | "area"
 
+// Novo tipo para armazenar dados em cache por período
+type ChartDataCache = {
+  [key: string]: {
+    data: HistoricalDataPoint[],
+    timestamp: number,
+    isUsingCache: boolean,
+    source: string
+  }
+}
+
 interface HistoricalRatesChartProps {
   // Dados históricos passados diretamente do componente pai
   historicalData?: {
@@ -52,120 +62,205 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
   const [dataSource, setDataSource] = useState<string>("CoinGecko")
   const isMobile = useIsMobile()
+  
+  // Cache local para armazenar dados por período e moeda
+  // Usamos useRef para manter o cache entre renderizações
+  const chartDataCache = useRef<ChartDataCache>({})
+  
+  // Função para gerar chave de cache
+  const getCacheKey = useCallback((curr: string, range: string) => {
+    return `${curr.toLowerCase()}_${range}`
+  }, [])
+
+  // Mover esta função para antes do fetchHistoricalData
+  const getTimeRangeLabel = (range: TimeRange): string => {
+    switch (range) {
+      case "1d":
+        return "1 Dia"
+      case "7d":
+        return "1 Semana"
+      case "30d":
+        return "1 Mês"
+      case "90d":
+        return "3 Meses"
+      case "1y":
+        return "1 Ano"
+      default:
+        return "1 Mês"
+    }
+  }
 
   // Modify the fetchHistoricalData function to better handle errors
   const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
     setLoading(true)
     setError(null)
-    setDataSource("CoinGecko") // Define CoinGecko como fonte padrão
-
+    
+    // Gerar chave de cache
+    const cacheKey = getCacheKey(currency, timeRange)
+    
     try {
       let data: HistoricalDataPoint[] = []
       const days = timeRangeToDays(timeRange)
       
-      // Se forceUpdate for true, buscar da API ignorando o cache
-      if (forceUpdate) {
-        // Forçar atualização direta da API
-        const params = new URLSearchParams({
-          currency: currency.toLowerCase(),
-          days: days.toString(),
-          force: 'true'
-        });
+      // Verificar se já temos esses dados em cache local e se não estamos forçando atualização
+      const cachedData = chartDataCache.current[cacheKey]
+      const now = Date.now()
+      const cacheMaxAge = 30 * 60 * 1000 // 30 minutos (cache local)
+      
+      // 1. Verificar se temos dados em cache local e se não estamos forçando atualização
+      if (!forceUpdate && cachedData && now - cachedData.timestamp < cacheMaxAge) {
+        console.log(`Usando cache local para ${currency} ${timeRange}`)
+        setChartData(cachedData.data)
+        setIsUsingCachedData(true)
+        setDataSource(cachedData.source || "CoinGecko")
+        setLoading(false)
         
-        const startTime = Date.now();
-        const response = await fetch(`/api/bitcoin/historical?${params.toString()}`);
-        const endTime = Date.now();
-        
-        if (!response.ok) {
-          throw new Error(`Erro ao buscar dados: ${response.status}`);
+        // Se o cache tem mais de 10 minutos, atualizar em segundo plano
+        if (now - cachedData.timestamp > 10 * 60 * 1000) {
+          // Iniciar atualização em background após retornar os dados do cache
+          setTimeout(() => {
+            updateCacheInBackground(currency, timeRange, days)
+          }, 500)
         }
         
-        // Verificar headers informativos
-        const dataSource = response.headers.get('X-Data-Source') || 'coingecko';
-        const isUsingCache = response.headers.get('X-Using-Cache') === 'true';
-        const responseTime = response.headers.get('X-Response-Time');
+        return
+      }
+      
+      // 2. Se forceUpdate for true ou cache expirado, buscar da API
+      try {
+        // Usar a nova API com suporte a período
+        data = await getHistoricalBitcoinData(
+          currency.toLowerCase(), 
+          days,
+          timeRange // Passar o período original para melhor cache
+        );
         
-        data = await response.json();
+        // Determinar a fonte dos dados (TradingView ou fallback)
+        const dataSource = data.length > 0 && data[0].source 
+          ? data[0].source 
+          : "tradingview";
         
-        // Mostrar informações no console para debugging
-        console.log(`Dados recebidos - Fonte: ${dataSource}, Cache: ${isUsingCache}, Tempo: ${responseTime || `${endTime - startTime}ms`}`);
+        setDataSource(dataSource === "tradingview" ? "TradingView" : "CoinGecko");
+        setIsUsingCachedData(data.some(item => item.isUsingCache));
         
-        // Definir fonte dos dados com base no header
-        setDataSource("CoinGecko");
+        // Atualizar o cache local com os novos dados
+        chartDataCache.current[cacheKey] = {
+          data,
+          timestamp: now,
+          isUsingCache: data.some(item => item.isUsingCache),
+          source: dataSource
+        };
         
-        setIsUsingCachedData(isUsingCache || data.some(item => item.isUsingCache));
+        // Ordenar dados por data (mais antigos primeiro)
+        data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        setChartData(data);
         
-        // Mostrar feedback ao usuário sobre o compartilhamento de cache
-        if (isUsingCache && responseTime && parseInt(responseTime) < 50) {
+        // Mostrar feedback ao usuário sobre a atualização
+        if (!data.some(item => item.isUsingCache)) {
           toast({
-            title: "Dados compartilhados",
-            description: `Usando dados já atualizados por outro usuário (resposta rápida: ${responseTime}).`,
+            title: "Dados atualizados",
+            description: `Dados de ${getTimeRangeLabel(timeRange)} obtidos em tempo real.`,
             duration: 3000,
           });
         }
+      } catch (error) {
+        throw error;
       }
-      // Se não forçar atualização, tentar usar os dados do historicalData props
-      else if (historicalData) {
-        const sourceData = currency.toLowerCase() === 'usd' ? historicalData.usd : historicalData.brl
-        
-        // Verificar se temos o número necessário de dias
-        if (sourceData && sourceData.length >= days) {
-          // Filtrar para obter apenas o número de dias desejado
-          data = sourceData.slice(0, days + 1)
-          
-          setDataSource("CoinGecko");
-          
-          setIsUsingCachedData(sourceData.some(item => item.isUsingCache))
-        } else {
-          // Se não tivermos dias suficientes, buscar da API
-          data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
-          
-          setDataSource("CoinGecko");
-          
-          setIsUsingCachedData(data.some(item => item.isUsingCache));
-        }
-      } else {
-        // Se não tivermos dados históricos, buscar da API
-        data = await getHistoricalBitcoinData(currency.toLowerCase(), days)
-        
-        setDataSource("CoinGecko");
-        
-        setIsUsingCachedData(data.some(item => item.isUsingCache));
-      }
-      
-      // Ordenar dados por data (mais antigos primeiro)
-      data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
-      // Verificar se algum dado é marcado como amostra (isSampleData)
-      if (data.some((item) => item.isSampleData === true)) {
-        throw new Error("Os dados de exemplo não são permitidos. Apenas dados reais da API ou em cache são aceitáveis.");
-      }
-      
-      setChartData(data)
-
-      // Mostrar feedback ao usuário
-      toast({
-        title: "Dados atualizados",
-        description: `Dados históricos de ${days} dias em ${currency} carregados via ${dataSource}.`,
-      })
     } catch (error) {
       console.error("Erro ao buscar dados históricos:", error)
-      setError("Não foi possível obter dados em tempo real. Por favor, tente novamente mais tarde.")
-      setDataSource("Indisponível")
+      
+      // Em caso de erro, tentar usar o cache local mesmo que expirado
+      const cachedData = chartDataCache.current[cacheKey]
+      if (cachedData && cachedData.data.length > 0) {
+        console.log("Usando cache local expirado após erro na API")
+        setChartData(cachedData.data)
+        setIsUsingCachedData(true)
+        setDataSource(cachedData.source || "CoinGecko")
+      } else {
+        setError("Não foi possível obter dados em tempo real. Por favor, tente novamente mais tarde.")
+        setDataSource("Indisponível")
+      }
     } finally {
       setLoading(false)
     }
-  }, [timeRange, currency, historicalData])
+  }, [timeRange, currency, getCacheKey, getTimeRangeLabel])
+  
+  // Função para atualizar o cache em segundo plano
+  const updateCacheInBackground = useCallback(async (currencyType: CurrencyType, range: TimeRange, days: number) => {
+    try {
+      console.log(`Atualizando cache em segundo plano: ${currencyType} ${range} (${days} dias)`)
+      const cacheKey = getCacheKey(currencyType, range)
+      
+      // Buscar dados da API sem forçar atualização
+      const data = await getHistoricalBitcoinData(
+        currencyType.toLowerCase(),
+        days,
+        range // Passar o período para melhor cache
+      );
+      
+      // Determinar a fonte dos dados
+      const dataSource = data.length > 0 && data[0].source
+        ? data[0].source
+        : "tradingview";
+      
+      // Atualizar o cache local
+      chartDataCache.current[cacheKey] = {
+        data,
+        timestamp: Date.now(),
+        isUsingCache: data.some(item => item.isUsingCache),
+        source: dataSource
+      };
+      
+      console.log(`Cache atualizado em segundo plano para ${currencyType} ${range}`);
+      
+      // Se estivermos vendo esse período de tempo/moeda agora, atualizar a tela silenciosamente
+      if (currency === currencyType && timeRange === range) {
+        setChartData(data);
+        setIsUsingCachedData(data.some(item => item.isUsingCache));
+        setDataSource(dataSource === "tradingview" ? "TradingView" : "CoinGecko");
+      }
+    } catch (error) {
+      console.error(`Erro na atualização de cache em segundo plano:`, error)
+    }
+  }, [currency, timeRange, getCacheKey])
 
   // Forçar atualização - ignora cache
   const forceUpdateData = useCallback(() => {
-    fetchHistoricalData(true);
-  }, [fetchHistoricalData]);
+    fetchHistoricalData(true)
+  }, [fetchHistoricalData])
 
   // Atualizar dados quando o intervalo de tempo ou moeda mudar
   useEffect(() => {
     fetchHistoricalData()
-  }, [fetchHistoricalData, timeRange, currency])
+    
+    // Pré-carregar períodos adjacentes em segundo plano
+    const preloadAdjacentPeriods = async () => {
+      // Esperar um pequeno tempo para não atrapalhar o carregamento atual
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Determinar períodos adjacentes para pré-carregar
+      const timeRanges: TimeRange[] = ["1d", "7d", "30d", "90d", "1y"]
+      const currentIndex = timeRanges.indexOf(timeRange)
+      
+      // Pré-carregar o período anterior (se houver)
+      if (currentIndex > 0) {
+        const prevRange = timeRanges[currentIndex - 1]
+        const days = timeRangeToDays(prevRange)
+        updateCacheInBackground(currency, prevRange, days)
+      }
+      
+      // Pré-carregar o próximo período (se houver)
+      if (currentIndex < timeRanges.length - 1) {
+        const nextRange = timeRanges[currentIndex + 1]
+        const days = timeRangeToDays(nextRange)
+        updateCacheInBackground(currency, nextRange, days)
+      }
+    }
+    
+    // Iniciar pré-carregamento
+    preloadAdjacentPeriods()
+    
+  }, [fetchHistoricalData, timeRange, currency, updateCacheInBackground])
 
   const timeRangeToDays = (range: TimeRange): number => {
     switch (range) {
@@ -190,23 +285,6 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       return `${showSymbol ? '$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     } else {
       return `${showSymbol ? 'R$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-    }
-  }
-
-  const getTimeRangeLabel = (range: TimeRange): string => {
-    switch (range) {
-      case "1d":
-        return "1 Dia"
-      case "7d":
-        return "1 Semana"
-      case "30d":
-        return "1 Mês"
-      case "90d":
-        return "3 Meses"
-      case "1y":
-        return "1 Ano"
-      default:
-        return "1 Mês"
     }
   }
 

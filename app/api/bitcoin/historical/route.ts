@@ -1,14 +1,29 @@
 import { NextResponse } from 'next/server';
 import { getHistoricalData, forceUpdateHistoricalData } from '@/lib/server-api';
 
-// GET /api/bitcoin/historical?currency=usd&days=30&force=true
+// Mapeamento de períodos para mais fácil identificação
+const PERIOD_MAPPING = {
+  "1d": 1,
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "1y": 365
+};
+
+// GET /api/bitcoin/historical?currency=usd&days=30&force=true&period=30d
 export async function GET(request: Request) {
   try {
     // Obter parâmetros da requisição
     const { searchParams } = new URL(request.url);
     const currency = searchParams.get('currency') || 'usd';
-    const days = parseInt(searchParams.get('days') || '30', 10);
+    const periodParam = searchParams.get('period');
+    let days = parseInt(searchParams.get('days') || '30', 10);
     const forceUpdate = searchParams.get('force') === 'true';
+    
+    // Se um período específico foi fornecido, converter para dias
+    if (periodParam && PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING]) {
+      days = PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING];
+    }
     
     console.log(`API: Requisição de dados históricos - moeda: ${currency}, dias: ${days}${forceUpdate ? ', força atualização' : ''}`);
     
@@ -58,11 +73,16 @@ export async function GET(request: Request) {
     
     // Preparar os headers de resposta
     const headers = new Headers();
-    headers.set('X-Data-Source', historicalData[0]?.source || 'unknown');
+    headers.set('X-Data-Source', historicalData[0]?.source || 'tradingview');
     headers.set('X-Using-Cache', isUsingCache ? 'true' : 'false');
     headers.set('X-Response-Time', `${endTime - startTime}ms`);
+    headers.set('X-Period', periodParam || `${days}d`);
     
-    console.log(`API: Resposta enviada - fonte: ${historicalData[0]?.source || 'unknown'}, cache: ${isUsingCache}, tempo: ${endTime - startTime}ms`);
+    // Adicionar headers para cache do navegador
+    // Permitir cache no navegador por até 5 minutos para reduzir requisições redundantes
+    headers.set('Cache-Control', 'private, max-age=300');
+    
+    console.log(`API: Resposta enviada - fonte: ${historicalData[0]?.source || 'tradingview'}, cache: ${isUsingCache}, tempo: ${endTime - startTime}ms`);
     
     // Retornar os dados como JSON com os headers informativos
     return NextResponse.json(historicalData, {

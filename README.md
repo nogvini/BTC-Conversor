@@ -44,3 +44,39 @@ O aplicativo utiliza uma arquitetura moderna com:
 - `/components`: Componentes da interface do usuário
 - `/lib`: Bibliotecas e serviços de API
 - `/data`: Armazenamento de dados no servidor
+
+## Melhorias recentes
+
+### Otimização de Requisições para Gráficos
+
+Implementamos um sistema de cache em múltiplas camadas para melhorar a experiência ao alternar entre diferentes períodos de visualização:
+
+1. **Cache Local no Componente**: 
+   - Mantém dados por período e moeda
+   - Evita requisições desnecessárias durante navegação
+   - Atualiza em segundo plano se dados tiverem mais de 10 minutos
+
+2. **Pré-carregamento Inteligente**:
+   - Carrega automaticamente períodos adjacentes em segundo plano
+   - Quando o usuário visualiza um período (ex: 30 dias), os períodos próximos (7 dias e 90 dias) são pré-carregados
+
+3. **Cache Global no Servidor**:
+   - Dados compartilhados entre todos os usuários
+   - Reduz chamadas à API externa
+   - Atualiza dados em segundo plano para manter-se atual
+
+4. **Cache no Navegador**:
+   - Usa headers HTTP para permitir cache local por 5 minutos
+   - Integração com TradingView como fonte preferencial de dados
+
+### Como funciona
+
+Quando um usuário seleciona um período para visualizar (ex: 7 dias, 30 dias, etc.):
+
+1. Sistema verifica se os dados já estão em cache local
+2. Se estiverem disponíveis e atualizados, mostra instantaneamente
+3. Se não, busca do servidor (que pode ter em cache também)
+4. Em segundo plano, pré-carrega períodos adjacentes para transição suave
+5. Ao mudar de período, não precisa mais aguardar requisições adicionais
+
+Esta abordagem proporciona uma experiência fluida ao navegar entre diferentes períodos de tempo, reduzindo drasticamente o número de requisições à API externa.

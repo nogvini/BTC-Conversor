@@ -64,15 +64,50 @@ export async function getCurrentBitcoinPrice(): Promise<BitcoinPrice> {
  */
 export async function getHistoricalBitcoinData(
   currency = 'usd',
-  days = 30
+  days = 30,
+  period?: string
 ): Promise<HistoricalDataPoint[]> {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/historical?currency=${currency}&days=${days}`
-    );
+    // Preparar parâmetros incluindo período para melhor cache
+    const params = new URLSearchParams();
+    params.append('currency', currency);
+    params.append('days', days.toString());
+    
+    // Se período foi passado, utilizá-lo na requisição
+    if (period) {
+      params.append('period', period);
+    }
+    
+    const url = `${API_BASE_URL}/historical?${params.toString()}`;
+    
+    // Configuração da requisição com suporte a cache
+    const fetchOptions: RequestInit = {
+      // Usar cache padrão do navegador para otimizar requisições repetidas
+      cache: 'default',
+      // Adicionar headers úteis para debugging
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-App': 'BTCRaidToolkit'
+      }
+    };
+    
+    const response = await fetch(url, fetchOptions);
     
     if (!response.ok) {
       throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
+    }
+    
+    // Exibir informações de diagnóstico úteis
+    const source = response.headers.get('X-Data-Source');
+    const usingCache = response.headers.get('X-Using-Cache');
+    const responseTime = response.headers.get('X-Response-Time');
+    
+    if (source || usingCache || responseTime) {
+      console.log(
+        `Dados históricos: fonte=${source || 'desconhecida'}, ` +
+        `cache=${usingCache === 'true' ? 'sim' : 'não'}, ` +
+        `tempo=${responseTime || 'n/a'}`
+      );
     }
     
     return await response.json();

@@ -58,7 +58,8 @@ const CACHE_EXPIRATION = {
   PRICE: 10 * 60 * 1000, // 10 minutos para preço atual (aumentado de 5 para 10)
   HISTORICAL: 3 * 60 * 60 * 1000, // 3 horas para dados históricos (aumentado de 1 para 3)
   FORCE_UPDATE: 5 * 60 * 1000, // 5 minutos para força de atualização (proteção contra muitas requisições) (aumentado de 1 para 5)
-  BACKGROUND_REFRESH: 30 * 60 * 1000 // 30 minutos para atualização em segundo plano
+  BACKGROUND_REFRESH: 30 * 60 * 1000, // 30 minutos para atualização em segundo plano
+  PRE_CACHE_DURATION: 6 * 60 * 60 * 1000 // 6 horas para dados pré-carregados
 };
 
 // Garantir que o diretório data existe
@@ -371,7 +372,9 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
     // Atualizar cache global
     globalCacheData.currentPrice = {
       data: currentPrice,
-      timestamp: now
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 0
     };
     
     return currentPrice;
@@ -390,10 +393,13 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
     // Tentar usar dados salvos
     const savedData = await getAppData();
     if (savedData) {
+      const now = Date.now();
       // Atualizar o cache global
       globalCacheData.currentPrice = {
         data: savedData.currentPrice,
-        timestamp: savedData.lastFetched
+        timestamp: savedData.lastFetched,
+        lastRefreshed: now,
+        accessCount: 0
       };
       
       return { ...savedData.currentPrice, isUsingCache: true };
@@ -407,10 +413,13 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
       isUsingCache: true
     };
     
+    const now = Date.now();
     // Armazenar no cache global
     globalCacheData.currentPrice = {
       data: fallbackPrice,
-      timestamp: Date.now()
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 0
     };
     
     return fallbackPrice;
@@ -524,7 +533,7 @@ export async function getHistoricalData(currency = 'usd', days = 30): Promise<Hi
       timestamp: now,
       lastRefreshed: now,
       accessCount: 1,
-      source: 'coingecko'
+      source: 'tradingview' // Atualizado para TradingView conforme regra
     };
     
     return historicalData;
@@ -599,7 +608,7 @@ async function refreshCacheInBackground(currency = 'usd', days = 30): Promise<vo
         timestamp: now,
         lastRefreshed: now,
         accessCount: globalCacheData.historicalData[currency.toLowerCase()][cacheKey]?.accessCount || 1,
-        source: 'coingecko-background'
+        source: 'tradingview-background' // Atualizado para TradingView conforme regra
       };
       
       // Atualizar também o cache no sistema de arquivos
@@ -615,10 +624,70 @@ async function refreshCacheInBackground(currency = 'usd', days = 30): Promise<vo
       }
       
       console.log(`Atualização em segundo plano concluída para ${currency} ${days} dias`);
+      
+      // Pré-carregar períodos adjacentes para evitar requisições repetidas
+      await preloadAdjacentPeriods(currency, days);
     } catch (error) {
       console.error(`Erro na atualização em segundo plano (${currency}, ${days} dias):`, error);
     }
   }, 100); // Atraso mínimo para não bloquear
+}
+
+// Nova função para pré-carregar dados de períodos adjacentes
+async function preloadAdjacentPeriods(currency = 'usd', currentDays = 30): Promise<void> {
+  // Lista de períodos comuns a serem pré-carregados
+  const commonPeriods = [1, 7, 30, 90, 365];
+  
+  // Identificar períodos adjacentes ao atual
+  const currentIndex = commonPeriods.indexOf(currentDays);
+  if (currentIndex === -1) return; // Período não está na lista comum
+  
+  // Períodos a serem pré-carregados (anterior e próximo, se existirem)
+  const periodsToPreload: number[] = [];
+  
+  if (currentIndex > 0) {
+    periodsToPreload.push(commonPeriods[currentIndex - 1]);
+  }
+  
+  if (currentIndex < commonPeriods.length - 1) {
+    periodsToPreload.push(commonPeriods[currentIndex + 1]);
+  }
+  
+  // Pré-carregar cada período em segundo plano
+  for (const days of periodsToPreload) {
+    const cacheKey = `${days}`;
+    const globalCache = globalCacheData.historicalData[currency.toLowerCase()][cacheKey];
+    const currentTime = Date.now();
+    
+    // Verificar se precisa pré-carregar (se não existe no cache ou está muito antigo)
+    if (!globalCache || currentTime - globalCache.timestamp > CACHE_EXPIRATION.PRE_CACHE_DURATION) {
+      console.log(`Pré-carregando dados para ${currency} ${days} dias`);
+      
+      try {
+        // Buscar dados com menor prioridade
+        setTimeout(async () => {
+          try {
+            const data = await fetchHistoricalData(currency, days);
+            
+            // Salvar no cache global
+            globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
+              data,
+              timestamp: Date.now(),
+              lastRefreshed: Date.now(),
+              accessCount: 0, // Zero acessos por enquanto
+              source: 'tradingview-preload'
+            };
+            
+            console.log(`Pré-carregamento concluído para ${currency} ${days} dias`);
+          } catch (error) {
+            console.error(`Erro no pré-carregamento (${currency}, ${days} dias):`, error);
+          }
+        }, 2000); // Atraso maior para dar prioridade a outras requisições
+      } catch (error) {
+        console.error(`Erro ao iniciar pré-carregamento (${currency}, ${days} dias):`, error);
+      }
+    }
+  }
 }
 
 // Nova função para forçar a atualização dos dados históricos
