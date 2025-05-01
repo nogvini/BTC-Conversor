@@ -632,8 +632,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         
         monthlyProfitsSheet.getRow(1).font = { bold: true };
         monthlyProfitsSheet.getRow(1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
+      type: 'pattern',
+      pattern: 'solid',
           fgColor: { argb: '4F4F6F' }
         };
         
@@ -695,8 +695,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // Estilizar linha total
         totalRow.font = { bold: true };
         totalRow.fill = {
-          type: 'pattern',
-          pattern: 'solid',
+        type: 'pattern',
+        pattern: 'solid',
           fgColor: { argb: 'DDDDDD' }
         };
         
@@ -815,8 +815,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // Estilizar linha de total
         totalRow.font = { bold: true };
         totalRow.fill = {
-          type: 'pattern',
-          pattern: 'solid',
+      type: 'pattern',
+      pattern: 'solid',
           fgColor: { argb: 'DDDDDD' }
         };
         
@@ -996,7 +996,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           usdValue: '-',
           brlValue: '-'
         });
-      } else {
+    } else {
         // Para exportação completa
         const monthsCount = Object.keys(monthlyData).length;
         const totalMonthsWithProfit = Object.values(monthlyData).filter(
@@ -1289,18 +1289,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <CalendarComponent
                         mode="single"
                         selected={investmentDate}
-                          onSelect={(date) => date && !isFutureDate(date) && setInvestmentDate(date)}
-                          disabled={(date) => isFutureDate(date)}
+                          onSelect={(date) => date && setInvestmentDate(date)}
                         initialFocus
                           className="bg-black/80"
                           locale={ptBR}
                       />
                     </PopoverContent>
                   </Popover>
-                    {isFutureDate(investmentDate) && (
-                      <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
-                    )}
-                  </div>
+                </div>
                   <Button onClick={addInvestment}>Adicionar Investimento</Button>
                 </div>
               </CardContent>
@@ -1342,17 +1338,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <CalendarComponent
                         mode="single"
                         selected={profitDate}
-                          onSelect={(date) => date && !isFutureDate(date) && setProfitDate(date)}
-                          disabled={(date) => isFutureDate(date)}
+                          onSelect={(date) => date && setProfitDate(date)}
                         initialFocus
                           className="bg-black/80"
                           locale={ptBR}
                       />
                     </PopoverContent>
                   </Popover>
-                    {isFutureDate(profitDate) && (
-                      <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
-                    )}
                 </div>
                   <RadioGroup
                     value={isProfit ? "profit" : "loss"}
@@ -1654,13 +1646,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           <DialogContent className="p-0 max-w-[95vw] bg-black/95 border-purple-800/60" style={{ maxHeight: "80vh" }}>
             <DialogHeader className="p-4 pb-0">
               <DialogTitle className="text-center">Exportar Dados</DialogTitle>
-            </DialogHeader>
+          </DialogHeader>
             <div className="overflow-y-auto">
               <ExportOptionsContent />
-            </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </DialogContent>
+      </Dialog>
       )}
     </div>
   );
-} 
+}
