@@ -45,7 +45,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           <div className="p-6 border-b border-purple-700/50 bg-gradient-to-r from-purple-900/40 to-transparent">
             <h2 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
               <span className="text-purple-400 animate-pulse">₿</span>
-              <div className="bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent drop-shadow-sm !important">
+              <div className="bg-gradient-to-r from-purple-300 to-white bg-clip-text text-transparent drop-shadow-lg !important">
                 Raid Bitcoin Toolkit
               </div>
             </h2>
@@ -76,7 +76,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           
           <div className="p-4 mt-auto border-t border-purple-700/50 bg-gradient-to-r from-transparent to-purple-900/40">
             <p className="text-xs font-medium text-purple-300/70 text-center tracking-wider">
-              Raid BTC Toolkit v1.0
+              Raid Bitcoin Toolkit v1.0
             </p>
           </div>
         </div>
