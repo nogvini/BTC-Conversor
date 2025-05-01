@@ -45,7 +45,9 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           <div className="p-6 border-b border-purple-700/50 bg-gradient-to-r from-purple-900/40 to-transparent">
             <h2 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
               <span className="text-purple-400 animate-pulse">₿</span>
-              <span className="text-purple-400 animate-pulse">Raid Bitcoin Toolkit</span>
+              <div className="bg-gradient-to-r from-purple-300 to-white bg-clip-text text-transparent drop-shadow-lg !important">
+                {/* Raid Bitcoin Toolkit */}
+              </div>
             </h2>
           </div>
           
