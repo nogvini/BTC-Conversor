@@ -718,7 +718,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // Adicionar seção de resumo
         const summaryRow = worksheet.getRow(totalRowNumber + 2);
         worksheet.mergeCells(`A${totalRowNumber + 2}:G${totalRowNumber + 2}`);
-        const summaryCell = summaryCell = worksheet.getCell(`A${totalRowNumber + 2}`);
+        const summaryCell = worksheet.getCell(`A${totalRowNumber + 2}`);
         summaryCell.value = 'RESUMO DE INVESTIMENTOS E RETORNOS';
         summaryCell.font = {
           bold: true,
@@ -853,7 +853,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     try {
       try {
         // Método 1: FileSaver.js saveAs
-        saveAs(blob, filename);
+    saveAs(blob, filename);
         console.log('Download iniciado via saveAs');
       } catch (saveError) {
         console.error('Erro no saveAs:', saveError);
@@ -995,11 +995,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         if (loadingToastId) {
           toast.dismiss(loadingToastId);
         }
-        
-        // Notificação de sucesso usando o toast
-        toast({
+      
+      // Notificação de sucesso usando o toast
+      toast({
           title: "Exportação concluída com sucesso",
-          description: allTime ? 
+        description: allTime ? 
             "O relatório histórico completo foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador." : 
             `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador.`,
           variant: "success",
@@ -1034,7 +1034,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     try {
       setIsExporting(true);
-      // Exportar o mês selecionado por padrão
+    // Exportar o mês selecionado por padrão
       await exportProfitData(false);
     } finally {
       setIsExporting(false);

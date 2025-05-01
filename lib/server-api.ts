@@ -99,8 +99,8 @@ async function fetchUsdToBrlRate(): Promise<number> {
 
     // Primeira opção: Exchange Rate API (principal)
     try {
-      const response = await fetch('https://open.er-api.com/v6/latest/USD', {
-        headers: { 'Accept': 'application/json' },
+    const response = await fetch('https://open.er-api.com/v6/latest/USD', {
+      headers: { 'Accept': 'application/json' },
         cache: 'no-store',
         next: { revalidate: 0 } // Desativar cache para obter dados sempre atualizados
       });
@@ -123,9 +123,9 @@ async function fetchUsdToBrlRate(): Promise<number> {
       });
       
       if (response.ok) {
-        const data = await response.json();
+    const data = await response.json();
         console.log('Taxa obtida via Frankfurter:', data.rates.BRL);
-        return data.rates.BRL;
+    return data.rates.BRL;
       }
       console.error(`Erro na API alternativa de taxas: ${response.status}`);
     } catch (secondaryError) {
