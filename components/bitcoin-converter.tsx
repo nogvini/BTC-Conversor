@@ -70,6 +70,8 @@ export default function BitcoinConverter() {
   const isUpdatingRef = useRef<boolean>(false)
   // Adicionar timestamp da última atualização
   const lastUpdateTimeRef = useRef<number>(0)
+  // Flag para controlar se o componente foi montado
+  const [isInitialized, setIsInitialized] = useState<boolean>(false)
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
@@ -114,6 +116,46 @@ export default function BitcoinConverter() {
       setLoading(false)
     }
   }
+
+  // Efeito para recuperar valores salvos do localStorage ao inicializar
+  useEffect(() => {
+    try {
+      // Recuperar o último valor e unidade salvos
+      const savedAmount = localStorage.getItem("btcConverter_lastAmount") || "";
+      const savedUnit = localStorage.getItem("btcConverter_lastUnit");
+      
+      if (savedAmount) {
+        setAmount(savedAmount);
+      }
+      
+      // Verificar se a unidade salva é válida
+      if (savedUnit && ["BTC", "SATS", "USD", "BRL"].includes(savedUnit)) {
+        setSelectedUnit(savedUnit as CurrencyUnit);
+      }
+    } catch (error) {
+      console.warn("Não foi possível acessar o localStorage:", error);
+    }
+    
+    setIsInitialized(true);
+  }, []);
+  
+  // Efeito para salvar valores quando mudarem
+  useEffect(() => {
+    // Só salvar após a inicialização para evitar sobrescrever com valores vazios
+    if (!isInitialized) return;
+    
+    try {
+      // Salvar o valor atual se não for vazio
+      if (amount) {
+        localStorage.setItem("btcConverter_lastAmount", amount);
+      }
+      
+      // Salvar a unidade selecionada
+      localStorage.setItem("btcConverter_lastUnit", selectedUnit);
+    } catch (error) {
+      console.warn("Não foi possível salvar no localStorage:", error);
+    }
+  }, [amount, selectedUnit, isInitialized]);
 
   // Atualizar apenas o preço atual do Bitcoin - versão melhorada
   const updateCurrentPrice = async () => {
