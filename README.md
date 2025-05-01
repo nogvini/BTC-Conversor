@@ -45,38 +45,35 @@ O aplicativo utiliza uma arquitetura moderna com:
 - `/lib`: Bibliotecas e serviços de API
 - `/data`: Armazenamento de dados no servidor
 
-## Melhorias recentes
+## Melhorias Recentes
+
+### Otimização de Notificações
+- Removidas notificações redundantes ao mudar o período no gráfico histórico
+- Notificações de atualização de preço são mostradas apenas quando há mudanças significativas (>0.1%)
+- Mantidas apenas notificações críticas para erros de conexão e dados em cache
+
+### Tema Escuro Forçado
+- A aplicação agora sempre usa o tema escuro, independente das preferências do navegador
+- Melhor consistência visual entre dispositivos e usuários
+- Otimizado para visualização de dados financeiros
+
+### Exportação Excel
+- Adicionada exportação de dados completos ou mensais
+- Estatísticas detalhadas de rendimento e lucros incluídas
+- Valores em BTC, USD e BRL disponíveis em todas as planilhas
+
+### Filtro Mensal
+- Implementado filtro por mês no histórico
+- Visualização detalhada de aportes e lucros/perdas
+- Estatísticas de rendimento por período
 
 ### Otimização de Requisições para Gráficos
+- **Cache Local no Componente**: Mantém dados por período e moeda para navegação instantânea
+- **Pré-carregamento Inteligente**: Carrega períodos adjacentes em segundo plano
+- **Cache Global no Servidor**: Reduz chamadas à API externa com dados compartilhados
+- **Cache no Navegador**: Usa headers HTTP para permitir cache local por 5 minutos
 
-Implementamos um sistema de cache em múltiplas camadas para melhorar a experiência ao alternar entre diferentes períodos de visualização:
-
-1. **Cache Local no Componente**: 
-   - Mantém dados por período e moeda
-   - Evita requisições desnecessárias durante navegação
-   - Atualiza em segundo plano se dados tiverem mais de 10 minutos
-
-2. **Pré-carregamento Inteligente**:
-   - Carrega automaticamente períodos adjacentes em segundo plano
-   - Quando o usuário visualiza um período (ex: 30 dias), os períodos próximos (7 dias e 90 dias) são pré-carregados
-
-3. **Cache Global no Servidor**:
-   - Dados compartilhados entre todos os usuários
-   - Reduz chamadas à API externa
-   - Atualiza dados em segundo plano para manter-se atual
-
-4. **Cache no Navegador**:
-   - Usa headers HTTP para permitir cache local por 5 minutos
-   - Integração com TradingView como fonte preferencial de dados
-
-### Como funciona
-
-Quando um usuário seleciona um período para visualizar (ex: 7 dias, 30 dias, etc.):
-
-1. Sistema verifica se os dados já estão em cache local
-2. Se estiverem disponíveis e atualizados, mostra instantaneamente
-3. Se não, busca do servidor (que pode ter em cache também)
-4. Em segundo plano, pré-carrega períodos adjacentes para transição suave
-5. Ao mudar de período, não precisa mais aguardar requisições adicionais
-
-Esta abordagem proporciona uma experiência fluida ao navegar entre diferentes períodos de tempo, reduzindo drasticamente o número de requisições à API externa.
+### Interface Responsiva
+- Adaptações específicas para dispositivos móveis
+- Menu de navegação otimizado para telas pequenas
+- Visualização de gráficos adaptada para diferentes tamanhos de tela

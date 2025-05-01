@@ -149,6 +149,12 @@ export default function BitcoinConverter() {
         isUsingFallback: priceData.isUsingCache,
       };
       
+      // Verificar se o preço mudou significativamente em relação ao anterior
+      const oldUsdPrice = rates?.BTC_USD || 0;
+      const newUsdPrice = newRates.BTC_USD;
+      const priceChangePercent = oldUsdPrice > 0 ? Math.abs((newUsdPrice - oldUsdPrice) / oldUsdPrice * 100) : 0;
+      const significantPriceChange = priceChangePercent > 0.1; // Mudança maior que 0.1%
+      
       // Atualizar as taxas na interface
       setRates(newRates);
       
@@ -176,12 +182,15 @@ export default function BitcoinConverter() {
           rateChangeMsg = ` • USD/BRL ${isRateUp ? '↑' : '↓'} ${change}%`;
         }
         
-        toast({
-          title: "Preços atualizados",
-          description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD${rateChangeMsg}`,
-          variant: "success",
-          duration: 3000
-        });
+        // Mostrar notificação apenas se o preço mudou significativamente ou se é a primeira carga
+        if (significantPriceChange || oldUsdPrice === 0) {
+          toast({
+            title: "Preços atualizados",
+            description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD${rateChangeMsg}`,
+            variant: "success",
+            duration: 3000
+          });
+        }
       }
     } catch (error) {
       console.error("Erro ao atualizar dados:", error);
@@ -320,7 +329,7 @@ export default function BitcoinConverter() {
                     <Label>Unidade</Label>
                     <RadioGroup
                       value={selectedUnit}
-                      onValueChange={(v) => setSelectedUnit(v as CurrencyUnit)}
+                      onValueChange={(v: string) => setSelectedUnit(v as CurrencyUnit)}
                       className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-2"
                     >
                       <div>

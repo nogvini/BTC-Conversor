@@ -155,8 +155,9 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setChartData(data);
         
-        // Mostrar feedback ao usuário sobre a atualização
-        if (!data.some(item => item.isUsingCache)) {
+        // Mostrar feedback ao usuário sobre a atualização APENAS quando for uma atualização forçada
+        // e não apenas uma mudança de período ou moeda
+        if (forceUpdate && !data.some(item => item.isUsingCache)) {
           toast({
             title: "Dados atualizados",
             description: `Dados de ${getTimeRangeLabel(timeRange)} obtidos em tempo real.`,
