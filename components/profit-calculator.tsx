@@ -1034,7 +1034,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     try {
       setIsExporting(true);
-    // Exportar o mês selecionado por padrão
+      // Exportar o mês selecionado por padrão
       await exportProfitData(false);
     } finally {
       setIsExporting(false);
