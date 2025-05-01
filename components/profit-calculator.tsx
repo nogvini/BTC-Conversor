@@ -907,7 +907,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   }
 
   // Modificar a função exportProfitData para melhorar o feedback e garantir o download
-  const exportProfitData = async (allTime: boolean = false) => {
+  const exportProfitData = async (allTime = false) => {
     try {
       // Mostrar toast com feedback mais claro sobre a exportação
       const loadingToastId = toast({
@@ -916,56 +916,56 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         duration: 5000,
       }).id;
       
-    // Preparar dados em formato adequado para exportação
-    let dataToExport;
-    let filename;
-    
-    // Calcular o total investido em BTC
-    const totalInvestedBTC = calculateTotalInvestments();
-    const totalInvestedUSD = totalInvestedBTC * currentRates.btcToUsd;
-    const totalInvestedBRL = totalInvestedUSD * currentRates.brlToUsd;
-    
-    if (allTime) {
-      // Exportação de todos os tempos
+      // Preparar dados em formato adequado para exportação
+      let dataToExport;
+      let filename;
+      
+      // Calcular o total investido em BTC
+      const totalInvestedBTC = calculateTotalInvestments();
+      const totalInvestedUSD = totalInvestedBTC * currentRates.btcToUsd;
+      const totalInvestedBRL = totalInvestedUSD * currentRates.brlToUsd;
+      
+      if (allTime) {
+        // Exportação de todos os tempos
         dataToExport = profits.map(profit => {
           const btcValue = convertToBtc(profit.amount, profit.unit);
           return {
-        Data: new Date(profit.date).toLocaleDateString(),
+            Data: new Date(profit.date).toLocaleDateString(),
             Tipo: profit.isProfit ? 'Lucro' : 'Perda',
-        Valor: formatCryptoAmount(profit.amount, profit.unit),
+            Valor: formatCryptoAmount(profit.amount, profit.unit),
             ValorBTC: btcValue.toFixed(8),
             ValorUSD: (btcValue * currentRates.btcToUsd).toFixed(2),
             ValorBRL: (btcValue * currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2)
           };
         });
-      
-      // Nome do arquivo com "histórico-completo"
+        
+        // Nome do arquivo com "histórico-completo"
         filename = `raid-btc-historico-completo-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-    } else {
-      // Exportação do mês atual
-      const monthStart = startOfMonth(selectedMonth);
-      const monthEnd = endOfMonth(selectedMonth);
-      
-      // Filtrar apenas lucros do mês selecionado
-      const monthProfits = profits.filter(profit => {
-        const profitDate = new Date(profit.date);
-        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-      });
-      
+      } else {
+        // Exportação do mês atual
+        const monthStart = startOfMonth(selectedMonth);
+        const monthEnd = endOfMonth(selectedMonth);
+        
+        // Filtrar apenas lucros do mês selecionado
+        const monthProfits = profits.filter(profit => {
+          const profitDate = new Date(profit.date);
+          return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+        });
+        
         dataToExport = monthProfits.map(profit => {
           const btcValue = convertToBtc(profit.amount, profit.unit);
           return {
-        Data: new Date(profit.date).toLocaleDateString(),
+            Data: new Date(profit.date).toLocaleDateString(),
             Tipo: profit.isProfit ? 'Lucro' : 'Perda',
-        Valor: formatCryptoAmount(profit.amount, profit.unit),
+            Valor: formatCryptoAmount(profit.amount, profit.unit),
             ValorBTC: btcValue.toFixed(8),
             ValorUSD: (btcValue * currentRates.btcToUsd).toFixed(2),
             ValorBRL: (btcValue * currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2)
           };
         });
-      
-      // Nome do arquivo incluindo o mês e ano
-      const monthName = format(selectedMonth, 'MMMM-yyyy', { locale: ptBR });
+        
+        // Nome do arquivo incluindo o mês e ano
+        const monthName = format(selectedMonth, 'MMMM-yyyy', { locale: ptBR });
         filename = `raid-btc-${monthName}.xlsx`;
       }
 
@@ -977,12 +977,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           variant: "destructive"
         });
         return;
-    }
+      }
 
-    // Título da planilha incluindo o período
+      // Título da planilha incluindo o período
       const sheetTitle = allTime ? 'Raid Bitcoin Toolkit - Histórico Completo' : 
                                  `Raid Bitcoin Toolkit - ${format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}`;
-    
+      
       // Exportar dados com informações de investimento
       const success = await exportToExcel(dataToExport, filename, sheetTitle, {
         totalInvestedBTC,
@@ -996,10 +996,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           toast.dismiss(loadingToastId);
         }
       
-      // Notificação de sucesso usando o toast
-      toast({
+        // Notificação de sucesso usando o toast
+        toast({
           title: "Exportação concluída com sucesso",
-        description: allTime ? 
+          description: allTime ? 
             "O relatório histórico completo foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador." : 
             `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador.`,
           variant: "success",
@@ -1034,7 +1034,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     try {
       setIsExporting(true);
-    // Exportar o mês selecionado por padrão
+      // Exportar o mês selecionado por padrão
       await exportProfitData(false);
     } finally {
       setIsExporting(false);
