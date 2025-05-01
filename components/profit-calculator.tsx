@@ -16,7 +16,8 @@ import {
   RefreshCw,
   AlertTriangle,
   FileText,
-  Download
+  Download,
+  ChevronDown
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS");
   const [profitDate, setProfitDate] = useState<Date>(new Date());
   const [isProfit, setIsProfit] = useState<boolean>(true);
+
+  // Estados adicionais para filtros
+  const [filterMonth, setFilterMonth] = useState<Date>(new Date());
+  const [showFilterOptions, setShowFilterOptions] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -227,12 +232,28 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
+  // Verifica se uma data é no futuro
+  const isFutureDate = (date: Date): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Resetar horas para comparar apenas as datas
+    return date > today;
+  };
+
   // Funções de adição e remoção
   const addInvestment = () => {
     if (!investmentAmount || isNaN(Number(investmentAmount)) || Number(investmentAmount) <= 0) {
       toast({
         title: "Valor inválido",
         description: "Por favor, insira um valor válido maior que zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isFutureDate(investmentDate)) {
+      toast({
+        title: "Data inválida",
+        description: "Não é possível registrar aportes com data futura.",
         variant: "destructive",
       });
       return;
@@ -265,6 +286,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({
         title: "Valor inválido",
         description: "Por favor, insira um valor válido maior que zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isFutureDate(profitDate)) {
+      toast({
+        title: "Data inválida",
+        description: `Não é possível registrar ${isProfit ? "lucros" : "perdas"} com data futura.`,
         variant: "destructive",
       });
       return;
@@ -366,6 +396,69 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
+  // Funções de filtro e cálculo para o histórico
+  const calculateTotalInvestmentsInMonth = (month: Date): number => {
+    const monthStart = startOfMonth(month);
+    const monthEnd = endOfMonth(month);
+    
+    return investments
+      .filter(investment => {
+        const investmentDate = new Date(investment.date);
+        return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+      })
+      .reduce((total, investment) => {
+        return total + convertToBtc(investment.amount, investment.unit);
+      }, 0);
+  };
+
+  const calculateTotalProfitsInMonth = (month: Date): number => {
+    const monthStart = startOfMonth(month);
+    const monthEnd = endOfMonth(month);
+    
+    return profits
+      .filter(profit => {
+        const profitDate = new Date(profit.date);
+        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+      })
+      .reduce((total, profit) => {
+        const btcAmount = convertToBtc(profit.amount, profit.unit);
+        return profit.isProfit ? total + btcAmount : total - btcAmount;
+      }, 0);
+  };
+
+  const getFilteredInvestments = (): Investment[] => {
+    if (!showFilterOptions) return investments;
+    
+    const monthStart = startOfMonth(filterMonth);
+    const monthEnd = endOfMonth(filterMonth);
+    
+    return investments.filter(investment => {
+      const investmentDate = new Date(investment.date);
+      return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+    });
+  };
+
+  const getFilteredProfits = (): ProfitRecord[] => {
+    if (!showFilterOptions) return profits;
+    
+    const monthStart = startOfMonth(filterMonth);
+    const monthEnd = endOfMonth(filterMonth);
+    
+    return profits.filter(profit => {
+      const profitDate = new Date(profit.date);
+      return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+    });
+  };
+
+  // Função para formatar valor baseado na moeda selecionada
+  const formatBtcValueInCurrency = (btcValue: number): string => {
+    if (displayCurrency === "USD") {
+      return `$${(btcValue * currentRates.btcToUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      return `R$${(btcValue * currentRates.btcToUsd * currentRates.brlToUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+  };
+
   // Interface simplificada temporária
   return (
     <div className="space-y-6">
@@ -408,6 +501,37 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       onChange={(e) => setInvestmentAmount(e.target.value)}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="investment-date">Data do Aporte</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                          Selecione a data do aporte
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={investmentDate}
+                          onSelect={(date) => date && !isFutureDate(date) && setInvestmentDate(date)}
+                          disabled={(date) => isFutureDate(date)}
+                          initialFocus
+                          className="bg-black/80"
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {isFutureDate(investmentDate) && (
+                      <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
+                    )}
+                  </div>
                   <Button onClick={addInvestment}>Adicionar Investimento</Button>
                 </div>
               </CardContent>
@@ -429,6 +553,37 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       value={profitAmount}
                       onChange={(e) => setProfitAmount(e.target.value)}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="profit-date">Data do Registro</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {profitDate ? format(profitDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                          Selecione a data do {isProfit ? "lucro" : "perda"}
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={profitDate}
+                          onSelect={(date) => date && !isFutureDate(date) && setProfitDate(date)}
+                          disabled={(date) => isFutureDate(date)}
+                          initialFocus
+                          className="bg-black/80"
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {isFutureDate(profitDate) && (
+                      <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
+                    )}
                   </div>
                   <RadioGroup
                     value={isProfit ? "profit" : "loss"}
@@ -456,6 +611,79 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           <Card className="panel border-purple-700/50">
             <CardHeader>
               <CardTitle className="text-lg">Histórico</CardTitle>
+              <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant={showFilterOptions ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowFilterOptions(!showFilterOptions)}
+                    className={showFilterOptions ? "bg-purple-800 hover:bg-purple-700" : "bg-black/30 border-purple-700/50"}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {showFilterOptions ? "Filtro ativo" : "Filtrar por mês"}
+                  </Button>
+                  
+                  {showFilterOptions && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-black/30 border-purple-700/50"
+                        >
+                          {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                          <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
+                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                          Selecione o mês para filtrar
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={filterMonth}
+                          onSelect={(date) => date && setFilterMonth(date)}
+                          initialFocus
+                          className="bg-black/80"
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleDisplayCurrency}
+                    className="bg-black/30 border-purple-700/50"
+                  >
+                    {displayCurrency === "USD" ? (
+                      <>
+                        <span className="font-bold mr-1">R$</span> BRL
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="h-4 w-4 mr-1" /> USD
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportButtonClick}
+                    disabled={isExporting}
+                    className="bg-black/30 border-purple-700/50"
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
               <div className="flex justify-between">
                 <CardDescription>Seus registros</CardDescription>
                 <Button 
