@@ -102,6 +102,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Estados adicionais para filtros
   const [filterMonth, setFilterMonth] = useState<Date>(new Date());
   const [showFilterOptions, setShowFilterOptions] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -363,37 +364,203 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setDisplayCurrency(displayCurrency === "USD" ? "BRL" : "USD");
   };
 
-  // Função simplificada para exportação (stub)
-  const handleExportButtonClick = async () => {
-    if (isExporting || profits.length === 0) {
-      toast({
-        title: profits.length === 0 ? "Sem dados para exportar" : "Exportação em andamento",
-        description: profits.length === 0 ? "Não há registros de lucros ou perdas para exportar." : "Aguarde a conclusão da exportação atual.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
+  // Função para exportação com opções
+  const exportData = async (exportAll: boolean = false) => {
     try {
       setIsExporting(true);
-      // Simulação de exportação
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      setShowExportOptions(false);
+      
+      // Determinar quais dados exportar
+      const dataToExport = {
+        investments: exportAll ? investments : getFilteredInvestments(),
+        profits: exportAll ? profits : getFilteredProfits()
+      };
+      
+      // Verificar se há dados para exportar
+      if (dataToExport.investments.length === 0 && dataToExport.profits.length === 0) {
+        toast({
+          title: "Sem dados para exportar",
+          description: "Não há registros para exportar no período selecionado.",
+          variant: "destructive"
+        });
+        setIsExporting(false);
+        return;
+      }
+      
+      // Criar workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "BTC Monitor";
+      workbook.created = new Date();
+      
+      // Adicionar planilha de aportes
+      if (dataToExport.investments.length > 0) {
+        const investmentsSheet = workbook.addWorksheet('Aportes', {
+          properties: { tabColor: { argb: '4F80BD' } }
+        });
+        
+        // Adicionar cabeçalhos
+        investmentsSheet.columns = [
+          { header: 'Data', key: 'date', width: 15 },
+          { header: 'Valor em BTC', key: 'btcValue', width: 20 },
+          { header: 'Valor em USD', key: 'usdValue', width: 15 },
+          { header: 'Valor em BRL', key: 'brlValue', width: 15 }
+        ];
+        
+        // Estilizar cabeçalhos
+        investmentsSheet.getRow(1).font = { bold: true };
+        investmentsSheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: '4F4F6F' }
+        };
+        
+        // Adicionar dados
+        dataToExport.investments.forEach(investment => {
+          const btcValue = convertToBtc(investment.amount, investment.unit);
+          const usdValue = btcValue * currentRates.btcToUsd;
+          const brlValue = usdValue * currentRates.brlToUsd;
+          
+          investmentsSheet.addRow({
+            date: format(new Date(investment.date), "dd/MM/yyyy"),
+            btcValue: btcValue.toFixed(8),
+            usdValue: usdValue.toFixed(2),
+            brlValue: brlValue.toFixed(2)
+          });
+        });
+      }
+      
+      // Adicionar planilha de lucros/perdas
+      if (dataToExport.profits.length > 0) {
+        const profitsSheet = workbook.addWorksheet('Lucros e Perdas', {
+          properties: { tabColor: { argb: exportAll ? '00B050' : 'FF0000' } }
+        });
+        
+        // Adicionar cabeçalhos
+        profitsSheet.columns = [
+          { header: 'Data', key: 'date', width: 15 },
+          { header: 'Tipo', key: 'type', width: 10 },
+          { header: 'Valor em BTC', key: 'btcValue', width: 20 },
+          { header: 'Valor em USD', key: 'usdValue', width: 15 },
+          { header: 'Valor em BRL', key: 'brlValue', width: 15 }
+        ];
+        
+        // Estilizar cabeçalhos
+        profitsSheet.getRow(1).font = { bold: true };
+        profitsSheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: '4F4F6F' }
+        };
+        
+        // Adicionar dados
+        dataToExport.profits.forEach(profit => {
+          const btcValue = convertToBtc(profit.amount, profit.unit);
+          const usdValue = btcValue * currentRates.btcToUsd;
+          const brlValue = usdValue * currentRates.brlToUsd;
+          
+          const row = profitsSheet.addRow({
+            date: format(new Date(profit.date), "dd/MM/yyyy"),
+            type: profit.isProfit ? 'Lucro' : 'Perda',
+            btcValue: btcValue.toFixed(8),
+            usdValue: usdValue.toFixed(2),
+            brlValue: brlValue.toFixed(2)
+          });
+          
+          // Colorir linhas de acordo com o tipo (lucro/perda)
+          row.font = {
+            color: { argb: profit.isProfit ? '00B050' : 'FF0000' }
+          };
+        });
+      }
+      
+      // Adicionar planilha de resumo
+      const summarySheet = workbook.addWorksheet('Resumo', {
+        properties: { tabColor: { argb: 'FFD700' } }
+      });
+      
+      summarySheet.columns = [
+        { header: 'Métrica', key: 'metric', width: 25 },
+        { header: 'Valor', key: 'value', width: 20 }
+      ];
+      
+      summarySheet.getRow(1).font = { bold: true };
+      summarySheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4F4F6F' }
+      };
+      
+      // Calcular métricas para o resumo
+      const investmentsData = dataToExport.investments;
+      const profitsData = dataToExport.profits;
+      
+      const totalInvestmentsBtc = investmentsData.reduce((total, inv) => 
+        total + convertToBtc(inv.amount, inv.unit), 0);
+      
+      const totalProfitsBtc = profitsData.reduce((total, profit) => {
+        const amount = convertToBtc(profit.amount, profit.unit);
+        return profit.isProfit ? total + amount : total - amount;
+      }, 0);
+      
+      const totalValueUsd = totalInvestmentsBtc * currentRates.btcToUsd;
+      const totalValueBrl = totalValueUsd * currentRates.brlToUsd;
+      
+      const roi = totalInvestmentsBtc > 0 ? 
+        (totalProfitsBtc / totalInvestmentsBtc) * 100 : 0;
+      
+      // Adicionar dados ao resumo
+      summarySheet.addRow({ metric: 'Período', 
+        value: exportAll ? 'Todos os dados' : 
+          `${format(startOfMonth(filterMonth), "MMMM yyyy", { locale: ptBR })}` });
+      
+      summarySheet.addRow({ metric: 'Total de Aportes (BTC)', value: totalInvestmentsBtc.toFixed(8) });
+      summarySheet.addRow({ metric: 'Total de Lucros/Perdas (BTC)', value: totalProfitsBtc.toFixed(8) });
+      summarySheet.addRow({ metric: 'Valor Total em USD', value: `$${totalValueUsd.toFixed(2)}` });
+      summarySheet.addRow({ metric: 'Valor Total em BRL', value: `R$${totalValueBrl.toFixed(2)}` });
+      summarySheet.addRow({ metric: 'ROI', value: `${roi.toFixed(2)}%` });
+      
+      // Gerar o arquivo e fazer download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `bitcoin-${exportAll ? 'completo' : format(filterMonth, 'MM-yyyy')}.xlsx`);
       
       toast({
         title: "Exportação concluída com sucesso",
-        description: "Os dados foram exportados com sucesso.",
-        variant: "success"
+        description: `Os dados foram exportados para o arquivo bitcoin-${exportAll ? 'completo' : format(filterMonth, 'MM-yyyy')}.xlsx`,
       });
+      
     } catch (error) {
       console.error("Erro na exportação:", error);
       toast({
         title: "Erro na exportação",
-        description: "Não foi possível completar a exportação.",
+        description: "Não foi possível completar a exportação. Verifique o console para mais detalhes.",
         variant: "destructive"
       });
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleExportButtonClick = () => {
+    if (isExporting) {
+      toast({
+        title: "Exportação em andamento",
+        description: "Aguarde a conclusão da exportação atual.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (investments.length === 0 && profits.length === 0) {
+      toast({
+        title: "Sem dados para exportar",
+        description: "Não há registros para exportar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setShowExportOptions(true);
   };
 
   // Funções de filtro e cálculo para o histórico
@@ -670,25 +837,56 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     )}
                   </Button>
                   
-                  <Button 
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportButtonClick}
-                    disabled={isExporting}
-                    className="bg-black/30 border-purple-700/50"
-                  >
-                    {isExporting ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Exportando...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Exportar
-                      </>
-                    )}
-                  </Button>
+                  <Popover open={showExportOptions} onOpenChange={setShowExportOptions}>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        disabled={isExporting}
+                        className="bg-black/30 border-purple-700/50"
+                      >
+                        {isExporting ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Exportando...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Exportar
+                          </>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
+                      <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                        Selecione o tipo de exportação
+                      </div>
+                      <div className="p-0">
+                        <button
+                          className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex items-center text-sm transition-colors"
+                          onClick={() => exportData(false)}
+                          disabled={isExporting}
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Exportar dados do mês atual
+                          {showFilterOptions && (
+                            <span className="text-xs text-gray-400 block mt-1 ml-6">
+                              {format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex items-center text-sm border-t border-purple-700/20 transition-colors"
+                          onClick={() => exportData(true)}
+                          disabled={isExporting}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Exportar todos os dados
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CardHeader>
