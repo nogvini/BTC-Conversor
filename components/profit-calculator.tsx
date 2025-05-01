@@ -537,7 +537,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       });
       
       summarySheet.columns = [
-        { header: 'Métrica', key: 'metric', width: 25 },
+        { header: 'Métrica', key: 'metric', width: 35 },
         { header: 'Valor', key: 'value', width: 20 },
         { header: 'Valor (BTC)', key: 'btcValue', width: 20 },
         { header: 'Valor (USD)', key: 'usdValue', width: 20 },
@@ -546,8 +546,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       summarySheet.getRow(1).font = { bold: true };
       summarySheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
+      type: 'pattern',
+      pattern: 'solid',
         fgColor: { argb: '4F4F6F' }
       };
       
@@ -599,7 +599,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       totalProfitsRow.font = { bold: true, color: { argb: totalProfitsBtc >= 0 ? '00B050' : 'FF0000' } };
       
       const balanceRow = summarySheet.addRow({
-        metric: 'Saldo Atual',
+        metric: 'Saldo Atual (Aportes + Lucros)',
         value: '-',
         btcValue: (totalInvestmentsBtc + totalProfitsBtc).toFixed(8),
         usdValue: `$${(totalValueUsd + profitValueUsd).toFixed(2)}`,
@@ -611,7 +611,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       summarySheet.addRow({});
       
       // Métricas de rendimento
-      summarySheet.addRow({
+      const roiRow = summarySheet.addRow({
         metric: 'ROI (Retorno sobre Investimento)',
         value: `${roi.toFixed(2)}%`,
         btcValue: '-',
@@ -619,89 +619,117 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         brlValue: '-'
       });
       
-      // Informações adicionais para o resumo
-      if (!exportAll) {
-        // Para exportação mensal
-        const monthlyInvestmentCount = dataToExport.investments.length;
-        const monthlyProfitCount = dataToExport.profits.length;
-        
-        summarySheet.addRow({
-          metric: 'Número de Aportes no Mês',
-          value: `${monthlyInvestmentCount}`,
-          btcValue: '-',
-          usdValue: '-',
-          brlValue: '-'
-        });
-        
-        summarySheet.addRow({
-          metric: 'Número de Registros de Lucro/Perda',
-          value: `${monthlyProfitCount}`,
-          btcValue: '-',
-          usdValue: '-',
-          brlValue: '-'
-        });
-      } else {
-        // Para exportação completa
-        const monthsCount = Object.keys(monthlyData).length;
-        const totalMonthsWithProfit = Object.values(monthlyData).filter(
-          (data: any) => data.profitTotalBtc > 0
-        ).length;
-        
-        summarySheet.addRow({
-          metric: 'Número Total de Meses',
-          value: `${monthsCount}`,
-          btcValue: '-',
-          usdValue: '-',
-          brlValue: '-'
-        });
-        
-        summarySheet.addRow({
-          metric: 'Meses com Lucro',
-          value: `${totalMonthsWithProfit} (${((totalMonthsWithProfit / monthsCount) * 100).toFixed(1)}%)`,
-          btcValue: '-',
-          usdValue: '-',
-          brlValue: '-'
-        });
-        
-        summarySheet.addRow({
-          metric: 'Média de Aporte Mensal',
-          value: '-',
-          btcValue: (totalInvestmentsBtc / Math.max(1, monthsCount)).toFixed(8),
-          usdValue: `$${(totalValueUsd / Math.max(1, monthsCount)).toFixed(2)}`,
-          brlValue: `R$${(totalValueBrl / Math.max(1, monthsCount)).toFixed(2)}`
-        });
-      }
+      // Porcentagem do lucro em relação ao aporte total
+      const profitPercentageRow = summarySheet.addRow({
+        metric: 'Lucro em % do Aporte Total',
+        value: `${roi.toFixed(2)}%`,
+        btcValue: totalInvestmentsBtc > 0 ? `${((totalProfitsBtc / totalInvestmentsBtc) * 100).toFixed(2)}%` : '0.00%',
+        usdValue: '-',
+        brlValue: '-'
+      });
+      profitPercentageRow.font = { color: { argb: totalProfitsBtc >= 0 ? '00B050' : 'FF0000' } };
       
-      // Adicionar taxa de crescimento anualizado se tiver dados suficientes
-      if (dataToExport.investments.length > 0) {
-        const oldestInvestment = [...dataToExport.investments].sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-        )[0];
+      // Adicionar planilha de lucros mensais
+      if (exportAll) {
+        const monthlyProfitsSheet = workbook.addWorksheet('Lucros Mensais', {
+          properties: { tabColor: { argb: '00B050' } }
+        });
         
-        const daysSinceFirstInvestment = Math.max(
-          1, 
-          Math.floor((new Date().getTime() - new Date(oldestInvestment.date).getTime()) / (1000 * 60 * 60 * 24))
-        );
+        monthlyProfitsSheet.columns = [
+          { header: 'Mês', key: 'month', width: 20 },
+          { header: 'Lucro (BTC)', key: 'btcProfit', width: 20 },
+          { header: 'Lucro (USD)', key: 'usdProfit', width: 20 },
+          { header: 'Lucro (BRL)', key: 'brlProfit', width: 20 },
+          { header: '% do Aporte Mensal', key: 'monthlyPercent', width: 22 },
+          { header: '% do Aporte Total', key: 'totalPercent', width: 22 }
+        ];
         
-        if (daysSinceFirstInvestment > 30) {
-          const annualizedROI = (Math.pow(1 + (roi / 100), 365 / daysSinceFirstInvestment) - 1) * 100;
+        monthlyProfitsSheet.getRow(1).font = { bold: true };
+        monthlyProfitsSheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: '4F4F6F' }
+        };
+        
+        // Filtrar apenas meses com lucros não nulos
+        const monthsWithProfits = Object.entries(monthlyData)
+          .filter(([_, data]: [string, any]) => data.profitTotalBtc !== 0)
+          .map(([key, data]: [string, any]) => ({ key, data }))
+          .sort((a, b) => new Date(a.key).getTime() - new Date(b.key).getTime());
+        
+        // Adicionar dados de lucros mensais
+        let totalMonthlyProfitBtc = 0;
+        
+        monthsWithProfits.forEach(({ key, data }) => {
+          const profitBtc = data.profitTotalBtc;
+          totalMonthlyProfitBtc += profitBtc;
           
-          summarySheet.addRow({
-            metric: 'ROI Anualizado',
-            value: `${annualizedROI.toFixed(2)}%`,
-            btcValue: '-',
-            usdValue: '-',
-            brlValue: '-'
+          const profitUsd = profitBtc * currentBtcUsdRate;
+          const profitBrl = profitUsd * currentBrlUsdRate;
+          
+          // Porcentagens
+          const percentOfMonthly = data.investmentTotalBtc > 0 ? 
+            (profitBtc / data.investmentTotalBtc) * 100 : 0;
+          const percentOfTotal = totalInvestmentsBtc > 0 ? 
+            (profitBtc / totalInvestmentsBtc) * 100 : 0;
+          
+          const row = monthlyProfitsSheet.addRow({
+            month: data.label,
+            btcProfit: profitBtc.toFixed(8),
+            usdProfit: profitUsd.toFixed(2),
+            brlProfit: profitBrl.toFixed(2),
+            monthlyPercent: `${percentOfMonthly.toFixed(2)}%`,
+            totalPercent: `${percentOfTotal.toFixed(2)}%`
           });
           
-          summarySheet.addRow({
-            metric: 'Período de Investimento',
-            value: `${daysSinceFirstInvestment} dias`,
-            btcValue: '-',
-            usdValue: '-',
-            brlValue: '-'
-          });
-        }
+          // Colorir conforme lucro/perda
+          const colorCode = profitBtc > 0 ? '00B050' : profitBtc < 0 ? 'FF0000' : '000000';
+          row.getCell('btcProfit').font = { color: { argb: colorCode } };
+          row.getCell('usdProfit').font = { color: { argb: colorCode } };
+          row.getCell('brlProfit').font = { color: { argb: colorCode } };
+          row.getCell('monthlyPercent').font = { color: { argb: colorCode } };
+          row.getCell('totalPercent').font = { color: { argb: colorCode } };
+        });
+        
+        // Linha de total
+        const totalProfitsUsd = totalMonthlyProfitBtc * currentBtcUsdRate;
+        const totalProfitsBrl = totalProfitsUsd * currentBrlUsdRate;
+        const percentOfTotalInvestment = totalInvestmentsBtc > 0 ? 
+          (totalMonthlyProfitBtc / totalInvestmentsBtc) * 100 : 0;
+        
+        const totalRow = monthlyProfitsSheet.addRow({
+          month: 'TOTAL',
+          btcProfit: totalMonthlyProfitBtc.toFixed(8),
+          usdProfit: totalProfitsUsd.toFixed(2),
+          brlProfit: totalProfitsBrl.toFixed(2),
+          monthlyPercent: '-',
+          totalPercent: `${percentOfTotalInvestment.toFixed(2)}%`
+        });
+        
+        // Estilizar linha total
+        totalRow.font = { bold: true };
+        totalRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'DDDDDD' }
+        };
+        
+        // Colorir conforme total
+        const totalColorCode = totalMonthlyProfitBtc > 0 ? '00B050' : 
+                               totalMonthlyProfitBtc < 0 ? 'FF0000' : '000000';
+        totalRow.getCell('btcProfit').font = { bold: true, color: { argb: totalColorCode } };
+        totalRow.getCell('usdProfit').font = { bold: true, color: { argb: totalColorCode } };
+        totalRow.getCell('brlProfit').font = { bold: true, color: { argb: totalColorCode } };
+        totalRow.getCell('totalPercent').font = { bold: true, color: { argb: totalColorCode } };
+        
+        // Adicionar ao resumo
+        summarySheet.addRow({
+          metric: 'Total de Meses com Lucro/Perda',
+          value: `${monthsWithProfits.length} meses`,
+          btcValue: '-',
+          usdValue: '-',
+          brlValue: '-'
+        });
       }
       
       // Adicionar planilha de análise mensal para exportação completa
@@ -819,6 +847,230 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           totalRow.getCell('profitBrl').font = { bold: true, color: { argb: 'FF0000' } };
           totalRow.getCell('percentOfMonthly').font = { bold: true, color: { argb: 'FF0000' } };
           totalRow.getCell('percentOfTotal').font = { bold: true, color: { argb: 'FF0000' } };
+        }
+      }
+      
+      // Adicionar planilha de Saldo Completo
+      const balanceSheet = workbook.addWorksheet('Saldo Completo', {
+        properties: { tabColor: { argb: '3366FF' } }
+      });
+      
+      balanceSheet.columns = [
+        { header: 'Descrição', key: 'description', width: 30 },
+        { header: 'Valor (BTC)', key: 'btcValue', width: 20 },
+        { header: 'Valor (USD)', key: 'usdValue', width: 20 },
+        { header: 'Valor (BRL)', key: 'brlValue', width: 20 },
+        { header: 'Porcentagem', key: 'percentage', width: 15 }
+      ];
+      
+      balanceSheet.getRow(1).font = { bold: true };
+      balanceSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4F4F6F' }
+      };
+      
+      // Dados do saldo completo
+      balanceSheet.addRow({
+        description: 'Total de Aportes',
+        btcValue: totalInvestmentsBtc.toFixed(8),
+        usdValue: totalValueUsd.toFixed(2),
+        brlValue: totalValueBrl.toFixed(2),
+        percentage: '100.00%'
+      });
+      
+      const totalBalance = totalInvestmentsBtc + totalProfitsBtc;
+      const totalBalanceUsd = totalBalance * currentBtcUsdRate;
+      const totalBalanceBrl = totalBalanceUsd * currentBrlUsdRate;
+      
+      balanceSheet.addRow({
+        description: 'Total de Lucros',
+        btcValue: totalProfitsBtc.toFixed(8),
+        usdValue: profitValueUsd.toFixed(2),
+        brlValue: profitValueBrl.toFixed(2),
+        percentage: `${roi.toFixed(2)}%`
+      }).font = { color: { argb: totalProfitsBtc >= 0 ? '00B050' : 'FF0000' } };
+      
+      const balanceTotalRow = balanceSheet.addRow({
+        description: 'Saldo Total (Aportes + Lucros)',
+        btcValue: totalBalance.toFixed(8),
+        usdValue: totalBalanceUsd.toFixed(2),
+        brlValue: totalBalanceBrl.toFixed(2),
+        percentage: `${((totalBalance / totalInvestmentsBtc) * 100 - 100).toFixed(2)}%`
+      });
+      
+      balanceTotalRow.font = { bold: true };
+      balanceTotalRow.eachCell((cell, colNumber) => {
+        if (colNumber > 1) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'E6E6E6' }
+          };
+        }
+      });
+      
+      // Linha em branco
+      balanceSheet.addRow({});
+      
+      // Adicionar detalhes de rendimento
+      balanceSheet.addRow({
+        description: 'Cotação BTC/USD atual',
+        btcValue: '-',
+        usdValue: currentBtcUsdRate.toFixed(2),
+        brlValue: '-',
+        percentage: '-'
+      });
+      
+      balanceSheet.addRow({
+        description: 'Cotação USD/BRL atual',
+        btcValue: '-',
+        usdValue: '1.00',
+        brlValue: currentBrlUsdRate.toFixed(2),
+        percentage: '-'
+      });
+      
+      balanceSheet.addRow({
+        description: 'Cotação BTC/BRL atual',
+        btcValue: '-',
+        usdValue: '-',
+        brlValue: currentBtcBrlRate.toFixed(2),
+        percentage: '-'
+      });
+      
+      // Calcular média diária de lucro
+      if (profits.length > 0) {
+        const oldestProfit = [...profits].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )[0];
+        
+        const daysSinceFirstProfit = Math.max(
+          1, 
+          Math.floor((new Date().getTime() - new Date(oldestProfit.date).getTime()) / (1000 * 60 * 60 * 24))
+        );
+        
+        const dailyProfitBtc = totalProfitsBtc / daysSinceFirstProfit;
+        const dailyProfitUsd = dailyProfitBtc * currentBtcUsdRate;
+        const dailyProfitBrl = dailyProfitUsd * currentBrlUsdRate;
+        
+        // Linha em branco
+        balanceSheet.addRow({});
+        
+        balanceSheet.addRow({
+          description: 'Média de Lucro Diário',
+          btcValue: dailyProfitBtc.toFixed(8),
+          usdValue: dailyProfitUsd.toFixed(2),
+          brlValue: dailyProfitBrl.toFixed(2),
+          percentage: `${((dailyProfitBtc / totalBalance) * 100).toFixed(4)}%`
+        }).font = { color: { argb: dailyProfitBtc >= 0 ? '00B050' : 'FF0000' } };
+        
+        const projectedMonthlyProfitBtc = dailyProfitBtc * 30;
+        const projectedMonthlyProfitUsd = projectedMonthlyProfitBtc * currentBtcUsdRate;
+        const projectedMonthlyProfitBrl = projectedMonthlyProfitUsd * currentBrlUsdRate;
+        
+        balanceSheet.addRow({
+          description: 'Projeção de Lucro Mensal',
+          btcValue: projectedMonthlyProfitBtc.toFixed(8),
+          usdValue: projectedMonthlyProfitUsd.toFixed(2),
+          brlValue: projectedMonthlyProfitBrl.toFixed(2),
+          percentage: `${((projectedMonthlyProfitBtc / totalBalance) * 100).toFixed(2)}%`
+        }).font = { color: { argb: projectedMonthlyProfitBtc >= 0 ? '00B050' : 'FF0000' } };
+        
+        const projectedYearlyProfitBtc = dailyProfitBtc * 365;
+        const projectedYearlyProfitUsd = projectedYearlyProfitBtc * currentBtcUsdRate;
+        const projectedYearlyProfitBrl = projectedYearlyProfitUsd * currentBrlUsdRate;
+        
+        balanceSheet.addRow({
+          description: 'Projeção de Lucro Anual',
+          btcValue: projectedYearlyProfitBtc.toFixed(8),
+          usdValue: projectedYearlyProfitUsd.toFixed(2),
+          brlValue: projectedYearlyProfitBrl.toFixed(2),
+          percentage: `${((projectedYearlyProfitBtc / totalBalance) * 100).toFixed(2)}%`
+        }).font = { color: { argb: projectedYearlyProfitBtc >= 0 ? '00B050' : 'FF0000' } };
+      }
+      
+      // Informações adicionais para o resumo
+      if (!exportAll) {
+        // Para exportação mensal
+        const monthlyInvestmentCount = dataToExport.investments.length;
+        const monthlyProfitCount = dataToExport.profits.length;
+        
+        summarySheet.addRow({
+          metric: 'Número de Aportes no Mês',
+          value: `${monthlyInvestmentCount}`,
+          btcValue: '-',
+          usdValue: '-',
+          brlValue: '-'
+        });
+        
+        summarySheet.addRow({
+          metric: 'Número de Registros de Lucro/Perda',
+          value: `${monthlyProfitCount}`,
+          btcValue: '-',
+          usdValue: '-',
+          brlValue: '-'
+        });
+      } else {
+        // Para exportação completa
+        const monthsCount = Object.keys(monthlyData).length;
+        const totalMonthsWithProfit = Object.values(monthlyData).filter(
+          (data: any) => data.profitTotalBtc > 0
+        ).length;
+        
+        summarySheet.addRow({
+          metric: 'Número Total de Meses',
+          value: `${monthsCount}`,
+          btcValue: '-',
+          usdValue: '-',
+          brlValue: '-'
+        });
+        
+        summarySheet.addRow({
+          metric: 'Meses com Lucro',
+          value: `${totalMonthsWithProfit} (${((totalMonthsWithProfit / monthsCount) * 100).toFixed(1)}%)`,
+          btcValue: '-',
+          usdValue: '-',
+          brlValue: '-'
+        });
+        
+        summarySheet.addRow({
+          metric: 'Média de Aporte Mensal',
+          value: '-',
+          btcValue: (totalInvestmentsBtc / Math.max(1, monthsCount)).toFixed(8),
+          usdValue: `$${(totalValueUsd / Math.max(1, monthsCount)).toFixed(2)}`,
+          brlValue: `R$${(totalValueBrl / Math.max(1, monthsCount)).toFixed(2)}`
+        });
+      }
+      
+      // Adicionar taxa de crescimento anualizado se tiver dados suficientes
+      if (dataToExport.investments.length > 0) {
+        const oldestInvestment = [...dataToExport.investments].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )[0];
+        
+        const daysSinceFirstInvestment = Math.max(
+          1, 
+          Math.floor((new Date().getTime() - new Date(oldestInvestment.date).getTime()) / (1000 * 60 * 60 * 24))
+        );
+        
+        if (daysSinceFirstInvestment > 30) {
+          const annualizedROI = (Math.pow(1 + (roi / 100), 365 / daysSinceFirstInvestment) - 1) * 100;
+          
+          summarySheet.addRow({
+            metric: 'ROI Anualizado',
+            value: `${annualizedROI.toFixed(2)}%`,
+            btcValue: '-',
+            usdValue: '-',
+            brlValue: '-'
+          });
+          
+          summarySheet.addRow({
+            metric: 'Período de Investimento',
+            value: `${daysSinceFirstInvestment} dias`,
+            btcValue: '-',
+            usdValue: '-',
+            brlValue: '-'
+          });
         }
       }
       
@@ -1023,42 +1275,42 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="investment-amount">Valor do Aporte</Label>
-                    <Input
-                      id="investment-amount"
-                      type="number"
-                      placeholder="Valor"
-                      value={investmentAmount}
-                      onChange={(e) => setInvestmentAmount(e.target.value)}
-                    />
-                  </div>
+                  <Label htmlFor="investment-amount">Valor do Aporte</Label>
+                  <Input
+                    id="investment-amount"
+                    type="number"
+                    placeholder="Valor"
+                    value={investmentAmount}
+                    onChange={(e) => setInvestmentAmount(e.target.value)}
+                  />
+                </div>
                   <div>
                     <Label htmlFor="investment-date">Data do Aporte</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
                           className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
                           {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
-                        </Button>
-                      </PopoverTrigger>
+                      </Button>
+                    </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
                         <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
                           Selecione a data do aporte
                         </div>
-                        <CalendarComponent
-                          mode="single"
-                          selected={investmentDate}
+                      <CalendarComponent
+                        mode="single"
+                        selected={investmentDate}
                           onSelect={(date) => date && !isFutureDate(date) && setInvestmentDate(date)}
                           disabled={(date) => isFutureDate(date)}
-                          initialFocus
+                        initialFocus
                           className="bg-black/80"
                           locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                      />
+                    </PopoverContent>
+                  </Popover>
                     {isFutureDate(investmentDate) && (
                       <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
                     )}
@@ -1076,46 +1328,46 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="profit-amount">Valor</Label>
-                    <Input
-                      id="profit-amount"
-                      type="number"
-                      placeholder="Valor"
-                      value={profitAmount}
-                      onChange={(e) => setProfitAmount(e.target.value)}
-                    />
-                  </div>
+                  <Label htmlFor="profit-amount">Valor</Label>
+                  <Input
+                    id="profit-amount"
+                    type="number"
+                    placeholder="Valor"
+                    value={profitAmount}
+                    onChange={(e) => setProfitAmount(e.target.value)}
+                  />
+                </div>
                   <div>
                     <Label htmlFor="profit-date">Data do Registro</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
                           className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
                           {profitDate ? format(profitDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
-                        </Button>
-                      </PopoverTrigger>
+                      </Button>
+                    </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
                         <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
                           Selecione a data do {isProfit ? "lucro" : "perda"}
                         </div>
-                        <CalendarComponent
-                          mode="single"
-                          selected={profitDate}
+                      <CalendarComponent
+                        mode="single"
+                        selected={profitDate}
                           onSelect={(date) => date && !isFutureDate(date) && setProfitDate(date)}
                           disabled={(date) => isFutureDate(date)}
-                          initialFocus
+                        initialFocus
                           className="bg-black/80"
                           locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                      />
+                    </PopoverContent>
+                  </Popover>
                     {isFutureDate(profitDate) && (
                       <p className="text-sm text-red-500 mt-1">Não é possível registrar eventos futuros</p>
                     )}
-                  </div>
+                </div>
                   <RadioGroup
                     value={isProfit ? "profit" : "loss"}
                     onValueChange={(value) => setIsProfit(value === "profit")}
@@ -1130,8 +1382,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </div>
                   </RadioGroup>
                   <Button onClick={addProfitRecord}>
-                    Adicionar {isProfit ? "Lucro" : "Perda"}
-                  </Button>
+                  Adicionar {isProfit ? "Lucro" : "Perda"}
+                </Button>
                 </div>
               </CardContent>
             </Card>
@@ -1144,7 +1396,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardTitle className="text-lg">Histórico</CardTitle>
               <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2">
                 <div className="flex items-center space-x-2">
-                  <Button 
+                  <Button
                     variant={showFilterOptions ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowFilterOptions(!showFilterOptions)}
@@ -1155,36 +1407,36 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </Button>
                   
                   {showFilterOptions && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
                           size="sm"
                           className="bg-black/30 border-purple-700/50"
                         >
                           {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
                           <ChevronDown className="ml-2 h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
+                      </Button>
+                    </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
                         <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
                           Selecione o mês para filtrar
                         </div>
-                        <CalendarComponent
-                          mode="single"
+                      <CalendarComponent
+                        mode="single"
                           selected={filterMonth}
                           onSelect={(date) => date && setFilterMonth(date)}
-                          initialFocus
+                        initialFocus
                           className="bg-black/80"
                           locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                      />
+                    </PopoverContent>
+                  </Popover>
                   )}
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Button 
+                  <Button
                     variant="outline"
                     size="sm"
                     onClick={toggleDisplayCurrency}
@@ -1202,8 +1454,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </Button>
                   
                   {useExportDialog ? (
-                    <Button 
-                      variant="outline"
+                      <Button
+                        variant="outline"
                       size="sm"
                       onClick={() => setShowExportOptions(true)}
                       disabled={isExporting}
@@ -1216,15 +1468,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         </>
                       ) : (
                         <>
-                          <FileText className="mr-2 h-4 w-4" />
+                        <FileText className="mr-2 h-4 w-4" />
                           Exportar
                         </>
                       )}
-                    </Button>
+                      </Button>
                   ) : (
                     <Popover open={showExportOptions} onOpenChange={setShowExportOptions}>
                       <PopoverTrigger asChild>
-                        <Button 
+                        <Button
                           variant="outline"
                           size="sm"
                           disabled={isExporting}
@@ -1237,7 +1489,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             </>
                           ) : (
                             <>
-                              <FileText className="mr-2 h-4 w-4" />
+                          <FileText className="mr-2 h-4 w-4" />
                               Exportar
                             </>
                           )}
@@ -1252,8 +1504,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         style={{ width: isMobile ? "calc(100vw - 30px)" : "280px", maxWidth: "95vw" }}
                       >
                         <ExportOptionsContent />
-                      </PopoverContent>
-                    </Popover>
+                    </PopoverContent>
+                  </Popover>
                   )}
                 </div>
               </div>
@@ -1266,31 +1518,31 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <div className="text-xs text-gray-400">Mês selecionado</div>
                       <div className="text-lg font-semibold text-white">
                         {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                      </div>
-                    </div>
-                    
+                </div>
+              </div>
+
                     <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
                       <div className="text-xs text-gray-400">Aporte total</div>
                       <div className="text-lg font-semibold text-blue-400">
                         {formatCryptoAmount(calculateTotalInvestmentsInMonth(filterMonth), "BTC")}
-                      </div>
+                    </div>
                       <div className="text-xs text-gray-400">
                         {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(filterMonth))}
-                      </div>
-                    </div>
-                    
+                </div>
+              </div>
+
                     <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
                       <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
                       <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(filterMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
                         {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
                         {formatCryptoAmount(calculateTotalProfitsInMonth(filterMonth), "BTC")}
-                      </div>
+                  </div>
                       <div className="text-xs text-gray-400">
                         {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
                         {formatBtcValueInCurrency(calculateTotalProfitsInMonth(filterMonth))}
-                      </div>
-                    </div>
-                    
+                  </div>
+                </div>
+
                     <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
                       <div className="text-xs text-gray-400">Rendimento</div>
                       <div className={`text-lg font-semibold ${
@@ -1300,10 +1552,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         {calculateTotalInvestmentsInMonth(filterMonth) > 0 ? 
                           `${(calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100).toFixed(2)}%` : 
                           "N/A"}
-                      </div>
-                    </div>
+                  </div>
                   </div>
                 </div>
+              </div>
               )}
               
               {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
@@ -1317,45 +1569,45 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   {getFilteredInvestments().length > 0 && (
                     <div className="space-y-1">
                       <h3 className="text-lg font-semibold mb-2 text-blue-400">Investimentos</h3>
-                      <Table>
+                    <Table>
                         <TableHeader className="bg-black/40">
-                          <TableRow>
+                        <TableRow>
                             <TableHead className="w-1/4">Data</TableHead>
                             <TableHead className="w-1/4">Valor em BTC</TableHead>
                             <TableHead className="w-1/4">Valor em {displayCurrency}</TableHead>
                             <TableHead className="w-1/4 text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                           {getFilteredInvestments().map((investment) => {
                             const btcValue = convertToBtc(investment.amount, investment.unit);
                             return (
-                              <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                          <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                                 <TableCell>{format(new Date(investment.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
                                 <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
                                 <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
+                              <Button
+                                variant="ghost"
                                     size="icon"
-                                    onClick={() => deleteInvestment(investment.id)}
+                                onClick={() => deleteInvestment(investment.id)}
                                     className="hover:bg-red-900/20 hover:text-red-400"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
                             );
                           })}
-                        </TableBody>
-                      </Table>
+                      </TableBody>
+                    </Table>
                     </div>
                   )}
                   
                   {getFilteredProfits().length > 0 && (
                     <div className="space-y-1">
                       <h3 className="text-lg font-semibold mb-2 text-green-500">Lucros/Perdas</h3>
-                      <Table>
+                    <Table>
                         <TableHeader className="bg-black/40">
                           <TableRow>
                             <TableHead className="w-1/5">Data</TableHead>
@@ -1363,21 +1615,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             <TableHead className="w-1/5">Valor em BTC</TableHead>
                             <TableHead className="w-1/5">Valor em {displayCurrency}</TableHead>
                             <TableHead className="w-1/5 text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                           {getFilteredProfits().map((profit) => {
                             const btcValue = convertToBtc(profit.amount, profit.unit);
                             return (
-                              <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                          <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                                 <TableCell>{format(new Date(profit.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
                                 <TableCell>
                                   <span className={`px-2 py-1 rounded-full text-xs ${
                                     profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"
                                   }`}>
                                     {profit.isProfit ? "Lucro" : "Perda"}
-                                  </span>
-                                </TableCell>
+                              </span>
+                            </TableCell>
                                 <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
                                   {profit.isProfit ? "+" : "-"}
                                   {formatCryptoAmount(btcValue, "BTC")}
@@ -1387,26 +1639,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                   {formatBtcValueInCurrency(btcValue)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
+                              <Button
+                                variant="ghost"
                                     size="icon"
-                                    onClick={() => deleteProfit(profit.id)}
+                                onClick={() => deleteProfit(profit.id)}
                                     className="hover:bg-red-900/20 hover:text-red-400"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
                             );
                           })}
-                        </TableBody>
-                      </Table>
+                      </TableBody>
+                    </Table>
                     </div>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
         </TabsContent>
       </Tabs>
 
@@ -1431,7 +1683,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </DialogHeader>
             <div className="overflow-y-auto">
               <ExportOptionsContent />
-            </div>
+    </div>
           </DialogContent>
         </Dialog>
       )}
