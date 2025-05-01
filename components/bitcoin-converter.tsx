@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { Bitcoin, Calendar, AlertTriangle, DollarSign } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -66,6 +66,10 @@ export default function BitcoinConverter() {
   const [apiError, setApiError] = useState<boolean>(false)
   const [appData, setAppData] = useState<AppData | null>(null)
   const [activeTab, setActiveTab] = useActiveTab()
+  // Adicionar flag para evitar chamadas simultâneas
+  const isUpdatingRef = useRef<boolean>(false)
+  // Adicionar timestamp da última atualização
+  const lastUpdateTimeRef = useRef<number>(0)
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
@@ -113,7 +117,15 @@ export default function BitcoinConverter() {
 
   // Atualizar apenas o preço atual do Bitcoin - versão melhorada
   const updateCurrentPrice = async () => {
+    // Verificar se já está atualizando para evitar chamadas duplicadas
+    if (isUpdatingRef.current) {
+      console.log("Atualização já em andamento, ignorando chamada duplicada");
+      return;
+    }
+    
     try {
+      // Marcar como em atualização
+      isUpdatingRef.current = true;
       setLoading(true);
       
       // Usar a nova função específica para atualizar preço, forçando atualização
@@ -223,20 +235,45 @@ export default function BitcoinConverter() {
       }
     } finally {
       setLoading(false);
+      // Marcar como não atualizando
+      isUpdatingRef.current = false;
+      // Registrar timestamp desta atualização
+      lastUpdateTimeRef.current = Date.now();
     }
   }
 
   // Carregar os dados no mount e configurar refresh periódico
   useEffect(() => {
+    // Registrar tempo inicial
+    lastUpdateTimeRef.current = Date.now();
     fetchData()
 
     // Refresh rates every 5 minutes
-    const interval = setInterval(updateCurrentPrice, 5 * 60 * 1000)
+    const interval = setInterval(() => {
+      // Registrar timestamp da atualização automática
+      lastUpdateTimeRef.current = Date.now();
+      updateCurrentPrice();
+    }, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
   const handleRefresh = () => {
-    updateCurrentPrice()
+    // Verificar se passou tempo suficiente desde a última atualização (2 segundos)
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
+    const MIN_UPDATE_INTERVAL = 2000; // 2 segundos
+    
+    if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL) {
+      // Se a última atualização foi muito recente, mostrar mensagem e abortar
+      console.log(`Atualização muito recente (${Math.floor(timeSinceLastUpdate)}ms), ignorando`);
+      return;
+    }
+    
+    // Registrar timestamp desta atualização
+    lastUpdateTimeRef.current = now;
+    
+    // Chamar a atualização
+    updateCurrentPrice();
   }
 
   const convertValue = (value: number, from: CurrencyUnit, to: CurrencyUnit): number => {
