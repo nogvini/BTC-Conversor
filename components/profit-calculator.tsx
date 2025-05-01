@@ -83,8 +83,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [successMessage, setSuccessMessage] = useState({ title: "", description: "" });
   const [currentRates, setCurrentRates] = useState({ btcToUsd, brlToUsd });
   const [loading, setLoading] = useState(false);
   const [usingFallbackRates, setUsingFallbackRates] = useState(false);
@@ -197,10 +195,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Funções auxiliares
   const updateRates = async () => {
     if (appData) {
-      toast({
-        title: "Atualizando...",
-        description: "Use o botão 'Atualizar Preços' no topo da página para atualizar todas as taxas.",
-      });
+      return; // Adicionar return para evitar processamento desnecessário
     } else {
       setLoading(true);
       try {
@@ -214,6 +209,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           toast({
             title: "Taxas atualizadas",
             description: `Bitcoin: ${priceData.usd.toLocaleString()} USD`,
+            variant: "success",
           });
         }
       } catch (error) {
@@ -290,15 +286,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setInvestments([...investments, newInvestment]);
     setInvestmentAmount("");
 
-    setSuccessMessage({
-      title: "Aporte registrado com sucesso!",
-      description: `Seu aporte de ${formatCryptoAmount(newInvestment.amount, newInvestment.unit)} foi registrado.`,
-    });
-    setShowSuccessDialog(true);
-
     toast({
-      title: "Aporte registrado",
+      title: "Aporte registrado com sucesso!",
       description: `Aporte de ${formatCryptoAmount(newInvestment.amount, newInvestment.unit)} registrado com sucesso.`,
+      variant: "success",
     });
   };
 
@@ -332,15 +323,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setProfits([...profits, newProfit]);
     setProfitAmount("");
 
-    setSuccessMessage({
-      title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
-      description: `Seu ${isProfit ? "lucro" : "perda"} de ${formatCryptoAmount(newProfit.amount, newProfit.unit)} foi registrado.`,
-    });
-    setShowSuccessDialog(true);
-
     toast({
-      title: isProfit ? "Lucro registrado" : "Perda registrada",
+      title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
       description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(newProfit.amount, newProfit.unit)} registrado com sucesso.`,
+      variant: "success",
     });
   };
 
@@ -1662,18 +1648,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
       </Tabs>
 
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{successMessage.title}</DialogTitle>
-            <DialogDescription>{successMessage.description}</DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end">
-            <Button onClick={() => setShowSuccessDialog(false)}>Fechar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Dialog para exportação em telas pequenas */}
       {useExportDialog && (
         <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
@@ -1683,7 +1657,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </DialogHeader>
             <div className="overflow-y-auto">
               <ExportOptionsContent />
-    </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}

@@ -93,16 +93,14 @@ export default function BitcoinConverter() {
       // Verificar se estamos usando dados de fallback
       if (newRates.isUsingFallback) {
         setApiError(true)
-        toast({
-          title: "Aviso",
-          description: "Usando dados em cache. Os valores podem não refletir o mercado atual.",
-          variant: "warning",
-        })
+        // Notificação removida daqui pois o aviso visual já aparece na UI
+        // e evita toast ao carregar a aplicação inicialmente
       }
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
       setApiError(true)
       
+      // Manter apenas essa notificação de erro crítico
       toast({
         title: "Erro de conexão",
         description: "Não foi possível conectar à API. Usando dados em cache.",
@@ -157,11 +155,12 @@ export default function BitcoinConverter() {
       // Status de erro/sucesso e notificações
       if (priceData.isUsingCache) {
         setApiError(true);
+        // Notificação simplificada
         toast({
-          title: "Aviso",
-          description: "Os servidores de preço estão sobrecarregados. Alguns dados podem estar usando cache.",
+          title: "Dados em cache",
+          description: "Alguns valores podem não estar atualizados",
           variant: "warning",
-          duration: 5000,
+          duration: 3000,
         });
       } else {
         setApiError(false);
@@ -180,7 +179,8 @@ export default function BitcoinConverter() {
         toast({
           title: "Preços atualizados",
           description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD${rateChangeMsg}`,
-          duration: 5000
+          variant: "success",
+          duration: 3000
         });
       }
     } catch (error) {
@@ -188,9 +188,9 @@ export default function BitcoinConverter() {
       setApiError(true);
       toast({
         title: "Erro ao atualizar preços",
-        description: "Não foi possível conectar aos servidores de preço. Usando última versão disponível.",
+        description: "Usando última versão disponível.",
         variant: "destructive",
-        duration: 7000
+        duration: 4000
       });
       
       // Tentar atualizar com fetchAllAppData normal como fallback

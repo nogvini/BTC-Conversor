@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Forçar modo escuro ignorando preferências do navegador */
+@media (prefers-color-scheme: light), (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
 @layer base {
   :root {
     --background: 240 10% 3.9%;
@@ -93,12 +100,16 @@
     @apply h-full;
     margin: 0;
     padding: 0;
+    /* Forçar CSS de cores escuras, independente do navegador */
+    color-scheme: dark !important;
+    forced-color-adjust: none !important;
   }
   body {
     position: relative;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
     color: hsl(var(--foreground));
+    background-color: #0f0d1f !important; /* Cor de fallback escura */
   }
   
   body::before {
