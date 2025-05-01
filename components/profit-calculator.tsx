@@ -904,7 +904,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       console.error('Erro durante a exportação do Excel:', error);
       throw error;
     }
-  };
+  }
 
   // Modificar a função exportProfitData para melhorar o feedback e garantir o download
   const exportProfitData = async (allTime: boolean = false) => {
