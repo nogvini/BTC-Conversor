@@ -43,13 +43,39 @@ export async function fetchAllAppData(force: boolean = false): Promise<AppData> 
 
 /**
  * Buscar apenas o preço atual do Bitcoin
+ * @param forceUpdate Força a atualização dos dados ignorando o cache
+ * @returns Dados atualizados do preço do Bitcoin
  */
-export async function getCurrentBitcoinPrice(): Promise<BitcoinPrice> {
+export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Promise<BitcoinPrice> {
   try {
-    const response = await fetch(`${API_BASE_URL}/price`);
+    // Construir URL com parâmetro de força atualização se necessário
+    const url = forceUpdate 
+      ? `${API_BASE_URL}/price?force=true` 
+      : `${API_BASE_URL}/price`;
+    
+    // Configurar opções da requisição
+    const fetchOptions: RequestInit = {
+      // Se forceUpdate, não usar cache
+      cache: forceUpdate ? 'no-store' : 'default',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-App': 'BTCRaidToolkit',
+        'X-Force-Update': forceUpdate ? 'true' : 'false'
+      }
+    };
+    
+    // Fazer a requisição com as opções adequadas
+    console.log(`Buscando preço atual${forceUpdate ? ' (forçando atualização)' : ''}`);
+    const response = await fetch(url, fetchOptions);
     
     if (!response.ok) {
       throw new Error(`Erro ao buscar preço: ${response.status}`);
+    }
+    
+    // Exibir informações de diagnóstico se disponíveis
+    const forceUpdateHeader = response.headers.get('X-Force-Update');
+    if (forceUpdateHeader) {
+      console.log(`Dados ${forceUpdateHeader === 'true' ? 'forçadamente atualizados' : 'obtidos do cache'}`);
     }
     
     return await response.json();

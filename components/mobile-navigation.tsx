@@ -43,11 +43,11 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
       <SheetContent side="left" className="bg-black/95 border-r border-purple-700/50 p-0 backdrop-blur-sm">
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-purple-700/50 bg-gradient-to-r from-purple-900/40 to-transparent">
-            <h2 className="text-2xl font-bold flex items-center text-white gap-2 tracking-tight">
+            <h2 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
               <span className="text-purple-400 animate-pulse">₿</span>
-              <span className="bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent drop-shadow-sm">
+              <div className="bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent drop-shadow-sm !important">
                 Raid Bitcoin Toolkit
-              </span>
+              </div>
             </h2>
           </div>
           

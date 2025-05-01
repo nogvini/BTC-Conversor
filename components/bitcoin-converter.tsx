@@ -12,7 +12,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
-import { fetchAllAppData } from "@/lib/client-api"
+import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -113,47 +113,105 @@ export default function BitcoinConverter() {
     }
   }
 
-  // Atualizar apenas o preço atual do Bitcoin
+  // Atualizar apenas o preço atual do Bitcoin - versão melhorada
   const updateCurrentPrice = async () => {
     try {
       setLoading(true);
       
-      // Forçar a atualização dos dados, ignorando o cache
-      const data = await fetchAllAppData(true);
-      setAppData(data);
+      // Usar a nova função específica para atualizar preço, forçando atualização
+      const priceData = await getCurrentBitcoinPrice(true);
+      
+      if (!priceData) {
+        throw new Error("Falha ao obter dados atualizados de preço");
+      }
+      
+      // Se a busca de preço for bem-sucedida, precisamos atualizar todo o appData
+      // mas já temos os dados de preço atualizados
+      if (appData) {
+        // Criar versão atualizada dos dados do app
+        const updatedAppData = {
+          ...appData,
+          currentPrice: priceData,
+          lastFetched: Date.now(),
+          isUsingCache: false
+        };
+        
+        setAppData(updatedAppData);
+      } else {
+        // Se não tivermos dados do app ainda, buscar tudo
+        const fullData = await fetchAllAppData(true);
+        setAppData(fullData);
+      }
       
       // Extrair as taxas de conversão dos dados
       const newRates: ConversionRates = {
-        BTC_USD: data.currentPrice.usd,
-        BRL_USD: data.currentPrice.brl / data.currentPrice.usd,
-        lastUpdated: new Date(data.currentPrice.timestamp),
-        isUsingFallback: data.isUsingCache || data.currentPrice.isUsingCache,
+        BTC_USD: priceData.usd,
+        BRL_USD: priceData.brl / priceData.usd,
+        lastUpdated: new Date(priceData.timestamp),
+        isUsingFallback: priceData.isUsingCache,
       };
       
+      // Atualizar as taxas na interface
       setRates(newRates);
       
-      if (data.isUsingCache) {
+      // Status de erro/sucesso e notificações
+      if (priceData.isUsingCache) {
         setApiError(true);
         toast({
           title: "Aviso",
-          description: "Usando dados em cache. Os valores podem não refletir o mercado atual.",
+          description: "Os servidores de preço estão sobrecarregados. Alguns dados podem estar usando cache.",
           variant: "warning",
+          duration: 5000,
         });
       } else {
         setApiError(false);
+        
+        // Mostrar uma mensagem diferente dependendo da taxa USD/BRL, destacando mudanças
+        const oldRate = rates?.BRL_USD || 0;
+        const newRate = newRates.BRL_USD;
+        let rateChangeMsg = "";
+        
+        if (oldRate > 0 && Math.abs(newRate - oldRate) > 0.01) {
+          const isRateUp = newRate > oldRate;
+          const change = ((newRate - oldRate) / oldRate * 100).toFixed(2);
+          rateChangeMsg = ` • USD/BRL ${isRateUp ? '↑' : '↓'} ${change}%`;
+        }
+        
         toast({
-          title: "Dados atualizados",
-          description: `1 BTC = ${formatCurrency(data.currentPrice.usd, "$")} USD`,
+          title: "Preços atualizados",
+          description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD${rateChangeMsg}`,
+          duration: 5000
         });
       }
     } catch (error) {
       console.error("Erro ao atualizar dados:", error);
       setApiError(true);
       toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível atualizar os dados. Usando versão em cache.",
+        title: "Erro ao atualizar preços",
+        description: "Não foi possível conectar aos servidores de preço. Usando última versão disponível.",
         variant: "destructive",
+        duration: 7000
       });
+      
+      // Tentar atualizar com fetchAllAppData normal como fallback
+      try {
+        const fallbackData = await fetchAllAppData(false);
+        if (fallbackData) {
+          setAppData(fallbackData);
+          
+          // Criar taxas a partir dos dados de fallback
+          const fallbackRates: ConversionRates = {
+            BTC_USD: fallbackData.currentPrice.usd,
+            BRL_USD: fallbackData.currentPrice.brl / fallbackData.currentPrice.usd,
+            lastUpdated: new Date(fallbackData.currentPrice.timestamp),
+            isUsingFallback: true,
+          };
+          
+          setRates(fallbackRates);
+        }
+      } catch (fallbackError) {
+        console.error("Erro também no fallback:", fallbackError);
+      }
     } finally {
       setLoading(false);
     }

@@ -504,8 +504,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             footer: 0.3
           }
         }
-      });
-      
+    });
+    
       // Definir larguras das colunas
       worksheet.columns = [
         { header: 'Data', key: 'data', width: 15 },
@@ -601,7 +601,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // Calcular percentual de lucro em relação ao investimento
         const percentProfit = investmentInPeriod > 0 ? 
           ((btcValue / investmentInPeriod) * 100).toFixed(2) + '%' : 'N/A';
-        
+      
       // Adicionar linha de dados
         const rowNumber = index + 5; // Começa na linha 5 (após header)
         const row = worksheet.getRow(rowNumber);
@@ -626,8 +626,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             left: { style: 'thin', color: { argb: '6b21a8' } },
             bottom: { style: 'thin', color: { argb: '6b21a8' } },
             right: { style: 'thin', color: { argb: '6b21a8' } }
-          };
-          
+      };
+      
           // Aplicar alinhamento com base na coluna
           if (colNumber === 1) { // Data
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -735,7 +735,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           vertical: 'middle'
         };
         summaryRow.height = 25;
-        
+      
         // Criar tabela de resumo com 3 colunas: Métrica, Valor, Percentual
         const summaryHeaders = worksheet.getRow(totalRowNumber + 3);
         summaryHeaders.values = ['Métrica', 'Valor BTC', 'Valor USD', 'Valor BRL', 'Retorno %', '', ''];
@@ -786,7 +786,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           `R$${totalBRL.toFixed(2)}`,
           ((totalBTC / investmentInfo.totalInvestedBTC) * 100).toFixed(2) + '%'
         ];
-        
+      
         // Linha de saldo final (investimento + lucro)
         const balanceRow = worksheet.getRow(totalRowNumber + 6);
         balanceRow.values = [
@@ -796,7 +796,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           `R$${(investmentInfo.totalInvestedBRL + totalBRL).toFixed(2)}`,
           ((1 + totalBTC / investmentInfo.totalInvestedBTC) * 100).toFixed(2) + '%'
         ];
-        
+      
         // Formato de cada linha
         [investmentRow, profitRow, balanceRow].forEach((row) => {
           row.eachCell((cell, colNumber) => {
@@ -849,27 +849,56 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
-      // Usar o método mais compatível para download (força o download mesmo em contextos problemáticos)
+    // Usar múltiplos métodos para garantir o download em diferentes ambientes
+    try {
       try {
-        // Método principal usando saveAs
-    saveAs(blob, filename);
+        // Método 1: FileSaver.js saveAs
+        saveAs(blob, filename);
         console.log('Download iniciado via saveAs');
       } catch (saveError) {
         console.error('Erro no saveAs:', saveError);
-        
-        // Método alternativo se saveAs falhar
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        console.log('Download iniciado via método alternativo');
-      }
 
+        try {
+          // Método 2: createObjectURL + elemento <a>
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          
+          // Forçar um pequeno atraso antes de clicar para garantir que o DOM atualize
+          setTimeout(() => {
+            a.click();
+            setTimeout(() => {
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+            }, 100);
+          }, 100);
+          
+          console.log('Download iniciado via método alternativo 1');
+        } catch (altError) {
+          console.error('Erro no método alternativo 1:', altError);
+          
+          // Método 3: dataURL fallback para navegadores mais antigos
+          try {
+            const reader = new FileReader();
+            reader.onload = function() {
+              const dataUrl = reader.result as string;
+              const link = document.createElement('a');
+              link.href = dataUrl;
+              link.download = filename;
+              link.click();
+              console.log('Download iniciado via método alternativo 2 (dataURL)');
+            };
+            reader.readAsDataURL(blob);
+          } catch (dataUrlError) {
+            console.error('Todos os métodos de download falharam:', dataUrlError);
+            throw new Error('Não foi possível iniciar o download do arquivo');
+          }
+        }
+      }
+      
       return true;
     } catch (error) {
       console.error('Erro durante a exportação do Excel:', error);
@@ -880,11 +909,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Modificar a função exportProfitData para melhorar o feedback e garantir o download
   const exportProfitData = async (allTime: boolean = false) => {
     try {
-      // Mostrar toast de carregamento
-      toast({
+      // Mostrar toast com feedback mais claro sobre a exportação
+      const loadingToastId = toast({
         title: "Preparando exportação",
-        description: "Gerando arquivo Excel, aguarde...",
-      });
+        description: "Gerando arquivo Excel, aguarde um momento...",
+        duration: 5000,
+      }).id;
       
     // Preparar dados em formato adequado para exportação
     let dataToExport;
@@ -961,23 +991,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       });
       
       if (success) {
-      // Notificação de sucesso usando o toast
-      toast({
-        title: "Exportação concluída",
-        description: allTime ? 
-            "O relatório histórico completo foi exportado. Verifique seus downloads." : 
-            `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado. Verifique seus downloads.`,
-        variant: "success"
-      });
+        // Fechar o toast de carregamento, se existir
+        if (loadingToastId) {
+          toast.dismiss(loadingToastId);
+        }
+        
+        // Notificação de sucesso usando o toast
+        toast({
+          title: "Exportação concluída com sucesso",
+          description: allTime ? 
+            "O relatório histórico completo foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador." : 
+            `O relatório de ${format(selectedMonth, 'MMMM/yyyy', { locale: ptBR })} foi exportado. Se o download não iniciar automaticamente, verifique as permissões do navegador.`,
+          variant: "success",
+          duration: 6000
+        });
       }
     } catch (error) {
       console.error("Erro detalhado ao exportar dados:", error);
       
-      // Notificação de erro usando o toast
+      // Notificação de erro usando o toast com dicas mais específicas
       toast({
         title: "Erro na exportação",
-        description: "Não foi possível exportar o relatório. Tente novamente ou use outro navegador.",
-        variant: "destructive"
+        description: "Não foi possível completar o download. Tente: 1) Verificar permissões do navegador, 2) Desativar bloqueadores de popups, ou 3) Usar outro navegador.",
+        variant: "destructive",
+        duration: 8000
       });
     }
   };

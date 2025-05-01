@@ -55,10 +55,10 @@ const globalCacheData: {
 
 // Constantes de expiração do cache
 const CACHE_EXPIRATION = {
-  PRICE: 10 * 60 * 1000, // 10 minutos para preço atual (aumentado de 5 para 10)
+  PRICE: 5 * 60 * 1000, // 5 minutos para preço atual (reduzido de 10 para 5)
   HISTORICAL: 3 * 60 * 60 * 1000, // 3 horas para dados históricos (aumentado de 1 para 3)
-  FORCE_UPDATE: 5 * 60 * 1000, // 5 minutos para força de atualização (proteção contra muitas requisições) (aumentado de 1 para 5)
-  BACKGROUND_REFRESH: 30 * 60 * 1000, // 30 minutos para atualização em segundo plano
+  FORCE_UPDATE: 3 * 60 * 1000, // 3 minutos para força de atualização (reduzido de 5 para 3)
+  BACKGROUND_REFRESH: 15 * 60 * 1000, // 15 minutos para atualização em segundo plano (reduzido de 30 para 15)
   PRE_CACHE_DURATION: 6 * 60 * 60 * 1000 // 6 horas para dados pré-carregados
 };
 
@@ -92,26 +92,107 @@ async function fetchBitcoinUsdPrice(): Promise<number> {
   }
 }
 
-// Buscar taxa de conversão USD para BRL
+// Buscar taxa de conversão USD para BRL - versão aprimorada com múltiplas fontes
 async function fetchUsdToBrlRate(): Promise<number> {
   try {
-    // Usando API de câmbio - Exchange Rate API
-    const response = await fetch('https://open.er-api.com/v6/latest/USD', {
-      headers: { 'Accept': 'application/json' },
-      next: { revalidate: 3600 } // Cache de 1 hora
-    });
-    
-    if (!response.ok) {
-      console.error(`Erro ao obter taxa de câmbio: ${response.status}`);
-      return 5.2; // Taxa aproximada como fallback
+    console.log('Obtendo taxa de câmbio USD para BRL - timestamp:', new Date().toISOString());
+
+    // Primeira opção: Exchange Rate API (principal)
+    try {
+      const response = await fetch('https://open.er-api.com/v6/latest/USD', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store',
+        next: { revalidate: 0 } // Desativar cache para obter dados sempre atualizados
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Taxa obtida via ExchangeRate-API:', data.rates.BRL);
+        return data.rates.BRL;
+      }
+      console.error(`Erro na API principal de taxas: ${response.status}`);
+    } catch (primaryError) {
+      console.error('Falha na API principal de taxas:', primaryError);
+    }
+
+    // Segunda opção: API alternativa - Frankfurter (fallback 1)
+    try {
+      const response = await fetch('https://api.frankfurter.app/latest?from=USD&to=BRL', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Taxa obtida via Frankfurter:', data.rates.BRL);
+        return data.rates.BRL;
+      }
+      console.error(`Erro na API alternativa de taxas: ${response.status}`);
+    } catch (secondaryError) {
+      console.error('Falha na API alternativa de taxas:', secondaryError);
+    }
+
+    // Terceira opção: BCB (Banco Central do Brasil) API - dados oficiais mas podem não ser do dia atual
+    try {
+      // Obter data de hoje formatada como YYYYMMDD
+      const today = new Date();
+      const formattedDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      
+      // URL da API do BCB para a data atual
+      const bcbUrl = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${formattedDate}'&$format=json`;
+      
+      const response = await fetch(bcbUrl, {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Verificar se temos dados para hoje
+        if (data.value && data.value.length > 0) {
+          console.log('Taxa obtida via BCB:', data.value[0].cotacaoCompra);
+          return data.value[0].cotacaoCompra;
+        }
+        console.log('BCB não retornou dados para hoje, tentando data anterior');
+        
+        // Se não houver dados para hoje, tentar ontem
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayFormatted = `${yesterday.getFullYear()}${String(yesterday.getMonth() + 1).padStart(2, '0')}${String(yesterday.getDate()).padStart(2, '0')}`;
+        
+        const yesterdayUrl = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${yesterdayFormatted}'&$format=json`;
+        
+        const yesterdayResponse = await fetch(yesterdayUrl, {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+        
+        if (yesterdayResponse.ok) {
+          const yesterdayData = await yesterdayResponse.json();
+          if (yesterdayData.value && yesterdayData.value.length > 0) {
+            console.log('Taxa obtida via BCB (ontem):', yesterdayData.value[0].cotacaoCompra);
+            return yesterdayData.value[0].cotacaoCompra;
+          }
+        }
+      }
+    } catch (bcbError) {
+      console.error('Falha na API do Banco Central do Brasil:', bcbError);
+    }
+
+    // Tentar obter dados do cache global
+    const savedData = await getAppData();
+    if (savedData && savedData.currentPrice && savedData.currentPrice.usd > 0 && savedData.currentPrice.brl > 0) {
+      const cachedRate = savedData.currentPrice.brl / savedData.currentPrice.usd;
+      console.log('Usando taxa de câmbio do cache:', cachedRate);
+      return cachedRate;
     }
     
-    const data = await response.json();
-    return data.rates.BRL;
+    // Fallback final - valor aproximado
+    console.log('Usando taxa de câmbio fallback: 5.2');
+    return 5.2; // Taxa aproximada como último recurso
   } catch (error) {
-    console.error('Erro ao buscar taxa de câmbio USD para BRL:', error);
-    // Retornar taxa aproximada como fallback
-    return 5.2;
+    console.error('Erro geral ao buscar taxa de câmbio USD para BRL:', error);
+    return 5.2; // Taxa aproximada como fallback
   }
 }
 
@@ -330,25 +411,192 @@ export async function fetchAllAppData(): Promise<AppData> {
   }
 }
 
-// Atualizar apenas o preço atual do Bitcoin
+// Atualizar o preço atual do Bitcoin - versão melhorada
 export async function updateCurrentPrice(): Promise<BitcoinPrice> {
   try {
     const now = Date.now();
+    const debugInfo: string[] = [];
+    debugInfo.push(`Iniciando updateCurrentPrice: ${new Date(now).toISOString()}`);
     
-    // Verificar se houve uma atualização recente no cache global
-    if (globalCacheData.currentPrice.data && 
-        (now - globalCacheData.currentPrice.timestamp < CACHE_EXPIRATION.PRICE)) {
-      console.log(`Usando preço em cache global - última atualização: ${new Date(globalCacheData.currentPrice.timestamp).toLocaleString()}`);
+    // Verificar se devemos forçar uma atualização
+    // 1. Se o cache for muito recente, verificamos se é o primeiro acesso
+    // 2. Se já houve acessos, verificamos se o cache está expirando em breve
+    let forceUpdate = false;
+    
+    if (globalCacheData.currentPrice.data) {
+      const cacheAge = now - globalCacheData.currentPrice.timestamp;
+      
+      if (cacheAge < CACHE_EXPIRATION.PRICE) {
+        // Cache válido, mas verificar se está expirando em breve para pré-atualizar
+        if (cacheAge > (CACHE_EXPIRATION.PRICE * 0.8)) {
+          // Cache está nos últimos 20% da validade, atualizar em background
+          debugInfo.push(`Cache expirando em breve (${Math.round(cacheAge/1000)}s), atualizando em background`);
+          
+          // Iniciar uma atualização em background e retornar o cache imediatamente
+          setTimeout(() => {
+            const updatePromise = updatePriceInBackground();
+            // Não esperamos esta promise para não bloquear
+          }, 100);
+          
+          // Retornar o cache atual, marcando como cache
+          return {
+            ...globalCacheData.currentPrice.data,
+            isUsingCache: true
+          };
+        } else {
+          // Cache recente e válido, usar sem problemas
+          debugInfo.push(`Usando cache válido (idade: ${Math.round(cacheAge/1000)}s)`);
+          
+          // Incrementar contador de acesso
+          globalCacheData.currentPrice.accessCount++;
+          globalCacheData.metadata.cacheHits++;
+          
+          return {
+            ...globalCacheData.currentPrice.data,
+            isUsingCache: true
+          };
+        }
+      } else {
+        // Cache expirado, forçar atualização
+        debugInfo.push(`Cache expirado (${Math.round(cacheAge/1000)}s), forçando atualização`);
+        forceUpdate = true;
+      }
+    } else {
+      // Não há cache, forçar atualização
+      debugInfo.push('Sem cache disponível, forçando atualização');
+      forceUpdate = true;
+    }
+    
+    // Se chegamos aqui, precisamos atualizar os dados
+    if (forceUpdate) {
+      debugInfo.push('Buscando novos dados de preço do Bitcoin e taxa de câmbio');
+      
+      // Incrementar contador de chamadas de API
+      globalCacheData.metadata.totalApiCalls++;
+      
+      // Buscar dados em paralelo para maior eficiência
+      const [btcUsdPrice, usdToBrlRate] = await Promise.all([
+        fetchBitcoinUsdPrice(),
+        fetchUsdToBrlRate()
+      ]);
+      
+      debugInfo.push(`BTC/USD: ${btcUsdPrice}, USD/BRL: ${usdToBrlRate}`);
+      
+      // Criar objeto de preço atual
+      const currentPrice: BitcoinPrice = {
+        usd: btcUsdPrice,
+        brl: btcUsdPrice * usdToBrlRate,
+        timestamp: now,
+        isUsingCache: false
+      };
+      
+      // Atualizar dados salvos no sistema de arquivos
+      const savedData = await getAppData();
+      if (savedData) {
+        const updatedData = {
+          ...savedData,
+          currentPrice,
+          lastFetched: now
+        };
+        await saveAppData(updatedData);
+        debugInfo.push('Dados salvos no sistema de arquivos');
+      }
+      
+      // Atualizar cache global
+      globalCacheData.currentPrice = {
+        data: currentPrice,
+        timestamp: now,
+        lastRefreshed: now,
+        accessCount: 1 // Iniciar com 1 porque já estamos acessando
+      };
+      
+      debugInfo.push('Cache global atualizado');
+      console.log('updateCurrentPrice:', debugInfo.join(' | '));
+      
+      return currentPrice;
+    }
+
+    // Se chegamos aqui sem retornar, algo deu errado - usar o cache
+    console.log("Comportamento inesperado, retornando cache disponível");
+    if (globalCacheData.currentPrice.data) {
       return {
         ...globalCacheData.currentPrice.data,
         isUsingCache: true
       };
     }
     
+    // Sem cache, criar um valor padrão
+    const currentTimestamp = Date.now();
+    const fallbackPrice: BitcoinPrice = {
+      usd: 65000,
+      brl: 65000 * 5.2,
+      timestamp: currentTimestamp,
+      isUsingCache: true
+    };
+    
+    return fallbackPrice;
+  } catch (error) {
+    console.error('Erro ao atualizar preço atual:', error);
+    
+    // Tentar usar o cache global mesmo que expirado
+    if (globalCacheData.currentPrice.data) {
+      console.log('Usando preço em cache global expirado após erro');
+      return {
+        ...globalCacheData.currentPrice.data,
+        isUsingCache: true
+      };
+    }
+    
+    // Tentar usar dados salvos
+    const savedData = await getAppData();
+    if (savedData && savedData.currentPrice) {
+      const now = Date.now();
+      console.log('Usando preço salvo em arquivo após erro');
+      
+      // Atualizar o cache global
+      globalCacheData.currentPrice = {
+        data: savedData.currentPrice,
+        timestamp: savedData.lastFetched,
+        lastRefreshed: now,
+        accessCount: 1
+      };
+      
+      return { ...savedData.currentPrice, isUsingCache: true };
+    }
+    
+    // Retornar dados de fallback como último recurso
+    console.log('Usando preço fallback após erro');
+    const now = Date.now();
+    const fallbackPrice = {
+      usd: 65000,
+      brl: 65000 * 5.2,
+      timestamp: now,
+      isUsingCache: true
+    };
+    
+    // Armazenar no cache global
+    globalCacheData.currentPrice = {
+      data: fallbackPrice,
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 1
+    };
+    
+    return fallbackPrice;
+  }
+}
+
+// Função auxiliar para atualizar o preço em background sem bloquear
+async function updatePriceInBackground(): Promise<void> {
+  try {
+    console.log('Iniciando atualização de preço em background...');
+    const now = Date.now();
+    
     // Buscar novos dados
-    console.log('Buscando novos dados de preço');
     const btcUsdPrice = await fetchBitcoinUsdPrice();
     const usdToBrlRate = await fetchUsdToBrlRate();
+    
+    console.log(`Dados atualizados em background: BTC/USD=${btcUsdPrice}, USD/BRL=${usdToBrlRate}`);
     
     // Criar objeto de preço atual
     const currentPrice: BitcoinPrice = {
@@ -374,55 +622,12 @@ export async function updateCurrentPrice(): Promise<BitcoinPrice> {
       data: currentPrice,
       timestamp: now,
       lastRefreshed: now,
-      accessCount: 0
+      accessCount: globalCacheData.currentPrice.accessCount || 0 // Preservar contador
     };
     
-    return currentPrice;
+    console.log('Atualização de preço em background concluída');
   } catch (error) {
-    console.error('Erro ao atualizar preço atual:', error);
-    
-    // Tentar usar o cache global mesmo que expirado
-    if (globalCacheData.currentPrice.data) {
-      console.log('Usando preço em cache global expirado');
-      return {
-        ...globalCacheData.currentPrice.data,
-        isUsingCache: true
-      };
-    }
-    
-    // Tentar usar dados salvos
-    const savedData = await getAppData();
-    if (savedData) {
-      const now = Date.now();
-      // Atualizar o cache global
-      globalCacheData.currentPrice = {
-        data: savedData.currentPrice,
-        timestamp: savedData.lastFetched,
-        lastRefreshed: now,
-        accessCount: 0
-      };
-      
-      return { ...savedData.currentPrice, isUsingCache: true };
-    }
-    
-    // Retornar dados de fallback como último recurso
-    const fallbackPrice = {
-      usd: 65000,
-      brl: 65000 * 5.2,
-      timestamp: Date.now(),
-      isUsingCache: true
-    };
-    
-    const now = Date.now();
-    // Armazenar no cache global
-    globalCacheData.currentPrice = {
-      data: fallbackPrice,
-      timestamp: now,
-      lastRefreshed: now,
-      accessCount: 0
-    };
-    
-    return fallbackPrice;
+    console.error('Erro na atualização de preço em background:', error);
   }
 }
 
