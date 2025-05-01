@@ -332,7 +332,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             <Button 
               variant="outline" 
               size="sm" 
-              className="mr-2" 
+              className="mr-2 border-purple-700/30 hover:border-purple-600/50 hover:bg-purple-900/20" 
               onClick={forceUpdateData}
               disabled={loading}
             >
@@ -354,7 +354,12 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                     size="sm"
                     variant={timeRange === range ? "default" : "outline"}
                     onClick={() => setTimeRange(range)}
-                    className="w-15"
+                    className={cn(
+                      "w-15",
+                      timeRange === range 
+                        ? "bg-purple-700 hover:bg-purple-800 border-purple-600/50 text-white shadow-md shadow-purple-900/30" 
+                        : "border-purple-700/30 hover:border-purple-600/50 hover:bg-purple-900/20"
+                    )}
                   >
                     {getTimeRangeLabel(range)}
                   </Button>

@@ -42,10 +42,12 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
       </SheetTrigger>
       <SheetContent side="left" className="bg-black/95 border-r border-purple-700/50 p-0 backdrop-blur-sm">
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-purple-700/30 bg-gradient-to-r from-purple-900/30 to-transparent">
-            <h2 className="text-xl font-bold text-white/90 flex items-center">
-              <span className="text-purple-500 mr-2 animate-pulse">₿</span>
-              Raid Bitcoin Toolkit
+          <div className="p-6 border-b border-purple-700/50 bg-gradient-to-r from-purple-900/40 to-transparent">
+            <h2 className="text-2xl font-bold flex items-center text-white gap-2 tracking-tight">
+              <span className="text-purple-400 animate-pulse">₿</span>
+              <span className="bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent drop-shadow-sm">
+                Raid Bitcoin Toolkit
+              </span>
             </h2>
           </div>
           
@@ -72,8 +74,8 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
             </ul>
           </nav>
           
-          <div className="p-4 mt-auto border-t border-purple-700/30 bg-gradient-to-r from-transparent to-purple-900/30">
-            <p className="text-xs text-white/50 text-center">
+          <div className="p-4 mt-auto border-t border-purple-700/50 bg-gradient-to-r from-transparent to-purple-900/40">
+            <p className="text-xs font-medium text-purple-300/70 text-center tracking-wider">
               Raid BTC Toolkit v1.0
             </p>
           </div>
