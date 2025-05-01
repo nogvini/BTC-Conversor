@@ -392,6 +392,55 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       workbook.creator = "BTC Monitor";
       workbook.created = new Date();
       
+      // Obter cotação atual do BTC em USD e BRL
+      const currentBtcUsdRate = currentRates.btcToUsd;
+      const currentBrlUsdRate = currentRates.brlToUsd;
+      const currentBtcBrlRate = currentBtcUsdRate * currentBrlUsdRate;
+      
+      // Calcular totais para estatísticas
+      const totalInvestmentsBtc = dataToExport.investments.reduce((total, inv) => 
+        total + convertToBtc(inv.amount, inv.unit), 0);
+      
+      const totalProfitsBtc = dataToExport.profits.reduce((total, profit) => {
+        const amount = convertToBtc(profit.amount, profit.unit);
+        return profit.isProfit ? total + amount : total - amount;
+      }, 0);
+      
+      const totalValueUsd = totalInvestmentsBtc * currentBtcUsdRate;
+      const totalValueBrl = totalValueUsd * currentBrlUsdRate;
+      
+      const profitValueUsd = totalProfitsBtc * currentBtcUsdRate;
+      const profitValueBrl = profitValueUsd * currentBrlUsdRate;
+      
+      const roi = totalInvestmentsBtc > 0 ? 
+        (totalProfitsBtc / totalInvestmentsBtc) * 100 : 0;
+      
+      // Adicionar planilha de informações de mercado
+      const marketInfoSheet = workbook.addWorksheet('Informações de Mercado', {
+        properties: { tabColor: { argb: 'FF9900' } }
+      });
+      
+      marketInfoSheet.columns = [
+        { header: 'Métrica', key: 'metric', width: 30 },
+        { header: 'Valor', key: 'value', width: 20 }
+      ];
+      
+      marketInfoSheet.getRow(1).font = { bold: true };
+      marketInfoSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4F4F6F' }
+      };
+      
+      // Adicionar dados ao resumo de mercado
+      marketInfoSheet.addRow({ metric: 'Data da Exportação', value: format(new Date(), "dd/MM/yyyy HH:mm") });
+      marketInfoSheet.addRow({ metric: 'Período', 
+        value: exportAll ? 'Histórico Completo' : 
+          `${format(startOfMonth(filterMonth), "MMMM yyyy", { locale: ptBR })}` });
+      marketInfoSheet.addRow({ metric: 'Cotação atual do Bitcoin (USD)', value: `$${currentBtcUsdRate.toFixed(2)}` });
+      marketInfoSheet.addRow({ metric: 'Cotação atual do Bitcoin (BRL)', value: `R$${currentBtcBrlRate.toFixed(2)}` });
+      marketInfoSheet.addRow({ metric: 'Taxa de câmbio USD/BRL', value: `${currentBrlUsdRate.toFixed(2)}` });
+      
       // Adicionar planilha de aportes
       if (dataToExport.investments.length > 0) {
         const investmentsSheet = workbook.addWorksheet('Aportes', {
@@ -403,7 +452,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           { header: 'Data', key: 'date', width: 15 },
           { header: 'Valor em BTC', key: 'btcValue', width: 20 },
           { header: 'Valor em USD', key: 'usdValue', width: 15 },
-          { header: 'Valor em BRL', key: 'brlValue', width: 15 }
+          { header: 'Valor em BRL', key: 'brlValue', width: 15 },
+          { header: 'Cotação BTC na Data (USD)', key: 'btcRateUsd', width: 25 },
+          { header: 'Cotação BTC na Data (BRL)', key: 'btcRateBrl', width: 25 },
+          { header: 'Valor Atual em USD', key: 'currentUsdValue', width: 20 },
+          { header: 'Valor Atual em BRL', key: 'currentBrlValue', width: 20 },
+          { header: 'Variação (%)', key: 'variation', width: 15 }
         ];
         
         // Estilizar cabeçalhos
@@ -419,14 +473,41 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           const btcValue = convertToBtc(investment.amount, investment.unit);
           const usdValue = btcValue * currentRates.btcToUsd;
           const brlValue = usdValue * currentRates.brlToUsd;
+          const currentUsdValue = btcValue * currentBtcUsdRate;
+          const currentBrlValue = btcValue * currentBtcBrlRate;
+          const variation = ((currentBtcUsdRate / currentRates.btcToUsd) - 1) * 100;
           
           investmentsSheet.addRow({
             date: format(new Date(investment.date), "dd/MM/yyyy"),
             btcValue: btcValue.toFixed(8),
             usdValue: usdValue.toFixed(2),
-            brlValue: brlValue.toFixed(2)
+            brlValue: brlValue.toFixed(2),
+            btcRateUsd: currentRates.btcToUsd.toFixed(2),
+            btcRateBrl: (currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2),
+            currentUsdValue: currentUsdValue.toFixed(2),
+            currentBrlValue: currentBrlValue.toFixed(2),
+            variation: variation.toFixed(2) + '%'
           });
         });
+        
+        // Adicionar linha de total
+        const totalRow = investmentsSheet.addRow({
+          date: 'TOTAL',
+          btcValue: totalInvestmentsBtc.toFixed(8),
+          usdValue: totalValueUsd.toFixed(2),
+          brlValue: totalValueBrl.toFixed(2),
+          btcRateUsd: '',
+          btcRateBrl: '',
+          currentUsdValue: (totalInvestmentsBtc * currentBtcUsdRate).toFixed(2),
+          currentBrlValue: (totalInvestmentsBtc * currentBtcBrlRate).toFixed(2),
+          variation: ''
+        });
+        totalRow.font = { bold: true };
+        totalRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'DDDDDD' }
+        };
       }
       
       // Adicionar planilha de lucros/perdas
@@ -441,7 +522,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           { header: 'Tipo', key: 'type', width: 10 },
           { header: 'Valor em BTC', key: 'btcValue', width: 20 },
           { header: 'Valor em USD', key: 'usdValue', width: 15 },
-          { header: 'Valor em BRL', key: 'brlValue', width: 15 }
+          { header: 'Valor em BRL', key: 'brlValue', width: 15 },
+          { header: 'Cotação BTC na Data (USD)', key: 'btcRateUsd', width: 25 },
+          { header: 'Cotação BTC na Data (BRL)', key: 'btcRateBrl', width: 25 },
+          { header: 'Valor Atual em USD', key: 'currentUsdValue', width: 20 },
+          { header: 'Valor Atual em BRL', key: 'currentBrlValue', width: 20 },
+          { header: '% do Total Investido', key: 'percentOfTotal', width: 20 }
         ];
         
         // Estilizar cabeçalhos
@@ -457,13 +543,22 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           const btcValue = convertToBtc(profit.amount, profit.unit);
           const usdValue = btcValue * currentRates.btcToUsd;
           const brlValue = usdValue * currentRates.brlToUsd;
+          const currentUsdValue = btcValue * currentBtcUsdRate;
+          const currentBrlValue = btcValue * currentBtcBrlRate;
+          // Calcular a porcentagem do total investido que este lucro/perda representa
+          const percentOfTotal = totalInvestmentsBtc > 0 ? (btcValue / totalInvestmentsBtc) * 100 : 0;
           
           const row = profitsSheet.addRow({
             date: format(new Date(profit.date), "dd/MM/yyyy"),
             type: profit.isProfit ? 'Lucro' : 'Perda',
             btcValue: btcValue.toFixed(8),
             usdValue: usdValue.toFixed(2),
-            brlValue: brlValue.toFixed(2)
+            brlValue: brlValue.toFixed(2),
+            btcRateUsd: currentRates.btcToUsd.toFixed(2),
+            btcRateBrl: (currentRates.btcToUsd * currentRates.brlToUsd).toFixed(2),
+            currentUsdValue: currentUsdValue.toFixed(2),
+            currentBrlValue: currentBrlValue.toFixed(2),
+            percentOfTotal: percentOfTotal.toFixed(2) + '%'
           });
           
           // Colorir linhas de acordo com o tipo (lucro/perda)
@@ -471,6 +566,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             color: { argb: profit.isProfit ? '00B050' : 'FF0000' }
           };
         });
+        
+        // Adicionar linha de total
+        const totalRow = profitsSheet.addRow({
+          date: 'TOTAL',
+          type: '',
+          btcValue: totalProfitsBtc.toFixed(8),
+          usdValue: profitValueUsd.toFixed(2),
+          brlValue: profitValueBrl.toFixed(2),
+          btcRateUsd: '',
+          btcRateBrl: '',
+          currentUsdValue: (totalProfitsBtc * currentBtcUsdRate).toFixed(2),
+          currentBrlValue: (totalProfitsBtc * currentBtcBrlRate).toFixed(2),
+          percentOfTotal: totalInvestmentsBtc > 0 ? (totalProfitsBtc / totalInvestmentsBtc * 100).toFixed(2) + '%' : 'N/A'
+        });
+        totalRow.font = { bold: true };
+        totalRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'DDDDDD' }
+        };
       }
       
       // Adicionar planilha de resumo
@@ -480,7 +595,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       summarySheet.columns = [
         { header: 'Métrica', key: 'metric', width: 25 },
-        { header: 'Valor', key: 'value', width: 20 }
+        { header: 'Valor', key: 'value', width: 20 },
+        { header: 'Valor (BTC)', key: 'btcValue', width: 20 },
+        { header: 'Valor (USD)', key: 'usdValue', width: 20 },
+        { header: 'Valor (BRL)', key: 'brlValue', width: 20 }
       ];
       
       summarySheet.getRow(1).font = { bold: true };
@@ -490,34 +608,105 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         fgColor: { argb: '4F4F6F' }
       };
       
-      // Calcular métricas para o resumo
-      const investmentsData = dataToExport.investments;
-      const profitsData = dataToExport.profits;
-      
-      const totalInvestmentsBtc = investmentsData.reduce((total, inv) => 
-        total + convertToBtc(inv.amount, inv.unit), 0);
-      
-      const totalProfitsBtc = profitsData.reduce((total, profit) => {
-        const amount = convertToBtc(profit.amount, profit.unit);
-        return profit.isProfit ? total + amount : total - amount;
-      }, 0);
-      
-      const totalValueUsd = totalInvestmentsBtc * currentRates.btcToUsd;
-      const totalValueBrl = totalValueUsd * currentRates.brlToUsd;
-      
-      const roi = totalInvestmentsBtc > 0 ? 
-        (totalProfitsBtc / totalInvestmentsBtc) * 100 : 0;
-      
       // Adicionar dados ao resumo
-      summarySheet.addRow({ metric: 'Período', 
-        value: exportAll ? 'Todos os dados' : 
-          `${format(startOfMonth(filterMonth), "MMMM yyyy", { locale: ptBR })}` });
+      summarySheet.addRow({ 
+        metric: 'Período', 
+        value: exportAll ? 'Histórico Completo' : `${format(startOfMonth(filterMonth), "MMMM yyyy", { locale: ptBR })}`,
+        btcValue: '-',
+        usdValue: '-',
+        brlValue: '-'
+      });
       
-      summarySheet.addRow({ metric: 'Total de Aportes (BTC)', value: totalInvestmentsBtc.toFixed(8) });
-      summarySheet.addRow({ metric: 'Total de Lucros/Perdas (BTC)', value: totalProfitsBtc.toFixed(8) });
-      summarySheet.addRow({ metric: 'Valor Total em USD', value: `$${totalValueUsd.toFixed(2)}` });
-      summarySheet.addRow({ metric: 'Valor Total em BRL', value: `R$${totalValueBrl.toFixed(2)}` });
-      summarySheet.addRow({ metric: 'ROI', value: `${roi.toFixed(2)}%` });
+      summarySheet.addRow({
+        metric: 'Data de Exportação',
+        value: format(new Date(), "dd/MM/yyyy HH:mm"),
+        btcValue: '-',
+        usdValue: '-',
+        brlValue: '-'
+      });
+      
+      summarySheet.addRow({
+        metric: 'Cotação BTC',
+        value: '-',
+        btcValue: '1 BTC',
+        usdValue: `$${currentBtcUsdRate.toFixed(2)}`,
+        brlValue: `R$${currentBtcBrlRate.toFixed(2)}`
+      });
+      
+      // Linha em branco
+      summarySheet.addRow({});
+      
+      // Adicionar resumo financeiro
+      const totalInvestmentsRow = summarySheet.addRow({
+        metric: 'Total de Aportes',
+        value: '-',
+        btcValue: totalInvestmentsBtc.toFixed(8),
+        usdValue: `$${totalValueUsd.toFixed(2)}`,
+        brlValue: `R$${totalValueBrl.toFixed(2)}`
+      });
+      totalInvestmentsRow.font = { bold: true };
+      
+      const totalProfitsRow = summarySheet.addRow({
+        metric: 'Total de Lucros/Perdas',
+        value: '-',
+        btcValue: totalProfitsBtc.toFixed(8),
+        usdValue: `$${profitValueUsd.toFixed(2)}`,
+        brlValue: `R$${profitValueBrl.toFixed(2)}`
+      });
+      totalProfitsRow.font = { bold: true, color: { argb: totalProfitsBtc >= 0 ? '00B050' : 'FF0000' } };
+      
+      const balanceRow = summarySheet.addRow({
+        metric: 'Saldo Atual',
+        value: '-',
+        btcValue: (totalInvestmentsBtc + totalProfitsBtc).toFixed(8),
+        usdValue: `$${(totalValueUsd + profitValueUsd).toFixed(2)}`,
+        brlValue: `R$${(totalValueBrl + profitValueBrl).toFixed(2)}`
+      });
+      balanceRow.font = { bold: true };
+      
+      // Linha em branco
+      summarySheet.addRow({});
+      
+      // Métricas de rendimento
+      summarySheet.addRow({
+        metric: 'ROI (Retorno sobre Investimento)',
+        value: `${roi.toFixed(2)}%`,
+        btcValue: '-',
+        usdValue: '-',
+        brlValue: '-'
+      });
+      
+      // Adicionar taxa de crescimento anualizado se tiver dados suficientes
+      if (dataToExport.investments.length > 0) {
+        const oldestInvestment = [...dataToExport.investments].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )[0];
+        
+        const daysSinceFirstInvestment = Math.max(
+          1, 
+          Math.floor((new Date().getTime() - new Date(oldestInvestment.date).getTime()) / (1000 * 60 * 60 * 24))
+        );
+        
+        if (daysSinceFirstInvestment > 30) {
+          const annualizedROI = (Math.pow(1 + (roi / 100), 365 / daysSinceFirstInvestment) - 1) * 100;
+          
+          summarySheet.addRow({
+            metric: 'ROI Anualizado',
+            value: `${annualizedROI.toFixed(2)}%`,
+            btcValue: '-',
+            usdValue: '-',
+            brlValue: '-'
+          });
+          
+          summarySheet.addRow({
+            metric: 'Período de Investimento',
+            value: `${daysSinceFirstInvestment} dias`,
+            btcValue: '-',
+            usdValue: '-',
+            brlValue: '-'
+          });
+        }
+      }
       
       // Gerar o arquivo e fazer download
       const buffer = await workbook.xlsx.writeBuffer();
@@ -526,7 +715,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       toast({
         title: "Exportação concluída com sucesso",
-        description: `Os dados foram exportados para o arquivo bitcoin-${exportAll ? 'completo' : format(filterMonth, 'MM-yyyy')}.xlsx`,
+        description: `Os dados foram exportados com informações detalhadas de cotações e rendimentos.`,
       });
       
     } catch (error) {
@@ -875,6 +1064,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                               {format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}
                             </span>
                           )}
+                          <span className="text-xs text-gray-400 block mt-1 ml-6">
+                            Inclui cotações, lucros e rendimentos detalhados
+                          </span>
                         </button>
                         <button
                           className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex items-center text-sm border-t border-purple-700/20 transition-colors"
@@ -883,6 +1075,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Exportar todos os dados
+                          <span className="text-xs text-gray-400 block mt-1 ml-6">
+                            Inclui histórico completo com análise de rendimento
+                          </span>
                         </button>
                       </div>
                     </PopoverContent>
