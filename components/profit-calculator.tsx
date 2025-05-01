@@ -684,96 +684,108 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </>
                     ) : (
                       <>
-              <div className="flex justify-between">
-                <CardDescription>Seus registros</CardDescription>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportButtonClick}
-                  disabled={isExporting}
-                >
-                  {isExporting ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Exportando...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="mr-2 h-4 w-4" />
-                      Exportar
-                    </>
-                  )}
-                </Button>
-              </div>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Exportar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
             </CardHeader>
             <CardContent>
-              {investments.length === 0 && profits.length === 0 ? (
+              {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  Nenhum registro encontrado. Adicione investimentos ou lucros na aba "Registrar".
+                  {showFilterOptions ? 
+                    `Nenhum registro encontrado para ${format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
+                    "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
                 </p>
               ) : (
-                <div className="space-y-4">
-                  {investments.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Investimentos</h3>
+                <div className="space-y-6">
+                  {getFilteredInvestments().length > 0 && (
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold mb-2 text-blue-400">Investimentos</h3>
                       <Table>
-                        <TableHeader>
+                        <TableHeader className="bg-black/40">
                           <TableRow>
-                            <TableHead>Data</TableHead>
-                            <TableHead>Valor</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                            <TableHead className="w-1/4">Data</TableHead>
+                            <TableHead className="w-1/4">Valor em BTC</TableHead>
+                            <TableHead className="w-1/4">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-1/4 text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {investments.map((investment) => (
-                            <TableRow key={investment.id}>
-                              <TableCell>{new Date(investment.date).toLocaleDateString()}</TableCell>
-                              <TableCell>{formatCryptoAmount(investment.amount, investment.unit)}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => deleteInvestment(investment.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {getFilteredInvestments().map((investment) => {
+                            const btcValue = convertToBtc(investment.amount, investment.unit);
+                            return (
+                              <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                                <TableCell>{format(new Date(investment.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
+                                <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => deleteInvestment(investment.id)}
+                                    className="hover:bg-red-900/20 hover:text-red-400"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
                   )}
                   
-                  {profits.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Lucros/Perdas</h3>
+                  {getFilteredProfits().length > 0 && (
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold mb-2 text-green-500">Lucros/Perdas</h3>
                       <Table>
-                        <TableHeader>
+                        <TableHeader className="bg-black/40">
                           <TableRow>
-                            <TableHead>Data</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Valor</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                            <TableHead className="w-1/5">Data</TableHead>
+                            <TableHead className="w-1/5">Tipo</TableHead>
+                            <TableHead className="w-1/5">Valor em BTC</TableHead>
+                            <TableHead className="w-1/5">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-1/5 text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {profits.map((profit) => (
-                            <TableRow key={profit.id}>
-                              <TableCell>{new Date(profit.date).toLocaleDateString()}</TableCell>
-                              <TableCell>{profit.isProfit ? "Lucro" : "Perda"}</TableCell>
-                              <TableCell>{formatCryptoAmount(profit.amount, profit.unit)}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => deleteProfit(profit.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {getFilteredProfits().map((profit) => {
+                            const btcValue = convertToBtc(profit.amount, profit.unit);
+                            return (
+                              <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                                <TableCell>{format(new Date(profit.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"
+                                  }`}>
+                                    {profit.isProfit ? "Lucro" : "Perda"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
+                                  {profit.isProfit ? "+" : "-"}
+                                  {formatCryptoAmount(btcValue, "BTC")}
+                                </TableCell>
+                                <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
+                                  {profit.isProfit ? "+" : "-"}
+                                  {formatBtcValueInCurrency(btcValue)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => deleteProfit(profit.id)}
+                                    className="hover:bg-red-900/20 hover:text-red-400"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
