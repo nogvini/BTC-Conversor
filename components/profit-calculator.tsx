@@ -115,7 +115,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [useExportDialog, setUseExportDialog] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importStats, setImportStats] = useState<{total: number, success: number, error: number} | null>(null);
-  const [importType, setImportType] = useState<"excel" | "csv" | null>(null);
+  const [importType, setImportType] = useState<"excel" | "csv" | "internal" | null>(null);
   
   // Estados para confirmação de exclusão em massa
   const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
@@ -1131,6 +1131,82 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         }
       }
       
+      // Adicionar nova aba para registros detalhados (para reimportação)
+      const recordsSheet = workbook.addWorksheet('Registros_Importação', {
+        properties: { tabColor: { argb: '9966CC' } }
+      });
+      
+      // Configurar as colunas da aba de registros
+      recordsSheet.columns = [
+        { header: 'Tipo', key: 'type', width: 15 },
+        { header: 'ID', key: 'id', width: 30 },
+        { header: 'Data', key: 'date', width: 15 },
+        { header: 'Valor', key: 'amount', width: 15 },
+        { header: 'Unidade', key: 'unit', width: 10 },
+        { header: 'É Lucro', key: 'isProfit', width: 10 }
+      ];
+      
+      // Estilizar cabeçalhos
+      recordsSheet.getRow(1).font = { bold: true };
+      recordsSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4F4F6F' }
+      };
+      
+      // Adicionar metadados sobre o arquivo
+      recordsSheet.addRow({
+        type: 'META',
+        id: 'EXPORT_DATE',
+        date: format(new Date(), "yyyy-MM-dd"),
+        amount: '',
+        unit: '',
+        isProfit: ''
+      });
+      
+      recordsSheet.addRow({
+        type: 'META',
+        id: 'EXPORT_TYPE',
+        date: exportAll ? 'COMPLETE' : 'FILTERED',
+        amount: '',
+        unit: '',
+        isProfit: ''
+      });
+      
+      // Adicionar registros de aportes
+      dataToExport.investments.forEach(investment => {
+        recordsSheet.addRow({
+          type: 'INVESTMENT',
+          id: investment.id,
+          date: investment.date,
+          amount: investment.amount,
+          unit: investment.unit,
+          isProfit: ''
+        });
+      });
+      
+      // Adicionar registros de lucros/perdas
+      dataToExport.profits.forEach(profit => {
+        recordsSheet.addRow({
+          type: 'PROFIT',
+          id: profit.id,
+          date: profit.date,
+          amount: profit.amount,
+          unit: profit.unit,
+          isProfit: profit.isProfit ? 'TRUE' : 'FALSE'
+        });
+      });
+      
+      // Adicionar informação sobre formato
+      recordsSheet.addRow({
+        type: 'META',
+        id: 'FORMAT_VERSION',
+        date: '1.0',
+        amount: '',
+        unit: '',
+        isProfit: ''
+      });
+      
       // Gerar o arquivo e fazer download
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1647,87 +1723,125 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Componente para as opções de importação
-  const ImportOptions = () => (
-    <div className="mt-6 pt-4 border-t border-purple-700/30">
-      <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
-      <p className="text-xs text-gray-400 mb-2">
-        Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
-      </p>
-      
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="file"
-          accept=".xlsx"
-          onChange={handleImportExcel}
-          ref={fileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerExcelFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "excel" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Excel
-            </>
-          )}
-        </Button>
+  const ImportOptions = () => {
+    // Referência para input de arquivo interno
+    const internalFileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Função para acionar input de arquivo interno
+    const triggerInternalFileInput = () => {
+      if (internalFileInputRef.current) {
+        internalFileInputRef.current.click();
+      }
+    };
+    
+    return (
+      <div className="mt-6 pt-4 border-t border-purple-700/30">
+        <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
+        <p className="text-xs text-gray-400 mb-2">
+          Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
+        </p>
         
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleImportCSV}
-          ref={csvFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerCSVFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "csv" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <FileType className="mr-2 h-4 w-4" />
-              CSV
-            </>
-          )}
-        </Button>
-      </div>
-      
-      {importStats && (
-        <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-          <div className="flex justify-between">
-            <span>Total processado:</span>
-            <span className="font-medium">{importStats.total}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Importados com sucesso:</span>
-            <span className="font-medium text-green-500">{importStats.success}</span>
-          </div>
-          {importStats.error > 0 && (
-            <div className="flex justify-between">
-              <span>Falhas:</span>
-              <span className="font-medium text-red-500">{importStats.error}</span>
-            </div>
-          )}
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={handleImportExcel}
+            ref={fileInputRef}
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+            onClick={triggerExcelFileInput}
+            disabled={isImporting}
+          >
+            {isImporting && importType === "excel" ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Excel
+              </>
+            )}
+          </Button>
+          
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleImportCSV}
+            ref={csvFileInputRef}
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+            onClick={triggerCSVFileInput}
+            disabled={isImporting}
+          >
+            {isImporting && importType === "csv" ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <FileType className="mr-2 h-4 w-4" />
+                CSV
+              </>
+            )}
+          </Button>
+          
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={handleImportInternalData}
+            ref={internalFileInputRef}
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+            onClick={triggerInternalFileInput}
+            disabled={isImporting}
+          >
+            {isImporting && importType === "internal" ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Importar Backup
+              </>
+            )}
+          </Button>
         </div>
-      )}
-    </div>
-  );
+        
+        {importStats && (
+          <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+            <div className="flex justify-between">
+              <span>Total processado:</span>
+              <span className="font-medium">{importStats.total}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Importados com sucesso:</span>
+              <span className="font-medium text-green-500">{importStats.success}</span>
+            </div>
+            {importStats.error > 0 && (
+              <div className="flex justify-between">
+                <span>Falhas:</span>
+                <span className="font-medium text-red-500">{importStats.error}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Função para importar dados do Excel
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1855,6 +1969,196 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Função para importar dados internos de um arquivo Excel gerado pelo sistema
+  const handleImportInternalData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+    
+    const file = event.target.files[0];
+    setIsImporting(true);
+    setImportStats(null);
+    setImportType("internal");
+    
+    try {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          if (!e.target || !e.target.result) {
+            throw new Error("Falha ao ler o arquivo");
+          }
+          
+          const buffer = e.target.result;
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer as ArrayBuffer);
+          
+          // Buscar a planilha de registros
+          const recordsSheet = workbook.getWorksheet('Registros_Importação');
+          
+          if (!recordsSheet) {
+            throw new Error("Este arquivo Excel não contém a planilha de registros para importação");
+          }
+          
+          // Verificar o formato
+          let isValidFormat = false;
+          let rowWithVersion = recordsSheet.getRow(recordsSheet.rowCount);
+          
+          // Verificar as últimas 3 linhas para encontrar a versão do formato
+          for (let i = 0; i < 3; i++) {
+            const row = recordsSheet.getRow(recordsSheet.rowCount - i);
+            if (row.getCell(1).value === 'META' && row.getCell(2).value === 'FORMAT_VERSION') {
+              isValidFormat = true;
+              break;
+            }
+          }
+          
+          if (!isValidFormat) {
+            throw new Error("Formato de arquivo inválido. Este arquivo não contém dados válidos para importação");
+          }
+          
+          // Processar os registros
+          const newInvestments: Investment[] = [];
+          const newProfits: ProfitRecord[] = [];
+          let totalCount = 0;
+          let investmentCount = 0;
+          let profitCount = 0;
+          let errorCount = 0;
+          
+          // Começar da linha 2 (após o cabeçalho)
+          for (let i = 2; i <= recordsSheet.rowCount; i++) {
+            const row = recordsSheet.getRow(i);
+            const type = row.getCell(1).value?.toString();
+            
+            // Pular metadados
+            if (type === 'META') continue;
+            
+            try {
+              if (type === 'INVESTMENT') {
+                const id = row.getCell(2).value?.toString() || Date.now().toString();
+                const date = row.getCell(3).value?.toString() || format(new Date(), "yyyy-MM-dd");
+                const amount = Number(row.getCell(4).value) || 0;
+                const unit = (row.getCell(5).value?.toString() as CurrencyUnit) || "SATS";
+                
+                if (amount > 0) {
+                  const investment: Investment = {
+                    id,
+                    date,
+                    amount,
+                    unit
+                  };
+                  
+                  // Verificar se o ID já existe para evitar duplicatas
+                  if (!investments.some(inv => inv.id === id)) {
+                    newInvestments.push(investment);
+                    investmentCount++;
+                  }
+                }
+                
+                totalCount++;
+              } else if (type === 'PROFIT') {
+                const id = row.getCell(2).value?.toString() || Date.now().toString();
+                const date = row.getCell(3).value?.toString() || format(new Date(), "yyyy-MM-dd");
+                const amount = Number(row.getCell(4).value) || 0;
+                const unit = (row.getCell(5).value?.toString() as CurrencyUnit) || "SATS";
+                const isProfitValue = row.getCell(6).value?.toString();
+                const isProfit = isProfitValue === 'TRUE';
+                
+                if (amount > 0) {
+                  const profit: ProfitRecord = {
+                    id,
+                    date,
+                    amount,
+                    unit,
+                    isProfit
+                  };
+                  
+                  // Verificar se o ID já existe para evitar duplicatas
+                  if (!profits.some(p => p.id === id)) {
+                    newProfits.push(profit);
+                    profitCount++;
+                  }
+                }
+                
+                totalCount++;
+              }
+            } catch (error) {
+              console.error(`Erro ao processar linha ${i}:`, error);
+              errorCount++;
+            }
+          }
+          
+          // Adicionar os novos registros
+          if (newInvestments.length > 0 || newProfits.length > 0) {
+            setInvestments(prevInvestments => [...prevInvestments, ...newInvestments]);
+            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            
+            toast({
+              title: "Importação concluída",
+              description: `Foram importados ${investmentCount} aportes e ${profitCount} registros de lucro/perda com sucesso.`,
+              variant: "success",
+            });
+          } else {
+            toast({
+              title: "Nenhum registro importado",
+              description: "Não foram encontrados novos registros para importar ou todos os registros já existem no sistema.",
+              variant: "destructive",
+            });
+          }
+          
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalCount,
+            success: investmentCount + profitCount,
+            error: errorCount
+          });
+          
+        } catch (error) {
+          console.error("Erro ao processar arquivo para importação interna:", error);
+          toast({
+            title: "Erro na importação",
+            description: error instanceof Error ? error.message : "Falha ao processar o arquivo Excel.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          setImportType(null);
+          if (event.target) {
+            event.target.value = '';
+          }
+        }
+      };
+      
+      reader.onerror = () => {
+        setIsImporting(false);
+        setImportType(null);
+        toast({
+          title: "Erro na leitura",
+          description: "Não foi possível ler o arquivo Excel selecionado.",
+          variant: "destructive",
+        });
+        if (event.target) {
+          event.target.value = '';
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+      
+    } catch (error) {
+      setIsImporting(false);
+      setImportType(null);
+      console.error("Erro na importação interna:", error);
+      toast({
+        title: "Erro na importação",
+        description: "Ocorreu um erro ao tentar processar o arquivo Excel.",
+        variant: "destructive",
+      });
+      if (event.target) {
+        event.target.value = '';
       }
     }
   };
