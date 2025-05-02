@@ -1590,21 +1590,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           profitDate = new Date(); // Usar data atual como fallback
         }
         
-        // Calcular lucro em satoshis
-        const plSats = Math.round(pl * 100000000); // Converter BTC para SATS
-        const openingFeeSats = Math.round(openingFee * 100000000);
-        const closingFeeSats = Math.round(closingFee * 100000000);
-        const sumFundingFeesSats = Math.round(sumFundingFees * 100000000);
+        // Os valores já estão em SATS, não precisam de conversão adicional
+        // Apenas arredondar para garantir valores inteiros
+        const profitSats = Math.round(pl);
+        const feesSats = Math.round(openingFee) + Math.round(closingFee) + Math.round(sumFundingFees);
         
-        const profitSats = plSats - (openingFeeSats + closingFeeSats + sumFundingFeesSats);
+        // Calcular valor líquido (lucro - taxas)
+        const netProfitSats = profitSats - feesSats;
         
         // Criar registro de lucro/perda
         const newProfit: ProfitRecord = {
           id: Date.now().toString() + index, // ID único
           date: format(profitDate, "yyyy-MM-dd"),
-          amount: Math.abs(profitSats), // Valor absoluto
+          amount: Math.abs(netProfitSats), // Valor absoluto
           unit: "SATS", // Em satoshis
-          isProfit: profitSats >= 0, // Lucro se positivo
+          isProfit: netProfitSats >= 0, // Lucro se positivo
         };
         
         newProfits.push(newProfit);
