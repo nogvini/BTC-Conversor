@@ -391,9 +391,10 @@ export default function BitcoinConverter() {
               
               <CardContent className="space-y-4">
                 {/* Formulário de Conversão */}
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="amount">Valor</Label>
+                <div className="flex flex-col space-y-6">
+                  {/* Input de valor centralizado */}
+                  <div className="space-y-2 w-full max-w-xl mx-auto">
+                    <Label htmlFor="amount" className="text-center block">Valor</Label>
                     <Input
                       id="amount"
                       type="number"
@@ -404,12 +405,13 @@ export default function BitcoinConverter() {
                     />
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>Unidade</Label>
+                  {/* Unidade/Moeda em linha para telas grandes, em grade para mobile */}
+                  <div className="space-y-2 w-full">
+                    <Label className="text-center block">Unidade/Moeda</Label>
                     <RadioGroup
                       value={selectedUnit}
                       onValueChange={(v: string) => setSelectedUnit(v as CurrencyUnit)}
-                      className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-2"
+                      className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-2 max-w-2xl mx-auto"
                     >
                       <div>
                         <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
