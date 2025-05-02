@@ -2318,7 +2318,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardTitle className="text-lg">Importar/Exportar Dados</CardTitle>
               <CardDescription>Gerencie todos os seus dados com facilidade</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 border border-purple-700/20 rounded-md bg-black/20">
                   <h3 className="text-sm font-medium mb-3">Importar Backup</h3>
