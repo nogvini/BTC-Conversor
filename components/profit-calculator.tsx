@@ -127,6 +127,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Ref para input de arquivo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvFileInputRef = useRef<HTMLInputElement>(null);
+  const internalFileInputRef = useRef<HTMLInputElement>(null);
 
   const isMobile = useIsMobile();
   const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false;
@@ -1575,6 +1576,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       csvFileInputRef.current.click();
     }
   };
+  
+  const triggerInternalFileInput = () => {
+    if (internalFileInputRef.current) {
+      internalFileInputRef.current.click();
+    }
+  };
 
   // Função para processar os registros (comum a Excel e CSV)
   const processTradeRecords = (
@@ -1724,24 +1731,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Componente para as opções de importação
   const ImportOptions = () => {
-    // Referência para input de arquivo interno
-    const internalFileInputRef = useRef<HTMLInputElement>(null);
-    
-    // Função para acionar input de arquivo interno
-    const triggerInternalFileInput = () => {
-      if (internalFileInputRef.current) {
-        internalFileInputRef.current.click();
-      }
-    };
-    
     return (
       <div className="mt-6 pt-4 border-t border-purple-700/30">
         <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
         <p className="text-xs text-gray-400 mb-2">
-          Importe registros de lucro/perda de operações a partir de arquivo CSV ou restaure um backup
+          Importe registros de lucro/perda de operações a partir de arquivo CSV
         </p>
         
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <input
             type="file"
             accept=".csv"
@@ -1767,35 +1764,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </>
             )}
           </Button>
-          
-          <input
-            type="file"
-            accept=".xlsx"
-            onChange={handleImportInternalData}
-            ref={internalFileInputRef}
-            className="hidden"
-          />
-          <Button 
-            variant="outline" 
-            className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-            onClick={triggerInternalFileInput}
-            disabled={isImporting}
-          >
-            {isImporting && importType === "internal" ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Importando...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Importar Backup
-              </>
-            )}
-          </Button>
         </div>
         
-        {importStats && (
+        {importStats && importType === "csv" && (
           <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
             <div className="flex justify-between">
               <span>Total processado:</span>
@@ -2330,6 +2301,94 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsList>
 
         <TabsContent value="register" className="mt-4">
+          <Card className="panel border-purple-700/50 mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Importar/Exportar Dados</CardTitle>
+              <CardDescription>Gerencie todos os seus dados com facilidade</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Importar Backup</h3>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Restaure seus aportes e lucros a partir de um arquivo de backup
+                  </p>
+                  
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    onChange={handleImportInternalData}
+                    ref={internalFileInputRef}
+                    className="hidden"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                    onClick={triggerInternalFileInput}
+                    disabled={isImporting}
+                  >
+                    {isImporting && importType === "internal" ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Importar Backup Completo
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Exportar Dados</h3>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Exporte todos os seus registros para backup
+                  </p>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                    onClick={() => exportData(true)}
+                    disabled={isExporting}
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Exportar Todos os Dados
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {importStats && importType === "internal" && (
+                <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                  <div className="flex justify-between">
+                    <span>Total processado:</span>
+                    <span className="font-medium">{importStats.total}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Importados com sucesso:</span>
+                    <span className="font-medium text-green-500">{importStats.success}</span>
+                  </div>
+                  {importStats.error > 0 && (
+                    <div className="flex justify-between">
+                      <span>Falhas:</span>
+                      <span className="font-medium text-red-500">{importStats.error}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="panel border-purple-700/50">
               <CardHeader>
