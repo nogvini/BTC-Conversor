@@ -77,6 +77,15 @@ interface ProfitCalculatorProps {
   appData?: AppData;
 }
 
+// Adicionar tipo para o objeto monthlyData
+interface MonthlyData {
+  label: string;
+  investments: Investment[];
+  investmentTotalBtc: number;
+  profits: ProfitRecord[];
+  profitTotalBtc: number;
+}
+
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // Estados
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -456,7 +465,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         (totalProfitsBtc / totalInvestmentsBtc) * 100 : 0;
       
       // Agrupar investimentos e lucros por mês para análise
-      const monthlyData = {};
+      const monthlyData: Record<string, MonthlyData> = {};
       
       // Se for exportação completa, precisamos agrupar os dados por mês
       if (exportAll) {
@@ -1267,6 +1276,202 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </>
   );
 
+  // Função auxiliar para parse de CSV com suporte a campos entre aspas
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let currentValue = '';
+    let insideQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        if (insideQuotes && i + 1 < line.length && line[i + 1] === '"') {
+          // Aspas escapadas dentro de aspas (duplas aspas)
+          currentValue += '"';
+          i++; // Pular o próximo caractere
+        } else {
+          // Alternar estado das aspas
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        // Fim do valor atual
+        result.push(currentValue);
+        currentValue = '';
+      } else {
+        // Caractere comum, adicionar ao valor atual
+        currentValue += char;
+      }
+    }
+    
+    // Adicionar o último valor
+    result.push(currentValue);
+    
+    return result;
+  };
+
+  // Função auxiliar para parse de CSV com suporte a campos entre aspas
+  const parseCSV = (text: string): Array<Record<string, string>> => {
+    // Dividir por linhas (respeitando diferentes sistemas operacionais)
+    const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+    
+    if (lines.length === 0) return [];
+    
+    // Primeira linha contém os cabeçalhos
+    const headers = parseCSVLine(lines[0]);
+    
+    // Processar as demais linhas
+    const records: Array<Record<string, string>> = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const values = parseCSVLine(line);
+      
+      // Verificar se temos o número correto de valores
+      if (values.length !== headers.length) {
+        console.warn(`Linha ${i+1}: número incorreto de valores (${values.length}) comparado com cabeçalhos (${headers.length})`);
+        continue; // Pular linha com número incorreto de valores
+      }
+      
+      // Criar objeto de registro
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = values[index];
+      });
+      
+      records.push(record);
+    }
+    
+    return records;
+  };
+
+  // Função para importar dados CSV
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    setIsImporting(true);
+    setImportStats(null);
+    setImportType("csv");
+
+    try {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          if (!e.target || !e.target.result) {
+            throw new Error("Falha ao ler o arquivo CSV");
+          }
+          
+          const csvText = e.target.result as string;
+          
+          // Usar o parser CSV robusto
+          const records = parseCSV(csvText);
+          
+          if (records.length === 0) {
+            throw new Error("O arquivo CSV não contém dados válidos");
+          }
+          
+          // Extrair cabeçalhos do primeiro registro
+          const headers = Object.keys(records[0]);
+          
+          const totalRows = records.length;
+          
+          console.log("CSV processado:", records[0]); // Debug
+          
+          // Processar registros usando a função comum modificada
+          const { newProfits, successCount, errorCount } = 
+            processTradeRecords(headers, records);
+          
+          // Adicionar os novos registros de lucro
+          if (newProfits.length > 0) {
+            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            
+            if (!toastDebounce) {
+              setToastDebounce(true);
+              toast({
+                title: "Importação CSV concluída",
+                description: `Foram importados ${successCount} registros de lucro/perda com sucesso.`,
+                variant: "success",
+              });
+              setTimeout(() => setToastDebounce(false), 500);
+            }
+          } else {
+            toast({
+              title: "Nenhum registro importado",
+              description: "Não foi possível encontrar registros válidos no arquivo CSV.",
+              variant: "destructive",
+            });
+          }
+          
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalRows,
+            success: successCount,
+            error: errorCount
+          });
+          
+        } catch (error) {
+          console.error("Erro ao processar o arquivo CSV:", error);
+          toast({
+            title: "Erro na importação CSV",
+            description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          setImportType(null);
+          if (csvFileInputRef.current) {
+            csvFileInputRef.current.value = '';
+          }
+        }
+      };
+      
+      reader.onerror = () => {
+        setIsImporting(false);
+        setImportType(null);
+        toast({
+          title: "Erro na leitura",
+          description: "Não foi possível ler o arquivo CSV selecionado.",
+          variant: "destructive",
+        });
+        if (csvFileInputRef.current) {
+          csvFileInputRef.current.value = '';
+        }
+      };
+      
+      reader.readAsText(file);
+      
+    } catch (error) {
+      setIsImporting(false);
+      setImportType(null);
+      console.error("Erro ao importar CSV:", error);
+      toast({
+        title: "Erro na importação CSV",
+        description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
+        variant: "destructive",
+      });
+      if (csvFileInputRef.current) {
+        csvFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Funções para acionar os inputs de arquivo
+  const triggerExcelFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const triggerCSVFileInput = () => {
+    if (csvFileInputRef.current) {
+      csvFileInputRef.current.click();
+    }
+  };
+
   // Função para processar os registros (comum a Excel e CSV)
   const processTradeRecords = (
     headers: string[], 
@@ -1312,18 +1517,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         } else {
           // Para CSV (usando objeto record)
           closedTs = record["closedTs"];
-          pl = parseFloat(record["pl"]?.toString() || "0");
-          openingFee = parseFloat(record["openingFee"]?.toString() || "0");
-          closingFee = parseFloat(record["closingFee"]?.toString() || "0");
-          sumFundingFees = parseFloat(record["sumFundingFees"]?.toString() || "0");
-          closedValue = record["closed"];
+          
+          // Tratar valores nulos ou string "null"
+          const plStr = (record["pl"]?.toString() || "0").replace(/^"(.*)"$/, "$1");
+          const openingFeeStr = (record["openingFee"]?.toString() || "0").replace(/^"(.*)"$/, "$1");
+          const closingFeeStr = (record["closingFee"]?.toString() || "0").replace(/^"(.*)"$/, "$1");
+          const sumFundingFeesStr = (record["sumFundingFees"]?.toString() || "0").replace(/^"(.*)"$/, "$1");
+          const closedStr = (record["closed"]?.toString() || "false").replace(/^"(.*)"$/, "$1");
+          
+          pl = plStr === "null" ? 0 : parseFloat(plStr);
+          openingFee = openingFeeStr === "null" ? 0 : parseFloat(openingFeeStr);
+          closingFee = closingFeeStr === "null" ? 0 : parseFloat(closingFeeStr);
+          sumFundingFees = sumFundingFeesStr === "null" ? 0 : parseFloat(sumFundingFeesStr);
+          closedValue = closedStr;
         }
         
         // Verificar se a operação foi fechada
         const isClosed = closedValue === true || closedValue === "true" || closedValue === 1 || closedValue === "1";
         
         // Só processar operações fechadas
-        if (!isClosed || !closedTs) {
+        if (!isClosed || !closedTs || closedTs === "null") {
           errorCount++;
           return; // Skip para próximo registro
         }
@@ -1337,14 +1550,44 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         } else if (closedTs instanceof Date) {
           profitDate = closedTs;
         } else {
-          // Tentar converter string para data
-          profitDate = new Date(closedTs.toString());
+          // Tratar o formato GMT específico
+          const tsString = closedTs.toString().replace(/^"(.*)"$/, "$1");
+          
+          try {
+            if (tsString.includes('GMT')) {
+              // Formato como "Wed Apr 30 2025 11:42:47 GMT-0300 (Brasilia Standard Time)"
+              const dateParts = tsString.split(' ');
+              if (dateParts.length >= 5) {
+                // Reconstruir a string de data sem a parte do timezone em parênteses
+                const cleanDateStr = dateParts.slice(0, 5).join(' ');
+                profitDate = new Date(cleanDateStr);
+              } else {
+                profitDate = new Date(tsString);
+              }
+            } else {
+              // Tentar formato padrão
+              profitDate = new Date(tsString);
+            }
+            
+            // Se ainda não for válida, tentar formatos alternativos
+            if (isNaN(profitDate.getTime())) {
+              console.warn(`Formato de data não reconhecido: ${tsString}, tentando analisar manualmente...`);
+              // Tentar um parser manual se necessário
+              if (tsString.includes('/')) {
+                const [day, month, year] = tsString.split('/').map(Number);
+                profitDate = new Date(year, month - 1, day);
+              }
+            }
+          } catch (e) {
+            console.error(`Erro ao converter data: ${tsString}`, e);
+            profitDate = new Date(); // Usar data atual como fallback
+          }
         }
         
         // Verificar se a data é válida
         if (isNaN(profitDate.getTime())) {
-          errorCount++;
-          return; // Skip para próximo registro
+          console.error(`Data inválida: ${closedTs}, usando data atual como fallback`);
+          profitDate = new Date(); // Usar data atual como fallback
         }
         
         // Calcular lucro em satoshis
@@ -1374,6 +1617,89 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     return { newProfits, successCount, errorCount };
   };
+
+  // Componente para as opções de importação
+  const ImportOptions = () => (
+    <div className="mt-6 pt-4 border-t border-purple-700/30">
+      <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
+      <p className="text-xs text-gray-400 mb-2">
+        Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
+      </p>
+      
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="file"
+          accept=".xlsx"
+          onChange={handleImportExcel}
+          ref={fileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerExcelFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "excel" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Excel
+            </>
+          )}
+        </Button>
+        
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleImportCSV}
+          ref={csvFileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerCSVFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "csv" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <FileType className="mr-2 h-4 w-4" />
+              CSV
+            </>
+          )}
+        </Button>
+      </div>
+      
+      {importStats && (
+        <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+          <div className="flex justify-between">
+            <span>Total processado:</span>
+            <span className="font-medium">{importStats.total}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Importados com sucesso:</span>
+            <span className="font-medium text-green-500">{importStats.success}</span>
+          </div>
+          {importStats.error > 0 && (
+            <div className="flex justify-between">
+              <span>Falhas:</span>
+              <span className="font-medium text-red-500">{importStats.error}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   // Função para importar dados do Excel
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1504,233 +1830,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
   };
-
-  // Função para importar dados CSV
-  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-
-    const file = event.target.files[0];
-    setIsImporting(true);
-    setImportStats(null);
-    setImportType("csv");
-
-    try {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          if (!e.target || !e.target.result) {
-            throw new Error("Falha ao ler o arquivo CSV");
-          }
-          
-          const csvText = e.target.result as string;
-          
-          // Parsear o CSV
-          const rows = csvText.split('\n');
-          if (rows.length < 2) {
-            throw new Error("O arquivo CSV não contém dados suficientes");
-          }
-          
-          // Extrair cabeçalhos
-          const headers = rows[0].split(',').map(header => header.trim());
-          
-          // Criar objetos para cada linha
-          const records: Record<string, string>[] = [];
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i].trim();
-            if (!row) continue; // Pular linhas vazias
-            
-            const values = row.split(',');
-            if (values.length !== headers.length) {
-              console.warn(`Linha ${i} tem ${values.length} valores, mas esperava ${headers.length}. Linha ignorada.`);
-              continue;
-            }
-            
-            const record: Record<string, string> = {};
-            headers.forEach((header, index) => {
-              record[header] = values[index].trim();
-            });
-            
-            records.push(record);
-          }
-          
-          const totalRows = records.length;
-          
-          // Processar registros usando a função comum
-          const { newProfits, successCount, errorCount } = 
-            processTradeRecords(headers, records);
-          
-          // Adicionar os novos registros de lucro
-          if (newProfits.length > 0) {
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
-            
-            if (!toastDebounce) {
-              setToastDebounce(true);
-              toast({
-                title: "Importação CSV concluída",
-                description: `Foram importados ${successCount} registros de lucro/perda com sucesso.`,
-                variant: "success",
-              });
-              setTimeout(() => setToastDebounce(false), 500);
-            }
-          } else {
-            toast({
-              title: "Nenhum registro importado",
-              description: "Não foi possível encontrar registros válidos no arquivo CSV.",
-              variant: "destructive",
-            });
-          }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalRows,
-            success: successCount,
-            error: errorCount
-          });
-          
-        } catch (error) {
-          console.error("Erro ao processar o arquivo CSV:", error);
-          toast({
-            title: "Erro na importação CSV",
-            description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsImporting(false);
-          setImportType(null);
-          if (csvFileInputRef.current) {
-            csvFileInputRef.current.value = '';
-          }
-        }
-      };
-      
-      reader.onerror = () => {
-        setIsImporting(false);
-        setImportType(null);
-        toast({
-          title: "Erro na leitura",
-          description: "Não foi possível ler o arquivo CSV selecionado.",
-          variant: "destructive",
-        });
-        if (csvFileInputRef.current) {
-          csvFileInputRef.current.value = '';
-        }
-      };
-      
-      reader.readAsText(file);
-      
-    } catch (error) {
-      setIsImporting(false);
-      setImportType(null);
-      console.error("Erro ao importar CSV:", error);
-      toast({
-        title: "Erro na importação CSV",
-        description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
-        variant: "destructive",
-      });
-      if (csvFileInputRef.current) {
-        csvFileInputRef.current.value = '';
-      }
-    }
-  };
-
-  // Funções para acionar os inputs de arquivo
-  const triggerExcelFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-  
-  const triggerCSVFileInput = () => {
-    if (csvFileInputRef.current) {
-      csvFileInputRef.current.click();
-    }
-  };
-
-  // Componente para as opções de importação
-  const ImportOptions = () => (
-    <div className="mt-6 pt-4 border-t border-purple-700/30">
-      <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
-      <p className="text-xs text-gray-400 mb-2">
-        Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
-      </p>
-      
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="file"
-          accept=".xlsx"
-          onChange={handleImportExcel}
-          ref={fileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerExcelFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "excel" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Excel
-            </>
-          )}
-        </Button>
-        
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleImportCSV}
-          ref={csvFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerCSVFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "csv" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <FileType className="mr-2 h-4 w-4" />
-              CSV
-            </>
-          )}
-        </Button>
-      </div>
-      
-      {importStats && (
-        <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-          <div className="flex justify-between">
-            <span>Total processado:</span>
-            <span className="font-medium">{importStats.total}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Importados com sucesso:</span>
-            <span className="font-medium text-green-500">{importStats.success}</span>
-          </div>
-          {importStats.error > 0 && (
-            <div className="flex justify-between">
-              <span>Falhas:</span>
-              <span className="font-medium text-red-500">{importStats.error}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
 
   // Interface simplificada temporária
   return (
