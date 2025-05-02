@@ -394,7 +394,7 @@ export default function BitcoinConverter() {
                 <div className="flex flex-col space-y-6">
                   {/* Input de valor centralizado */}
                   <div className="space-y-2 w-full max-w-xl mx-auto">
-                    <Label htmlFor="amount" className="text-center block">Valor</Label>
+                    <Label htmlFor="amount" className="text-center sm:text-left md:text-lg block md:px-1">Valor</Label>
                     <Input
                       id="amount"
                       type="number"
@@ -407,7 +407,7 @@ export default function BitcoinConverter() {
                   
                   {/* Unidade/Moeda em linha para telas grandes, em grade para mobile */}
                   <div className="space-y-2 w-full">
-                    <Label className="text-center block">Unidade/Moeda</Label>
+                    <Label className="text-center sm:text-left md:text-lg block max-w-2xl mx-auto md:px-1">Unidade/Moeda</Label>
                     <RadioGroup
                       value={selectedUnit}
                       onValueChange={(v: string) => setSelectedUnit(v as CurrencyUnit)}
