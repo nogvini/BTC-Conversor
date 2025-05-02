@@ -245,13 +245,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
         }
       } catch (error) {
-        console.error("Erro ao atualizar taxas:", error);
+        console.error("Erro ao atualizar cotação:", error);
         
         // Evitar múltiplos toasts também no caso de erro
         if (!toastDebounce) {
           setToastDebounce(true);
           toast({
-            title: "Erro ao atualizar taxas",
+            title: "Erro ao atualizar cotação",
             description: "Usando as últimas taxas disponíveis.",
             variant: "destructive",
           });
