@@ -2038,15 +2038,101 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
                           Selecione o mês para filtrar
                         </div>
-                      <CalendarComponent
-                        mode="single"
-                          selected={filterMonth}
-                          onSelect={(date) => date && setFilterMonth(date)}
-                        initialFocus
-                          className="bg-black/80"
-                          locale={ptBR}
-                      />
-                    </PopoverContent>
+                        <div className="p-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-7 w-7 bg-black/30 border-purple-700/30"
+                              onClick={() => setFilterMonth(subMonths(filterMonth, 1))}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="font-medium text-center">
+                              {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-7 w-7 bg-black/30 border-purple-700/30"
+                              onClick={() => {
+                                const nextMonth = addMonths(filterMonth, 1);
+                                if (isBefore(nextMonth, addMonths(new Date(), 1))) {
+                                  setFilterMonth(nextMonth);
+                                }
+                              }}
+                              disabled={!isBefore(addMonths(filterMonth, 1), addMonths(new Date(), 1))}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 pt-1">
+                            {Array.from({ length: 12 }).map((_, i) => {
+                              const currentDate = new Date();
+                              const currentYear = filterMonth.getFullYear();
+                              const monthDate = new Date(currentYear, i, 1);
+                              const isSelected = i === filterMonth.getMonth() && currentYear === filterMonth.getFullYear();
+                              const isFuture = isBefore(currentDate, monthDate);
+                              
+                              return (
+                                <Button
+                                  key={i}
+                                  variant={isSelected ? "default" : "outline"}
+                                  size="sm"
+                                  className={cn(
+                                    "h-9 p-0",
+                                    isSelected && "bg-purple-800 hover:bg-purple-700",
+                                    !isSelected && "bg-black/30 border-purple-700/30 hover:bg-purple-900/20",
+                                    isFuture && "text-gray-500 opacity-50 cursor-not-allowed"
+                                  )}
+                                  disabled={isFuture}
+                                  onClick={() => {
+                                    if (!isFuture) {
+                                      setFilterMonth(new Date(currentYear, i, 1));
+                                    }
+                                  }}
+                                >
+                                  {format(new Date(currentYear, i, 1), "MMM", { locale: ptBR })}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-3 flex justify-between items-center border-t border-purple-700/30 pt-3">
+                            <div className="text-xs text-gray-400">Ano</div>
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 bg-black/30 border-purple-700/30"
+                                onClick={() => {
+                                  const month = filterMonth.getMonth();
+                                  setFilterMonth(new Date(filterMonth.getFullYear() - 1, month, 1));
+                                }}
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </Button>
+                              <div className="font-medium text-center flex items-center px-2">
+                                {filterMonth.getFullYear()}
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 bg-black/30 border-purple-700/30"
+                                onClick={() => {
+                                  const month = filterMonth.getMonth();
+                                  const nextYear = new Date(filterMonth.getFullYear() + 1, month, 1);
+                                  if (isBefore(nextYear, addMonths(new Date(), 1))) {
+                                    setFilterMonth(nextYear);
+                                  }
+                                }}
+                                disabled={!isBefore(new Date(filterMonth.getFullYear() + 1, filterMonth.getMonth(), 1), addMonths(new Date(), 1))}
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
                   </Popover>
                   )}
                 </div>
