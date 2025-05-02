@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Calendar,
   Coins,
@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   FileText,
   Download,
-  ChevronDown
+  ChevronDown,
+  Upload
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [showFilterOptions, setShowFilterOptions] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [useExportDialog, setUseExportDialog] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStats, setImportStats] = useState<{total: number, success: number, error: number} | null>(null);
+  
+  // Variável para controlar se um toast está sendo exibido
+  const [toastDebounce, setToastDebounce] = useState(false);
+  
+  // Ref para input de arquivo
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isMobile = useIsMobile();
   const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false;
@@ -286,11 +295,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setInvestments([...investments, newInvestment]);
     setInvestmentAmount("");
 
-    toast({
-      title: "Aporte registrado com sucesso!",
-      description: `Aporte de ${formatCryptoAmount(newInvestment.amount, newInvestment.unit)} registrado com sucesso.`,
-      variant: "success",
-    });
+    // Evitar múltiplos toasts
+    if (!toastDebounce) {
+      setToastDebounce(true);
+      toast({
+        title: "Aporte registrado com sucesso!",
+        description: `Aporte de ${formatCryptoAmount(newInvestment.amount, newInvestment.unit)} registrado com sucesso.`,
+        variant: "success",
+      });
+      setTimeout(() => setToastDebounce(false), 500);
+    }
   };
 
   const addProfitRecord = () => {
@@ -323,27 +337,44 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setProfits([...profits, newProfit]);
     setProfitAmount("");
 
-    toast({
-      title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
-      description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(newProfit.amount, newProfit.unit)} registrado com sucesso.`,
-      variant: "success",
-    });
+    // Evitar múltiplos toasts
+    if (!toastDebounce) {
+      setToastDebounce(true);
+      toast({
+        title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
+        description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(newProfit.amount, newProfit.unit)} registrado com sucesso.`,
+        variant: "success",
+      });
+      setTimeout(() => setToastDebounce(false), 500);
+    }
   };
 
   const deleteInvestment = (id: string) => {
     setInvestments(investments.filter((investment) => investment.id !== id));
-    toast({
-      title: "Aporte removido",
-      description: "O aporte foi removido com sucesso.",
-    });
+    
+    // Evitar múltiplos toasts
+    if (!toastDebounce) {
+      setToastDebounce(true);
+      toast({
+        title: "Aporte removido",
+        description: "O aporte foi removido com sucesso.",
+      });
+      setTimeout(() => setToastDebounce(false), 500);
+    }
   };
 
   const deleteProfit = (id: string) => {
     setProfits(profits.filter((profit) => profit.id !== id));
-    toast({
-      title: "Registro removido",
-      description: "O registro de lucro/perda foi removido com sucesso.",
-    });
+    
+    // Evitar múltiplos toasts
+    if (!toastDebounce) {
+      setToastDebounce(true);
+      toast({
+        title: "Registro removido",
+        description: "O registro de lucro/perda foi removido com sucesso.",
+      });
+      setTimeout(() => setToastDebounce(false), 500);
+    }
   };
 
   // Funções de navegação
@@ -1070,10 +1101,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         : `bitcoin-${format(filterMonth, 'MMMM-yyyy', { locale: ptBR })}-exportado-${dateStr}.xlsx`;
       saveAs(blob, fileName);
       
-      toast({
-        title: "Exportação concluída com sucesso",
-        description: `Arquivo "${fileName}" salvo com análise ${exportAll ? 'completa e resumo mensal' : 'detalhada do mês'}.`,
-      });
+      // Evitar múltiplos toasts
+      if (!toastDebounce) {
+        setToastDebounce(true);
+        toast({
+          title: "Exportação concluída com sucesso",
+          description: `Arquivo "${fileName}" salvo com análise ${exportAll ? 'completa e resumo mensal' : 'detalhada do mês'}.`,
+        });
+        setTimeout(() => setToastDebounce(false), 500);
+      }
       
     } catch (error) {
       console.error("Erro na exportação:", error);
@@ -1228,6 +1264,216 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </>
   );
 
+  // Função para importar dados do Excel
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    setIsImporting(true);
+    setImportStats(null);
+
+    try {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          if (!e.target || !e.target.result) {
+            throw new Error("Falha ao ler o arquivo");
+          }
+          
+          const buffer = e.target.result;
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer as ArrayBuffer);
+          
+          const worksheet = workbook.getWorksheet(1);
+          
+          if (!worksheet) {
+            throw new Error("Planilha não encontrada no arquivo");
+          }
+          
+          // Coletar cabeçalhos para validação
+          const headers: string[] = [];
+          const headerRow = worksheet.getRow(1);
+          
+          headerRow.eachCell((cell) => {
+            headers.push(cell.value?.toString().trim() || "");
+          });
+          
+          // Lista de cabeçalhos requeridos
+          const requiredHeaders = [
+            "id", "type", "side", "openingFee", "closingFee", "maintenanceMargin", 
+            "quantity", "margin", "leverage", "price", "liquidation", "stoploss", 
+            "takeprofit", "exitPrice", "pl", "creationTs", "marketFilledTs", 
+            "closedTs", "entryPrice", "entryMargin", "open", "running", 
+            "canceled", "closed", "sumFundingFees"
+          ];
+          
+          // Verificar se todos os cabeçalhos requeridos estão presentes
+          const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+          
+          if (missingHeaders.length > 0) {
+            throw new Error(`Cabeçalhos obrigatórios ausentes: ${missingHeaders.join(", ")}`);
+          }
+          
+          // Iniciar processamento das linhas
+          const newProfits: ProfitRecord[] = [];
+          let successCount = 0;
+          let errorCount = 0;
+          const totalRows = worksheet.rowCount - 1; // Subtrair a linha de cabeçalho
+          
+          // Mapear índices das colunas necessárias
+          const headerIndexMap: Record<string, number> = {};
+          headers.forEach((header, index) => {
+            headerIndexMap[header] = index + 1; // ExcelJS é baseado em 1
+          });
+          
+          // Processar cada linha
+          for (let i = 2; i <= worksheet.rowCount; i++) {
+            const row = worksheet.getRow(i);
+            
+            try {
+              // Extrair os dados necessários
+              const closedTs = row.getCell(headerIndexMap["closedTs"]).value;
+              const pl = parseFloat(row.getCell(headerIndexMap["pl"]).value?.toString() || "0");
+              const openingFee = parseFloat(row.getCell(headerIndexMap["openingFee"]).value?.toString() || "0");
+              const closingFee = parseFloat(row.getCell(headerIndexMap["closingFee"]).value?.toString() || "0");
+              const sumFundingFees = parseFloat(row.getCell(headerIndexMap["sumFundingFees"]).value?.toString() || "0");
+              
+              // Verificar se a operação foi fechada
+              const closedValue = row.getCell(headerIndexMap["closed"]).value;
+              const isClosed = closedValue === true || closedValue === "true" || closedValue === 1 || closedValue === "1";
+              
+              // Só processar operações fechadas
+              if (!isClosed || !closedTs) {
+                errorCount++;
+                continue;
+              }
+              
+              // Extrair data
+              let profitDate: Date;
+              
+              if (typeof closedTs === 'number') {
+                // Se for timestamp em milissegundos
+                profitDate = new Date(closedTs);
+              } else if (closedTs instanceof Date) {
+                profitDate = closedTs;
+              } else {
+                // Tentar converter string para data
+                profitDate = new Date(closedTs.toString());
+              }
+              
+              // Verificar se a data é válida
+              if (isNaN(profitDate.getTime())) {
+                errorCount++;
+                continue;
+              }
+              
+              // Calcular lucro em satoshis
+              // Converter pl, openingFee, closingFee e sumFundingFees para satoshis antes de fazer o cálculo
+              const plSats = Math.round(pl * 100000000); // Converter BTC para SATS
+              const openingFeeSats = Math.round(openingFee * 100000000);
+              const closingFeeSats = Math.round(closingFee * 100000000);
+              const sumFundingFeesSats = Math.round(sumFundingFees * 100000000);
+              
+              const profitSats = plSats - (openingFeeSats + closingFeeSats + sumFundingFeesSats);
+              
+              // Criar registro de lucro/perda
+              const newProfit: ProfitRecord = {
+                id: Date.now().toString() + i, // ID único
+                date: format(profitDate, "yyyy-MM-dd"),
+                amount: Math.abs(profitSats), // Valor absoluto
+                unit: "SATS", // Em satoshis
+                isProfit: profitSats >= 0, // Lucro se positivo
+              };
+              
+              newProfits.push(newProfit);
+              successCount++;
+            } catch (rowError) {
+              console.error(`Erro ao processar linha ${i}:`, rowError);
+              errorCount++;
+            }
+          }
+          
+          // Adicionar os novos registros de lucro
+          if (newProfits.length > 0) {
+            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            
+            if (!toastDebounce) {
+              setToastDebounce(true);
+              toast({
+                title: "Importação concluída",
+                description: `Foram importados ${successCount} registros de lucro/perda com sucesso.`,
+                variant: "success",
+              });
+              setTimeout(() => setToastDebounce(false), 500);
+            }
+          } else {
+            toast({
+              title: "Nenhum registro importado",
+              description: "Não foi possível encontrar registros válidos no arquivo.",
+              variant: "destructive",
+            });
+          }
+          
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalRows,
+            success: successCount,
+            error: errorCount
+          });
+          
+        } catch (error) {
+          console.error("Erro ao processar o arquivo:", error);
+          toast({
+            title: "Erro na importação",
+            description: error instanceof Error ? error.message : "Falha ao processar o arquivo.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }
+      };
+      
+      reader.onerror = () => {
+        setIsImporting(false);
+        toast({
+          title: "Erro na leitura",
+          description: "Não foi possível ler o arquivo selecionado.",
+          variant: "destructive",
+        });
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+      
+    } catch (error) {
+      setIsImporting(false);
+      console.error("Erro ao importar:", error);
+      toast({
+        title: "Erro na importação",
+        description: "Ocorreu um erro ao tentar importar o arquivo.",
+        variant: "destructive",
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Função para acionar o input de arquivo
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   // Interface simplificada temporária
   return (
     <div className="space-y-6">
@@ -1362,6 +1608,58 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   <Button onClick={addProfitRecord}>
                   Adicionar {isProfit ? "Lucro" : "Perda"}
                 </Button>
+
+                {/* Importar operações do Excel */}
+                <div className="mt-6 pt-4 border-t border-purple-700/30">
+                  <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Importe registros de lucro/perda de operações a partir de arquivo Excel
+                  </p>
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    onChange={handleImportExcel}
+                    ref={fileInputRef}
+                    className="hidden"
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                    onClick={triggerFileInput}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Importar Operações
+                      </>
+                    )}
+                  </Button>
+                  
+                  {importStats && (
+                    <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                      <div className="flex justify-between">
+                        <span>Total processado:</span>
+                        <span className="font-medium">{importStats.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Importados com sucesso:</span>
+                        <span className="font-medium text-green-500">{importStats.success}</span>
+                      </div>
+                      {importStats.error > 0 && (
+                        <div className="flex justify-between">
+                          <span>Falhas:</span>
+                          <span className="font-medium text-red-500">{importStats.error}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 </div>
               </CardContent>
             </Card>
