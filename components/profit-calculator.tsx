@@ -1760,7 +1760,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             ) : (
               <>
                 <FileType className="mr-2 h-4 w-4" />
-                CSV
+                Importar CSV de Operações
               </>
             )}
           </Button>
@@ -2439,7 +2439,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   
                   {/* Adicionando botão para importar CSV de aportes */}
                   <div className="mt-6 pt-5 border-t border-purple-700/30">
-                    <h3 className="text-sm font-medium mb-3">Importar Aportes via CSV</h3>
+                    <h3 className="text-sm font-medium mb-3">Importar Aportes</h3>
                     <p className="text-xs text-gray-400 mb-3">
                       Importe registros de aportes a partir de arquivo CSV
                     </p>
