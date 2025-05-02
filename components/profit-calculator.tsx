@@ -117,6 +117,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [importStats, setImportStats] = useState<{total: number, success: number, error: number} | null>(null);
   const [importType, setImportType] = useState<"excel" | "csv" | null>(null);
   
+  // Estados para confirmação de exclusão em massa
+  const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
+  const [showDeleteProfitsDialog, setShowDeleteProfitsDialog] = useState(false);
+  
   // Variável para controlar se um toast está sendo exibido
   const [toastDebounce, setToastDebounce] = useState(false);
   
@@ -371,7 +375,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         title: "Aporte removido",
         description: "O aporte foi removido com sucesso.",
       });
-      setTimeout(() => setToastDebounce(false), 500);
+      setTimeout(() => setToastDebounce(false), 1000);
     }
   };
 
@@ -385,8 +389,32 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         title: "Registro removido",
         description: "O registro de lucro/perda foi removido com sucesso.",
       });
-      setTimeout(() => setToastDebounce(false), 500);
+      setTimeout(() => setToastDebounce(false), 1000);
     }
+  };
+  
+  // Função para excluir todos os aportes
+  const deleteAllInvestments = () => {
+    setInvestments([]);
+    setShowDeleteInvestmentsDialog(false);
+    
+    toast({
+      title: "Todos os aportes removidos",
+      description: "Todos os registros de aporte foram removidos com sucesso.",
+      variant: "success",
+    });
+  };
+  
+  // Função para excluir todos os lucros/perdas
+  const deleteAllProfits = () => {
+    setProfits([]);
+    setShowDeleteProfitsDialog(false);
+    
+    toast({
+      title: "Todos os lucros/perdas removidos",
+      description: "Todos os registros de lucro/perda foram removidos com sucesso.",
+      variant: "success",
+    });
   };
 
   // Funções de navegação
@@ -1901,6 +1929,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </Popover>
                 </div>
                   <Button onClick={addInvestment}>Adicionar Investimento</Button>
+                  
+                  {investments.length > 0 && (
+                    <Button 
+                      variant="destructive" 
+                      className="mt-2 w-full bg-red-900/70 hover:bg-red-900"
+                      onClick={() => setShowDeleteInvestmentsDialog(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remover todos os aportes
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1963,8 +2002,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </div>
                   </RadioGroup>
                   <Button onClick={addProfitRecord}>
-                  Adicionar {isProfit ? "Lucro" : "Perda"}
-                </Button>
+                    Adicionar {isProfit ? "Lucro" : "Perda"}
+                  </Button>
+                  
+                  {profits.length > 0 && (
+                    <Button 
+                      variant="destructive" 
+                      className="mt-2 w-full bg-red-900/70 hover:bg-red-900"
+                      onClick={() => setShowDeleteProfitsDialog(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remover todos os lucros/perdas
+                    </Button>
+                  )}
 
                 {/* Substituir a seção de importação pelo novo componente */}
                 <ImportOptions />
@@ -2259,6 +2309,62 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </DialogContent>
       </Dialog>
       )}
+      
+      {/* Dialog para confirmar exclusão de investimentos */}
+      <Dialog open={showDeleteInvestmentsDialog} onOpenChange={setShowDeleteInvestmentsDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Excluir todos os aportes</DialogTitle>
+            <DialogDescription>
+              Você tem certeza que deseja excluir todos os registros de aporte? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteInvestmentsDialog(false)}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={deleteAllInvestments}
+              className="bg-red-900 hover:bg-red-800"
+            >
+              Excluir todos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog para confirmar exclusão de lucros/perdas */}
+      <Dialog open={showDeleteProfitsDialog} onOpenChange={setShowDeleteProfitsDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Excluir todos os lucros/perdas</DialogTitle>
+            <DialogDescription>
+              Você tem certeza que deseja excluir todos os registros de lucro e perda? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteProfitsDialog(false)}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={deleteAllProfits}
+              className="bg-red-900 hover:bg-red-800"
+            >
+              Excluir todos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
