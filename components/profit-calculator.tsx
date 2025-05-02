@@ -1649,6 +1649,89 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
+  // Componente para as opções de importação
+  const ImportOptions = () => (
+    <div className="mt-6 pt-4 border-t border-purple-700/30">
+      <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
+      <p className="text-xs text-gray-400 mb-2">
+        Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
+      </p>
+      
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="file"
+          accept=".xlsx"
+          onChange={handleImportExcel}
+          ref={fileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerExcelFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "excel" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Excel
+            </>
+          )}
+        </Button>
+        
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleImportCSV}
+          ref={csvFileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerCSVFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "csv" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <FileType className="mr-2 h-4 w-4" />
+              CSV
+            </>
+          )}
+        </Button>
+      </div>
+      
+      {importStats && (
+        <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+          <div className="flex justify-between">
+            <span>Total processado:</span>
+            <span className="font-medium">{importStats.total}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Importados com sucesso:</span>
+            <span className="font-medium text-green-500">{importStats.success}</span>
+          </div>
+          {importStats.error > 0 && (
+            <div className="flex justify-between">
+              <span>Falhas:</span>
+              <span className="font-medium text-red-500">{importStats.error}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   // Interface simplificada temporária
   return (
     <div className="space-y-6">
@@ -2080,86 +2163,3 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </div>
   );
 }
-
-// Componente para as opções de importação
-const ImportOptions = () => (
-  <div className="mt-6 pt-4 border-t border-purple-700/30">
-    <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
-    <p className="text-xs text-gray-400 mb-2">
-      Importe registros de lucro/perda de operações a partir de arquivo Excel ou CSV
-    </p>
-    
-    <div className="grid grid-cols-2 gap-2">
-      <input
-        type="file"
-        accept=".xlsx"
-        onChange={handleImportExcel}
-        ref={fileInputRef}
-        className="hidden"
-      />
-      <Button 
-        variant="outline" 
-        className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-        onClick={triggerExcelFileInput}
-        disabled={isImporting}
-      >
-        {isImporting && importType === "excel" ? (
-          <>
-            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            Importando...
-          </>
-        ) : (
-          <>
-            <Upload className="mr-2 h-4 w-4" />
-            Excel
-          </>
-        )}
-      </Button>
-      
-      <input
-        type="file"
-        accept=".csv"
-        onChange={handleImportCSV}
-        ref={csvFileInputRef}
-        className="hidden"
-      />
-      <Button 
-        variant="outline" 
-        className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-        onClick={triggerCSVFileInput}
-        disabled={isImporting}
-      >
-        {isImporting && importType === "csv" ? (
-          <>
-            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            Importando...
-          </>
-        ) : (
-          <>
-            <FileType className="mr-2 h-4 w-4" />
-            CSV
-          </>
-        )}
-      </Button>
-    </div>
-    
-    {importStats && (
-      <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-        <div className="flex justify-between">
-          <span>Total processado:</span>
-          <span className="font-medium">{importStats.total}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Importados com sucesso:</span>
-          <span className="font-medium text-green-500">{importStats.success}</span>
-        </div>
-        {importStats.error > 0 && (
-          <div className="flex justify-between">
-            <span>Falhas:</span>
-            <span className="font-medium text-red-500">{importStats.error}</span>
-          </div>
-        )}
-      </div>
-    )}
-  </div>
-);
