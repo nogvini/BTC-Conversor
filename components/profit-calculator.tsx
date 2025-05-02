@@ -232,19 +232,31 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             brlToUsd: priceData.brl / priceData.usd,
           });
           setUsingFallbackRates(priceData.isUsingCache);
-          toast({
-            title: "Taxas atualizadas",
-            description: `Bitcoin: ${priceData.usd.toLocaleString()} USD`,
-            variant: "success",
-          });
+          
+          // Evitar múltiplos toasts
+          if (!toastDebounce) {
+            setToastDebounce(true);
+            toast({
+              title: "Cotação atualizada",
+              description: `Bitcoin: ${priceData.usd.toLocaleString()} USD`,
+              variant: "success",
+            });
+            setTimeout(() => setToastDebounce(false), 1000);
+          }
         }
       } catch (error) {
         console.error("Erro ao atualizar taxas:", error);
-        toast({
-          title: "Erro ao atualizar taxas",
-          description: "Usando as últimas taxas disponíveis.",
-          variant: "destructive",
-        });
+        
+        // Evitar múltiplos toasts também no caso de erro
+        if (!toastDebounce) {
+          setToastDebounce(true);
+          toast({
+            title: "Erro ao atualizar taxas",
+            description: "Usando as últimas taxas disponíveis.",
+            variant: "destructive",
+          });
+          setTimeout(() => setToastDebounce(false), 1000);
+        }
       } finally {
         setLoading(false);
       }
