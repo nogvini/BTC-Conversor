@@ -1732,9 +1732,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Componente para as opções de importação
   const ImportOptions = () => {
     return (
-      <div className="mt-6 pt-4 border-t border-purple-700/30">
-        <h3 className="text-sm font-medium mb-2">Importar Operações</h3>
-        <p className="text-xs text-gray-400 mb-2">
+      <div className="mt-6 pt-5 border-t border-purple-700/30">
+        <h3 className="text-sm font-medium mb-3">Importar Operações</h3>
+        <p className="text-xs text-gray-400 mb-3">
           Importe registros de lucro/perda de operações a partir de arquivo CSV
         </p>
         
@@ -1767,12 +1767,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </div>
         
         {importStats && importType === "csv" && (
-          <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-            <div className="flex justify-between">
+          <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+            <div className="flex justify-between mb-1">
               <span>Total processado:</span>
               <span className="font-medium">{importStats.total}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between mb-1">
               <span>Importados com sucesso:</span>
               <span className="font-medium text-green-500">{importStats.success}</span>
             </div>
@@ -2307,10 +2307,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardDescription>Gerencie todos os seus dados com facilidade</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Importar Backup</h3>
-                  <p className="text-xs text-gray-400 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3 border border-purple-700/20 rounded-md bg-black/20">
+                  <h3 className="text-sm font-medium mb-3">Importar Backup</h3>
+                  <p className="text-xs text-gray-400 mb-4">
                     Restaure seus aportes e lucros a partir de um arquivo de backup
                   </p>
                   
@@ -2341,9 +2341,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </Button>
                 </div>
                 
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Exportar Dados</h3>
-                  <p className="text-xs text-gray-400 mb-2">
+                <div className="p-3 border border-purple-700/20 rounded-md bg-black/20">
+                  <h3 className="text-sm font-medium mb-3">Exportar Dados</h3>
+                  <p className="text-xs text-gray-400 mb-4">
                     Exporte todos os seus registros para backup
                   </p>
                   
@@ -2369,12 +2369,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </div>
               
               {importStats && importType === "internal" && (
-                <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-                  <div className="flex justify-between">
+                <div className="mt-4 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                  <div className="flex justify-between mb-1">
                     <span>Total processado:</span>
                     <span className="font-medium">{importStats.total}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between mb-1">
                     <span>Importados com sucesso:</span>
                     <span className="font-medium text-green-500">{importStats.success}</span>
                   </div>
@@ -2396,50 +2396,51 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <CardDescription>Registre seus investimentos em Bitcoin</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div>
-                  <Label htmlFor="investment-amount">Valor do Aporte</Label>
-                  <Input
-                    id="investment-amount"
-                    type="number"
-                    placeholder="Valor"
-                    value={investmentAmount}
-                    onChange={(e) => setInvestmentAmount(e.target.value)}
-                  />
-                </div>
+                    <Label htmlFor="investment-amount" className="mb-1 block">Valor do Aporte</Label>
+                    <Input
+                      id="investment-amount"
+                      type="number"
+                      placeholder="Valor"
+                      value={investmentAmount}
+                      onChange={(e) => setInvestmentAmount(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
                   <div>
-                    <Label htmlFor="investment-date">Data do Aporte</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
+                    <Label htmlFor="investment-date" className="mb-1 block">Data do Aporte</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20 mt-1"
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
                           {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
-                      </Button>
-                    </PopoverTrigger>
+                        </Button>
+                      </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
                         <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
                           Selecione a data do aporte
                         </div>
-                      <CalendarComponent
-                        mode="single"
-                        selected={investmentDate}
+                        <CalendarComponent
+                          mode="single"
+                          selected={investmentDate}
                           onSelect={(date) => date && setInvestmentDate(date)}
-                        initialFocus
+                          initialFocus
                           className="bg-black/80"
                           locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                  <Button onClick={addInvestment}>Adicionar Investimento</Button>
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Button onClick={addInvestment} className="mt-2 w-full md:w-auto">Adicionar Investimento</Button>
                   
                   {/* Adicionando botão para importar CSV de aportes */}
-                  <div className="mt-4 pt-4 border-t border-purple-700/30">
-                    <h3 className="text-sm font-medium mb-2">Importar Aportes via CSV</h3>
-                    <p className="text-xs text-gray-400 mb-2">
+                  <div className="mt-6 pt-5 border-t border-purple-700/30">
+                    <h3 className="text-sm font-medium mb-3">Importar Aportes via CSV</h3>
+                    <p className="text-xs text-gray-400 mb-3">
                       Importe registros de aportes a partir de arquivo CSV
                     </p>
                     
@@ -2472,12 +2473,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </Button>
                     
                     {importStats && importType === "investment-csv" && (
-                      <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-                        <div className="flex justify-between">
+                      <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                        <div className="flex justify-between mb-1">
                           <span>Total processado:</span>
                           <span className="font-medium">{importStats.total}</span>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between mb-1">
                           <span>Importados com sucesso:</span>
                           <span className="font-medium text-green-500">{importStats.success}</span>
                         </div>
