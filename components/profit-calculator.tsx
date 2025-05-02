@@ -115,7 +115,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [useExportDialog, setUseExportDialog] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importStats, setImportStats] = useState<{total: number, success: number, error: number} | null>(null);
-  const [importType, setImportType] = useState<"excel" | "csv" | "internal" | null>(null);
+  const [importType, setImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
   
   // Estados para confirmação de exclusão em massa
   const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
@@ -2137,6 +2137,175 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
+  // Função para importar aportes via CSV
+  const handleImportInvestmentCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    setIsImporting(true);
+    setImportStats(null);
+    setImportType("investment-csv");
+
+    try {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          if (!e.target || !e.target.result) {
+            throw new Error("Falha ao ler o arquivo CSV");
+          }
+          
+          const csvText = e.target.result as string;
+          
+          // Usar o parser CSV robusto
+          const records = parseCSV(csvText);
+          
+          if (records.length === 0) {
+            throw new Error("O arquivo CSV não contém dados válidos");
+          }
+          
+          // Verificar cabeçalhos necessários
+          const requiredHeaders = ["id", "ts", "amount", "transactionIdOrHash", "comment", "success", "type"];
+          const headers = Object.keys(records[0]);
+          
+          const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+          if (missingHeaders.length > 0) {
+            throw new Error(`Cabeçalhos obrigatórios ausentes: ${missingHeaders.join(", ")}`);
+          }
+          
+          const totalRecords = records.length;
+          let importedCount = 0;
+          let errorCount = 0;
+          const newInvestments: Investment[] = [];
+          
+          // Processar cada registro
+          records.forEach((record, index) => {
+            try {
+              // Verificar se o aporte foi bem-sucedido
+              const successValue = String(record.success).toLowerCase();
+              const isSuccess = successValue === "true" || successValue === "1";
+              
+              if (!isSuccess) {
+                // Ignorar registros não bem-sucedidos
+                return;
+              }
+              
+              // Processar o timestamp
+              let investmentDate: Date;
+              
+              // Tentar interpretar o timestamp como número (milissegundos)
+              const tsNum = Number(record.ts);
+              if (!isNaN(tsNum)) {
+                investmentDate = new Date(tsNum);
+              } else {
+                // Tentar interpretar como string de data
+                investmentDate = new Date(record.ts);
+              }
+              
+              // Verificar se a data é válida
+              if (isNaN(investmentDate.getTime())) {
+                throw new Error(`Data inválida: ${record.ts}`);
+              }
+              
+              // Processar o valor
+              const amount = parseFloat(record.amount.toString());
+              if (isNaN(amount) || amount <= 0) {
+                throw new Error(`Valor inválido: ${record.amount}`);
+              }
+              
+              // Definir a unidade sempre como SATS
+              const unit: CurrencyUnit = "SATS";
+              
+              // Criar novo investimento
+              const newInvestment: Investment = {
+                id: Date.now().toString() + index, // Usar ID único
+                date: format(investmentDate, "yyyy-MM-dd"),
+                amount: amount,
+                unit: unit
+              };
+              
+              // Adicionar ao array de novos investimentos
+              newInvestments.push(newInvestment);
+              importedCount++;
+              
+            } catch (error) {
+              console.error(`Erro ao processar linha ${index + 1}:`, error);
+              errorCount++;
+            }
+          });
+          
+          // Adicionar os novos investimentos
+          if (newInvestments.length > 0) {
+            setInvestments(prev => [...prev, ...newInvestments]);
+            
+            toast({
+              title: "Importação de aportes concluída",
+              description: `Foram importados ${importedCount} aportes com sucesso.`,
+              variant: "success",
+            });
+          } else {
+            toast({
+              title: "Nenhum aporte importado",
+              description: "Não foram encontrados registros de aportes válidos no arquivo CSV.",
+              variant: "destructive",
+            });
+          }
+          
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalRecords,
+            success: importedCount,
+            error: errorCount
+          });
+          
+        } catch (error) {
+          console.error("Erro ao processar o arquivo CSV de aportes:", error);
+          toast({
+            title: "Erro na importação",
+            description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          setImportType(null);
+          if (event.target && event.target.files) {
+            event.target.value = '';
+          }
+        }
+      };
+      
+      reader.onerror = () => {
+        setIsImporting(false);
+        setImportType(null);
+        toast({
+          title: "Erro na leitura",
+          description: "Não foi possível ler o arquivo CSV selecionado.",
+          variant: "destructive",
+        });
+        if (event.target) {
+          event.target.value = '';
+        }
+      };
+      
+      reader.readAsText(file);
+      
+    } catch (error) {
+      setIsImporting(false);
+      setImportType(null);
+      console.error("Erro ao importar CSV de aportes:", error);
+      toast({
+        title: "Erro na importação",
+        description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
+        variant: "destructive",
+      });
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   // Interface simplificada temporária
   return (
     <div className="space-y-6">
@@ -2208,7 +2377,60 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
                   <Button onClick={addInvestment}>Adicionar Investimento</Button>
                   
-                  {/* Removido o botão de excluir aportes daqui */}
+                  {/* Adicionando botão para importar CSV de aportes */}
+                  <div className="mt-4 pt-4 border-t border-purple-700/30">
+                    <h3 className="text-sm font-medium mb-2">Importar Aportes via CSV</h3>
+                    <p className="text-xs text-gray-400 mb-2">
+                      Importe registros de aportes a partir de arquivo CSV
+                    </p>
+                    
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportInvestmentCSV}
+                      ref={useRef<HTMLInputElement>(null)}
+                      className="hidden"
+                      id="investment-csv-input"
+                    />
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                      onClick={() => document.getElementById("investment-csv-input")?.click()}
+                      disabled={isImporting}
+                    >
+                      {isImporting && importType === "investment-csv" ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Importando...
+                        </>
+                      ) : (
+                        <>
+                          <FileType className="mr-2 h-4 w-4" />
+                          Importar CSV de Aportes
+                        </>
+                      )}
+                    </Button>
+                    
+                    {importStats && importType === "investment-csv" && (
+                      <div className="mt-2 p-2 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                        <div className="flex justify-between">
+                          <span>Total processado:</span>
+                          <span className="font-medium">{importStats.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Importados com sucesso:</span>
+                          <span className="font-medium text-green-500">{importStats.success}</span>
+                        </div>
+                        {importStats.error > 0 && (
+                          <div className="flex justify-between">
+                            <span>Falhas:</span>
+                            <span className="font-medium text-red-500">{importStats.error}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
