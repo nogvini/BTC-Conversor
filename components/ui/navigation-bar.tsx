@@ -1,13 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin } from "lucide-react"
+import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin, LogOut, User } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet"
+import { UserMenu } from "@/components/user-menu"
+import { Separator } from "@/components/ui/separator"
+import { useAuth } from "@/context/auth-context"
 
 interface NavigationBarProps {
   onRefresh?: () => void
@@ -20,6 +23,15 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   const searchParams = useSearchParams()
   const isMobile = useIsMobile()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { user, signOut } = useAuth()
+  const [username, setUsername] = useState<string | null>(null)
+  
+  // Extrair nome de usuário do email quando disponível
+  useEffect(() => {
+    if (user?.email) {
+      setUsername(user.email.split('@')[0])
+    }
+  }, [user])
   
   // Determinar qual botão está ativo com base no pathname ou parâmetro de URL
   let activeTab = "converter"
@@ -50,68 +62,80 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
     setIsMenuOpen(false)
   }
   
+  // Lidar com logout
+  const handleSignOut = async () => {
+    await signOut()
+    setIsMenuOpen(false)
+  }
+  
   // Renderiza a navegação para desktop
   const DesktopNavigation = () => (
-    <div className="flex bg-black/40 border border-purple-800/40 rounded-md p-1 shadow-md backdrop-blur-sm">
-      <Button
-        variant="ghost"
-        size="default"
-        className={cn(
-          "text-sm rounded-md transition-all duration-300",
-          activeTab === "converter" 
-            ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-            : "hover:bg-purple-800/20 hover:text-white"
-        )}
-        onClick={() => router.push("/?tab=converter")}
-      >
-        <ArrowRightLeft className={cn(
-          "mr-2 h-4 w-4 transition-transform duration-300",
-          activeTab === "converter" ? "text-purple-300" : ""
-        )} />
-        <span>Conversor</span>
-      </Button>
+    <div className="flex items-center">
+      <div className="flex bg-black/40 border border-purple-800/40 rounded-md p-1 shadow-md backdrop-blur-sm">
+        <Button
+          variant="ghost"
+          size="default"
+          className={cn(
+            "text-sm rounded-md transition-all duration-300",
+            activeTab === "converter" 
+              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
+              : "hover:bg-purple-800/20 hover:text-white"
+          )}
+          onClick={() => router.push("/?tab=converter")}
+        >
+          <ArrowRightLeft className={cn(
+            "mr-2 h-4 w-4 transition-transform duration-300",
+            activeTab === "converter" ? "text-purple-300" : ""
+          )} />
+          <span>Conversor</span>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="default"
+          className={cn(
+            "text-sm rounded-md transition-all duration-300",
+            activeTab === "chart" 
+              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
+              : "hover:bg-purple-800/20 hover:text-white"
+          )}
+          onClick={() => router.push("/?tab=chart")}
+        >
+          <TrendingUp className={cn(
+            "mr-2 h-4 w-4 transition-transform duration-300",
+            activeTab === "chart" ? "text-purple-300" : ""
+          )} />
+          <span>Gráficos</span>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="default"
+          className={cn(
+            "text-sm rounded-md transition-all duration-300",
+            activeTab === "calculator" 
+              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
+              : "hover:bg-purple-800/20 hover:text-white"
+          )}
+          onClick={() => router.push("/?tab=calculator")}
+        >
+          <Calculator className={cn(
+            "mr-2 h-4 w-4 transition-transform duration-300",
+            activeTab === "calculator" ? "text-purple-300" : ""
+          )} />
+          <span>Calculadora</span>
+        </Button>
+      </div>
       
-      <Button
-        variant="ghost"
-        size="default"
-        className={cn(
-          "text-sm rounded-md transition-all duration-300",
-          activeTab === "chart" 
-            ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-            : "hover:bg-purple-800/20 hover:text-white"
-        )}
-        onClick={() => router.push("/?tab=chart")}
-      >
-        <TrendingUp className={cn(
-          "mr-2 h-4 w-4 transition-transform duration-300",
-          activeTab === "chart" ? "text-purple-300" : ""
-        )} />
-        <span>Gráficos</span>
-      </Button>
-      
-      <Button
-        variant="ghost"
-        size="default"
-        className={cn(
-          "text-sm rounded-md transition-all duration-300",
-          activeTab === "calculator" 
-            ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-            : "hover:bg-purple-800/20 hover:text-white"
-        )}
-        onClick={() => router.push("/?tab=calculator")}
-      >
-        <Calculator className={cn(
-          "mr-2 h-4 w-4 transition-transform duration-300",
-          activeTab === "calculator" ? "text-purple-300" : ""
-        )} />
-        <span>Calculadora</span>
-      </Button>
+      <div className="ml-2">
+        <UserMenu />
+      </div>
     </div>
   )
 
   // Renderiza o menu mobile
   const MobileNavigation = () => (
-    <div className="flex items-center">
+    <div className="flex items-center justify-between w-full">
       <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <SheetTrigger asChild>
           <Button 
@@ -148,6 +172,21 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                 </h2>
               </div>
             </div>
+            
+            {/* Informações do usuário no topo do menu */}
+            {user && (
+              <div className="px-4 py-4 border-b border-purple-800/30 bg-gradient-to-r from-purple-900/40 to-purple-950/40">
+                <div className="flex items-center">
+                  <div className="h-10 w-10 rounded-full bg-indigo-900 flex items-center justify-center text-white font-semibold mr-3 border border-indigo-700/40">
+                    {username?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-indigo-200">{username || "Usuário"}</div>
+                    <div className="text-xs text-indigo-400 truncate w-44">{user.email}</div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Itens do menu */}
             <div className="flex-1 px-4 py-6 space-y-4 overflow-y-auto">
@@ -217,6 +256,25 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
                 </div>}
               </Button>
+              
+              <Separator className="my-4 bg-purple-700/20" />
+              
+              <div className="mb-2 text-xs uppercase text-purple-400/70 font-semibold tracking-wider pl-2">
+                SUA CONTA
+              </div>
+              
+              {/* Botão de logout */}
+              {user && (
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="justify-start w-full rounded-lg text-red-300 hover:text-red-200 hover:bg-red-900/20 border-l-4 border-l-transparent hover:border-l-red-600 pl-3"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="mr-3 h-5 w-5 text-red-400" />
+                  <span className="font-medium">Sair da conta</span>
+                </Button>
+              )}
             </div>
 
             {/* Botão de atualização no rodapé */}
@@ -245,60 +303,51 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           </div>
         </SheetContent>
       </Sheet>
+      
+      {/* Trocamos o <UserMenu /> pelo avatar diretamente para economizar espaço em mobile */}
+      <div className="flex items-center">
+        {user && (
+          <div className="h-8 w-8 rounded-full bg-indigo-900 flex items-center justify-center text-white font-semibold border border-indigo-700/40">
+            {username?.charAt(0).toUpperCase() || "U"}
+          </div>
+        )}
+      </div>
     </div>
   )
   
+  // Renderizar o componente de acordo com o tamanho da tela
   return (
-    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-      <div className="flex w-full items-center justify-between">
-        {/* Reorganização do layout mobile: Menu à esquerda, título no centro */}
-        {isMobile && (
-          <MobileNavigation />
+    <div className="flex justify-between items-center w-full">
+      <div className="flex items-center">
+        <Link href="/" className="flex items-center mr-4">
+          <Bitcoin className="h-6 w-6 text-purple-400" />
+          <span className="ml-2 font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-400 hidden md:inline-block">
+            Raid Bitcoin
+          </span>
+        </Link>
+        
+        {!isMobile && <DesktopNavigation />}
+      </div>
+      
+      <div className="flex items-center gap-2">
+        {onRefresh && !isMobile && (
+          <Button 
+            onClick={onRefresh} 
+            variant="outline" 
+            size="sm"
+            disabled={loading}
+            className="group flex items-center justify-center bg-purple-900/30 border border-purple-700/50 hover:bg-purple-800/50 hover:border-purple-600/70 transition-all duration-300"
+          >
+            {loading ? (
+              <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-1 h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180" />
+            )}
+            <span className="text-xs font-medium">Atualizar</span>
+          </Button>
         )}
         
-        <h1 className={cn(
-          "text-2xl md:text-3xl font-bold text-white/90", 
-          isMobile ? "flex-1 text-center" : "bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300"
-        )}>
-          <span className="inline-flex items-center">
-            {!isMobile && <Bitcoin className="h-6 w-6 mr-2 text-purple-500" />}
-            Raid Bitcoin Toolkit
-          </span>
-        </h1>
-        
-        <div className="flex items-center gap-2">
-          {/* Desktop Navigation */}
-          <div className="hidden sm:flex">
-            <DesktopNavigation />
-          </div>
-          
-          {/* Desktop Refresh Button */}
-          {onRefresh && !isMobile && (
-            <Button 
-              onClick={onRefresh} 
-              variant="outline" 
-              size="default"
-              disabled={loading}
-              className="group flex items-center bg-black/30 border border-purple-700/50 hover:bg-purple-900/30 hover:border-purple-600/70 transition-all duration-300 hover:shadow-md hover:shadow-purple-900/30"
-            >
-              {loading ? "Atualizando..." : "Atualizar"}
-              <RefreshCw className={cn("ml-2 transition-transform duration-500", loading ? "animate-spin" : "group-hover:rotate-180")} />
-            </Button>
-          )}
-          
-          {/* Mobile Refresh Button - Movido para a direita enquanto menu está à esquerda */}
-          {isMobile && onRefresh && (
-            <Button 
-              onClick={onRefresh} 
-              variant="outline" 
-              size="sm"
-              disabled={loading}
-              className="group flex items-center bg-black/30 border border-purple-700/50 hover:bg-purple-900/30 hover:border-purple-600/70 transition-all duration-300"
-            >
-              <RefreshCw className={cn("transition-transform duration-500", loading ? "animate-spin" : "group-hover:rotate-180")} />
-            </Button>
-          )}
-        </div>
+        {isMobile && <MobileNavigation />}
       </div>
     </div>
   )
