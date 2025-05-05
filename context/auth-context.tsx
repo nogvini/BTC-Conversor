@@ -3,22 +3,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
-import {
-  supabase,
-  getCurrentUser,
-  signIn as supabaseSignIn,
-  signOut as supabaseSignOut,
-  signUp as supabaseSignUp,
-  UserCredentials,
-  UserRegistration,
-} from "@/lib/supabase";
+import supabaseBrowser from "@/lib/supabase-browser";
 import { toast } from "@/components/ui/use-toast";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (credentials: UserCredentials) => Promise<void>;
-  signUp: (userData: UserRegistration) => Promise<void>;
+  signIn: (credentials: { email: string; password: string }) => Promise<void>;
+  signUp: (userData: { email: string; password: string; username: string }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -34,8 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadUserSession() {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        const { data: { session } } = await supabaseBrowser.auth.getSession();
+        setUser(session?.user || null);
       } catch (error) {
         console.error("Erro ao verificar autenticação:", error);
       } finally {
@@ -46,14 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadUserSession();
 
     // Configurar listener para mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange(
       (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-        } else {
-          setUser(null);
-        }
-        
+        setUser(session?.user || null);
         setLoading(false);
       }
     );
@@ -77,11 +64,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, loading, pathname, router]);
 
-  const signIn = async (credentials: UserCredentials) => {
+  const signIn = async ({ email, password }: { email: string; password: string }) => {
     try {
       setLoading(true);
-      const { user } = await supabaseSignIn(credentials);
-      setUser(user);
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      setUser(data.user);
       router.push('/');
       toast({
         title: "Login realizado com sucesso",
@@ -101,10 +94,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (userData: UserRegistration) => {
+  const signUp = async ({ email, password, username }: { email: string; password: string; username: string }) => {
     try {
       setLoading(true);
-      await supabaseSignUp(userData);
+      
+      // 1. Criar o usuário na autenticação
+      const { data: authData, error: authError } = await supabaseBrowser.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      // 2. Se o usuário foi criado, inserir perfil
+      if (authData.user) {
+        const { error: profileError } = await supabaseBrowser
+          .from('profiles')
+          .insert([
+            { 
+              user_id: authData.user.id,
+              username,
+            }
+          ]);
+
+        if (profileError) throw profileError;
+      }
+
       toast({
         title: "Cadastro realizado com sucesso",
         description: "Faça login para continuar",
@@ -127,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       setLoading(true);
-      await supabaseSignOut();
+      await supabaseBrowser.auth.signOut();
       setUser(null);
       router.push('/login');
       toast({

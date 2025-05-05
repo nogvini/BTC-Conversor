@@ -11,7 +11,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
-import { UserCredentials, UserRegistration } from "@/lib/supabase";
 import { PageTransition } from "./page-transition";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 

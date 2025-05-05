@@ -3,40 +3,48 @@ import type { NextRequest } from 'next/server'
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  // Verificar se está tentando acessar uma página protegida sem autenticação
-  const isAuthPage = req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register'
-  
-  // Se não está autenticado e não está em uma página de autenticação, redirecionar para login
-  if (!session && !isAuthPage) {
-    const redirectUrl = new URL('/login', req.url)
-    return NextResponse.redirect(redirectUrl)
+  try {
+    const res = NextResponse.next()
+    const supabase = createMiddlewareClient({ req, res })
+    
+    // Verificar a sessão
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    // Rotas que não requerem autenticação
+    const isAuthPage = req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register'
+    
+    // Verificar se é uma rota de API, recursos estáticos ou favicon
+    const isPublicPath = req.nextUrl.pathname.startsWith('/api') || 
+                          req.nextUrl.pathname.startsWith('/_next') || 
+                          req.nextUrl.pathname === '/favicon.ico'
+    
+    // Se é um arquivo público, ignorar o middleware
+    if (isPublicPath) {
+      return res
+    }
+    
+    // Se não está autenticado e não está em uma página de autenticação, redirecionar para login
+    if (!session && !isAuthPage) {
+      return NextResponse.redirect(new URL('/login', req.url))
+    }
+    
+    // Se está autenticado e está em uma página de autenticação, redirecionar para home
+    if (session && isAuthPage) {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
+    
+    return res
+  } catch (error) {
+    console.error('Erro no middleware:', error)
+    // Em caso de erro, permitir a passagem sem bloqueio para evitar falha total
+    return NextResponse.next()
   }
-
-  // Se está autenticado e está em uma página de autenticação, redirecionar para home
-  if (session && isAuthPage) {
-    const redirectUrl = new URL('/', req.url)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return res
 }
 
-// Definir quais rotas serão protegidas pelo middleware
+// Aplicar middleware apenas a caminhos específicos
 export const config = {
   matcher: [
-    /*
-     * Corresponder a todas as páginas, exceto:
-     * - Arquivos de API (que começam com /api/)
-     * - Arquivos estáticos (como imagens, arquivos JS, etc)
-     * - Páginas de erros (_error, 404, etc)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    // Aplicar a todas as rotas exceto API, estáticos, etc.
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 } 

@@ -62,10 +62,14 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
     setIsMenuOpen(false)
   }
   
-  // Lidar com logout
+  // Lidar com logout com feedback visual
   const handleSignOut = async () => {
-    await signOut()
-    setIsMenuOpen(false)
+    try {
+      await signOut()
+      setIsMenuOpen(false)
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error)
+    }
   }
   
   // Renderiza a navegação para desktop

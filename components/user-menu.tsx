@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { getUserProfile } from "@/lib/supabase";
+import supabaseBrowser from "@/lib/supabase-browser";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -26,8 +26,17 @@ export function UserMenu() {
       
       try {
         setIsLoading(true);
-        const profile = await getUserProfile(user.id);
-        setUsername(profile?.username || user.email?.split('@')[0] || "Usuário");
+        
+        // Buscar perfil do usuário
+        const { data, error } = await supabaseBrowser
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error) throw error;
+        
+        setUsername(data?.username || user.email?.split('@')[0] || "Usuário");
       } catch (error) {
         console.error("Erro ao buscar perfil:", error);
         setUsername(user.email?.split('@')[0] || "Usuário");
