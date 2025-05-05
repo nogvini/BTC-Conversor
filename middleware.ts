@@ -4,6 +4,14 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 
 export async function middleware(req: NextRequest) {
   try {
+    // Verificar se estamos em ambiente de build ou export estático
+    const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
+    
+    // Durante o build, sempre retornar next() para permitir pré-renderização
+    if (isBuildTime) {
+      return NextResponse.next();
+    }
+    
     const res = NextResponse.next()
     const supabase = createMiddlewareClient({ req, res })
     
@@ -15,7 +23,8 @@ export async function middleware(req: NextRequest) {
     
     // Verificar se é uma rota de API, recursos estáticos, favicon ou not-found
     const isPublicPath = req.nextUrl.pathname.startsWith('/api') || 
-                          req.nextUrl.pathname.startsWith('/_next') || 
+                          req.nextUrl.pathname.startsWith('/_next') ||
+                          req.nextUrl.pathname.includes('.') ||  // Arquivos com extensão (css, js, etc)
                           req.nextUrl.pathname === '/favicon.ico' ||
                           req.nextUrl.pathname === '/_not-found' ||
                           req.nextUrl.pathname === '/not-found'
