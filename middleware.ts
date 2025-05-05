@@ -13,10 +13,12 @@ export async function middleware(req: NextRequest) {
     // Rotas que não requerem autenticação
     const isAuthPage = req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register'
     
-    // Verificar se é uma rota de API, recursos estáticos ou favicon
+    // Verificar se é uma rota de API, recursos estáticos, favicon ou not-found
     const isPublicPath = req.nextUrl.pathname.startsWith('/api') || 
                           req.nextUrl.pathname.startsWith('/_next') || 
-                          req.nextUrl.pathname === '/favicon.ico'
+                          req.nextUrl.pathname === '/favicon.ico' ||
+                          req.nextUrl.pathname === '/_not-found' ||
+                          req.nextUrl.pathname === '/not-found'
     
     // Se é um arquivo público, ignorar o middleware
     if (isPublicPath) {
@@ -45,6 +47,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     // Aplicar a todas as rotas exceto API, estáticos, etc.
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|_error|_not-found).*)',
   ],
 } 
