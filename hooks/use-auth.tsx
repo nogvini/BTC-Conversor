@@ -1,0 +1,212 @@
+"use client"
+
+import { createContext, useContext, useEffect, useState } from 'react'
+import { supabase, type AuthSession, type UserData } from '@/lib/supabase'
+
+type AuthContextType = {
+  session: AuthSession
+  signUp: (email: string, password: string, name?: string) => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signOut: () => Promise<void>
+  updateProfile: (data: Partial<UserData>) => Promise<{ error: Error | null }>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<AuthSession>({
+    user: null,
+    session: null,
+    error: null,
+    isLoading: true,
+  })
+
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        setSession(prev => ({ ...prev, isLoading: true }))
+        
+        // Verificar se há uma sessão ativa
+        const { data, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          throw error
+        }
+        
+        if (data?.session) {
+          // Buscar dados adicionais do usuário se necessário
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .single()
+            
+          setSession({
+            user: {
+              id: data.session.user.id,
+              email: data.session.user.email || '',
+              name: userData?.name || data.session.user.user_metadata?.name,
+              avatar_url: userData?.avatar_url,
+              created_at: data.session.user.created_at,
+            },
+            session: data.session,
+            error: null,
+            isLoading: false,
+          })
+        } else {
+          setSession({
+            user: null,
+            session: null,
+            error: null,
+            isLoading: false,
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao buscar sessão:', error)
+        setSession({
+          user: null,
+          session: null,
+          error: error as Error,
+          isLoading: false,
+        })
+      }
+    }
+
+    // Executar ao montar o componente
+    fetchSession()
+
+    // Configurar listener para mudanças na autenticação
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        // Buscar dados adicionais do usuário
+        const { data: userData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        setSession({
+          user: {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: userData?.name || session.user.user_metadata?.name,
+            avatar_url: userData?.avatar_url,
+            created_at: session.user.created_at,
+          },
+          session,
+          error: null,
+          isLoading: false,
+        })
+      } else {
+        setSession({
+          user: null,
+          session: null,
+          error: null,
+          isLoading: false,
+        })
+      }
+    })
+
+    return () => {
+      authListener?.subscription.unsubscribe()
+    }
+  }, [])
+
+  // Cadastro de usuário
+  const signUp = async (email: string, password: string, name?: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name
+          }
+        }
+      })
+
+      if (error) throw error
+
+      // Se o cadastro for bem-sucedido, criar perfil do usuário
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: data.user.id,
+              name,
+              email
+            }
+          ])
+
+        if (profileError) throw profileError
+      }
+
+      return { error: null }
+    } catch (error) {
+      console.error('Erro no cadastro:', error)
+      return { error: error as Error }
+    }
+  }
+
+  // Login de usuário
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (error) throw error
+
+      return { error: null }
+    } catch (error) {
+      console.error('Erro no login:', error)
+      return { error: error as Error }
+    }
+  }
+
+  // Logout
+  const signOut = async () => {
+    await supabase.auth.signOut()
+  }
+
+  // Atualizar perfil
+  const updateProfile = async (data: Partial<UserData>) => {
+    try {
+      if (!session.user) throw new Error('Usuário não autenticado')
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(data)
+        .eq('id', session.user.id)
+
+      if (error) throw error
+
+      // Atualizar estado local
+      setSession(prev => ({
+        ...prev,
+        user: prev.user ? { ...prev.user, ...data } : null
+      }))
+
+      return { error: null }
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error)
+      return { error: error as Error }
+    }
+  }
+
+  return (
+    <AuthContext.Provider value={{ session, signUp, signIn, signOut, updateProfile }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider')
+  }
+  return context
+} 

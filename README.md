@@ -77,3 +77,55 @@ O aplicativo utiliza uma arquitetura moderna com:
 - Adaptações específicas para dispositivos móveis
 - Menu de navegação otimizado para telas pequenas
 - Visualização de gráficos adaptada para diferentes tamanhos de tela
+
+## Integração com Supabase
+
+Este projeto utiliza o Supabase para autenticação de usuários. Para configurar o Supabase:
+
+1. Crie uma conta no [Supabase](https://supabase.com/) e crie um novo projeto
+2. Crie um arquivo `.env.local` na raiz do projeto com as seguintes variáveis:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+```
+
+3. No Supabase, habilite a autenticação por email e senha em "Authentication" > "Providers"
+4. Crie uma tabela `profiles` com a seguinte estrutura SQL:
+
+```sql
+create table public.profiles (
+  id uuid references auth.users on delete cascade not null primary key,
+  name text,
+  email text not null,
+  avatar_url text,
+  created_at timestamp with time zone default now()
+);
+
+-- Configurar acesso RLS (Row Level Security)
+alter table public.profiles enable row level security;
+
+-- Políticas de acesso
+create policy "Usuários podem ver seus próprios perfis" 
+  on profiles for select 
+  using (auth.uid() = id);
+
+create policy "Usuários podem atualizar seus próprios perfis" 
+  on profiles for update 
+  using (auth.uid() = id);
+
+-- Função para criar automaticamente um perfil ao cadastrar um usuário
+create or replace function public.handle_new_user() 
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, name)
+  values (new.id, new.email, new.raw_user_meta_data->>'name');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Trigger para chamar a função quando um novo usuário é criado
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+```
