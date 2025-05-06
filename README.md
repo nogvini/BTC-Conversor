@@ -1,4 +1,4 @@
-# BTC Conversor
+# Raid Bitcoin Toolkit
 
 Aplicativo para conversão e monitoramento de preços de Bitcoin, com gráficos históricos e calculadora de lucros.
 

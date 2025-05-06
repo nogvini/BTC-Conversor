@@ -10,7 +10,7 @@ const AuthFormLoading = () => (
   <Card className="w-full max-w-md mx-auto">
     <CardHeader className="space-y-2">
       <CardTitle className="text-2xl font-bold text-center">
-        Acesso ao Raid Bitcoin
+        Acesso ao Raid Toolkit
       </CardTitle>
       <CardDescription className="text-center">
         Carregando...

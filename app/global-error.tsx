@@ -16,7 +16,7 @@ export default function GlobalError({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="color-scheme" content="only dark" />
         <meta name="theme-color" content="#1e1b4b" />
-        <title>Erro - BTC Conversor</title>
+        <title>Erro - Raid Bitcoin Toolkit</title>
       </head>
       <body className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
         <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-8 rounded-lg border border-purple-800/50 shadow-xl max-w-md mx-auto">

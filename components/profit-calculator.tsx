@@ -482,7 +482,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       // Criar workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = "BTC Monitor";
+      workbook.creator = "Raid Bitcoin Toolkit";
+      workbook.lastModifiedBy = "Raid Bitcoin Toolkit";
       workbook.created = new Date();
       
       // Obter cotação atual do BTC em USD e BRL

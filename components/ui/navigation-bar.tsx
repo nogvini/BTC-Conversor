@@ -64,7 +64,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   // Renderiza a navegação para desktop
   const DesktopNavigation = () => (
     <div className="flex justify-between items-center w-full">
-      <div className="flex bg-black/40 border border-purple-800/40 rounded-md p-1 shadow-md backdrop-blur-sm">
+      <div className="flex border border-purple-800/40 rounded-md p-1 shadow-md backdrop-blur-sm">
         <Button
           variant="ghost"
           size="default"
@@ -321,8 +321,8 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   )
   
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 p-3 bg-background/80 backdrop-blur-md border-b border-purple-900/30">
-      <div className="max-w-screen-xl mx-auto">
+    <div className="nav-container py-3">
+      <div className="max-w-screen-xl mx-auto px-4">
         {isMobile ? <MobileNavigation /> : <DesktopNavigation />}
       </div>
     </div>
