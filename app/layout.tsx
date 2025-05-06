@@ -2,13 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import dynamic from "next/dynamic"
-
-// Importar o AuthProvider dinamicamente para evitar inicialização durante o build
-const AuthProviderClient = dynamic(
-  () => import('@/components/auth-provider-client').then(mod => mod.AuthProviderClient),
-  { ssr: false } // Desabilitar renderização no servidor
-)
+import { AuthProviderClient } from "@/components/auth-provider-client"
 
 const inter = Inter({ subsets: ["latin"] })
 
