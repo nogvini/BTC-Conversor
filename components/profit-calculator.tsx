@@ -42,6 +42,9 @@ import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -3034,3 +3037,5 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';
