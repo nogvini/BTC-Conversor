@@ -213,6 +213,11 @@
     background: linear-gradient(to bottom, rgba(15, 13, 31, 0.7), rgba(15, 13, 31, 0.5));
   }
 
+  /* Estilo personalizado para alertas */
+  .alert-supabase-error {
+    @apply bg-red-900/20 border-red-700/50 text-red-200 backdrop-blur-sm;
+  }
+
   /* Animações de transição de página */
   .page-transition-enter {
     opacity: 0;

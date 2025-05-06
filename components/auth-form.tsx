@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertTriangle, RefreshCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { PageTransition } from "@/components/page-transition"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Esquema de validação para login
 const loginSchema = z.object({
@@ -37,8 +38,60 @@ type RegisterFormValues = z.infer<typeof registerSchema>
 export default function AuthForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("login")
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, retryConnection, isConnecting, connectionRetries } = useAuth()
   const { toast } = useToast()
+  const [supabaseAvailable, setSupabaseAvailable] = useState(true)
+
+  // Efeito para verificar se o Supabase está disponível
+  useEffect(() => {
+    // Definir como indisponível se houver muitas tentativas de reconexão 
+    // ou se estiver tentando reconectar (já falhou pelo menos uma vez)
+    if (connectionRetries > 2 || isConnecting) {
+      setSupabaseAvailable(false)
+    } else {
+      setSupabaseAvailable(true)
+    }
+  }, [connectionRetries, isConnecting])
+
+  // Função auxiliar para detectar erros específicos do Supabase e
+  // falhas de conexão com base no erro recebido
+  const handleSupabaseError = (error: any): string => {
+    // Mensagem padrão
+    let message = "Ocorreu um erro inesperado."
+    
+    if (!error) return message
+    
+    // Verificar se é erro de conexão ou cliente não disponível
+    if (typeof error.message === 'string') {
+      // Erros de cliente não disponível
+      if (error.message.includes("Cliente Supabase não disponível") || 
+          error.message.includes("connection") || 
+          error.message.includes("network") ||
+          error.message.includes("Failed to fetch") ||
+          error.message.includes("NetworkError") ||
+          error.message.includes("timeout")) {
+        
+        setSupabaseAvailable(false)
+        return "Serviço de autenticação indisponível no momento."
+      }
+      
+      // Erros específicos de autenticação
+      if (error.message.includes("Invalid login")) {
+        return "Email ou senha incorretos."
+      }
+      
+      if (error.message.includes("already registered")) {
+        return "Este email já está cadastrado."
+      }
+      
+      // Outros erros com mensagem - usar a própria mensagem
+      if (error.message.length > 0) {
+        return error.message
+      }
+    }
+    
+    return message
+  }
 
   // Formulário de login
   const loginForm = useForm<LoginFormValues>({
@@ -62,6 +115,16 @@ export default function AuthForm() {
 
   // Função para realizar login
   const onLoginSubmit = async (data: LoginFormValues) => {
+    // Verificar primeiro se o Supabase está disponível
+    if (!supabaseAvailable) {
+      toast({
+        title: "Serviço indisponível",
+        description: "Não foi possível conectar ao serviço de autenticação. Tente novamente mais tarde.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsLoading(true)
       const { error } = await signIn(data.email, data.password)
@@ -76,13 +139,8 @@ export default function AuthForm() {
         variant: "success",
       })
     } catch (error: any) {
-      let message = "Ocorreu um erro ao fazer login."
-      
-      if (error.message) {
-        if (error.message.includes("Invalid login")) {
-          message = "Email ou senha incorretos."
-        }
-      }
+      // Usar a função auxiliar para tratar o erro
+      const message = handleSupabaseError(error)
       
       toast({
         title: "Erro ao fazer login",
@@ -96,6 +154,16 @@ export default function AuthForm() {
 
   // Função para realizar cadastro
   const onRegisterSubmit = async (data: RegisterFormValues) => {
+    // Verificar primeiro se o Supabase está disponível
+    if (!supabaseAvailable) {
+      toast({
+        title: "Serviço indisponível",
+        description: "Não foi possível conectar ao serviço de autenticação. Tente novamente mais tarde.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsLoading(true)
       const { error } = await signUp(data.email, data.password, data.name)
@@ -114,13 +182,8 @@ export default function AuthForm() {
       registerForm.reset()
       setActiveTab("login")
     } catch (error: any) {
-      let message = "Ocorreu um erro ao fazer o cadastro."
-      
-      if (error.message) {
-        if (error.message.includes("already registered")) {
-          message = "Este email já está cadastrado."
-        }
-      }
+      // Usar a função auxiliar para tratar o erro
+      const message = handleSupabaseError(error)
       
       toast({
         title: "Erro ao fazer cadastro",
@@ -130,6 +193,43 @@ export default function AuthForm() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Função para tentar reconectar ao Supabase
+  const handleRetryConnection = () => {
+    setIsLoading(true)
+    
+    // Exibir mensagem indicando tentativa de reconexão
+    toast({
+      title: "Tentando reconectar",
+      description: "Aguarde enquanto nos reconectamos ao serviço...",
+      variant: "default",
+    })
+    
+    // Chamar a função de reconexão
+    retryConnection()
+    
+    // Verificar resultado após um tempo razoável
+    setTimeout(() => {
+      // Se connectionRetries continuar alto, a reconexão falhou
+      if (connectionRetries > 3) {
+        setSupabaseAvailable(false)
+        toast({
+          title: "Falha na conexão",
+          description: "Não foi possível conectar ao serviço. Tente novamente mais tarde.",
+          variant: "destructive",
+        })
+      } else {
+        // Reconexão bem-sucedida
+        setSupabaseAvailable(true)
+        toast({
+          title: "Conectado com sucesso",
+          description: "A conexão com o serviço foi restabelecida.",
+          variant: "success",
+        })
+      }
+      setIsLoading(false)
+    }, 3000) // Aumentado para 3 segundos para dar tempo ao processo de reconexão
   }
 
   return (
@@ -144,6 +244,35 @@ export default function AuthForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!supabaseAvailable && (
+            <Alert variant="destructive" className="mb-6 alert-supabase-error">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Serviço indisponível</AlertTitle>
+              <AlertDescription className="flex flex-col md:flex-row items-start md:items-center mt-2">
+                <span>Não foi possível conectar ao serviço de autenticação.</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2 md:mt-0 md:ml-2 hover:bg-red-900/20 border-red-700/50"
+                  onClick={handleRetryConnection}
+                  disabled={isLoading || isConnecting}
+                >
+                  {isLoading || isConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Conectando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                      Tentar novamente
+                    </>
+                  )}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid grid-cols-2 mb-6">
               <TabsTrigger value="login">Login</TabsTrigger>
