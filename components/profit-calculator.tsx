@@ -1354,7 +1354,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         >
           <div className="flex items-center">
             <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="font-medium">Exportar dados do mês atual</span>
+            <span className="font-medium">Exportar dados do mês selecionado</span>
           </div>
           {showFilterOptions && (
             <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
