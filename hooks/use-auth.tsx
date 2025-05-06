@@ -1,7 +1,8 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, createSupabaseClient, type AuthSession, type UserData } from '@/lib/supabase'
+import { type AuthSession, type UserData } from '@/lib/supabase'
+import { useSupabaseRetry } from './use-supabase-retry'
 
 type AuthContextType = {
   session: AuthSession
@@ -9,13 +10,27 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   updateProfile: (data: Partial<UserData>) => Promise<{ error: Error | null }>
+  retryConnection: () => void
+  isConnecting: boolean
+  connectionRetries: number
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Garantir que temos uma instância do cliente Supabase
-  const supabaseClient = supabase || createSupabaseClient()
+  // Usar o sistema de retry para o Supabase
+  const { 
+    client: supabaseClient, 
+    isConnected, 
+    isAttemptingConnection, 
+    retryCount,
+    retryConnection 
+  } = useSupabaseRetry({
+    initialDelay: 2000,    // 2 segundos
+    maxRetries: 10,        // 10 tentativas
+    backoffFactor: 1.5,    // Cada tentativa aumenta 1.5x o tempo de espera
+    maxDelay: 30000        // Máximo de 30 segundos entre tentativas
+  })
   
   const [session, setSession] = useState<AuthSession>({
     user: null,
@@ -43,25 +58,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (data?.session) {
-          // Buscar dados adicionais do usuário se necessário
-          const { data: userData } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single()
+          try {
+            // Buscar dados adicionais do usuário se necessário
+            const { data: userData } = await supabaseClient
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single()
+              
+            setSession({
+              user: {
+                id: data.session.user.id,
+                email: data.session.user.email || '',
+                name: userData?.name || data.session.user.user_metadata?.name,
+                avatar_url: userData?.avatar_url,
+                created_at: data.session.user.created_at,
+              },
+              session: data.session,
+              error: null,
+              isLoading: false,
+            })
+          } catch (profileError) {
+            console.error('Erro ao buscar perfil:', profileError)
             
-          setSession({
-            user: {
-              id: data.session.user.id,
-              email: data.session.user.email || '',
-              name: userData?.name || data.session.user.user_metadata?.name,
-              avatar_url: userData?.avatar_url,
-              created_at: data.session.user.created_at,
-            },
-            session: data.session,
-            error: null,
-            isLoading: false,
-          })
+            // Continuar mesmo sem os dados do perfil
+            setSession({
+              user: {
+                id: data.session.user.id,
+                email: data.session.user.email || '',
+                name: data.session.user.user_metadata?.name,
+                created_at: data.session.user.created_at,
+              },
+              session: data.session,
+              error: null,
+              isLoading: false,
+            })
+          }
         } else {
           setSession({
             user: null,
@@ -81,45 +113,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Executar ao montar o componente
-    fetchSession()
+    // Executar ao montar o componente e quando o cliente estiver conectado
+    if (isConnected) {
+      fetchSession()
+    }
 
     // Configurar listener para mudanças na autenticação
-    const authListener = supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        // Buscar dados adicionais do usuário
-        const { data: userData } = await supabaseClient
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        
-        setSession({
-          user: {
-            id: session.user.id,
-            email: session.user.email || '',
-            name: userData?.name || session.user.user_metadata?.name,
-            avatar_url: userData?.avatar_url,
-            created_at: session.user.created_at,
-          },
-          session,
-          error: null,
-          isLoading: false,
+    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
+    
+    if (isConnected && supabaseClient) {
+      try {
+        authListener = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+          if (session) {
+            try {
+              // Buscar dados adicionais do usuário
+              const { data: userData } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single()
+              
+              setSession({
+                user: {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: userData?.name || session.user.user_metadata?.name,
+                  avatar_url: userData?.avatar_url,
+                  created_at: session.user.created_at,
+                },
+                session,
+                error: null,
+                isLoading: false,
+              })
+            } catch (profileError) {
+              console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
+              
+              // Continuar mesmo sem os dados do perfil
+              setSession({
+                user: {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: session.user.user_metadata?.name,
+                  created_at: session.user.created_at,
+                },
+                session,
+                error: null,
+                isLoading: false,
+              })
+            }
+          } else {
+            setSession({
+              user: null,
+              session: null,
+              error: null,
+              isLoading: false,
+            })
+          }
         })
-      } else {
-        setSession({
-          user: null,
-          session: null,
-          error: null,
-          isLoading: false,
-        })
+      } catch (error) {
+        console.error('Erro ao configurar listener de autenticação:', error)
       }
-    })
+    }
 
     return () => {
-      authListener.subscription.unsubscribe()
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe()
+      }
     }
-  }, [supabaseClient])
+  }, [supabaseClient, isConnected])
 
   // Cadastro de usuário
   const signUp = async (email: string, password: string, name?: string) => {
@@ -140,17 +201,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Se o cadastro for bem-sucedido, criar perfil do usuário
       if (data.user) {
-        const { error: profileError } = await supabaseClient
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              name,
-              email
-            }
-          ])
+        try {
+          const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .insert([
+              {
+                id: data.user.id,
+                name,
+                email
+              }
+            ])
 
-        if (profileError) throw profileError
+          if (profileError) throw profileError
+        } catch (profileError) {
+          console.error('Erro ao criar perfil:', profileError)
+          // Continuar mesmo sem criar o perfil
+        }
       }
 
       return { error: null }
@@ -182,7 +248,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Logout
   const signOut = async () => {
     if (supabaseClient) {
-      await supabaseClient.auth.signOut()
+      try {
+        await supabaseClient.auth.signOut()
+      } catch (error) {
+        console.error('Erro ao fazer logout:', error)
+      }
     }
   }
 
@@ -213,7 +283,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, signUp, signIn, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ 
+      session, 
+      signUp, 
+      signIn, 
+      signOut, 
+      updateProfile,
+      retryConnection,
+      isConnecting: isAttemptingConnection,
+      connectionRetries: retryCount
+    }}>
       {children}
     </AuthContext.Provider>
   )

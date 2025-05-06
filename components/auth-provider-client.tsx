@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ConnectionStatus } from "./connection-status";
 
 export function AuthProviderClient({ children }: { children: React.ReactNode }) {
   // Estado para verificar se estamos no navegador
@@ -18,5 +19,10 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
   }
 
   // Uma vez no navegador, usamos o AuthProvider
-  return <AuthProvider>{children}</AuthProvider>;
+  return (
+    <AuthProvider>
+      {children}
+      <ConnectionStatus />
+    </AuthProvider>
+  );
 } 

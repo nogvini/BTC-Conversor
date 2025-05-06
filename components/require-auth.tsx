@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,23 @@ interface RequireAuthProps {
 }
 
 export function RequireAuth({ children }: RequireAuthProps) {
+  // Verificar se estamos no navegador
+  const [isBrowser, setIsBrowser] = useState(false)
+  
+  useEffect(() => {
+    setIsBrowser(true)
+  }, [])
+  
+  // Se não estivermos no navegador, mostrar um fallback minimalista
+  if (!isBrowser) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="h-8 w-8 rounded-full bg-primary/20" />
+      </div>
+    )
+  }
+
+  // Agora podemos acessar o hook de autenticação com segurança
   const { session } = useAuth()
   const router = useRouter()
   const { user, isLoading } = session

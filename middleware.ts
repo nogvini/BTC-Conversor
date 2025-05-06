@@ -1,26 +1,17 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createMiddlewareSupabaseClient } from './lib/middleware-supabase'
 
 export async function middleware(request: NextRequest) {
-  // Verificar se estamos em ambiente de desenvolvimento/preview/build
-  const isVerceBuild = process.env.VERCEL_ENV === 'development' || 
-                       process.env.VERCEL_ENV === 'preview' ||
-                       !process.env.VERCEL_ENV;
+  // Criar o cliente Supabase para o middleware
+  const supabase = createMiddlewareSupabaseClient()
   
-  // Inicializar o cliente Supabase
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  
-  // Verificar se as credenciais do Supabase estão disponíveis
-  if (!supabaseUrl || !supabaseKey) {
-    console.warn('Credenciais do Supabase não disponíveis no middleware - permitindo acesso')
+  // Se não for possível criar o cliente Supabase, permitir acesso sem verificação
+  if (!supabase) {
     return NextResponse.next()
   }
   
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
     // Obter o token de autenticação do cookie
     const authCookie = request.cookies.get('sb-auth-token')?.value
     
