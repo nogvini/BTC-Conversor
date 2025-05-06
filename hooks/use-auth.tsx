@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, type AuthSession, type UserData } from '@/lib/supabase'
+import { supabase, createSupabaseClient, type AuthSession, type UserData } from '@/lib/supabase'
 
 type AuthContextType = {
   session: AuthSession
@@ -14,6 +14,9 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Garantir que temos uma instância do cliente Supabase
+  const supabaseClient = supabase || createSupabaseClient()
+  
   const [session, setSession] = useState<AuthSession>({
     user: null,
     session: null,
@@ -22,12 +25,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   })
 
   useEffect(() => {
+    // Não fazer nada se o cliente supabase não estiver disponível
+    if (!supabaseClient) {
+      setSession(prev => ({ ...prev, isLoading: false }))
+      return
+    }
+    
     const fetchSession = async () => {
       try {
         setSession(prev => ({ ...prev, isLoading: true }))
         
         // Verificar se há uma sessão ativa
-        const { data, error } = await supabase.auth.getSession()
+        const { data, error } = await supabaseClient.auth.getSession()
         
         if (error) {
           throw error
@@ -35,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (data?.session) {
           // Buscar dados adicionais do usuário se necessário
-          const { data: userData } = await supabase
+          const { data: userData } = await supabaseClient
             .from('profiles')
             .select('*')
             .eq('id', data.session.user.id)
@@ -76,10 +85,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchSession()
 
     // Configurar listener para mudanças na autenticação
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const authListener = supabaseClient.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         // Buscar dados adicionais do usuário
-        const { data: userData } = await supabase
+        const { data: userData } = await supabaseClient
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
@@ -108,14 +117,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => {
-      authListener?.subscription.unsubscribe()
+      authListener.subscription.unsubscribe()
     }
-  }, [])
+  }, [supabaseClient])
 
   // Cadastro de usuário
   const signUp = async (email: string, password: string, name?: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
+      
+      const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
         options: {
@@ -129,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Se o cadastro for bem-sucedido, criar perfil do usuário
       if (data.user) {
-        const { error: profileError } = await supabase
+        const { error: profileError } = await supabaseClient
           .from('profiles')
           .insert([
             {
@@ -152,7 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Login de usuário
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
+      
+      const { error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
       })
@@ -168,15 +181,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout
   const signOut = async () => {
-    await supabase.auth.signOut()
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut()
+    }
   }
 
   // Atualizar perfil
   const updateProfile = async (data: Partial<UserData>) => {
     try {
+      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
       if (!session.user) throw new Error('Usuário não autenticado')
 
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from('profiles')
         .update(data)
         .eq('id', session.user.id)

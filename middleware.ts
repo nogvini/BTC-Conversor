@@ -6,6 +6,13 @@ export async function middleware(request: NextRequest) {
   // Inicializar o cliente Supabase
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  
+  // Verificar se as credenciais do Supabase estão disponíveis
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('Credenciais do Supabase não disponíveis no middleware - permitindo acesso')
+    return NextResponse.next()
+  }
+  
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   // Obter o token de autenticação do cookie
@@ -14,8 +21,12 @@ export async function middleware(request: NextRequest) {
   // Verificar se o usuário está autenticado
   let isAuthenticated = false
   if (authCookie) {
-    const { data, error } = await supabase.auth.getUser()
-    isAuthenticated = !!data.user && !error
+    try {
+      const { data, error } = await supabase.auth.getUser()
+      isAuthenticated = !!data.user && !error
+    } catch (err) {
+      console.error('Erro ao verificar autenticação:', err)
+    }
   }
 
   // Se a rota for privada e o usuário não estiver autenticado, redirecionar para login

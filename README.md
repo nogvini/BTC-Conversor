@@ -129,3 +129,23 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 ```
+
+## Deploy na Vercel
+
+Para fazer deploy deste projeto na Vercel:
+
+1. Conecte seu repositório GitHub à Vercel
+2. Configure as variáveis de ambiente necessárias na seção de configurações do projeto na Vercel:
+   - Vá para o Dashboard da Vercel > Seu Projeto > Settings > Environment Variables
+   - Adicione as mesmas variáveis que estão no seu arquivo `.env.local`:
+     ```
+     NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+     ```
+   - Estas variáveis devem ser adicionadas para todos os ambientes (Production, Preview e Development)
+3. Faça o redeploy do projeto para aplicar as novas variáveis:
+   - Vá para o Dashboard da Vercel > Seu Projeto > Deployments
+   - Encontre seu último deploy e clique em "Redeploy"
+   - Ou faça um novo commit no seu repositório para acionar um novo deploy
+
+Importante: As variáveis de ambiente com prefixo `NEXT_PUBLIC_` são expostas no navegador do cliente. Para informações sensíveis que não devem ser expostas ao cliente, use variáveis sem esse prefixo e acesse-as apenas no lado do servidor.
