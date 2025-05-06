@@ -2,7 +2,13 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AuthProvider } from "@/hooks/use-auth"
+import dynamic from "next/dynamic"
+
+// Importar o AuthProvider dinamicamente para evitar inicialização durante o build
+const AuthProviderClient = dynamic(
+  () => import('@/components/auth-provider-client').then(mod => mod.AuthProviderClient),
+  { ssr: false } // Desabilitar renderização no servidor
+)
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -25,11 +31,11 @@ export default function RootLayout({
         <meta name="force-rendering" content="webkit" />
       </head>
       <body className={inter.className}>
-        <AuthProvider>
+        <AuthProviderClient>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
             {children}
           </ThemeProvider>
-        </AuthProvider>
+        </AuthProviderClient>
       </body>
     </html>
   )
