@@ -50,23 +50,22 @@ export function RequireAuth({ children }: RequireAuthProps) {
   }
 
   // Mostrar mensagem de acesso negado se não estiver autenticado
-  if (!user) {
+  if (!user && !isLoading) {
+    console.error('Usuário não autenticado ou Supabase indisponível. Veja o contexto de sessão:', session)
     return (
       <div className="flex justify-center items-center min-h-screen p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
             <CardDescription>
-              Você precisa estar logado para acessar essa página.
+              Não foi possível conectar ao serviço de autenticação ou você não está logado.<br />
+              Verifique sua conexão ou tente novamente mais tarde.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            <p>Esta área é restrita para usuários autenticados. Por favor, faça login para continuar.</p>
-          </CardContent>
           <CardFooter>
             <Button onClick={() => router.push("/auth")} className="w-full">
               <LogIn className="mr-2 h-4 w-4" />
-              Fazer Login
+              Voltar ao Login
             </Button>
           </CardFooter>
         </Card>

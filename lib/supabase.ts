@@ -17,7 +17,10 @@ export const createSupabaseClient = () => {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
   if (!supabaseUrl || !supabaseKey) {
-    console.warn('Variáveis de ambiente do Supabase não estão definidas')
+    console.error('Variáveis de ambiente do Supabase não estão definidas', { supabaseUrl, supabaseKey })
+    if (typeof window !== 'undefined') {
+      alert('Erro crítico: Variáveis de ambiente do Supabase não estão definidas. Contate o suporte.')
+    }
     return null
   }
   
@@ -25,6 +28,9 @@ export const createSupabaseClient = () => {
     return createClient(supabaseUrl, supabaseKey)
   } catch (error) {
     console.error('Erro ao criar cliente Supabase:', error)
+    if (typeof window !== 'undefined') {
+      alert('Erro crítico ao criar cliente Supabase. Veja o console para detalhes.')
+    }
     return null
   }
 }
