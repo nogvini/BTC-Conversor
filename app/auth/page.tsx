@@ -1,9 +1,9 @@
+"use client";
+
 // Página estática que renderiza uma interface simples
 // Marcada como edge runtime para evitar problemas com SSR
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
-
-"use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
