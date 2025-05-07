@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
+// Desativar otimizações estáticas para garantir que seja renderizado apenas no cliente
+export const dynamic = "force-dynamic"
+
 // Componente de carregamento para mostrar enquanto carrega o formulário real
 const AuthFormLoading = () => (
   <Card className="w-full max-w-md mx-auto">

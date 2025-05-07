@@ -8,6 +8,7 @@ import { Check, AlertTriangle, X, Database, RefreshCw, Loader2 } from "lucide-re
 import { useAuth } from "@/hooks/use-auth"
 import { PageTransition } from "@/components/page-transition"
 
+// Componente cliente para a página de diagnóstico
 export function DiagnosePageClient() {
   const { session } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
