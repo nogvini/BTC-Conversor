@@ -1,58 +1,45 @@
-"use client";
+// Página estática que renderiza uma interface simples
+// Marcada como edge runtime para evitar problemas com SSR
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
-import { Suspense } from "react"
-import { Loader2 } from "lucide-react"
-import dynamic from "next/dynamic"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-
-// Desativar otimizações estáticas para garantir que seja renderizado apenas no cliente
-export const dynamic = "force-dynamic"
-
-// Componente de carregamento
-const AuthFormLoading = () => (
-  <Card className="w-full max-w-md mx-auto">
-    <CardHeader className="space-y-2">
-      <CardTitle className="text-2xl font-bold text-center">
-        Acesso ao Raid Toolkit
-      </CardTitle>
-      <CardDescription className="text-center">
-        Carregando...
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="flex items-center justify-center p-8">
-      <Loader2 className="h-8 w-8 animate-spin" />
-    </CardContent>
-  </Card>
-)
-
-// Importação dinâmica do formulário de autenticação 
-const AuthFormWrapper = dynamic(
-  () => import("@/components/auth-form"),
-  { 
-    ssr: false,
-    loading: AuthFormLoading 
-  }
-)
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AuthPage() {
   return (
     <main className="min-h-screen p-4 flex items-center justify-center">
       <div className="w-full max-w-md">
-        <Suspense fallback={<AuthFormLoading />}>
-          <NoSsr>
-            <AuthFormWrapper />
-          </NoSsr>
-        </Suspense>
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl font-bold text-center">
+              Acesso ao Raid Toolkit
+            </CardTitle>
+            <CardDescription className="text-center">
+              Redirecionando para a página de login...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center p-8 space-y-4">
+            <div className="animate-pulse h-8 w-8 rounded-full bg-primary/20"></div>
+            
+            <p className="text-sm text-center text-muted-foreground mt-4">
+              Se você não for redirecionado automaticamente, 
+              <a href="/auth/login" className="underline font-medium ml-1">
+                clique aqui
+              </a>
+            </p>
+            
+            <script 
+              dangerouslySetInnerHTML={{ 
+                __html: `
+                  setTimeout(function() {
+                    window.location.href = '/auth/login';
+                  }, 500);
+                `
+              }} 
+            />
+          </CardContent>
+        </Card>
       </div>
     </main>
-  )
-}
-
-// Componente auxiliar para garantir que o código só execute no cliente
-function NoSsr({ children }: { children: React.ReactNode }) {
-  return (
-    <div suppressHydrationWarning>
-      {typeof window === 'undefined' ? null : children}
-    </div>
-  )
+  );
 } 
