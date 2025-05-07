@@ -4,7 +4,10 @@ import { useState, useEffect } from "react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, AlertTriangle, RefreshCw, AlertCircle } from "lucide-react"
+import { Loader2 } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
+import { RefreshCw } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,6 +18,16 @@ import { useToast } from "@/hooks/use-toast"
 import { PageTransition } from "@/components/page-transition"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { VerifyEmailAlert } from "@/components/verify-email-alert"
+import { useRouter } from "next/navigation"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 
 // Esquema de validação para login
 const loginSchema = z.object({
@@ -37,13 +50,16 @@ type LoginFormValues = z.infer<typeof loginSchema>
 type RegisterFormValues = z.infer<typeof registerSchema>
 
 export default function AuthForm() {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("login")
-  const { signIn, signUp, retryConnection, isConnecting, connectionRetries } = useAuth()
+  const { signIn, signUp, retryConnection, isConnecting, connectionRetries, session } = useAuth()
   const { toast } = useToast()
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const [showEmailVerification, setShowEmailVerification] = useState(false)
   const [emailForVerification, setEmailForVerification] = useState("")
+  const [showNoProfileDialog, setShowNoProfileDialog] = useState(false)
+  const [loginEmail, setLoginEmail] = useState("")
 
   // Efeito para verificar se o Supabase está disponível
   useEffect(() => {
@@ -130,23 +146,49 @@ export default function AuthForm() {
 
     try {
       setIsLoading(true)
-      const { error } = await signIn(data.email, data.password)
+      setLoginEmail(data.email)
+      console.log('Iniciando login para:', data.email)
+      
+      const { error, profileNotFound } = await signIn(data.email, data.password)
+      
+      console.log('Resultado do login:', { 
+        sucesso: !error, 
+        perfilEncontrado: !profileNotFound,
+        temErro: !!error
+      })
       
       if (error) {
         throw error
+      }
+
+      // Verificar se o perfil não foi encontrado
+      if (profileNotFound) {
+        console.log('Perfil não encontrado para o usuário:', data.email)
+        
+        setShowNoProfileDialog(true)
+        return
       }
       
       // Verificação bem-sucedida, esconder alerta de verificação de email
       setShowEmailVerification(false)
       
+      // Exibir toast de sucesso
       toast({
         title: "Login realizado com sucesso",
         description: "Bem-vindo de volta!",
         variant: "success",
       })
+      
+      // Redirecionar para a página inicial após login bem-sucedido
+      console.log('Redirecionando para a página inicial...')
+      setTimeout(() => {
+        router.push('/');
+      }, 500);
+      
     } catch (error: any) {
       // Usar a função auxiliar para tratar o erro
       const message = handleSupabaseError(error)
+      console.error('Erro durante login:', error)
       
       // Verificar se o erro é relacionado a email não confirmado
       if (error?.message?.includes("Email not confirmed") || 
@@ -299,8 +341,65 @@ export default function AuthForm() {
     }
   };
 
+  // Efeito para debug - monitorar a sessão atual
+  useEffect(() => {
+    if (session.user) {
+      console.log('Sessão atual:', { 
+        usuarioLogado: true, 
+        id: session.user.id,
+        email: session.user.email
+      });
+    } else if (!session.isLoading) {
+      console.log('Nenhum usuário logado');
+    }
+  }, [session]);
+
+  // Função para lidar com o fechamento do diálogo de perfil não encontrado
+  const handleNoProfileDialogClose = () => {
+    setShowNoProfileDialog(false)
+    // Mudar para a aba de registro e preencher o email
+    setActiveTab("register")
+    
+    // Preencher o email automaticamente no formulário de registro
+    if (loginEmail) {
+      registerForm.setValue("email", loginEmail)
+    }
+    
+    // Log de debug
+    console.log('Diálogo de perfil não encontrado fechado, mudando para a aba de registro')
+  }
+
   return (
     <PageTransition>
+      {/* AlertDialog para perfil não encontrado */}
+      <AlertDialog open={showNoProfileDialog} onOpenChange={setShowNoProfileDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Perfil não registrado</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Suas credenciais de autenticação estão corretas, mas você ainda não possui um perfil completo no sistema.
+              </p>
+              <p>
+                Isso pode acontecer se:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Você se cadastrou anteriormente mas não completou o registro</li>
+                <li>Sua conta foi criada por um administrador sem um perfil associado</li>
+              </ul>
+              <p className="font-medium text-primary">
+                Por favor, preencha o formulário de cadastro para criar seu perfil e acessar o sistema.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleNoProfileDialogClose}>
+              Ir para o cadastro
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="space-y-2">
           <CardTitle className="text-2xl font-bold text-center">
@@ -340,23 +439,38 @@ export default function AuthForm() {
             </Alert>
           )}
           
-          {/* Botão de diagnóstico para desenvolvedores */}
-          <div className="flex justify-end">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={testDatabaseConnection}
-              disabled={isLoading}
-              className="text-xs px-2 h-8 opacity-70 hover:opacity-100"
-            >
-              {isLoading ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <AlertCircle className="h-3 w-3 mr-1" />
-              )}
-              Testar Conexão DB
-            </Button>
-          </div>
+          {/* Ferramentas de desenvolvimento - Apenas visíveis em modo de desenvolvimento */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="bg-slate-800 rounded-md p-3 mb-4 border border-slate-700">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-slate-400">MODO DE DESENVOLVIMENTO</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={testDatabaseConnection}
+                  disabled={isLoading}
+                  className="text-xs px-2 h-7"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                  )}
+                  Testar Conexão DB
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+                <div>Status de conexão: 
+                  <span className={supabaseAvailable ? "text-green-400 ml-1" : "text-red-400 ml-1"}>
+                    {supabaseAvailable ? "Conectado" : "Desconectado"}
+                  </span>
+                </div>
+                <div>Tentativas: <span className="text-amber-400">{connectionRetries}</span></div>
+                <div>Tab ativa: <span className="text-amber-400">{activeTab}</span></div>
+                <div>Ambiente: <span className="text-amber-400">{process.env.NODE_ENV}</span></div>
+              </div>
+            </div>
+          )}
           
           {/* Alerta de verificação de email */}
           {showEmailVerification && (

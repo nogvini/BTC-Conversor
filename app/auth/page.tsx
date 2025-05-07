@@ -3,9 +3,25 @@
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AuthPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirecionamento com um pequeno delay
+    const redirectTimeout = setTimeout(() => {
+      router.push('/auth/client');
+    }, 500);
+
+    // Limpar o timeout se o componente desmontar
+    return () => clearTimeout(redirectTimeout);
+  }, [router]);
+
   return (
     <main className="min-h-screen p-4 flex items-center justify-center">
       <div className="w-full max-w-md">
@@ -23,20 +39,10 @@ export default function AuthPage() {
             
             <p className="text-sm text-center text-muted-foreground mt-4">
               Se você não for redirecionado automaticamente, 
-              <a href="/auth/login" className="underline font-medium ml-1">
+              <a href="/auth/client" className="underline font-medium ml-1">
                 clique aqui
               </a>
             </p>
-            
-            <script 
-              dangerouslySetInnerHTML={{ 
-                __html: `
-                  setTimeout(function() {
-                    window.location.href = '/auth/login';
-                  }, 500);
-                `
-              }} 
-            />
           </CardContent>
         </Card>
       </div>

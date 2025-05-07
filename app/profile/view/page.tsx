@@ -1,8 +1,25 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 // Página estática no Edge Runtime - zero código cliente durante o build
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 export default function ProfileViewPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirecionamento com um pequeno delay
+    const redirectTimeout = setTimeout(() => {
+      router.push('/profile/client');
+    }, 500);
+
+    // Limpar o timeout se o componente desmontar
+    return () => clearTimeout(redirectTimeout);
+  }, [router]);
+
   return (
     <main className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
       <div className="max-w-4xl mx-auto text-center">
@@ -11,26 +28,14 @@ export default function ProfileViewPage() {
         
         <div id="profile-container" className="mt-8">
           <p className="text-muted-foreground">Carregando perfil...</p>
+          
+          <p className="text-sm text-muted-foreground mt-4">
+            Se você não for redirecionado automaticamente, 
+            <a href="/profile/client" className="underline font-medium ml-1">
+              clique aqui
+            </a>
+          </p>
         </div>
-        
-        <script 
-          dangerouslySetInnerHTML={{ 
-            __html: `
-              document.addEventListener('DOMContentLoaded', function() {
-                // Carregar o script do perfil de forma dinâmica
-                const profileScript = document.createElement('script');
-                profileScript.src = '/js/profile-loader.js';
-                profileScript.type = 'module';
-                document.body.appendChild(profileScript);
-                
-                // Alternativa de fallback após um curto período
-                setTimeout(function() {
-                  window.location.href = '/profile/client';
-                }, 1000);
-              });
-            `
-          }} 
-        />
       </div>
     </main>
   );

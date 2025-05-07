@@ -130,6 +130,66 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 ```
 
+## Sistema de Autenticação
+
+O sistema de autenticação implementa um fluxo completo para:
+
+1. **Login de usuário**: 
+   - Verifica credenciais (email/senha)
+   - Verifica se o email está confirmado
+   - Verifica se o perfil associado existe no banco de dados
+   - Redireciona para cadastro se não existir um perfil
+
+2. **Cadastro de usuário**:
+   - Cria conta de autenticação
+   - Cria perfil no banco de dados automaticamente
+   - Envia email de verificação
+
+3. **Recuperação de sessão**:
+   - Sistema de retry para conexão com Supabase
+   - Recuperação automática de sessão
+
+### Fluxo de autenticação
+
+```
+┌─────────────┐       ┌─────────────┐      ┌─────────────┐
+│             │       │             │      │             │
+│    Login    ├──────►│  Verifica   │─────►│   Perfil    │
+│             │       │   Email     │  ┌───┤  Existe?    │
+└─────────────┘       └─────────────┘  │   └──────┬──────┘
+                                       │          │
+┌─────────────┐                        │          │ Sim
+│             │◄──────────────────────┐│          │
+│  Cadastro   │  Não (Redirecionado)  ││          ▼
+│             │                       ││   ┌─────────────┐
+└─────┬───────┘                       ││   │             │
+      │                               ││   │   Acesso    │
+      ▼                               ││   │ Autorizado  │
+┌─────────────┐                       ││   │             │
+│             │                       ││   └─────────────┘
+│   Verifica  │                       ││
+│    Email    │◄──────────────────────┘│
+│             │                        │
+└─────────────┘                        │
+                                       │
+```
+
+### Tratamento de erros
+
+O sistema implementa tratamento robusto para:
+- Falhas de conexão com o Supabase
+- Usuários autenticados sem perfil
+- Emails não verificados
+- Credenciais inválidas
+
+### Ferramentas de diagnóstico
+
+Em modo de desenvolvimento, o sistema disponibiliza ferramentas para:
+- Testar a conexão com o banco de dados
+- Visualizar status de conexão com o Supabase
+- Monitorar tentativas de reconexão
+- Ver detalhes de diagnóstico
+
 ## Deploy na Vercel
 
 Para fazer deploy deste projeto na Vercel:

@@ -21,6 +21,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
   const [isConnected, setIsConnected] = useState(!!getSupabaseClient());
   const [isAttemptingConnection, setIsAttemptingConnection] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<Error | null>(null);
   
   // Configuração de retry
   const {
@@ -46,40 +47,49 @@ export function useSupabaseRetry(config?: RetryConfig) {
     
     // Marcar que estamos tentando conectar
     setIsAttemptingConnection(true);
-    console.log('[useSupabaseRetry] Tentando conectar ao Supabase...', { attempt: retryCount + 1 });
+    console.log('[useSupabaseRetry] Tentativa #' + (retryCount + 1) + ' de conexão ao Supabase');
     
-    // Tentar criar o cliente
-    const newClient = createSupabaseClient();
-    
-    if (newClient) {
-      // Tentar fazer uma operação simples para verificar se a conexão está funcionando
-      try {
-        console.log('[useSupabaseRetry] Cliente criado, verificando sessão...');
-        const { error } = await newClient.auth.getSession();
-        
-        if (!error) {
-          // Conexão bem-sucedida
-          console.log('[useSupabaseRetry] Conexão bem-sucedida com o Supabase!');
-          setClient(newClient);
-          setIsConnected(true);
-          setIsAttemptingConnection(false);
-          setRetryCount(0);
+    try {
+      // Tentar criar o cliente
+      const newClient = createSupabaseClient();
+      
+      if (newClient) {
+        // Tentar fazer uma operação simples para verificar se a conexão está funcionando
+        try {
+          console.log('[useSupabaseRetry] Cliente criado, verificando sessão...');
+          const { error } = await newClient.auth.getSession();
           
-          // Limpar o timer se existir
-          if (retryTimerRef.current) {
-            clearTimeout(retryTimerRef.current);
-            retryTimerRef.current = null;
+          if (!error) {
+            // Conexão bem-sucedida
+            console.log('[useSupabaseRetry] Conexão bem-sucedida com o Supabase!');
+            setClient(newClient);
+            setIsConnected(true);
+            setIsAttemptingConnection(false);
+            setRetryCount(0);
+            setLastError(null);
+            
+            // Limpar o timer se existir
+            if (retryTimerRef.current) {
+              clearTimeout(retryTimerRef.current);
+              retryTimerRef.current = null;
+            }
+            
+            return;
+          } else {
+            throw error;
           }
-          
-          return;
-        } else {
-          console.error('[useSupabaseRetry] Erro ao verificar sessão:', error);
+        } catch (error) {
+          setLastError(error as Error);
+          console.error('[useSupabaseRetry] Erro ao verificar sessão do Supabase:', error);
         }
-      } catch (error) {
-        console.error('[useSupabaseRetry] Erro ao verificar sessão do Supabase:', error);
+      } else {
+        const err = new Error('Não foi possível criar o cliente Supabase.');
+        setLastError(err);
+        console.error('[useSupabaseRetry]', err.message);
       }
-    } else {
-      console.error('[useSupabaseRetry] Não foi possível criar o cliente Supabase.');
+    } catch (error) {
+      setLastError(error as Error);
+      console.error('[useSupabaseRetry] Erro durante tentativa de conexão:', error);
     }
     
     // Se chegamos aqui, a conexão falhou
@@ -94,18 +104,18 @@ export function useSupabaseRetry(config?: RetryConfig) {
       // Calcular o próximo delay
       const nextDelay = calculateDelay(newRetryCount);
       
-      console.log(`[useSupabaseRetry] Tentativa ${newRetryCount} falhou. Tentando novamente em ${nextDelay / 1000}s`);
+      console.log(`[useSupabaseRetry] Tentativa ${newRetryCount} falhou. Próxima tentativa em ${(nextDelay / 1000).toFixed(1)}s`);
       
       // Agendar a próxima tentativa
       retryTimerRef.current = setTimeout(() => {
         attemptConnection();
       }, nextDelay);
     } else {
-      console.warn(`[useSupabaseRetry] Máximo de ${maxRetries} tentativas atingido. Desistindo de conectar ao Supabase.`);
+      console.warn(`[useSupabaseRetry] Máximo de ${maxRetries} tentativas atingido. Usando tryConnectionManually() para tentar novamente.`);
     }
   };
   
-  // Efeito para limpar o timer quando o componente desmontar
+  // Limpar o timer quando o componente desmontar
   useEffect(() => {
     return () => {
       if (retryTimerRef.current) {
@@ -123,11 +133,24 @@ export function useSupabaseRetry(config?: RetryConfig) {
   
   // Função para forçar uma nova tentativa manualmente
   const retryConnection = () => {
-    if (!isConnected && !isAttemptingConnection) {
-      // Resetar contador de tentativas
-      setRetryCount(0);
-      attemptConnection();
+    if (isAttemptingConnection) {
+      console.log('[useSupabaseRetry] Já existe uma tentativa de conexão em andamento.');
+      return;
     }
+    
+    // Resetar contador de tentativas
+    setRetryCount(0);
+    setLastError(null);
+    
+    // Limpar qualquer timer pendente
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    
+    // Iniciar nova tentativa
+    console.log('[useSupabaseRetry] Iniciando nova tentativa de conexão manual.');
+    attemptConnection();
   };
   
   return {
@@ -135,6 +158,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
     isConnected,
     isAttemptingConnection,
     retryCount,
+    lastError,
     retryConnection
   };
 } 

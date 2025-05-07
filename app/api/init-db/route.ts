@@ -13,12 +13,47 @@ export async function GET() {
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
-        { success: false, message: 'Variáveis de ambiente não configuradas' },
+        { 
+          success: false, 
+          message: 'Variáveis de ambiente não configuradas', 
+          details: {
+            hasUrl: !!supabaseUrl,
+            hasServiceKey: !!supabaseServiceKey
+          } 
+        },
         { status: 500 }
       )
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const connectionStart = Date.now()
+    let dbAccessible = false
+    
+    // Teste básico de conexão
+    try {
+      const { data: connectionTest, error: connectionError } = await supabase
+        .from('information_schema.tables')
+        .select('table_schema')
+        .limit(1)
+        .maybeSingle()
+      
+      dbAccessible = !connectionError && !!connectionTest
+    } catch (connectionError) {
+      console.error('Erro na conexão básica com o banco:', connectionError)
+    }
+
+    // Se não conseguimos conectar, retornar erro
+    if (!dbAccessible) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'Não foi possível conectar ao banco de dados Supabase', 
+          responseTime: Date.now() - connectionStart,
+          environment: process.env.NODE_ENV
+        },
+        { status: 503 }
+      )
+    }
 
     // Verificar se a tabela profiles existe
     const { data: existingTables, error: tablesError } = await supabase
@@ -29,7 +64,11 @@ export async function GET() {
 
     if (tablesError) {
       return NextResponse.json(
-        { success: false, message: `Erro ao verificar tabelas: ${tablesError.message}` },
+        { 
+          success: false, 
+          message: `Erro ao verificar tabelas: ${tablesError.message}`,
+          details: tablesError
+        },
         { status: 500 }
       )
     }
@@ -40,7 +79,11 @@ export async function GET() {
 
       if (createTableError) {
         return NextResponse.json(
-          { success: false, message: `Erro ao criar tabela: ${createTableError.message}` },
+          { 
+            success: false, 
+            message: `Erro ao criar tabela: ${createTableError.message}`,
+            details: createTableError 
+          },
           { status: 500 }
         )
       }
@@ -60,24 +103,30 @@ export async function GET() {
 
     if (functionError) {
       return NextResponse.json(
-        { success: false, message: `Erro ao verificar funções: ${functionError.message}` },
+        { 
+          success: false, 
+          message: `Erro ao verificar funções: ${functionError.message}`,
+          details: functionError
+        },
         { status: 500 }
       )
     }
 
-    // Se a função não existir, podemos criá-la se necessário
-    if (!existingFunction || existingFunction.length === 0) {
-      // Verificamos apenas, mas não criamos automaticamente pelo risco de segurança
-      console.log('Função handle_new_user não encontrada - será necessário criar manualmente')
-    }
+    // Contar registros na tabela profiles para diagnóstico adicional
+    const { count: profileCount, error: countError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
 
     return NextResponse.json(
       { 
         success: true, 
-        message: 'Estrutura do banco de dados verificada',
+        message: 'Estrutura do banco de dados verificada com sucesso',
+        responseTime: Date.now() - connectionStart,
         details: {
           profiles_table: true,
-          handle_new_user_function: !!existingFunction?.length
+          handle_new_user_function: !!existingFunction?.length,
+          profile_count: countError ? 'erro ao contar' : profileCount,
+          environment: process.env.NODE_ENV
         }
       },
       { status: 200 }
@@ -87,7 +136,8 @@ export async function GET() {
     return NextResponse.json(
       { 
         success: false, 
-        message: error instanceof Error ? error.message : 'Erro desconhecido' 
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
       },
       { status: 500 }
     )

@@ -3,11 +3,12 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { type AuthSession, type UserData } from '@/lib/supabase'
 import { useSupabaseRetry } from './use-supabase-retry'
+import { useToast } from './use-toast'
 
 type AuthContextType = {
   session: AuthSession
   signUp: (email: string, password: string, name?: string) => Promise<{ error: Error | null }>
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null, profileNotFound?: boolean }>
   signOut: () => Promise<void>
   updateProfile: (data: Partial<UserData>) => Promise<{ error: Error | null }>
   retryConnection: () => void
@@ -19,6 +20,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast()
   // Usar o sistema de retry para o Supabase
   const { 
     client: supabaseClient, 
@@ -69,6 +71,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               
             if (profileError) {
               console.error('Erro ao buscar perfil:', profileError)
+              
+              // Mostrar aviso que o perfil não existe
+              if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+                toast({
+                  title: "Perfil não encontrado",
+                  description: "Seu perfil não está registrado. Por favor, registre-se para continuar.",
+                  variant: "destructive",
+                })
+                
+                // Fazer logout se não houver perfil
+                await supabaseClient.auth.signOut()
+                
+                setSession({
+                  user: null,
+                  session: null,
+                  error: null,
+                  isLoading: false,
+                })
+                return
+              }
+              
               // Continuar mesmo sem os dados do perfil
               setSession({
                 user: {
@@ -154,6 +177,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (profileError) {
                 console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
                 
+                // Mostrar aviso que o perfil não existe
+                if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+                  toast({
+                    title: "Perfil não encontrado",
+                    description: "Seu perfil não está registrado. Por favor, registre-se para continuar.",
+                    variant: "destructive",
+                  })
+                  
+                  // Fazer logout se não houver perfil
+                  await supabaseClient.auth.signOut()
+                  
+                  setSession({
+                    user: null,
+                    session: null,
+                    error: null,
+                    isLoading: false,
+                  })
+                  return
+                }
+                
                 // Continuar mesmo sem os dados do perfil
                 setSession({
                   user: {
@@ -219,7 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authUnsubscribe()
       }
     }
-  }, [supabaseClient, isConnected])
+  }, [supabaseClient, isConnected, toast])
 
   // Cadastro de usuário
   const signUp = async (email: string, password: string, name?: string) => {
@@ -253,11 +296,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ], { onConflict: 'id' })
 
           if (profileError) {
-            console.error('Erro ao criar perfil:', profileError)
+            console.error('Erro ao criar perfil durante cadastro:', profileError)
             // Não retornar erro aqui, para permitir que o usuário continue com o login
+          } else {
+            console.log('Perfil criado com sucesso durante cadastro para:', email)
           }
         } catch (profileError) {
-          console.error('Erro ao criar perfil:', profileError)
+          console.error('Erro ao criar perfil durante cadastro:', profileError)
           // Continuar mesmo sem criar o perfil
         }
       }
@@ -273,6 +318,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
+      
+      console.log('Autenticando usuário:', email);
       
       // Tentativa de login normal
       const { data, error } = await supabaseClient.auth.signInWithPassword({
@@ -302,7 +349,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Email não confirmado. Por favor, verifique seu email para ativar sua conta.')
       }
 
-      return { error: null }
+      let profileNotFound = false;
+      
+      // Verificar se o perfil do usuário existe
+      try {
+        console.log('Verificando perfil do usuário:', data.user.id);
+        
+        const { data: profileData, error: profileError } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single()
+          
+        if (profileError) {
+          console.error('Erro ao buscar perfil após login:', profileError)
+          
+          // Verificar se o erro é de perfil não encontrado
+          if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+            console.log('Perfil não encontrado para o usuário:', email, 'Redirecionando para cadastro.');
+            profileNotFound = true;
+            
+            // Fazer logout já que o usuário não tem perfil
+            await supabaseClient.auth.signOut()
+          }
+        } else {
+          console.log('Perfil encontrado com sucesso:', profileData.id);
+        }
+      } catch (profileError) {
+        console.error('Erro ao verificar perfil após login:', profileError)
+      }
+
+      return { error: null, profileNotFound }
     } catch (error) {
       console.error('Erro no login:', error)
       return { error: error as Error }
