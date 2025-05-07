@@ -1,40 +1,25 @@
-import { Suspense } from "react"
-import { Loader2 } from "lucide-react"
-import dynamic from "next/dynamic"
-
-// Constantes para melhorar a legibilidade
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-[60vh]">
-    <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
-  </div>
-)
-
-// Importação dinâmica do componente cliente (sem SSR)
-const DiagnosePageClient = dynamic(
-  () => import("@/components/diagnose-page-client").then(mod => mod.DiagnosePageClient),
-  { ssr: false }
-)
-
-// Desabilitar otimizações estáticas
-export const dynamic = "force-dynamic"
+// Abordagem mais simples sem importações dinâmicas complexas
+export const dynamic = "force-dynamic";
 
 export default function DiagnosePage() {
   return (
     <main className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
-      <Suspense fallback={<LoadingFallback />}>
-        <NoSsr>
-          <DiagnosePageClient />
-        </NoSsr>
-      </Suspense>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold mb-4">Página de Diagnóstico</h1>
+        <p>Esta página estará disponível após carregar no navegador.</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          A versão completa desta ferramenta só funciona no lado do cliente.
+        </p>
+        {/* @ts-expect-error Async Server Component */}
+        <ClientPage />
+      </div>
     </main>
-  )
+  );
 }
 
-// Componente auxiliar para garantir que o código só execute no cliente
-function NoSsr({ children }: { children: React.ReactNode }) {
-  return (
-    <div suppressHydrationWarning>
-      {typeof window === 'undefined' ? null : children}
-    </div>
-  )
-} 
+// Importar o componente cliente de forma segura
+import dynamic from "next/dynamic";
+const ClientPage = dynamic(
+  () => import("./client"),
+  { ssr: false }
+); 

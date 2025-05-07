@@ -3,22 +3,34 @@ description:
 globs: 
 alwaysApply: true
 ---
-
 BTC-Conversor/
 ├── .cursor/
 ├── .git/
 ├── app/
+│   ├── admin/
+│   │   ├── diagnose/
+│   │   │   ├── client.tsx      [NOVO]
+│   │   │   └── page.tsx        [MODIFICADO]
+│   │   └── layout.tsx          [NOVO]
 │   ├── api/
-│   │   └── bitcoin/
-│   │       ├── data/
-│   │       ├── historical/
-│   │       └── price/
+│   │   ├── bitcoin/
+│   │   │   ├── data/
+│   │   │   ├── historical/
+│   │   │   └── price/
+│   │   └── init-db/
+│   │       └── route.ts        [MODIFICADO]
+│   ├── auth/
+│   │   └── page.tsx            [MODIFICADO]
 │   ├── calculator/
 │   │   └── page.tsx
 │   ├── chart/
 │   │   └── page.tsx
 │   ├── converter/
 │   │   └── page.tsx
+│   ├── profile/
+│   │   └── page.tsx            [MODIFICADO]
+│   ├── settings/
+│   │   └── page.tsx            [MODIFICADO]
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
@@ -76,20 +88,29 @@ BTC-Conversor/
 │   │   ├── tooltip.tsx
 │   │   └── use-mobile.tsx
 │   ├── animated-counter.tsx
+│   ├── auth-form.tsx
 │   ├── bitcoin-converter.tsx
+│   ├── diagnose-page-client.tsx
 │   ├── historical-rates-chart.tsx
 │   ├── mobile-navigation.tsx
+│   ├── page-transition.tsx
 │   ├── profit-calculator.tsx
-│   └── theme-provider.tsx
+│   ├── require-auth.tsx
+│   ├── theme-provider.tsx
+│   ├── user-profile.tsx
+│   └── user-settings.tsx
 ├── data/
 ├── hooks/
 │   ├── use-active-tab.ts
+│   ├── use-auth.tsx           [MODIFICADO]
 │   ├── use-mobile.tsx
+│   ├── use-supabase-retry.ts  [MODIFICADO]
 │   └── use-toast.ts
 ├── lib/
 │   ├── api.ts
 │   ├── client-api.ts
 │   ├── server-api.ts
+│   ├── supabase.ts           [MODIFICADO]
 │   └── utils.ts
 ├── public/
 │   ├── placeholder-logo.png
@@ -102,15 +123,12 @@ BTC-Conversor/
 ├── .gitignore
 ├── components.json
 ├── next.config.mjs
-├── package.json
+├── package.json              [MODIFICADO]
 ├── pnpm-lock.yaml
 ├── postcss.config.mjs
 ├── README.md
 ├── tailwind.config.ts
-
-
-
-└── tsconfig.json 
+└── vercel.json
 
 
 Sempre se guie pela árvore do projeto acima:
