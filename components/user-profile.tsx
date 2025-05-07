@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,15 +29,25 @@ export default function UserProfile() {
   const { user, isLoading } = session
   const [isSaving, setIsSaving] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-
-  // Formulário de perfil
+  
+  // Inicializar o formulário com valores vazios
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: user?.name || "",
-      avatar_url: user?.avatar_url || "",
+      name: "",
+      avatar_url: "",
     },
   })
+  
+  // Atualizar os valores do formulário quando o usuário for carregado
+  useEffect(() => {
+    if (user) {
+      profileForm.reset({
+        name: user.name || "",
+        avatar_url: user.avatar_url || "",
+      })
+    }
+  }, [user, profileForm])
 
   // Obter as iniciais do nome do usuário para o avatar
   const getInitials = () => {
