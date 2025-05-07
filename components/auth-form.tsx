@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, AlertTriangle, RefreshCw, Mail } from "lucide-react"
+import { Loader2, AlertTriangle, RefreshCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { PageTransition } from "@/components/page-transition"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { VerifyEmailAlert } from "@/components/verify-email-alert"
 
 // Esquema de validação para login
 const loginSchema = z.object({
@@ -38,12 +39,11 @@ type RegisterFormValues = z.infer<typeof registerSchema>
 export default function AuthForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("login")
-  const { signIn, signUp, retryConnection, isConnecting, connectionRetries, resendVerificationEmail } = useAuth()
+  const { signIn, signUp, retryConnection, isConnecting, connectionRetries } = useAuth()
   const { toast } = useToast()
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const [showEmailVerification, setShowEmailVerification] = useState(false)
   const [emailForVerification, setEmailForVerification] = useState("")
-  const [isResendingEmail, setIsResendingEmail] = useState(false)
 
   // Efeito para verificar se o Supabase está disponível
   useEffect(() => {
@@ -258,57 +258,6 @@ export default function AuthForm() {
     }, 3000) // Aumentado para 3 segundos para dar tempo ao processo de reconexão
   }
 
-  // Função para reenviar email de verificação
-  const handleResendVerification = async () => {
-    if (!emailForVerification) {
-      // Se não temos um email salvo, verificar se há algum no formulário de login
-      const loginEmail = loginForm.getValues("email")
-      if (!loginEmail) {
-        toast({
-          title: "Email necessário",
-          description: "Por favor, digite seu email no formulário de login.",
-          variant: "destructive",
-        })
-        return
-      }
-      setEmailForVerification(loginEmail)
-    }
-
-    try {
-      setIsResendingEmail(true)
-      
-      const { error, sent } = await resendVerificationEmail(emailForVerification)
-      
-      if (error) {
-        throw error
-      }
-      
-      if (sent) {
-        toast({
-          title: "Email reenviado",
-          description: `Um novo link de verificação foi enviado para ${emailForVerification}`,
-          variant: "success",
-        })
-      } else {
-        toast({
-          title: "Não foi possível reenviar",
-          description: "Ocorreu um erro ao tentar reenviar o email.",
-          variant: "destructive",
-        })
-      }
-    } catch (error: any) {
-      const message = handleSupabaseError(error)
-      
-      toast({
-        title: "Erro ao reenviar email",
-        description: message,
-        variant: "destructive",
-      })
-    } finally {
-      setIsResendingEmail(false)
-    }
-  }
-
   return (
     <PageTransition>
       <Card className="w-full max-w-md mx-auto">
@@ -350,41 +299,9 @@ export default function AuthForm() {
             </Alert>
           )}
           
+          {/* Alerta de verificação de email */}
           {showEmailVerification && (
-            <Alert className="mb-6 alert-email-verification">
-              <AlertTriangle className="h-4 w-4 text-amber-300" />
-              <AlertTitle>Verificação de email pendente</AlertTitle>
-              <AlertDescription>
-                <p className="mt-1 text-sm">
-                  Enviamos um link de confirmação para seu email. 
-                  Por favor, clique nele para ativar sua conta e poder fazer login.
-                </p>
-                <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center">
-                  <p className="text-sm text-amber-300/80 mr-2">
-                    Não recebeu o email? Verifique sua caixa de spam ou
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-2 sm:mt-0 bg-amber-900/30 border-amber-700/50 hover:bg-amber-800/50"
-                    onClick={handleResendVerification}
-                    disabled={isResendingEmail}
-                  >
-                    {isResendingEmail ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        Reenviando...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="mr-2 h-3 w-3" />
-                        Reenviar email
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+            <VerifyEmailAlert email={emailForVerification || loginForm.getValues().email} />
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

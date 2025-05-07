@@ -29,6 +29,7 @@ export default function UserProfile() {
   const { user, isLoading } = session
   const [isSaving, setIsSaving] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [isFormReady, setIsFormReady] = useState(false)
   
   // Inicializar o formulário com valores vazios
   const profileForm = useForm<ProfileFormValues>({
@@ -42,10 +43,14 @@ export default function UserProfile() {
   // Atualizar os valores do formulário quando o usuário for carregado
   useEffect(() => {
     if (user) {
+      // Resetar o formulário quando obtermos os dados do usuário
       profileForm.reset({
         name: user.name || "",
         avatar_url: user.avatar_url || "",
       })
+      
+      // Marcar o formulário como pronto
+      setIsFormReady(true)
     }
   }, [user, profileForm])
 
@@ -150,53 +155,60 @@ export default function UserProfile() {
             </p>
           </div>
           
-          <Form {...profileForm}>
-            <form onSubmit={profileForm.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={profileForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome completo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Seu nome" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input 
-                  value={user.email} 
-                  disabled 
-                  className="bg-black/30"
+          {!isFormReady ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-4" />
+              <p className="text-sm text-muted-foreground">Carregando dados do perfil...</p>
+            </div>
+          ) : (
+            <Form {...profileForm}>
+              <form onSubmit={profileForm.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={profileForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome completo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Seu nome" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-xs text-muted-foreground">
-                  O email não pode ser alterado.
-                </p>
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full mt-4" 
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Salvar alterações
-                  </>
-                )}
-              </Button>
-            </form>
-          </Form>
+                
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input 
+                    value={user.email} 
+                    disabled 
+                    className="bg-black/30"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O email não pode ser alterado.
+                  </p>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full mt-4" 
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Salvar alterações
+                    </>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          )}
         </CardContent>
       </Card>
     </PageTransition>

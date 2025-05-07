@@ -61,11 +61,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data?.session) {
           try {
             // Buscar dados adicionais do usuário se necessário
-            const { data: userData } = await supabaseClient
+            const { data: userData, error: profileError } = await supabaseClient
               .from('profiles')
               .select('*')
               .eq('id', data.session.user.id)
               .single()
+              
+            if (profileError) {
+              console.error('Erro ao buscar perfil:', profileError)
+              // Continuar mesmo sem os dados do perfil
+              setSession({
+                user: {
+                  id: data.session.user.id,
+                  email: data.session.user.email || '',
+                  name: data.session.user.user_metadata?.name,
+                  created_at: data.session.user.created_at,
+                },
+                session: data.session,
+                error: null,
+                isLoading: false,
+              })
+              return
+            }
               
             setSession({
               user: {
@@ -128,11 +145,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session) {
             try {
               // Buscar dados adicionais do usuário
-              const { data: userData } = await supabaseClient
+              const { data: userData, error: profileError } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
                 .single()
+              
+              if (profileError) {
+                console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
+                
+                // Continuar mesmo sem os dados do perfil
+                setSession({
+                  user: {
+                    id: session.user.id,
+                    email: session.user.email || '',
+                    name: session.user.user_metadata?.name,
+                    created_at: session.user.created_at,
+                  },
+                  session,
+                  error: null,
+                  isLoading: false,
+                })
+                return
+              }
               
               setSession({
                 user: {
@@ -205,15 +240,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const { error: profileError } = await supabaseClient
             .from('profiles')
-            .insert([
+            .upsert([
               {
                 id: data.user.id,
-                name,
-                email
+                name: name || '',
+                email: email,
+                updated_at: new Date().toISOString()
               }
-            ])
+            ], { onConflict: 'id' })
 
-          if (profileError) throw profileError
+          if (profileError) {
+            console.error('Erro ao criar perfil:', profileError)
+            // Não retornar erro aqui, para permitir que o usuário continue com o login
+          }
         } catch (profileError) {
           console.error('Erro ao criar perfil:', profileError)
           // Continuar mesmo sem criar o perfil
