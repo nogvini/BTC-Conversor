@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { createSupabaseClient, supabase } from '@/lib/supabase';
+import { createSupabaseClient, getSupabaseClient } from '@/lib/supabase';
 
 type RetryConfig = {
   initialDelay?: number;  // Delay inicial em ms (padrão: 2000ms)
@@ -15,10 +15,10 @@ type RetryConfig = {
  */
 export function useSupabaseRetry(config?: RetryConfig) {
   // Cliente Supabase
-  const [client, setClient] = useState(supabase);
+  const [client, setClient] = useState(getSupabaseClient());
   
   // Estado de conexão
-  const [isConnected, setIsConnected] = useState(!!supabase);
+  const [isConnected, setIsConnected] = useState(!!getSupabaseClient());
   const [isAttemptingConnection, setIsAttemptingConnection] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   

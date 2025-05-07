@@ -29,8 +29,14 @@ export const createSupabaseClient = () => {
   }
 }
 
-// Cliente Supabase para uso no lado do cliente - somente inicializado no navegador
+// Cliente Supabase para uso no lado do cliente - inicialização preguiçosa
 export const supabase = isBrowser ? createSupabaseClient() : null
+
+// Função para obter o cliente Supabase de forma segura
+export function getSupabaseClient() {
+  if (!isBrowser) return null
+  return supabase || createSupabaseClient()
+}
 
 // Tipos para autenticação
 export type UserData = {
