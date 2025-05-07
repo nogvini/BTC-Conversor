@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react"
 import { AlertTriangle } from "lucide-react"
 import { RefreshCw } from "lucide-react"
 import { AlertCircle } from "lucide-react"
+import { XCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,8 @@ export default function AuthForm() {
   const [emailForVerification, setEmailForVerification] = useState("")
   const [showNoProfileDialog, setShowNoProfileDialog] = useState(false)
   const [loginEmail, setLoginEmail] = useState("")
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [registerError, setRegisterError] = useState<string | null>(null)
 
   // Efeito para verificar se o Supabase está disponível
   useEffect(() => {
@@ -119,6 +122,7 @@ export default function AuthForm() {
       email: "",
       password: "",
     },
+    mode: "onChange"
   })
 
   // Formulário de cadastro
@@ -130,10 +134,14 @@ export default function AuthForm() {
       password: "",
       confirmPassword: "",
     },
+    mode: "onChange"
   })
 
   // Função para realizar login
   const onLoginSubmit = async (data: LoginFormValues) => {
+    // Resetar mensagem de erro ao tentar novamente
+    setLoginError(null)
+    
     // Verificar primeiro se o Supabase está disponível
     if (!supabaseAvailable) {
       toast({
@@ -190,6 +198,9 @@ export default function AuthForm() {
       const message = handleSupabaseError(error)
       console.error('Erro durante login:', error)
       
+      // Definir a mensagem de erro para exibição no formulário
+      setLoginError(message)
+      
       // Verificar se o erro é relacionado a email não confirmado
       if (error?.message?.includes("Email not confirmed") || 
           error?.message?.includes("not verified") ||
@@ -217,6 +228,9 @@ export default function AuthForm() {
 
   // Função para realizar cadastro
   const onRegisterSubmit = async (data: RegisterFormValues) => {
+    // Resetar mensagem de erro ao tentar novamente
+    setRegisterError(null)
+
     // Verificar primeiro se o Supabase está disponível
     if (!supabaseAvailable) {
       toast({
@@ -252,6 +266,9 @@ export default function AuthForm() {
     } catch (error: any) {
       // Usar a função auxiliar para tratar o erro
       const message = handleSupabaseError(error)
+      
+      // Definir a mensagem de erro para exibição no formulário
+      setRegisterError(message)
       
       toast({
         title: "Erro ao fazer cadastro",
@@ -369,6 +386,12 @@ export default function AuthForm() {
     console.log('Diálogo de perfil não encontrado fechado, mudando para a aba de registro')
   }
 
+  // Função para limpar erros quando o usuário muda de aba
+  useEffect(() => {
+    setLoginError(null);
+    setRegisterError(null);
+  }, [activeTab]);
+
   return (
     <PageTransition>
       {/* AlertDialog para perfil não encontrado */}
@@ -484,6 +507,14 @@ export default function AuthForm() {
             </TabsList>
             
             <TabsContent value="login">
+              {loginError && (
+                <Alert variant="destructive" className="mb-4">
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>Erro de autenticação</AlertTitle>
+                  <AlertDescription>{loginError}</AlertDescription>
+                </Alert>
+              )}
+              
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
                   <FormField
@@ -493,7 +524,17 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="seu@email.com" type="email" {...field} />
+                          <Input 
+                            placeholder="seu@email.com" 
+                            type="email" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              // Limpar erro quando o usuário começa a corrigir o campo
+                              if (loginError) setLoginError(null);
+                            }}
+                            className={loginError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -507,12 +548,27 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Senha</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              // Limpar erro quando o usuário começa a corrigir o campo
+                              if (loginError) setLoginError(null);
+                            }}
+                            className={loginError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  
+                  <div className="text-xs text-muted-foreground mt-1 mb-2">
+                    <p>
+                      Esqueceu sua senha? Entre em contato com o administrador do sistema.
+                    </p>
+                  </div>
                   
                   <Button 
                     type="submit" 
@@ -533,6 +589,14 @@ export default function AuthForm() {
             </TabsContent>
             
             <TabsContent value="register">
+              {registerError && (
+                <Alert variant="destructive" className="mb-4">
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>Erro no cadastro</AlertTitle>
+                  <AlertDescription>{registerError}</AlertDescription>
+                </Alert>
+              )}
+              
               <Form {...registerForm}>
                 <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
                   <FormField
@@ -542,7 +606,15 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Nome</FormLabel>
                         <FormControl>
-                          <Input placeholder="Seu nome" {...field} />
+                          <Input 
+                            placeholder="Seu nome" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
+                            }}
+                            className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -556,7 +628,16 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="seu@email.com" type="email" {...field} />
+                          <Input 
+                            placeholder="seu@email.com" 
+                            type="email" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
+                            }}
+                            className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -570,7 +651,15 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Senha</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
+                            }}
+                            className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -584,12 +673,26 @@ export default function AuthForm() {
                       <FormItem>
                         <FormLabel>Confirmar Senha</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password" 
+                            {...field} 
+                            onChange={(e) => {
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
+                            }}
+                            className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  
+                  <div className="text-xs text-muted-foreground mt-1 mb-2">
+                    <p>
+                      Ao se cadastrar, você concorda com os termos de uso e política de privacidade.
+                    </p>
+                  </div>
                   
                   <Button 
                     type="submit" 
