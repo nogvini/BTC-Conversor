@@ -1,57 +1,37 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
-import dynamic from "next/dynamic";
-
-// Marcar a página como dinâmica
+// Página estática no Edge Runtime - zero código cliente durante o build
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-// Componente de carregamento
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-[60vh]">
-    <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
-  </div>
-);
-
-// Importações dinâmicas
-const RequireAuth = dynamic(
-  () => import("@/components/require-auth").then(mod => mod.RequireAuth),
-  { ssr: false }
-);
-
-const UserProfile = dynamic(
-  () => import("@/components/user-profile"),
-  { ssr: false, loading: LoadingFallback }
-);
-
-const PageTransition = dynamic(
-  () => import("@/components/page-transition").then(mod => mod.PageTransition),
-  { ssr: false }
-);
-
 export default function ProfileViewPage() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <main className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
-        <LoadingFallback />
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
-      <RequireAuth>
-        <PageTransition>
-          <UserProfile />
-        </PageTransition>
-      </RequireAuth>
+      <div className="max-w-4xl mx-auto text-center">
+        <h1 className="text-2xl font-bold mb-4">Perfil do Usuário</h1>
+        <div className="animate-pulse h-8 w-8 mx-auto rounded-full bg-primary/20"></div>
+        
+        <div id="profile-container" className="mt-8">
+          <p className="text-muted-foreground">Carregando perfil...</p>
+        </div>
+        
+        <script 
+          dangerouslySetInnerHTML={{ 
+            __html: `
+              document.addEventListener('DOMContentLoaded', function() {
+                // Carregar o script do perfil de forma dinâmica
+                const profileScript = document.createElement('script');
+                profileScript.src = '/js/profile-loader.js';
+                profileScript.type = 'module';
+                document.body.appendChild(profileScript);
+                
+                // Alternativa de fallback após um curto período
+                setTimeout(function() {
+                  window.location.href = '/profile/client';
+                }, 1000);
+              });
+            `
+          }} 
+        />
+      </div>
     </main>
   );
 } 

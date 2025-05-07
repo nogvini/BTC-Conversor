@@ -1,59 +1,41 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
-import dynamic from "next/dynamic";
-
-// Marcar a página como dinâmica para evitar caching
+// Página estática no Edge Runtime - zero código cliente durante o build
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-// Componente de carregamento
-const AuthFormLoading = () => (
-  <Card className="w-full max-w-md mx-auto">
-    <CardHeader className="space-y-2">
-      <CardTitle className="text-2xl font-bold text-center">
-        Acesso ao Raid Toolkit
-      </CardTitle>
-      <CardDescription className="text-center">
-        Carregando...
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="flex items-center justify-center p-8">
-      <Loader2 className="h-8 w-8 animate-spin" />
-    </CardContent>
-  </Card>
-);
-
-// Componente de autenticação carregado dinamicamente
-const AuthForm = dynamic(() => import("@/components/auth-form"), {
-  ssr: false,
-  loading: AuthFormLoading,
-});
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Durante a renderização do servidor, mostrar o loader estático
-  if (!mounted) {
-    return (
-      <main className="min-h-screen p-4 flex items-center justify-center">
-        <div className="w-full max-w-md">
-          <AuthFormLoading />
-        </div>
-      </main>
-    );
-  }
-
-  // No cliente, mostrar o formulário real
   return (
     <main className="min-h-screen p-4 flex items-center justify-center">
       <div className="w-full max-w-md">
-        <AuthForm />
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl font-bold text-center">
+              Acesso ao Raid Toolkit
+            </CardTitle>
+            <CardDescription className="text-center">
+              Redirecionando...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="animate-pulse h-8 w-8 rounded-full bg-primary/20"></div>
+            
+            <p className="text-sm text-center text-muted-foreground mt-4">
+              Carregando formulário de login...
+            </p>
+            
+            <script 
+              dangerouslySetInnerHTML={{ 
+                __html: `
+                  // Redirecionar para a página client
+                  setTimeout(function() {
+                    window.location.href = '/auth/client';
+                  }, 300);
+                `
+              }} 
+            />
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
