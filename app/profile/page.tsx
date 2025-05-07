@@ -6,6 +6,9 @@ import UserProfile from "@/components/user-profile"
 import { PageTransition } from "@/components/page-transition"
 import { RequireAuth } from "@/components/require-auth"
 
+// Marcar a página como dinâmica para evitar pré-renderização estática
+export const dynamic = "force-dynamic"
+
 export default function ProfilePage() {
   return (
     <RequireAuth>

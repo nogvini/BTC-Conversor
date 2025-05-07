@@ -137,11 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Configurar listener para mudanças na autenticação
-    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
+    let authUnsubscribe: (() => void) | null = null;
     
     if (isConnected && supabaseClient) {
       try {
-        authListener = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
           if (session) {
             try {
               // Buscar dados adicionais do usuário
@@ -206,14 +206,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
           }
         })
+        
+        // Salvar a função de cancelamento da inscrição
+        authUnsubscribe = subscription.unsubscribe
       } catch (error) {
         console.error('Erro ao configurar listener de autenticação:', error)
       }
     }
 
     return () => {
-      if (authListener?.subscription) {
-        authListener.subscription.unsubscribe()
+      if (authUnsubscribe) {
+        authUnsubscribe()
       }
     }
   }, [supabaseClient, isConnected])
