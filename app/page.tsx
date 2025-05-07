@@ -61,7 +61,13 @@ export default function Home() {
   // Renderização no lado do cliente
   return (
     <main className="min-h-screen">
-      <NavigationBar onRefresh={handleRefresh} loading={isRefreshing} />
+      <Suspense fallback={
+        <div className="h-16 w-full flex items-center justify-center">
+          <div className="animate-pulse h-4 w-24 bg-purple-500/20 rounded"></div>
+        </div>
+      }>
+        <NavigationBar onRefresh={handleRefresh} loading={isRefreshing} />
+      </Suspense>
       
       <div className="p-4 pt-16 md:pt-20 pb-8 md:pb-12">
         <Suspense fallback={<div>Carregando...</div>}>
