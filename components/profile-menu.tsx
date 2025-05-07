@@ -14,12 +14,34 @@ import {
 import { Loader2, LogOut, User, Settings } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 
 export function ProfileMenu() {
   const { session, signOut } = useAuth()
   const { toast } = useToast()
   const { user, isLoading } = session
   const router = useRouter()
+  const [showError, setShowError] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (isLoading) {
+      timeoutRef.current = setTimeout(() => {
+        setShowError(true)
+      }, 5000)
+    } else {
+      setShowError(false)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [isLoading])
+
+  const handleRetry = () => {
+    setShowError(false)
+    window.location.reload()
+  }
 
   const handleSignOut = async () => {
     try {
@@ -42,8 +64,21 @@ export function ProfileMenu() {
     router.push(path)
   }
 
-  // Se estiver carregando, mostrar um indicador
+  // Se estiver carregando, mostrar um indicador ou fallback
   if (isLoading) {
+    if (showError) {
+      return (
+        <div className="flex flex-col items-center space-y-2">
+          <span className="text-xs text-muted-foreground">Não foi possível conectar ao serviço de autenticação.</span>
+          <Button size="sm" variant="outline" onClick={handleRetry}>
+            Tentar novamente
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => router.push('/auth')}>
+            Ir para Login
+          </Button>
+        </div>
+      )
+    }
     return (
       <div className="flex items-center">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
