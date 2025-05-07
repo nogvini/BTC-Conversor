@@ -85,6 +85,13 @@ export default function AuthForm() {
     
     // Verificar se é erro de conexão ou cliente não disponível
     if (typeof error.message === 'string') {
+      // Erro de configuração do sistema
+      if (error.message.includes("Erro de configuração do sistema") ||
+          error.message.includes("Entre em contato com o administrador")) {
+        setSupabaseAvailable(false)
+        return "Erro de configuração do sistema. Entre em contato com o administrador."
+      }
+      
       // Erros de cliente não disponível
       if (error.message.includes("Cliente Supabase não disponível") || 
           error.message.includes("connection") || 
@@ -392,6 +399,32 @@ export default function AuthForm() {
     setRegisterError(null);
   }, [activeTab]);
 
+  // Adicionar um componente de alerta para problemas de configuração
+  function ConfigurationErrorAlert() {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertTriangle className="h-5 w-5" />
+        <AlertTitle>Configuração incorreta</AlertTitle>
+        <AlertDescription className="space-y-2">
+          <p>
+            O sistema não está configurado corretamente. As variáveis de ambiente
+            necessárias para o Supabase não estão definidas.
+          </p>
+          <div className="bg-black/30 p-3 rounded text-xs font-mono mt-2 border border-red-500/30">
+            <p>Crie um arquivo <strong>.env.local</strong> na raiz do projeto com:</p>
+            <pre className="mt-2 text-gray-300">
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+            </pre>
+          </div>
+          <p className="text-sm mt-2">
+            Após criar o arquivo, reinicie o servidor de desenvolvimento.
+          </p>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
     <PageTransition>
       {/* AlertDialog para perfil não encontrado */}
@@ -461,6 +494,11 @@ export default function AuthForm() {
               </AlertDescription>
             </Alert>
           )}
+          
+          {/* Alerta para erros de configuração do sistema */}
+          {!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? (
+            <ConfigurationErrorAlert />
+          ) : null}
           
           {/* Ferramentas de desenvolvimento - Apenas visíveis em modo de desenvolvimento */}
           {process.env.NODE_ENV === 'development' && (

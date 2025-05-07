@@ -87,7 +87,7 @@ Este projeto utiliza o Supabase para autenticação de usuários. Para configura
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
 ```
 
 3. No Supabase, habilite a autenticação por email e senha em "Authentication" > "Providers"
@@ -200,7 +200,7 @@ Para fazer deploy deste projeto na Vercel:
    - Adicione as mesmas variáveis que estão no seu arquivo `.env.local`:
      ```
      NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
-     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
      ```
    - Estas variáveis devem ser adicionadas para todos os ambientes (Production, Preview e Development)
 3. Faça o redeploy do projeto para aplicar as novas variáveis:
@@ -209,3 +209,26 @@ Para fazer deploy deste projeto na Vercel:
    - Ou faça um novo commit no seu repositório para acionar um novo deploy
 
 Importante: As variáveis de ambiente com prefixo `NEXT_PUBLIC_` são expostas no navegador do cliente. Para informações sensíveis que não devem ser expostas ao cliente, use variáveis sem esse prefixo e acesse-as apenas no lado do servidor.
+
+## Configuração de Ambiente
+
+### Variáveis de Ambiente
+
+Este projeto utiliza o Supabase como backend. Para executar localmente, você precisa configurar as seguintes variáveis de ambiente:
+
+1. Crie um arquivo `.env.local` na raiz do projeto com o seguinte conteúdo:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+```
+
+Substitua `sua_url_do_supabase` e `sua_chave_anonima` pelas suas credenciais do Supabase.
+
+2. Para ambientes de produção ou preview, estas variáveis já estão configuradas nos arquivos `.env.production` e `.env.preview`, respectivamente.
+
+**Nota importante:** A aplicação necessita destas variáveis de ambiente para funcionar corretamente, especialmente para autenticação. Se você estiver tendo problemas de login, verifique se as variáveis estão definidas corretamente.
+
+### Inicialização do Banco de Dados
+
+O sistema possui uma rota `/api/init-db` que verifica e inicializa as tabelas necessárias para o funcionamento da aplicação. Você pode acessar esta rota após iniciar o servidor de desenvolvimento para garantir que o banco de dados está configurado corretamente.

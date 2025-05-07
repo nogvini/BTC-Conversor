@@ -317,7 +317,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Login de usuário
   const signIn = async (email: string, password: string) => {
     try {
-      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
+      if (!supabaseClient) {
+        console.error('ERRO CRÍTICO: Cliente Supabase não disponível. Verifique as variáveis de ambiente.');
+        throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
+      }
+      
+      // Verificar se as variáveis de ambiente estão definidas
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.error('ERRO CRÍTICO: Variáveis de ambiente do Supabase não definidas:', {
+          url: supabaseUrl ? 'definido' : 'indefinido',
+          key: supabaseKey ? 'definido' : 'indefinido'
+        });
+        throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
+      }
       
       console.log('Autenticando usuário:', email);
       
@@ -329,6 +344,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Se houver erro, analisar causas comuns
       if (error) {
+        console.error('Erro na API do Supabase:', error);
+        
         if (error.message.includes('Invalid login') || 
             error.message.includes('Invalid email') ||
             error.message.includes('Invalid credentials')) {
