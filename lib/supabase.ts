@@ -5,6 +5,13 @@ import { createClient } from '@supabase/supabase-js'
 // Verificar se estamos no navegador
 const isBrowser = typeof window !== 'undefined'
 
+// Log para debugging
+console.log('Ambiente Supabase:', { 
+  isBrowser,
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'definido' : 'indefinido',
+  supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'definido' : 'indefinido',
+});
+
 // Criando um cliente Supabase para uso no lado do cliente
 export const createSupabaseClient = () => {
   // Só criar o cliente no navegador
@@ -17,7 +24,10 @@ export const createSupabaseClient = () => {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Variáveis de ambiente do Supabase não estão definidas', { supabaseUrl, supabaseKey })
+    console.error('Variáveis de ambiente do Supabase não estão definidas', { 
+      url: supabaseUrl || 'indefinido',
+      key: supabaseKey ? 'presente mas não exibida por segurança' : 'indefinido' 
+    })
     if (typeof window !== 'undefined') {
       alert('Erro crítico: Variáveis de ambiente do Supabase não estão definidas. Contate o suporte.')
     }

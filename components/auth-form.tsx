@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react"
+import { Loader2, AlertTriangle, RefreshCw, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -258,6 +258,47 @@ export default function AuthForm() {
     }, 3000) // Aumentado para 3 segundos para dar tempo ao processo de reconexão
   }
 
+  // Função para testar a conexão com o banco de dados
+  const testDatabaseConnection = async () => {
+    try {
+      setIsLoading(true);
+      toast({
+        title: "Verificando banco de dados",
+        description: "Tentando conectar ao Supabase...",
+        variant: "default",
+      });
+      
+      // Chamar a API de inicialização do banco
+      const res = await fetch('/api/init-db');
+      const data = await res.json();
+      
+      console.log('Resposta da API init-db:', data);
+      
+      if (data.success) {
+        toast({
+          title: "Conexão bem-sucedida",
+          description: data.message,
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "Erro na conexão",
+          description: data.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao testar conexão:', error);
+      toast({
+        title: "Falha na conexão",
+        description: "Não foi possível se comunicar com a API. Verifique o console para mais detalhes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <PageTransition>
       <Card className="w-full max-w-md mx-auto">
@@ -298,6 +339,24 @@ export default function AuthForm() {
               </AlertDescription>
             </Alert>
           )}
+          
+          {/* Botão de diagnóstico para desenvolvedores */}
+          <div className="flex justify-end">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={testDatabaseConnection}
+              disabled={isLoading}
+              className="text-xs px-2 h-8 opacity-70 hover:opacity-100"
+            >
+              {isLoading ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <AlertCircle className="h-3 w-3 mr-1" />
+              )}
+              Testar Conexão DB
+            </Button>
+          </div>
           
           {/* Alerta de verificação de email */}
           {showEmailVerification && (

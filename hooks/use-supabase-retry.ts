@@ -46,6 +46,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
     
     // Marcar que estamos tentando conectar
     setIsAttemptingConnection(true);
+    console.log('[useSupabaseRetry] Tentando conectar ao Supabase...', { attempt: retryCount + 1 });
     
     // Tentar criar o cliente
     const newClient = createSupabaseClient();
@@ -53,10 +54,12 @@ export function useSupabaseRetry(config?: RetryConfig) {
     if (newClient) {
       // Tentar fazer uma operação simples para verificar se a conexão está funcionando
       try {
+        console.log('[useSupabaseRetry] Cliente criado, verificando sessão...');
         const { error } = await newClient.auth.getSession();
         
         if (!error) {
           // Conexão bem-sucedida
+          console.log('[useSupabaseRetry] Conexão bem-sucedida com o Supabase!');
           setClient(newClient);
           setIsConnected(true);
           setIsAttemptingConnection(false);
@@ -69,10 +72,14 @@ export function useSupabaseRetry(config?: RetryConfig) {
           }
           
           return;
+        } else {
+          console.error('[useSupabaseRetry] Erro ao verificar sessão:', error);
         }
       } catch (error) {
-        console.error('Erro ao verificar sessão do Supabase:', error);
+        console.error('[useSupabaseRetry] Erro ao verificar sessão do Supabase:', error);
       }
+    } else {
+      console.error('[useSupabaseRetry] Não foi possível criar o cliente Supabase.');
     }
     
     // Se chegamos aqui, a conexão falhou
@@ -87,14 +94,14 @@ export function useSupabaseRetry(config?: RetryConfig) {
       // Calcular o próximo delay
       const nextDelay = calculateDelay(newRetryCount);
       
-      console.log(`Tentativa ${newRetryCount} falhou. Tentando novamente em ${nextDelay / 1000}s`);
+      console.log(`[useSupabaseRetry] Tentativa ${newRetryCount} falhou. Tentando novamente em ${nextDelay / 1000}s`);
       
       // Agendar a próxima tentativa
       retryTimerRef.current = setTimeout(() => {
         attemptConnection();
       }, nextDelay);
     } else {
-      console.warn(`Máximo de ${maxRetries} tentativas atingido. Desistindo de conectar ao Supabase.`);
+      console.warn(`[useSupabaseRetry] Máximo de ${maxRetries} tentativas atingido. Desistindo de conectar ao Supabase.`);
     }
   };
   
