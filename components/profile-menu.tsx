@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Loader2, LogOut, User, Settings } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 export function ProfileMenu() {
   const { session, signOut } = useAuth()
   const { toast } = useToast()
   const { user, isLoading } = session
+  const router = useRouter()
 
   const handleSignOut = async () => {
     try {
@@ -34,6 +36,10 @@ export function ProfileMenu() {
         variant: "destructive",
       })
     }
+  }
+  
+  const handleNavigate = (path: string) => {
+    router.push(path)
   }
 
   // Se estiver carregando, mostrar um indicador
@@ -80,11 +86,11 @@ export function ProfileMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleNavigate("/profile")}>
           <User className="mr-2 h-4 w-4" />
           <span>Meu Perfil</span>
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleNavigate("/settings")}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Configurações</span>
         </DropdownMenuItem>
