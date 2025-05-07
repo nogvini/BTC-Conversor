@@ -13,6 +13,7 @@ type AuthContextType = {
   retryConnection: () => void
   isConnecting: boolean
   connectionRetries: number
+  resendVerificationEmail: (email: string) => Promise<{ error: Error | null, sent: boolean }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -231,12 +232,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
       
-      const { error } = await supabaseClient.auth.signInWithPassword({
+      // Tentativa de login normal
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
       })
 
-      if (error) throw error
+      // Se houver erro, analisar causas comuns
+      if (error) {
+        if (error.message.includes('Invalid login') || 
+            error.message.includes('Invalid email') ||
+            error.message.includes('Invalid credentials')) {
+          throw new Error('Email ou senha incorretos.')
+        }
+        
+        if (error.message.includes('Email not confirmed') ||
+            error.message.includes('not verified')) {
+          throw new Error('Email não confirmado. Por favor, verifique seu email para ativar sua conta.')
+        }
+
+        // Erro genérico
+        throw error
+      }
+      
+      // Verificar se o usuário tem email confirmado
+      if (data?.user && !data.user.email_confirmed_at) {
+        throw new Error('Email não confirmado. Por favor, verifique seu email para ativar sua conta.')
+      }
 
       return { error: null }
     } catch (error) {
@@ -282,6 +304,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Resend verification email
+  const resendVerificationEmail = async (email: string) => {
+    try {
+      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
+      
+      // O método correto na API atual do Supabase
+      const { error } = await supabaseClient.auth.resend({
+        type: 'signup',
+        email: email
+      })
+
+      if (error) throw error
+
+      return { error: null, sent: true }
+    } catch (error) {
+      console.error('Erro ao reenviar email de verificação:', error)
+      return { error: error as Error, sent: false }
+    }
+  }
+
   return (
     <AuthContext.Provider value={{ 
       session, 
@@ -291,7 +333,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       retryConnection,
       isConnecting: isAttemptingConnection,
-      connectionRetries: retryCount
+      connectionRetries: retryCount,
+      resendVerificationEmail
     }}>
       {children}
     </AuthContext.Provider>

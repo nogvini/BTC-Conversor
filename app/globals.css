@@ -217,6 +217,21 @@
   .alert-supabase-error {
     @apply bg-red-900/20 border-red-700/50 text-red-200 backdrop-blur-sm;
   }
+  
+  /* Estilo para alerta de verificação de email */
+  .alert-email-verification {
+    @apply bg-amber-900/20 border-amber-600/40 text-amber-200 backdrop-blur-sm;
+    animation: pulse-border 2s infinite alternate;
+  }
+  
+  @keyframes pulse-border {
+    0% {
+      border-color: rgba(217, 119, 6, 0.2);
+    }
+    100% {
+      border-color: rgba(217, 119, 6, 0.5);
+    }
+  }
 
   /* Animações de transição de página */
   .page-transition-enter {
