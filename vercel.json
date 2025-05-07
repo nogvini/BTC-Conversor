@@ -3,9 +3,6 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "images": {
-    "domains": ["*"]
-  },
   "headers": [
     {
       "source": "/(.*)",
