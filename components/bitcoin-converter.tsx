@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
@@ -531,8 +530,6 @@ export default function BitcoinConverter() {
           {renderTabContent()}
         </div>
       </div>
-
-      <Toaster />
     </ResponsiveContainer>
   )
 }
