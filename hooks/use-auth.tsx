@@ -234,26 +234,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isConnected && supabaseClient) {
       try {
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
-          console.log('Evento de autenticação:', event)
+          console.log('Evento de autenticação:', event, 'Timestamp:', new Date().toISOString());
           
           // Persistir a sessão no localStorage quando o usuário fizer login
           if (event === 'SIGNED_IN' && session) {
-            localStorage.setItem('supabase_session', JSON.stringify(session))
-          }
-          
-          // Remover a sessão do localStorage quando o usuário fizer logout
-          if (event === 'SIGNED_OUT') {
-            localStorage.removeItem('supabase_session')
-          }
-          
-          if (session) {
+            console.log('Login bem-sucedido! Salvando sessão e iniciando carregamento de perfil...');
+            localStorage.setItem('supabase_session', JSON.stringify(session));
+            
+            // Definir um timeout para evitar espera infinita
+            const profileTimeout = setTimeout(() => {
+              console.log('ALERTA: Timeout ao carregar perfil após autenticação');
+              
+              // Se ainda estiver carregando após o timeout, atualizar o estado mesmo sem perfil
+              setSession({
+                user: {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: session.user.user_metadata?.name,
+                  created_at: session.user.created_at,
+                },
+                session,
+                error: null,
+                isLoading: false,
+              });
+            }, 5000); // 5 segundos de timeout
+            
             try {
               // Buscar dados adicionais do usuário
               const { data: userData, error: profileError } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
-                .single()
+                .single();
+              
+              // Limpar o timeout porque recebemos uma resposta
+              clearTimeout(profileTimeout);
               
               if (profileError) {
                 console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
@@ -332,24 +347,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   session,
                   error: null,
                   isLoading: false,
-                })
-                return
+                });
+              } else {
+                // Perfil encontrado com sucesso
+                setSession({
+                  user: {
+                    id: session.user.id,
+                    email: session.user.email || '',
+                    name: userData?.name || session.user.user_metadata?.name,
+                    avatar_url: userData?.avatar_url,
+                    created_at: session.user.created_at,
+                  },
+                  session,
+                  error: null,
+                  isLoading: false,
+                });
+                console.log('Perfil carregado com sucesso, autenticação completa.');
               }
-              
-              setSession({
-                user: {
-                  id: session.user.id,
-                  email: session.user.email || '',
-                  name: userData?.name || session.user.user_metadata?.name,
-                  avatar_url: userData?.avatar_url,
-                  created_at: session.user.created_at,
-                },
-                session,
-                error: null,
-                isLoading: false,
-              })
             } catch (profileError) {
-              console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
+              // Limpar o timeout se houver exceção
+              clearTimeout(profileTimeout);
+              
+              console.error('Erro ao buscar perfil durante mudança de estado:', profileError);
               
               // Continuar mesmo sem os dados do perfil
               setSession({
@@ -362,15 +381,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 session,
                 error: null,
                 isLoading: false,
-              })
+              });
             }
-          } else {
+          }
+          // Se houver uma sessão mas não é um evento de login (já estava logado)
+          else if (session && event !== 'SIGNED_IN') {
+            console.log('Sessão ativa detectada (usuário já logado)');
+            
+            // Verificar se precisamos atualizar a sessão armazenada
+            setSession(prevSession => {
+              // Se já temos a mesma sessão, não fazer nada
+              if (prevSession.session?.access_token === session.access_token) {
+                console.log('Sessão já atualizada, mantendo estado atual');
+                return prevSession;
+              }
+              
+              console.log('Atualizando estado com sessão ativa');
+              return {
+                user: {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  name: session.user.user_metadata?.name,
+                  created_at: session.user.created_at,
+                },
+                session,
+                error: null,
+                isLoading: false,
+              };
+            });
+          }
+          // Quando não há sessão e não é um evento de logout (sessão expirada ou inválida)
+          else if (!session && event !== 'SIGNED_OUT') {
+            console.log('Evento sem sessão ativa detectado:', event);
             setSession({
               user: null,
               session: null,
               error: null,
               isLoading: false,
-            })
+            });
+          }
+          
+          // Remover a sessão do localStorage quando o usuário fizer logout
+          if (event === 'SIGNED_OUT') {
+            console.log('Usuário deslogado, removendo sessão do localStorage');
+            localStorage.removeItem('supabase_session');
+            
+            // Atualizar o estado após logout
+            setSession({
+              user: null,
+              session: null,
+              error: null,
+              isLoading: false,
+            });
+            
+            // Redirecionar não é necessário aqui pois é tratado nos componentes
+          }
+          
+          // Tratar outros eventos de autenticação
+          if (event === 'USER_UPDATED') {
+            console.log('Dados do usuário foram atualizados');
+            // Atualizar o estado com os novos dados se necessário
           }
         })
         

@@ -210,7 +210,7 @@ export default function AuthForm() {
             variant: "destructive",
           })
         }
-      }, 15000) // 15 segundos de timeout
+      }, 10000) // 10 segundos de timeout
       
       const { error, profileNotFound } = await signIn(data.email, data.password)
       
@@ -245,11 +245,27 @@ export default function AuthForm() {
         variant: "success",
       })
       
+      // Monitorar progresso pós-login para detectar problemas
+      let loginComplete = false;
+      const postLoginTimeout = setTimeout(() => {
+        if (!loginComplete) {
+          console.error('ALERTA: Redirecionamento pós-login parece estar travado');
+          // Forçar redirecionamento manualmente
+          window.location.href = '/';
+        }
+      }, 3000); // 3 segundos
+      
       // Redirecionar para a página inicial após login bem-sucedido
       console.log('Redirecionando para a página inicial...')
-      setTimeout(() => {
+      try {
+        loginComplete = true;
+        clearTimeout(postLoginTimeout);
         router.push('/');
-      }, 500);
+      } catch (routerError) {
+        console.error('Erro ao redirecionar:', routerError);
+        // Fallback para redirecionamento via window location
+        window.location.href = '/';
+      }
       
     } catch (error: any) {
       // Usar a função auxiliar para tratar o erro
