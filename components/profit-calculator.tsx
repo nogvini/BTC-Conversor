@@ -20,7 +20,8 @@ import {
   ArrowRight,
   Trash,
   AlertTriangle,
-  Check
+  Check,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1157,8 +1158,23 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Componente para diálogo de criação de relatório
   const ReportDialog = () => (
-    <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-      <DialogContent className="bg-black border-purple-700/50 text-white max-w-md">
+    <Dialog open={showReportDialog} onOpenChange={(open) => {
+      // Só permitir que o diálogo feche através do botão Cancelar ou após criar o relatório
+      if (!open) {
+        setShowReportDialog(false);
+      }
+    }}>
+      <DialogContent 
+        className="bg-black border-purple-700/50 text-white max-w-md"
+        onPointerDownOutside={(e) => {
+          // Prevenir que o diálogo feche quando clicar fora
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevenir que o diálogo feche quando pressionar ESC
+          e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Criar Novo Relatório</DialogTitle>
           <DialogDescription className="text-gray-400">
