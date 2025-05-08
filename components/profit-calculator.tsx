@@ -405,37 +405,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Função para adicionar novo relatório
   const addReport = () => {
-    if (!reportName.trim()) {
-      toast({
-        title: "Nome inválido",
-        description: "Por favor, insira um nome válido para o relatório.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const newReport: Report = {
-      id: uuidv4(),
-      name: reportName.trim(),
-      description: reportDescription.trim() || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    setReports(prev => [...prev, newReport]);
-    setActiveReportId(newReport.id);
-    setSelectedReportIds(prev => [...prev, newReport.id]);
-    
-    // Limpar campos do formulário
-    setReportName("");
-    setReportDescription("");
-    setShowReportDialog(false);
-    
-    toast({
-      title: "Relatório criado",
-      description: `O relatório "${newReport.name}" foi criado com sucesso.`,
-      variant: "success",
-    });
+    // Abrir o diálogo de criação de relatório
+    setShowReportDialog(true);
   };
 
   // Função para excluir relatório
@@ -1205,82 +1176,128 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Componente para diálogo de criação de relatório
-  const ReportDialog = () => (
-    <Dialog open={showReportDialog} onOpenChange={(open) => {
-      // Se o usuário está tentando fechar o diálogo (open=false),
-      // permitimos que ele feche apenas através da ação explícita
-      if (!open) {
-        setShowReportDialog(false);
+  const ReportDialog = () => {
+    // Estado local para não interferir com o estado global durante a edição
+    const [localReportName, setLocalReportName] = useState("");
+    const [localReportDescription, setLocalReportDescription] = useState("");
+    
+    // Atualizar valores locais quando o diálogo abrir
+    useEffect(() => {
+      if (showReportDialog) {
+        setLocalReportName(reportName);
+        setLocalReportDescription(reportDescription);
       }
-    }}>
-      <DialogContent 
-        className="bg-black/95 border-purple-800/60 text-white max-w-md"
-        onPointerDownOutside={(e) => {
-          // Prevenir que o diálogo feche quando clicar fora
-          e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          // Prevenir que o diálogo feche quando pressionar ESC
-          e.preventDefault();
+    }, [showReportDialog]);
+    
+    // Função para fechar o diálogo
+    const handleClose = () => {
+      setShowReportDialog(false);
+    };
+    
+    // Função para criar relatório com valores locais
+    const handleAddReport = () => {
+      if (!localReportName.trim()) {
+        toast({
+          title: "Nome inválido",
+          description: "Por favor, insira um nome válido para o relatório.",
+          variant: "destructive",
+        });
+        return;
+      }
+  
+      const newReport: Report = {
+        id: uuidv4(),
+        name: localReportName.trim(),
+        description: localReportDescription.trim() || undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+  
+      setReports(prev => [...prev, newReport]);
+      setActiveReportId(newReport.id);
+      setSelectedReportIds(prev => [...prev, newReport.id]);
+      
+      // Limpar todos os campos
+      setReportName("");
+      setReportDescription("");
+      setLocalReportName("");
+      setLocalReportDescription("");
+      
+      // Fechar o diálogo
+      setShowReportDialog(false);
+      
+      toast({
+        title: "Relatório criado",
+        description: `O relatório "${newReport.name}" foi criado com sucesso.`,
+        variant: "success",
+      });
+    };
+    
+    return (
+      <Dialog 
+        open={showReportDialog} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // Apenas permitir fechar manualmente, não por eventos externos
+            setShowReportDialog(false);
+            
+            // Limpar os dados locais
+            setLocalReportName("");
+            setLocalReportDescription("");
+          }
         }}
       >
-        <DialogHeader>
-          <DialogTitle>Criar Novo Relatório</DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Crie um novo relatório para registrar operações em uma conta ou exchange específica.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="report-name">Nome do Relatório</Label>
-            <Input
-              id="report-name"
-              value={reportName}
-              onChange={(e) => {
-                e.stopPropagation(); // Evitar propagação do evento
-                setReportName(e.target.value);
-              }}
-              placeholder="Ex: Conta Pessoal, Binance, etc."
-              className="bg-black/30 border-purple-700/50"
-            />
+        <DialogContent 
+          className="bg-black/95 border-purple-800/60 text-white max-w-md"
+          onInteractOutside={(e) => {
+            // Impedir qualquer interação de fora fechar o diálogo
+            e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Criar Novo Relatório</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Crie um novo relatório para registrar operações em uma conta ou exchange específica.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="report-name">Nome do Relatório</Label>
+              <Input
+                id="report-name"
+                value={localReportName}
+                onChange={(e) => setLocalReportName(e.target.value)}
+                placeholder="Ex: Conta Pessoal, Binance, etc."
+                className="bg-black/30 border-purple-700/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-description">Descrição (opcional)</Label>
+              <Textarea
+                id="report-description"
+                value={localReportDescription}
+                onChange={(e) => setLocalReportDescription(e.target.value)}
+                placeholder="Descrição do relatório"
+                className="bg-black/30 border-purple-700/50 min-h-[80px]"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="report-description">Descrição (opcional)</Label>
-            <Textarea
-              id="report-description"
-              value={reportDescription}
-              onChange={(e) => {
-                e.stopPropagation(); // Evitar propagação do evento
-                setReportDescription(e.target.value);
-              }}
-              placeholder="Descrição do relatório"
-              className="bg-black/30 border-purple-700/50 min-h-[80px]"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={(e) => {
-              e.stopPropagation(); // Evitar propagação do evento
-              setShowReportDialog(false);
-            }}
-            className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          >
-            Cancelar
-          </Button>
-          <Button 
-            onClick={(e) => {
-              e.stopPropagation(); // Evitar propagação do evento
-              addReport();
-            }}
-          >
-            Criar Relatório
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={handleClose}
+              className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleAddReport}>
+              Criar Relatório
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
   
   // Componente para diálogo de seleção de relatório para importação
   const ImportReportDialog = () => {

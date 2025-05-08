@@ -21,7 +21,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
-  const { client: supabaseClient, isConnected, retryConnection, isAttemptingConnection, retryCount } = useSupabaseRetry()
+  const { 
+    client: supabaseClient, 
+    isConnected, 
+    retryConnection, 
+    isAttemptingConnection, 
+    retryCount,
+    broadcastChange 
+  } = useSupabaseRetry()
   
   // Estado local de sessão
   const [session, setSession] = useState<AuthSession>({
@@ -248,83 +255,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchSession()
     }
 
-    // Configurar listener para mudanças na autenticação
-    let authUnsubscribe: (() => void) | null = null;
-    
-    if (supabaseClient) {
-      try {
-        console.log('Configurando listener para mudanças na autenticação')
-        
-        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
-          console.log('Evento de autenticação:', event, 'Timestamp:', new Date().toISOString());
-          setLastAuthEvent(event)
+    // Configurar listener para mudanças na sessão de autenticação
+    if (isConnected && supabaseClient) {
+      const {
+        data: { subscription },
+      } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log(`Evento de autenticação recebido: ${event}`)
+        setLastAuthEvent(`evento ${event}`)
+
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          // Se estiver autenticado, carregar os dados do perfil
+          setSession(prev => ({ ...prev, isLoading: true }))
           
-          // Log para debug
           if (session) {
-            console.log('Novo estado de autenticação:', { 
-              event, 
-              userId: session.user.id,
-              email: session.user.email
-            })
-          } else {
-            console.log('Novo estado de autenticação: sessão nula')
-          }
-          
-          // Definir timeout para não ficar esperando infinitamente
-          const profileTimeout = setTimeout(() => {
-            console.error('Timeout ao buscar perfil após mudança de estado de autenticação')
-            
-            if (session) {
-              // Continuar mesmo sem os dados do perfil
-              setSession({
-                user: {
-                  id: session.user.id,
-                  email: session.user.email || '',
-                  name: session.user.user_metadata?.name,
-                  created_at: session.user.created_at,
-                },
-                session,
-                error: null,
-                isLoading: false,
-              })
-            }
-          }, 5000) // 5 segundos
-          
-          // Quando o usuário faz login
-          if (event === 'SIGNED_IN' && session) {
             try {
-              setSession(prev => ({ ...prev, isLoading: true }))
-              
-              // Persistir a sessão no localStorage para recuperação futura
+              // Salvar sessão no localStorage para recuperação futura
               if (typeof window !== 'undefined') {
                 localStorage.setItem('supabase_session', JSON.stringify(session))
-                console.log('Sessão salva no localStorage após login')
               }
               
-              // Buscar dados do perfil na tabela profiles
+              // Enviar evento de autenticação para outras abas
+              if (broadcastChange) {
+                broadcastChange('auth_state_changed', { event, sessionExists: !!session });
+              }
+              
+              // Buscar perfil do usuário
               const { data: userData, error: profileError } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
                 .single()
-              
-              console.log('Busca de perfil após login:', {
-                sucesso: !profileError,
-                perfilEncontrado: !!userData,
-                userId: session.user.id
-              })
-              
-              // Limpar o timeout pois a operação foi concluída
-              clearTimeout(profileTimeout)
-              
-              if (profileError) {
-                console.error('Erro ao buscar perfil após login:', profileError)
                 
-                // Verificar se é erro de perfil não encontrado
+              if (profileError) {
+                console.error('Erro ao buscar perfil após autenticação:', profileError)
+                
+                // Verificar se o perfil não existe
                 if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-                  console.log('Perfil não encontrado, tentando criar automaticamente...')
+                  console.log('Perfil não encontrado após autenticação, tentando criar...')
                   
-                  // Tentar criar o perfil automaticamente
+                  // Tentar criar o perfil para o usuário logado
                   const { error: insertError } = await supabaseClient
                     .from('profiles')
                     .insert([{
@@ -334,21 +303,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }])
                   
                   if (insertError) {
-                    console.error('Erro ao criar perfil automaticamente:', insertError)
-                    // Continuar mesmo sem perfil
-                    setSession({
-                      user: {
-                        id: session.user.id,
-                        email: session.user.email || '',
-                        name: session.user.user_metadata?.name,
-                        created_at: session.user.created_at,
-                      },
-                      session,
-                      error: null,
-                      isLoading: false,
-                    })
+                    console.error('Erro ao criar perfil após autenticação:', insertError)
                   } else {
-                    console.log('Perfil criado com sucesso após login')
+                    console.log('Perfil criado com sucesso após autenticação')
                     
                     // Buscar o perfil recém-criado
                     const { data: newUserData } = await supabaseClient
@@ -370,400 +327,472 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         error: null,
                         isLoading: false,
                       })
-                    } else {
-                      // Se não conseguir buscar o perfil recém-criado
-                      setSession({
-                        user: {
-                          id: session.user.id,
-                          email: session.user.email || '',
-                          name: session.user.user_metadata?.name,
-                          created_at: session.user.created_at,
-                        },
-                        session,
-                        error: null,
-                        isLoading: false,
-                      })
+                      return
                     }
                   }
-                } else {
-                  // Se for outro tipo de erro
-                  setSession({
-                    user: {
-                      id: session.user.id,
-                      email: session.user.email || '',
-                      name: session.user.user_metadata?.name,
-                      created_at: session.user.created_at,
-                    },
-                    session,
-                    error: null,
-                    isLoading: false,
-                  })
                 }
+                
+                // Continuar mesmo sem dados de perfil completos
+                setSession({
+                  user: {
+                    id: session.user.id,
+                    email: session.user.email || '',
+                    name: session.user.user_metadata?.name,
+                    created_at: session.user.created_at,
+                  },
+                  session,
+                  error: null,
+                  isLoading: false,
+                })
               } else {
                 // Perfil encontrado com sucesso
                 setSession({
                   user: {
                     id: session.user.id,
                     email: session.user.email || '',
-                    name: userData?.name || session.user.user_metadata?.name,
-                    avatar_url: userData?.avatar_url,
+                    name: userData.name || session.user.user_metadata?.name,
+                    avatar_url: userData.avatar_url,
                     created_at: session.user.created_at,
                   },
                   session,
                   error: null,
                   isLoading: false,
-                });
-                console.log('Perfil carregado com sucesso, autenticação completa.');
+                })
               }
-            } catch (profileError) {
-              // Limpar o timeout se houver exceção
-              clearTimeout(profileTimeout);
-              
-              console.error('Erro ao buscar perfil durante mudança de estado:', profileError);
-              
-              // Continuar mesmo sem os dados do perfil
+            } catch (err) {
+              console.error('Erro ao processar eventos de autenticação:', err)
               setSession({
-                user: {
+                user: session ? {
                   id: session.user.id,
                   email: session.user.email || '',
                   name: session.user.user_metadata?.name,
                   created_at: session.user.created_at,
-                },
+                } : null,
                 session,
+                error: null,
+                isLoading: false,
+              })
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          // Limpar a sessão salva no localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('supabase_session')
+          }
+          
+          // Enviar evento de logout para outras abas
+          if (broadcastChange) {
+            broadcastChange('auth_state_changed', { event, signedOut: true });
+          }
+          
+          setSession({
+            user: null,
+            session: null,
+            error: null,
+            isLoading: false,
+          })
+        }
+      })
+
+      // Limpar subscription ao desmontar o componente
+      return () => {
+        subscription.unsubscribe()
+      }
+    }
+  }, [supabaseClient, isConnected, broadcastChange])
+  
+  // Efeito para escutar eventos de sincronização entre abas
+  useEffect(() => {
+    // Verificar se o cliente tem a funcionalidade de broadcasting
+    const hasCustomClient = !!(supabaseClient && isConnected && typeof window !== 'undefined');
+    
+    // Função para processar eventos de autenticação recebidos de outras abas
+    const processAuthEvents = async (event: MessageEvent) => {
+      if (event.data.type === 'supabase_data_change' && event.data.changeType === 'auth_state_changed') {
+        console.log('Recebido evento de autenticação de outra aba:', event.data);
+        
+        // Se recebeu evento de logout, atualizar o estado local
+        if (event.data.data.signedOut) {
+          setSession({
+            user: null,
+            session: null, 
+            error: null,
+            isLoading: false
+          });
+          return;
+        }
+        
+        // Se recebeu evento de login, recarregar a sessão
+        if (event.data.data.event === 'SIGNED_IN' && hasCustomClient) {
+          // Recarregar dados da sessão
+          try {
+            const { data, error } = await supabaseClient.auth.getSession();
+            if (!error && data.session) {
+              // Recarregar perfil
+              const { data: userData } = await supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
+                
+              setSession({
+                user: {
+                  id: data.session.user.id,
+                  email: data.session.user.email || '',
+                  name: userData?.name || data.session.user.user_metadata?.name,
+                  avatar_url: userData?.avatar_url,
+                  created_at: data.session.user.created_at,
+                },
+                session: data.session,
                 error: null,
                 isLoading: false,
               });
             }
+          } catch (error) {
+            console.error('Erro ao sincronizar sessão entre abas:', error);
           }
-          // Se houver uma sessão mas não é um evento de login (já estava logado)
-          else if (session && event !== 'SIGNED_IN') {
-            console.log('Sessão ativa detectada:', event);
-            
-            // Limpar o timeout pois não vamos precisar buscar o perfil agora
-            clearTimeout(profileTimeout);
-            
-            // Atualizar o estado da sessão
-            setSession(prev => {
-              // Se já temos os dados do usuário, manter eles
-              if (prev.user) {
-                return {
-                  ...prev,
-                  session,
-                  error: null,
-                  isLoading: false
-                };
-              }
-              
-              // Caso contrário, usar apenas os dados básicos do usuário
-              return {
-                user: {
-                  id: session.user.id,
-                  email: session.user.email || '',
-                  name: session.user.user_metadata?.name,
-                  created_at: session.user.created_at,
-                },
-                session,
-                error: null,
-                isLoading: false,
-              };
-            });
-          }
-          // Quando o usuário faz logout
-          else if (event === 'SIGNED_OUT') {
-            console.log('Usuário desconectado');
-            
-            // Limpar o timeout pois não vamos buscar o perfil
-            clearTimeout(profileTimeout);
-            
-            // Limpar a sessão do localStorage
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('supabase_session');
-            }
-            
-            // Limpar o estado da sessão
-            setSession({
-              user: null,
-              session: null,
-              error: null,
-              isLoading: false,
-            });
-          }
-        });
-        
-        authUnsubscribe = () => {
-          subscription.unsubscribe();
-        };
-      } catch (error) {
-        console.error('Erro ao configurar listener de autenticação:', error);
-      }
-    }
-    
-    // Limpar a inscrição no evento de autenticação ao desmontar
-    return () => {
-      if (authUnsubscribe) {
-        console.log('Removendo listener de autenticação');
-        authUnsubscribe();
+        }
       }
     };
-  }, [supabaseClient, isConnected, toast]);
+    
+    // Configurar escuta para eventos de comunicação entre abas
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', processAuthEvents);
+      
+      return () => {
+        window.removeEventListener('message', processAuthEvents);
+      };
+    }
+  }, [supabaseClient, isConnected]);
 
-  // Cadastro de usuário
+  // Método para cadastro de usuário
   const signUp = async (email: string, password: string, name?: string) => {
     try {
-      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
-      
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name
-          }
-        }
-      })
-
-      if (error) throw error
-
-      // Se o cadastro for bem-sucedido, criar perfil do usuário
-      if (data.user) {
-        try {
-          const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .upsert([
-              {
-                id: data.user.id,
-                name: name || '',
-                email: email,
-                updated_at: new Date().toISOString()
-              }
-            ], { onConflict: 'id' })
-
-          if (profileError) {
-            console.error('Erro ao criar perfil durante cadastro:', profileError)
-            // Não retornar erro aqui, para permitir que o usuário continue com o login
-          } else {
-            console.log('Perfil criado com sucesso durante cadastro para:', email)
-          }
-        } catch (profileError) {
-          console.error('Erro ao criar perfil durante cadastro:', profileError)
-          // Continuar mesmo sem criar o perfil
-        }
+      if (!supabaseClient) {
+        throw new Error('Cliente Supabase não disponível')
       }
-
+      
+      // Opções para incluir metadados do usuário (nome)
+      const options = name ? { 
+        data: { name },
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      } : {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+      
+      // Chamar a API de cadastro
+      const { error } = await supabaseClient.auth.signUp({ 
+        email, 
+        password,
+        options
+      })
+      
+      // Se ocorreu um erro, lançar para tratamento
+      if (error) {
+        console.error('Erro durante cadastro:', error)
+        
+        // Tratar mensagens de erro específicas
+        if (error.message.includes('email already in use')) {
+          toast({
+            title: 'E-mail já cadastrado',
+            description: 'Este e-mail já está sendo utilizado por outro usuário.',
+            variant: 'destructive',
+          })
+        } else {
+          toast({
+            title: 'Erro no cadastro',
+            description: error.message,
+            variant: 'destructive',
+          })
+        }
+        
+        return { error }
+      }
+      
+      // Sucesso
+      toast({
+        title: 'Cadastro realizado',
+        description: 'Verifique seu e-mail para confirmar o cadastro.',
+        variant: 'default',
+      })
+      
+      // Notificar outras abas
+      if (broadcastChange) {
+        broadcastChange('signup_completed', { email });
+      }
+      
       return { error: null }
-    } catch (error) {
-      console.error('Erro no cadastro:', error)
-      return { error: error as Error }
+    } catch (err) {
+      console.error('Erro inesperado durante cadastro:', err)
+      toast({
+        title: 'Erro no cadastro',
+        description: 'Ocorreu um erro inesperado. Por favor, tente novamente.',
+        variant: 'destructive',
+      })
+      return { error: err as Error }
     }
   }
 
-  // Login de usuário
+  // Método para login de usuário
   const signIn = async (email: string, password: string) => {
     try {
       if (!supabaseClient) {
-        console.error('ERRO CRÍTICO: Cliente Supabase não disponível. Verifique as variáveis de ambiente.');
-        throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
+        throw new Error('Cliente Supabase não disponível')
       }
       
-      // Verificar se as variáveis de ambiente estão definidas
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey) {
-        console.error('ERRO CRÍTICO: Variáveis de ambiente do Supabase não definidas:', {
-          url: supabaseUrl ? 'definido' : 'indefinido',
-          key: supabaseKey ? 'definido' : 'indefinido'
-        });
-        throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
-      }
-      
-      console.log('Autenticando usuário:', email);
-      
-      // Tentativa de login normal
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
+      // Chamar a API de login
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ 
+        email, 
+        password 
       })
-
-      // Diagnóstico detalhado da resposta do Supabase
-      console.log('Resposta de autenticação:', {
-        sucesso: !error,
-        temDados: !!data,
-        temUsuario: !!data?.user,
-        emailConfirmado: data?.user?.email_confirmed_at ? 'Sim' : 'Não',
-        userData: data?.user ? {
-          id: data.user.id,
-          email: data.user.email,
-          temMetadata: !!data.user.user_metadata,
-          metadata: data.user.user_metadata || {}
-        } : 'Sem dados de usuário'
-      });
-
-      // Se houver erro, analisar causas comuns
+      
+      // Se ocorreu um erro, lançar para tratamento
       if (error) {
-        console.error('Erro na API do Supabase:', error);
+        console.error('Erro durante login:', error)
         
-        if (error.message.includes('Invalid login') || 
-            error.message.includes('Invalid email') ||
-            error.message.includes('Invalid credentials')) {
-          throw new Error('Email ou senha incorretos.')
-        }
+        // Exibir toast com mensagem de erro
+        toast({
+          title: 'Falha no login',
+          description: error.message,
+          variant: 'destructive',
+        })
         
-        if (error.message.includes('Email not confirmed') ||
-            error.message.includes('not verified')) {
-          throw new Error('Email não confirmado. Por favor, verifique seu email para ativar sua conta.')
-        }
-
-        // Erro genérico
-        throw error
+        return { error }
       }
       
-      // Verificar se o usuário tem email confirmado
-      if (data?.user && !data.user.email_confirmed_at) {
-        throw new Error('Email não confirmado. Por favor, verifique seu email para ativar sua conta.')
+      // Se o login foi bem-sucedido, mas não há dados de sessão
+      if (!data.session) {
+        console.error('Login sem sessão retornada')
+        const customError = new Error('Falha na autenticação: sessão não criada')
+        return { error: customError }
       }
-
-      let profileNotFound = false;
       
-      // Verificar se o perfil do usuário existe
+      // Se chegou aqui, o login foi bem-sucedido
+      console.log('Login bem-sucedido, verificando perfil do usuário')
+      
+      // Verificar se o usuário tem um perfil
       try {
-        console.log('Verificando perfil do usuário:', data.user.id);
-        
         const { data: profileData, error: profileError } = await supabaseClient
           .from('profiles')
           .select('*')
           .eq('id', data.user.id)
           .single()
         
-        // Diagnóstico do perfil  
-        console.log('Resposta da busca de perfil:', {
-          sucesso: !profileError,
-          perfilEncontrado: !!profileData,
-          perfilId: profileData?.id || 'N/A',
-          mensagemErro: profileError?.message || 'Sem erro'
-        });
-          
+        // Se ocorreu erro na busca do perfil
         if (profileError) {
           console.error('Erro ao buscar perfil após login:', profileError)
           
-          // Verificar se o erro é de perfil não encontrado
+          // Verificar se o problema é que o perfil não existe
           if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-            console.log('Perfil não encontrado para o usuário:', email, 'Redirecionando para cadastro.');
-            profileNotFound = true;
-            
-            // Criar perfil automaticamente em vez de fazer logout
-            try {
-              console.log('Tentando criar perfil automaticamente...');
-              const { error: insertError } = await supabaseClient
-                .from('profiles')
-                .insert([{
-                  id: data.user.id,
-                  name: data.user.user_metadata?.name || '',
-                  email: data.user.email
-                }]);
-                
-              if (insertError) {
-                console.error('Erro ao criar perfil automaticamente:', insertError);
-                // Se não conseguir criar o perfil, fazer logout
-                await supabaseClient.auth.signOut();
-              } else {
-                console.log('Perfil criado com sucesso! Continuando login');
-                profileNotFound = false;
-              }
-            } catch (insertError) {
-              console.error('Exceção ao criar perfil automaticamente:', insertError);
-              // Fazer logout em caso de erro
-              await supabaseClient.auth.signOut();
-            }
+            console.log('Perfil não encontrado para usuário autenticado, será necessário criar')
+            return { error: null, profileNotFound: true }
           }
-        } else {
-          console.log('Perfil encontrado com sucesso:', profileData.id);
         }
-      } catch (profileError) {
-        console.error('Erro ao verificar perfil após login:', profileError)
+        
+        // Perfil encontrado com sucesso ou não era possível determinar
+        console.log('Perfil verificado após login')
+        
+        // Sucesso no login
+        toast({
+          title: 'Login realizado',
+          description: 'Bem-vindo de volta!',
+          variant: 'default',
+        })
+        
+        // Notificar outras abas
+        if (broadcastChange) {
+          broadcastChange('signin_completed', { userId: data.user.id });
+        }
+        
+        return { error: null }
+      } catch (profileErr) {
+        console.error('Erro inesperado ao verificar perfil:', profileErr)
+        
+        // Mesmo com erro no perfil, o login foi realizado
+        toast({
+          title: 'Login realizado',
+          description: 'Bem-vindo de volta!',
+          variant: 'default',
+        })
+        
+        // Notificar outras abas
+        if (broadcastChange) {
+          broadcastChange('signin_completed', { userId: data.user.id });
+        }
+        
+        return { error: null }
       }
-
-      return { error: null, profileNotFound }
-    } catch (error) {
-      console.error('Erro no login:', error)
-      return { error: error as Error }
+    } catch (err) {
+      console.error('Erro inesperado durante login:', err)
+      toast({
+        title: 'Falha no login',
+        description: 'Ocorreu um erro inesperado. Por favor, tente novamente.',
+        variant: 'destructive',
+      })
+      return { error: err as Error }
     }
   }
 
-  // Logout
+  // Método para logout do usuário
   const signOut = async () => {
-    if (supabaseClient) {
-      try {
-        await supabaseClient.auth.signOut()
-      } catch (error) {
-        console.error('Erro ao fazer logout:', error)
-      }
+    if (!supabaseClient) return
+    
+    // Chamar a API de logout
+    await supabaseClient.auth.signOut()
+    
+    // Limpar a sessão
+    setSession({
+      user: null,
+      session: null,
+      error: null,
+      isLoading: false,
+    })
+    
+    // Limpar a sessão no localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('supabase_session')
     }
+    
+    // Notificar outras abas
+    if (broadcastChange) {
+      broadcastChange('signout_completed', { time: Date.now() });
+    }
+    
+    // Mostrar toast de sucesso
+    toast({
+      title: 'Logout realizado',
+      description: 'Você foi desconectado com sucesso.',
+      variant: 'default',
+    })
   }
 
-  // Atualizar perfil
+  // Método para atualização do perfil do usuário
   const updateProfile = async (data: Partial<UserData>) => {
+    if (!supabaseClient) {
+      return { error: new Error('Cliente Supabase não disponível') }
+    }
+    
+    if (!session.user?.id) {
+      return { error: new Error('Usuário não autenticado') }
+    }
+    
     try {
-      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
-      if (!session.user) throw new Error('Usuário não autenticado')
-
+      // Atualizar os dados na tabela de perfis
       const { error } = await supabaseClient
         .from('profiles')
-        .update(data)
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', session.user.id)
-
-      if (error) throw error
-
-      // Atualizar estado local
+      
+      if (error) {
+        console.error('Erro ao atualizar perfil:', error)
+        toast({
+          title: 'Erro ao atualizar perfil',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error }
+      }
+      
+      // Atualizar o estado local
       setSession(prev => ({
         ...prev,
-        user: prev.user ? { ...prev.user, ...data } : null
+        user: {
+          ...prev.user!,
+          ...data,
+        }
       }))
-
+      
+      // Notificar outras abas
+      if (broadcastChange) {
+        broadcastChange('profile_updated', { userId: session.user.id, data });
+      }
+      
+      toast({
+        title: 'Perfil atualizado',
+        description: 'Suas informações foram atualizadas com sucesso.',
+        variant: 'default',
+      })
+      
       return { error: null }
-    } catch (error) {
-      console.error('Erro ao atualizar perfil:', error)
-      return { error: error as Error }
+    } catch (err) {
+      console.error('Erro inesperado ao atualizar perfil:', err)
+      toast({
+        title: 'Erro ao atualizar perfil',
+        description: 'Ocorreu um erro inesperado. Por favor, tente novamente.',
+        variant: 'destructive',
+      })
+      return { error: err as Error }
+    }
+  }
+  
+  // Método para reenviar email de verificação
+  const resendVerificationEmail = async (email: string) => {
+    if (!supabaseClient) {
+      return { error: new Error('Cliente Supabase não disponível'), sent: false }
+    }
+    
+    try {
+      // Chamar a API para reenvio de email
+      const { error } = await supabaseClient.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) {
+        console.error('Erro ao reenviar email de verificação:', error)
+        toast({
+          title: 'Erro ao reenviar email',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error, sent: false }
+      }
+      
+      toast({
+        title: 'Email reenviado',
+        description: 'Verifique sua caixa de entrada e siga as instruções para confirmar seu cadastro.',
+        variant: 'default',
+      })
+      
+      return { error: null, sent: true }
+    } catch (err) {
+      console.error('Erro inesperado ao reenviar email:', err)
+      toast({
+        title: 'Erro ao reenviar email',
+        description: 'Ocorreu um erro inesperado. Por favor, tente novamente.',
+        variant: 'destructive',
+      })
+      return { error: err as Error, sent: false }
     }
   }
 
-  // Resend verification email
-  const resendVerificationEmail = async (email: string) => {
-    try {
-      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
-      
-      // O método correto na API atual do Supabase
-      const { error } = await supabaseClient.auth.resend({
-        type: 'signup',
-        email: email
-      })
-
-      if (error) throw error
-
-      return { error: null, sent: true }
-    } catch (error) {
-      console.error('Erro ao reenviar email de verificação:', error)
-      return { error: error as Error, sent: false }
-    }
+  // Valores a serem disponibilizados no contexto
+  const value = {
+    session,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
+    retryConnection,
+    isConnecting: isAttemptingConnection,
+    connectionRetries: retryCount,
+    resendVerificationEmail
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      session, 
-      signUp, 
-      signIn, 
-      signOut, 
-      updateProfile,
-      retryConnection,
-      isConnecting: isAttemptingConnection,
-      connectionRetries: retryCount,
-      resendVerificationEmail
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
 }
 
+// Hook para acessar o contexto de autenticação
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {

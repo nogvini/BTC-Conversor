@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 
 interface RetryConfig {
@@ -10,12 +10,30 @@ interface RetryConfig {
   maxDelay?: number;
 }
 
+// Armazenar informações e eventos de sincronização entre componentes
+const BROADCAST_CHANNEL_NAME = 'btc-monitor-supabase-hook-coordination';
+let broadcastChannel: BroadcastChannel | null = null;
+
+// Inicializar canal se estiver no browser
+if (typeof window !== 'undefined') {
+  try {
+    broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+  } catch (error) {
+    console.warn('BroadcastChannel não suportado neste navegador para coordenação de hooks:', error);
+  }
+}
+
 /**
  * Hook para gerenciar a conexão com o Supabase e automatizar tentativas de reconexão
  */
 export function useSupabaseRetry(config?: RetryConfig) {
   // Cliente Supabase
-  const [client, setClient] = useState(createSupabaseClient());
+  const [client, setClient] = useState(() => {
+    // Obter o cliente já existente no início
+    const initialClient = createSupabaseClient();
+    return initialClient;
+  });
+  
   const [isConnected, setIsConnected] = useState(!!client);
   const [isAttemptingConnection, setIsAttemptingConnection] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -40,7 +58,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
   }, [initialDelay, backoffFactor, maxDelay]);
   
   // Função para tentar criar o cliente Supabase
-  const attemptConnection = async () => {
+  const attemptConnection = useCallback(async () => {
     // Não fazer nada se já estiver conectado ou se não estiver no navegador
     if (isConnected || typeof window === 'undefined') return;
     
@@ -49,28 +67,36 @@ export function useSupabaseRetry(config?: RetryConfig) {
     console.log('[useSupabaseRetry] Tentativa #' + (retryCount + 1) + ' de conexão ao Supabase');
     
     try {
-      // Limpar cliente anterior se existir
-      if (client) {
-        try {
-          console.log('[useSupabaseRetry] Limpando sessão do cliente anterior');
-          await client.auth.signOut(); // Limpar estado de autenticação
-        } catch (e) {
-          console.warn('[useSupabaseRetry] Erro ao limpar cliente anterior:', e);
-        }
-      }
-      
-      // Garantir que as credenciais estejam no localStorage
-      const storedUrl = localStorage.getItem('supabase_url');
-      const storedKey = localStorage.getItem('supabase_key');
-      
-      if (!storedUrl || !storedKey) {
-        console.warn('[useSupabaseRetry] Credenciais não encontradas no localStorage');
-      }
-      
       // Tentar criar o cliente
       const newClient = createSupabaseClient();
       
       if (newClient) {
+        // Verificar se é uma instância secundária (mock)
+        const isSecondary = !!(newClient.auth && 
+                             typeof newClient.auth.getSession === 'function' && 
+                             !('supabaseUrl' in newClient));
+        
+        if (isSecondary) {
+          console.log('[useSupabaseRetry] Usando instância secundária (mock)');
+          setClient(newClient);
+          setIsConnected(true);
+          setIsAttemptingConnection(false);
+          setRetryCount(0);
+          setLastError(null);
+          
+          // Escutar eventos de mudança de dados via BroadcastChannel
+          if (broadcastChannel) {
+            broadcastChannel.onmessage = (event) => {
+              if (event.data.type === 'supabase_data_change') {
+                console.log('[useSupabaseRetry] Recebido evento de mudança de dados:', event.data.changeType);
+                // Aqui você pode adicionar lógica para reagir às mudanças
+              }
+            };
+          }
+          
+          return;
+        }
+        
         // Tentar fazer uma operação simples para verificar se a conexão está funcionando
         try {
           console.log('[useSupabaseRetry] Cliente criado, verificando sessão...');
@@ -139,7 +165,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
     });
     
     setIsAttemptingConnection(false);
-  };
+  }, [isConnected, retryCount, maxRetries, calculateBackoff]);
   
   // Efeito para tentar conexão inicial
   useEffect(() => {
@@ -148,6 +174,17 @@ export function useSupabaseRetry(config?: RetryConfig) {
     
     // Se já tiver um cliente, verificar se ele está funcionando
     if (client) {
+      // Verificar se é uma instância secundária (mock)
+      const isSecondary = !!(client.auth && 
+                           typeof client.auth.getSession === 'function' && 
+                           !('supabaseUrl' in client));
+      
+      if (isSecondary) {
+        console.log('[useSupabaseRetry] Usando cliente secundário (mock)');
+        setIsConnected(true);
+        return;
+      }
+      
       client.auth.getSession().then(({ error }) => {
         if (error) {
           console.error('[useSupabaseRetry] Erro com cliente existente, tentando reconectar:', error);
@@ -173,8 +210,21 @@ export function useSupabaseRetry(config?: RetryConfig) {
         retryTimerRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  
+  // Receber função broadcastChange do cliente, se disponível
+  const broadcastChange = useCallback((changeType: string, data: any) => {
+    if (client && typeof client.broadcastChange === 'function') {
+      client.broadcastChange(changeType, data);
+    } else if (broadcastChannel) {
+      // Fallback para o caso do cliente não ter a função
+      broadcastChannel.postMessage({ 
+        type: 'supabase_data_change',
+        changeType,
+        data
+      });
+    }
+  }, [client]);
   
   // Função exposta para forçar uma nova tentativa de conexão
   const retryConnection = useCallback(() => {
@@ -182,7 +232,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
     // Reiniciar contagem de tentativas
     setRetryCount(0);
     attemptConnection();
-  }, []);
+  }, [attemptConnection]);
   
   return {
     client,
@@ -190,6 +240,7 @@ export function useSupabaseRetry(config?: RetryConfig) {
     isAttemptingConnection,
     retryCount,
     lastError,
-    retryConnection
+    retryConnection,
+    broadcastChange
   };
 } 
