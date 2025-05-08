@@ -204,6 +204,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     unit: CurrencyUnit
   } | null>(null);
 
+  // Estados para o diálogo de seleção de relatório para importação
+  const [showImportReportDialog, setShowImportReportDialog] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [pendingImportType, setPendingImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
+  const [importTargetReportId, setImportTargetReportId] = useState<string | null>(null);
+
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1218,6 +1224,119 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       </DialogContent>
     </Dialog>
   );
+  
+  // Componente para diálogo de seleção de relatório para importação
+  const ImportReportDialog = () => {
+    // Use o ID do relatório ativo como valor padrão
+    React.useEffect(() => {
+      if (showImportReportDialog) {
+        setImportTargetReportId(activeReportId);
+      }
+    }, [showImportReportDialog, activeReportId]);
+    
+    // Função para processar a importação após selecionar o relatório
+    const proceedWithImport = () => {
+      if (!pendingImportFile || !importTargetReportId) return;
+      
+      // Salvar o ID do relatório atual
+      const originalReportId = activeReportId;
+      
+      // Temporariamente definir o relatório alvo como ativo para a importação
+      setActiveReportId(importTargetReportId);
+      
+      // Executar a importação com base no tipo
+      const event = { target: { files: [pendingImportFile] } } as any;
+      
+      switch (pendingImportType) {
+        case "csv":
+          handleImportCSV(event);
+          break;
+        case "investment-csv":
+          handleImportInvestmentCSV(event);
+          break;
+        case "internal":
+          handleImportInternalData(event);
+          break;
+      }
+      
+      // Restaurar o relatório original como ativo (após um breve atraso para garantir que a importação foi processada)
+      setTimeout(() => {
+        setActiveReportId(originalReportId);
+      }, 100);
+      
+      // Limpar estados
+      setPendingImportFile(null);
+      setPendingImportType(null);
+      setShowImportReportDialog(false);
+    };
+    
+    return (
+      <Dialog open={showImportReportDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowImportReportDialog(false);
+          setPendingImportFile(null);
+          setPendingImportType(null);
+        }
+      }}>
+        <DialogContent className="bg-black border-purple-700/50 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecionar Relatório para Importação</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Escolha em qual relatório os dados importados serão registrados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="import-report">Relatório</Label>
+              <Select value={importTargetReportId || ""} onValueChange={setImportTargetReportId}>
+                <SelectTrigger className="w-full bg-black/30 border-purple-700/50">
+                  <SelectValue placeholder="Selecione um relatório" />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-purple-700/50">
+                  <SelectGroup>
+                    {reports.map(report => (
+                      <SelectItem key={report.id} value={report.id}>
+                        {report.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="bg-purple-900/20 p-3 rounded-md border border-purple-700/30">
+              <p className="text-sm">
+                <span className="font-semibold">Tipo de importação:</span>{' '}
+                {pendingImportType === "csv" && "CSV de Operações"}
+                {pendingImportType === "investment-csv" && "CSV de Aportes"}
+                {pendingImportType === "internal" && "Backup (Excel)"}
+              </p>
+              <p className="text-sm mt-1">
+                <span className="font-semibold">Arquivo:</span>{' '}
+                {pendingImportFile?.name}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowImportReportDialog(false);
+                setPendingImportFile(null);
+                setPendingImportType(null);
+              }}
+              className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={proceedWithImport}>
+              Importar para Este Relatório
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Conteúdo das opções de exportação
   const ExportOptionsContent = () => (
@@ -1344,6 +1463,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     return records;
   };
 
+  // Função para verificar se deve mostrar o diálogo de seleção de relatório
+  const checkAndPrepareImport = (file: File, type: "csv" | "investment-csv" | "internal"): boolean => {
+    // Se só existir um relatório, não precisa mostrar o diálogo
+    if (reports.length <= 1) {
+      return false; // Não mostrar diálogo, prosseguir com importação
+    }
+
+    // Se existirem múltiplos relatórios, preparar para mostrar o diálogo
+    setPendingImportFile(file);
+    setPendingImportType(type);
+    setShowImportReportDialog(true);
+    return true; // Diálogo será mostrado, interromper fluxo normal
+  };
+
   // Função para importar dados CSV
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
@@ -1351,6 +1484,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     const file = event.target.files[0];
+    
+    // Verificar se deve mostrar o diálogo de seleção de relatório
+    if (checkAndPrepareImport(file, "csv")) {
+      return; // Interromper fluxo se o diálogo for mostrado
+    }
+    
     setIsImporting(true);
     setImportStats(null);
     setImportType("csv");
@@ -1976,6 +2115,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
     
     const file = event.target.files[0];
+    
+    // Verificar se deve mostrar o diálogo de seleção de relatório
+    if (checkAndPrepareImport(file, "internal")) {
+      return; // Interromper fluxo se o diálogo for mostrado
+    }
+    
     setIsImporting(true);
     setImportStats(null);
     setImportType("internal");
@@ -2198,6 +2343,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     const file = event.target.files[0];
+    
+    // Verificar se deve mostrar o diálogo de seleção de relatório
+    if (checkAndPrepareImport(file, "investment-csv")) {
+      return; // Interromper fluxo se o diálogo for mostrado
+    }
+    
     setIsImporting(true);
     setImportStats(null);
     setImportType("investment-csv");
@@ -2423,6 +2574,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   return (
     <div className="flex flex-col space-y-4">
       <ReportDialog />
+      <ImportReportDialog />
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid grid-cols-2 h-auto gap-2 bg-transparent">
