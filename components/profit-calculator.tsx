@@ -213,6 +213,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [pendingImportType, setPendingImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
   const [importTargetReportId, setImportTargetReportId] = useState<string | null>(null);
+  const [importInProgress, setImportInProgress] = useState(false); // Novo estado para controlar feedback visual
 
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
@@ -1279,6 +1280,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     const proceedWithImport = () => {
       if (!pendingImportFile || !importTargetReportId) return;
       
+      // Mostrar feedback imediato
+      setImportInProgress(true);
+      
+      // Mostrar toast informando o início da importação
+      toast({
+        title: "Importação iniciada",
+        description: `Importando dados para o relatório "${reports.find(r => r.id === importTargetReportId)?.name || 'selecionado'}"...`,
+        variant: "default",
+      });
+      
       // Salvar o ID do relatório atual
       const originalReportId = activeReportId;
       
@@ -1295,6 +1306,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           // Adicionar callback para registrar quando a importação for concluída
           onImportComplete: () => {
             importCompleted = true;
+            setImportInProgress(false);
+            // Fechar o diálogo assim que a importação for concluída
+            setShowImportReportDialog(false);
+            setPendingImportFile(null);
+            setPendingImportType(null);
           }
         } 
       } as any;
@@ -1311,10 +1327,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           break;
       }
       
-      // Restaurar o relatório original como ativo (após um atraso maior para garantir que a importação foi processada)
+      // Restaurar o relatório original como ativo (após um atraso menor para garantir que a importação foi processada)
       // Verificar periodicamente se a importação foi concluída
       const checkInterval = 100; // milissegundos
-      const maxWaitTime = 5000; // 5 segundos
+      const maxWaitTime = 2000; // reduzido para 2 segundos (era 5000)
       let elapsedTime = 0;
       
       const checkAndRestoreReport = () => {
@@ -1322,10 +1338,22 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           // Importação concluída ou tempo máximo atingido, restaurar relatório original
           setActiveReportId(originalReportId);
           
-          // Limpar estados
-          setPendingImportFile(null);
-          setPendingImportType(null);
-          setShowImportReportDialog(false);
+          // Limpar estados se ainda não foi feito
+          if (!importCompleted) {
+            setImportInProgress(false);
+            setShowImportReportDialog(false);
+            setPendingImportFile(null);
+            setPendingImportType(null);
+            
+            // Se alcançou o timeout sem completar, mostrar um aviso
+            if (elapsedTime >= maxWaitTime) {
+              toast({
+                title: "Tempo limite excedido",
+                description: "A importação pode ter demorado mais que o esperado, mas os dados ainda podem ter sido processados.",
+                variant: "default",
+              });
+            }
+          }
         } else {
           // Ainda não concluído, verificar novamente após o intervalo
           elapsedTime += checkInterval;
@@ -1334,18 +1362,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       };
       
       // Iniciar verificação após um breve atraso para permitir que a importação comece
-      setTimeout(checkAndRestoreReport, 1000);
+      setTimeout(checkAndRestoreReport, 500); // Reduzido de 1000ms para 500ms
     };
     
     return (
       <Dialog open={showImportReportDialog} onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !importInProgress) {
           setShowImportReportDialog(false);
           setPendingImportFile(null);
           setPendingImportType(null);
+        } else if (!open && importInProgress) {
+          // Se tentar fechar durante a importação, avisar e manter aberto
+          toast({
+            title: "Importação em andamento",
+            description: "Aguarde a conclusão da importação antes de fechar.",
+            variant: "default",
+          });
+          setShowImportReportDialog(true); // Forçar a manter aberto
         }
       }}>
-        <DialogContent className="bg-black border-purple-700/50 text-white max-w-md">
+        <DialogContent className="bg-black/95 border-purple-800/60">
           <DialogHeader>
             <DialogTitle>Selecionar Relatório para Importação</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -1355,7 +1391,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="import-report">Relatório</Label>
-              <Select value={importTargetReportId || ""} onValueChange={setImportTargetReportId}>
+              <Select value={importTargetReportId || ""} onValueChange={setImportTargetReportId} disabled={importInProgress}>
                 <SelectTrigger className="w-full bg-black/30 border-purple-700/50">
                   <SelectValue placeholder="Selecione um relatório" />
                 </SelectTrigger>
@@ -1383,21 +1419,50 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 {pendingImportFile?.name}
               </p>
             </div>
+            
+            {importInProgress && (
+              <div className="bg-blue-900/20 p-3 rounded-md border border-blue-700/30 flex items-center">
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                <p className="text-sm text-blue-300">
+                  Importação em andamento, aguarde...
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button 
               variant="outline" 
               onClick={() => {
-                setShowImportReportDialog(false);
-                setPendingImportFile(null);
-                setPendingImportType(null);
+                if (!importInProgress) {
+                  setShowImportReportDialog(false);
+                  setPendingImportFile(null);
+                  setPendingImportType(null);
+                } else {
+                  toast({
+                    title: "Importação em andamento",
+                    description: "Aguarde a conclusão da importação antes de fechar.",
+                    variant: "default",
+                  });
+                }
               }}
               className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+              disabled={importInProgress}
             >
               Cancelar
             </Button>
-            <Button onClick={proceedWithImport}>
-              Importar para Este Relatório
+            <Button 
+              onClick={proceedWithImport} 
+              disabled={importInProgress || !importTargetReportId}
+              className={importInProgress ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              {importInProgress ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                "Importar para Este Relatório"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1547,6 +1612,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Função para importar dados CSV
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
+      // Chamar callback se fornecido mesmo quando não há arquivos
+      if (event.target.onImportComplete) {
+        event.target.onImportComplete();
+      }
       return;
     }
 
@@ -1560,6 +1629,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setIsImporting(true);
     setImportStats(null);
     setImportType("csv");
+    
+    // Mostrar toast de iniciação para importação direta (sem diálogo)
+    toast({
+      title: "Importação CSV iniciada",
+      description: "Processando arquivo CSV...",
+      variant: "default",
+    });
 
     try {
       const reader = new FileReader();
@@ -1682,6 +1758,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           description: "Não foi possível ler o arquivo CSV selecionado.",
           variant: "destructive",
         });
+        
+        // Chamar callback de conclusão em caso de erro
+        if (event.target && event.target.onImportComplete) {
+          event.target.onImportComplete();
+        }
+        
         if (csvFileInputRef.current) {
           csvFileInputRef.current.value = '';
         }
@@ -2201,6 +2283,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Função para importar dados internos de um arquivo Excel gerado pelo sistema
   const handleImportInternalData = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
+      // Chamar callback se fornecido mesmo quando não há arquivos
+      if (event.target.onImportComplete) {
+        event.target.onImportComplete();
+      }
       return;
     }
     
@@ -2215,9 +2301,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setImportStats(null);
     setImportType("internal");
     
+    // Mostrar toast de iniciação para importação direta (sem diálogo)
+    toast({
+      title: "Importação de backup iniciada",
+      description: "Processando arquivo Excel...",
+      variant: "default",
+    });
+    
     try {
       const reader = new FileReader();
       
+      // Resto do código sem alterações
       reader.onload = async (e) => {
         try {
           if (!e.target || !e.target.result) {
@@ -2440,8 +2534,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           description: "Não foi possível ler o arquivo Excel selecionado.",
           variant: "destructive",
         });
-        if (event.target) {
-          event.target.value = '';
+        
+        // Chamar callback de conclusão em caso de erro
+        if (event.target && event.target.onImportComplete) {
+          event.target.onImportComplete();
+        }
+        
+        if (internalFileInputRef.current) {
+          internalFileInputRef.current.value = '';
         }
       };
       
@@ -2465,6 +2565,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Função para importar aportes via CSV
   const handleImportInvestmentCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
+      // Chamar callback se fornecido mesmo quando não há arquivos
+      if (event.target.onImportComplete) {
+        event.target.onImportComplete();
+      }
       return;
     }
 
@@ -2478,10 +2582,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setIsImporting(true);
     setImportStats(null);
     setImportType("investment-csv");
+    
+    // Mostrar toast de iniciação para importação direta (sem diálogo)
+    toast({
+      title: "Importação de aportes iniciada",
+      description: "Processando arquivo CSV de aportes...",
+      variant: "default",
+    });
 
     try {
       const reader = new FileReader();
       
+      // Resto do código sem alterações
       reader.onload = async (e) => {
         try {
           if (!e.target || !e.target.result) {
@@ -2659,6 +2771,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           description: "Não foi possível ler o arquivo CSV selecionado.",
           variant: "destructive",
         });
+        
+        // Chamar callback de conclusão em caso de erro
+        if (event.target && event.target.onImportComplete) {
+          event.target.onImportComplete();
+        }
+        
         if (event.target) {
           event.target.value = '';
         }
