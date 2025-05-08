@@ -14,6 +14,7 @@ import {
 import { LogOut, User } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import supabaseBrowser from "@/lib/supabase-browser";
+import { maskEmail } from "@/lib/utils";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -69,7 +70,7 @@ export function UserMenu() {
               {isLoading ? "Carregando..." : username}
             </p>
             <p className="text-xs leading-none text-indigo-400 truncate">
-              {user.email}
+              {maskEmail(user.email)}
             </p>
           </div>
         </DropdownMenuLabel>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { MailCheck, AlertTriangle, RefreshCw, Loader2, Mail, Clock } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
+import { maskEmail } from "@/lib/utils"
 
 interface VerifyEmailAlertProps {
   email: string
@@ -63,7 +64,7 @@ export function VerifyEmailAlert({ email, hasExpiredError = false }: VerifyEmail
   }
   
   // Máscara o email para exibição
-  const maskedEmail = email ? email.replace(/(.{2})(.*)(@.*)/, '$1****$3') : '***@***.com'
+  const maskedEmail = email ? maskEmail(email) : '***@***.com'
   
   return (
     <Alert className={`${hasExpiredError ? 'bg-red-900/20 border-red-700/50 text-red-200' : 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300'} mb-6`}>

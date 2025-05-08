@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { User, Settings, LogOut, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { maskEmail } from "@/lib/utils"
 
 /**
  * Componente que exibe o menu de perfil do usuário
@@ -157,7 +158,9 @@ export function ProfileMenu() {
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{user.name || "Usuário"}</p>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {maskEmail(user.email)}
+            </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
