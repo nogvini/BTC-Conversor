@@ -52,6 +52,7 @@ type DisplayCurrency = "USD" | "BRL";
 
 interface Investment {
   id: string;
+  originalId?: string; // ID original do aporte, para evitar duplicações
   date: string;
   amount: number;
   unit: CurrencyUnit;
@@ -59,6 +60,7 @@ interface Investment {
 
 interface ProfitRecord {
   id: string;
+  originalId?: string; // ID original da operação, para evitar duplicações
   date: string;
   amount: number;
   unit: CurrencyUnit;
@@ -117,7 +119,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [useExportDialog, setUseExportDialog] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [importStats, setImportStats] = useState<{total: number, success: number, error: number} | null>(null);
+  const [importStats, setImportStats] = useState<{total: number, success: number, error: number, duplicated?: number} | null>(null);
   const [importType, setImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
   
   // Estados para confirmação de exclusão em massa
@@ -134,6 +136,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   const isMobile = useIsMobile();
   const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false;
+
+  // Novo estado para o diálogo de duplicações
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<{count: number, type: string}>({count: 0, type: ''});
 
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
@@ -1157,6 +1163,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       recordsSheet.columns = [
         { header: 'Tipo', key: 'type', width: 15 },
         { header: 'ID', key: 'id', width: 30 },
+        { header: 'ID Original', key: 'originalId', width: 30 },
         { header: 'Data', key: 'date', width: 15 },
         { header: 'Valor', key: 'amount', width: 15 },
         { header: 'Unidade', key: 'unit', width: 10 },
@@ -1175,6 +1182,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       recordsSheet.addRow({
         type: 'META',
         id: 'EXPORT_DATE',
+        originalId: '',
         date: format(new Date(), "yyyy-MM-dd"),
         amount: '',
         unit: '',
@@ -1184,6 +1192,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       recordsSheet.addRow({
         type: 'META',
         id: 'EXPORT_TYPE',
+        originalId: '',
         date: exportAll ? 'COMPLETE' : 'FILTERED',
         amount: '',
         unit: '',
@@ -1195,6 +1204,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         recordsSheet.addRow({
           type: 'INVESTMENT',
           id: investment.id,
+          originalId: investment.originalId || investment.id,
           date: investment.date,
           amount: investment.amount,
           unit: investment.unit,
@@ -1207,6 +1217,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         recordsSheet.addRow({
           type: 'PROFIT',
           id: profit.id,
+          originalId: profit.originalId || profit.id,
           date: profit.date,
           amount: profit.amount,
           unit: profit.unit,
@@ -1218,6 +1229,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       recordsSheet.addRow({
         type: 'META',
         id: 'FORMAT_VERSION',
+        originalId: '',
         date: '1.0',
         amount: '',
         unit: '',
@@ -1503,7 +1515,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           console.log("CSV processado:", records[0]); // Debug
           
           // Processar registros usando a função comum modificada
-          const { newProfits, successCount, errorCount } = 
+          const { newProfits, successCount, errorCount, duplicatedCount } = 
             processTradeRecords(headers, records);
           
           // Adicionar os novos registros de lucro
@@ -1519,6 +1531,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               });
               setTimeout(() => setToastDebounce(false), 500);
             }
+          } else if (duplicatedCount > 0) {
+            // Não mostrar toast quando só houve duplicações
+            setDuplicateInfo({
+              count: duplicatedCount,
+              type: 'lucros/perdas'
+            });
+            setShowDuplicateDialog(true);
           } else {
             toast({
               title: "Nenhum registro importado",
@@ -1531,8 +1550,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           setImportStats({
             total: totalRows,
             success: successCount,
-            error: errorCount
+            error: errorCount,
+            duplicated: duplicatedCount
           });
+          
+          // Mostrar diálogo de duplicações apenas se houver duplicações
+          if (duplicatedCount > 0) {
+            setDuplicateInfo({
+              count: duplicatedCount,
+              type: 'lucros/perdas'
+            });
+            setShowDuplicateDialog(true);
+          }
           
         } catch (error) {
           console.error("Erro ao processar o arquivo CSV:", error);
@@ -1604,7 +1633,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     headers: string[], 
     records: Array<Record<string, any>>, 
     headerIndexMap?: Record<string, number>
-  ): { newProfits: ProfitRecord[], successCount: number, errorCount: number } => {
+  ): { newProfits: ProfitRecord[], successCount: number, errorCount: number, duplicatedCount: number } => {
     // Lista de cabeçalhos requeridos
     const requiredHeaders = [
       "id", "type", "side", "openingFee", "closingFee", "maintenanceMargin", 
@@ -1625,16 +1654,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     const newProfits: ProfitRecord[] = [];
     let successCount = 0;
     let errorCount = 0;
+    let duplicatedCount = 0;
+    
+    // Obter conjunto de IDs existentes para verificar duplicações
+    const existingProfitIds = new Set(profits.map(profit => profit.originalId || profit.id));
     
     // Processar cada registro
     records.forEach((record, index) => {
       try {
         // Extrair os dados necessários - modo diferente para Excel vs CSV
-        let closedTs, pl, openingFee, closingFee, sumFundingFees, closedValue;
+        let originalId, closedTs, pl, openingFee, closingFee, sumFundingFees, closedValue;
         
         if (headerIndexMap) {
           // Para Excel (usando headerIndexMap)
           const row = record as any; // row do ExcelJS
+          originalId = row.getCell(headerIndexMap["id"]).value?.toString();
           closedTs = row.getCell(headerIndexMap["closedTs"]).value;
           pl = parseFloat(row.getCell(headerIndexMap["pl"]).value?.toString() || "0");
           openingFee = parseFloat(row.getCell(headerIndexMap["openingFee"]).value?.toString() || "0");
@@ -1643,6 +1677,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           closedValue = row.getCell(headerIndexMap["closed"]).value;
         } else {
           // Para CSV (usando objeto record)
+          originalId = record["id"]?.toString();
           closedTs = record["closedTs"];
           
           // Tratar valores nulos ou string "null"
@@ -1657,6 +1692,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           closingFee = closingFeeStr === "null" ? 0 : parseFloat(closingFeeStr);
           sumFundingFees = sumFundingFeesStr === "null" ? 0 : parseFloat(sumFundingFeesStr);
           closedValue = closedStr;
+        }
+        
+        // Verificar se o ID original já existe no sistema
+        if (originalId && existingProfitIds.has(originalId)) {
+          duplicatedCount++;
+          return; // Pular este registro, pois já existe
         }
         
         // Verificar se a operação foi fechada
@@ -1727,7 +1768,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         
         // Criar registro de lucro/perda
         const newProfit: ProfitRecord = {
-          id: Date.now().toString() + index, // ID único
+          id: Date.now().toString() + index, // ID único local
+          originalId: originalId, // Salvar ID original da operação
           date: format(profitDate, "yyyy-MM-dd"),
           amount: Math.abs(netProfitSats), // Valor absoluto
           unit: "SATS", // Em satoshis
@@ -1742,7 +1784,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     });
     
-    return { newProfits, successCount, errorCount };
+    return { newProfits, successCount, errorCount, duplicatedCount };
   };
 
   // Componente para as opções de importação
@@ -1792,714 +1834,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <span>Importados com sucesso:</span>
               <span className="font-medium text-green-500">{importStats.success}</span>
             </div>
-            {importStats.error > 0 && (
-              <div className="flex justify-between">
-                <span>Falhas:</span>
-                <span className="font-medium text-red-500">{importStats.error}</span>
+            {importStats.duplicated && importStats.duplicated > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Registros duplicados ignorados:</span>
+                <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
               </div>
             )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Função para importar dados do Excel
-  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-
-    const file = event.target.files[0];
-    setIsImporting(true);
-    setImportStats(null);
-    setImportType("excel");
-
-    try {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          if (!e.target || !e.target.result) {
-            throw new Error("Falha ao ler o arquivo");
-          }
-          
-          const buffer = e.target.result;
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(buffer as ArrayBuffer);
-          
-          const worksheet = workbook.getWorksheet(1);
-          
-          if (!worksheet) {
-            throw new Error("Planilha não encontrada no arquivo");
-          }
-          
-          // Coletar cabeçalhos para validação
-          const headers: string[] = [];
-          const headerRow = worksheet.getRow(1);
-          
-          headerRow.eachCell((cell) => {
-            headers.push(cell.value?.toString().trim() || "");
-          });
-          
-          // Mapear índices das colunas necessárias
-          const headerIndexMap: Record<string, number> = {};
-          headers.forEach((header, index) => {
-            headerIndexMap[header] = index + 1; // ExcelJS é baseado em 1
-          });
-          
-          // Criar array de registros (rows) para processar
-          const records: any[] = [];
-          for (let i = 2; i <= worksheet.rowCount; i++) {
-            records.push(worksheet.getRow(i));
-          }
-          
-          const totalRows = records.length;
-          
-          // Processar registros usando a função comum
-          const { newProfits, successCount, errorCount } = 
-            processTradeRecords(headers, records, headerIndexMap);
-          
-          // Adicionar os novos registros de lucro
-          if (newProfits.length > 0) {
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
-            
-            if (!toastDebounce) {
-              setToastDebounce(true);
-              toast({
-                title: "Importação Excel concluída",
-                description: `Foram importados ${successCount} registros de lucro/perda com sucesso.`,
-                variant: "success",
-              });
-              setTimeout(() => setToastDebounce(false), 500);
-            }
-          } else {
-            toast({
-              title: "Nenhum registro importado",
-              description: "Não foi possível encontrar registros válidos no arquivo Excel.",
-              variant: "destructive",
-            });
-          }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalRows,
-            success: successCount,
-            error: errorCount
-          });
-          
-        } catch (error) {
-          console.error("Erro ao processar o arquivo Excel:", error);
-          toast({
-            title: "Erro na importação",
-            description: error instanceof Error ? error.message : "Falha ao processar o arquivo Excel.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsImporting(false);
-          setImportType(null);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-        }
-      };
-      
-      reader.onerror = () => {
-        setIsImporting(false);
-        setImportType(null);
-        toast({
-          title: "Erro na leitura",
-          description: "Não foi possível ler o arquivo Excel selecionado.",
-          variant: "destructive",
-        });
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      };
-      
-      reader.readAsArrayBuffer(file);
-      
-    } catch (error) {
-      setIsImporting(false);
-      setImportType(null);
-      console.error("Erro ao importar Excel:", error);
-      toast({
-        title: "Erro na importação",
-        description: "Ocorreu um erro ao tentar importar o arquivo Excel.",
-        variant: "destructive",
-      });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  // Função para importar dados internos de um arquivo Excel gerado pelo sistema
-  const handleImportInternalData = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-    
-    const file = event.target.files[0];
-    setIsImporting(true);
-    setImportStats(null);
-    setImportType("internal");
-    
-    try {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          if (!e.target || !e.target.result) {
-            throw new Error("Falha ao ler o arquivo");
-          }
-          
-          const buffer = e.target.result;
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(buffer as ArrayBuffer);
-          
-          // Buscar a planilha de registros
-          const recordsSheet = workbook.getWorksheet('Registros_Importação');
-          
-          if (!recordsSheet) {
-            throw new Error("Este arquivo Excel não contém a planilha de registros para importação");
-          }
-          
-          // Verificar o formato
-          let isValidFormat = false;
-          let rowWithVersion = recordsSheet.getRow(recordsSheet.rowCount);
-          
-          // Verificar as últimas 3 linhas para encontrar a versão do formato
-          for (let i = 0; i < 3; i++) {
-            const row = recordsSheet.getRow(recordsSheet.rowCount - i);
-            if (row.getCell(1).value === 'META' && row.getCell(2).value === 'FORMAT_VERSION') {
-              isValidFormat = true;
-              break;
-            }
-          }
-          
-          if (!isValidFormat) {
-            throw new Error("Formato de arquivo inválido. Este arquivo não contém dados válidos para importação");
-          }
-          
-          // Processar os registros
-          const newInvestments: Investment[] = [];
-          const newProfits: ProfitRecord[] = [];
-          let totalCount = 0;
-          let investmentCount = 0;
-          let profitCount = 0;
-          let errorCount = 0;
-          
-          // Começar da linha 2 (após o cabeçalho)
-          for (let i = 2; i <= recordsSheet.rowCount; i++) {
-            const row = recordsSheet.getRow(i);
-            const type = row.getCell(1).value?.toString();
-            
-            // Pular metadados
-            if (type === 'META') continue;
-            
-            try {
-              if (type === 'INVESTMENT') {
-                const id = row.getCell(2).value?.toString() || Date.now().toString();
-                const date = row.getCell(3).value?.toString() || format(new Date(), "yyyy-MM-dd");
-                const amount = Number(row.getCell(4).value) || 0;
-                const unit = (row.getCell(5).value?.toString() as CurrencyUnit) || "SATS";
-                
-                if (amount > 0) {
-                  const investment: Investment = {
-                    id,
-                    date,
-                    amount,
-                    unit
-                  };
-                  
-                  // Verificar se o ID já existe para evitar duplicatas
-                  if (!investments.some(inv => inv.id === id)) {
-                    newInvestments.push(investment);
-                    investmentCount++;
-                  }
-                }
-                
-                totalCount++;
-              } else if (type === 'PROFIT') {
-                const id = row.getCell(2).value?.toString() || Date.now().toString();
-                const date = row.getCell(3).value?.toString() || format(new Date(), "yyyy-MM-dd");
-                const amount = Number(row.getCell(4).value) || 0;
-                const unit = (row.getCell(5).value?.toString() as CurrencyUnit) || "SATS";
-                const isProfitValue = row.getCell(6).value?.toString();
-                const isProfit = isProfitValue === 'TRUE';
-                
-                if (amount > 0) {
-                  const profit: ProfitRecord = {
-                    id,
-                    date,
-                    amount,
-                    unit,
-                    isProfit
-                  };
-                  
-                  // Verificar se o ID já existe para evitar duplicatas
-                  if (!profits.some(p => p.id === id)) {
-                    newProfits.push(profit);
-                    profitCount++;
-                  }
-                }
-                
-                totalCount++;
-              }
-            } catch (error) {
-              console.error(`Erro ao processar linha ${i}:`, error);
-              errorCount++;
-            }
-          }
-          
-          // Adicionar os novos registros
-          if (newInvestments.length > 0 || newProfits.length > 0) {
-            setInvestments(prevInvestments => [...prevInvestments, ...newInvestments]);
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
-            
-            toast({
-              title: "Importação concluída",
-              description: `Foram importados ${investmentCount} aportes e ${profitCount} registros de lucro/perda com sucesso.`,
-              variant: "success",
-            });
-          } else {
-            toast({
-              title: "Nenhum registro importado",
-              description: "Não foram encontrados novos registros para importar ou todos os registros já existem no sistema.",
-              variant: "destructive",
-            });
-          }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalCount,
-            success: investmentCount + profitCount,
-            error: errorCount
-          });
-          
-        } catch (error) {
-          console.error("Erro ao processar arquivo para importação interna:", error);
-          toast({
-            title: "Erro na importação",
-            description: error instanceof Error ? error.message : "Falha ao processar o arquivo Excel.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsImporting(false);
-          setImportType(null);
-          if (event.target) {
-            event.target.value = '';
-          }
-        }
-      };
-      
-      reader.onerror = () => {
-        setIsImporting(false);
-        setImportType(null);
-        toast({
-          title: "Erro na leitura",
-          description: "Não foi possível ler o arquivo Excel selecionado.",
-          variant: "destructive",
-        });
-        if (event.target) {
-          event.target.value = '';
-        }
-      };
-      
-      reader.readAsArrayBuffer(file);
-      
-    } catch (error) {
-      setIsImporting(false);
-      setImportType(null);
-      console.error("Erro na importação interna:", error);
-      toast({
-        title: "Erro na importação",
-        description: "Ocorreu um erro ao tentar processar o arquivo Excel.",
-        variant: "destructive",
-      });
-      if (event.target) {
-        event.target.value = '';
-      }
-    }
-  };
-
-  // Função para importar aportes via CSV
-  const handleImportInvestmentCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-
-    const file = event.target.files[0];
-    setIsImporting(true);
-    setImportStats(null);
-    setImportType("investment-csv");
-
-    try {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          if (!e.target || !e.target.result) {
-            throw new Error("Falha ao ler o arquivo CSV");
-          }
-          
-          const csvText = e.target.result as string;
-          
-          // Usar o parser CSV robusto
-          const records = parseCSV(csvText);
-          
-          if (records.length === 0) {
-            throw new Error("O arquivo CSV não contém dados válidos");
-          }
-          
-          // Verificar cabeçalhos necessários
-          const requiredHeaders = ["id", "ts", "amount", "transactionIdOrHash", "comment", "success", "type"];
-          const headers = Object.keys(records[0]);
-          
-          const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
-          if (missingHeaders.length > 0) {
-            throw new Error(`Cabeçalhos obrigatórios ausentes: ${missingHeaders.join(", ")}`);
-          }
-          
-          const totalRecords = records.length;
-          let importedCount = 0;
-          let errorCount = 0;
-          const newInvestments: Investment[] = [];
-          
-          // Processar cada registro
-          records.forEach((record, index) => {
-            try {
-              // Verificar se o aporte foi bem-sucedido
-              const successValue = String(record.success).toLowerCase();
-              const isSuccess = successValue === "true" || successValue === "1";
-              
-              if (!isSuccess) {
-                // Ignorar registros não bem-sucedidos
-                return;
-              }
-              
-              // Processar o timestamp
-              let investmentDate: Date;
-              
-              // Tentar interpretar o timestamp como número (milissegundos)
-              const tsNum = Number(record.ts);
-              if (!isNaN(tsNum)) {
-                investmentDate = new Date(tsNum);
-              } else {
-                // Tentar interpretar como string de data
-                investmentDate = new Date(record.ts);
-              }
-              
-              // Verificar se a data é válida
-              if (isNaN(investmentDate.getTime())) {
-                throw new Error(`Data inválida: ${record.ts}`);
-              }
-              
-              // Processar o valor
-              const amount = parseFloat(record.amount.toString());
-              if (isNaN(amount) || amount <= 0) {
-                throw new Error(`Valor inválido: ${record.amount}`);
-              }
-              
-              // Definir a unidade sempre como SATS
-              const unit: CurrencyUnit = "SATS";
-              
-              // Criar novo investimento
-              const newInvestment: Investment = {
-                id: Date.now().toString() + index, // Usar ID único
-                date: format(investmentDate, "yyyy-MM-dd"),
-                amount: amount,
-                unit: unit
-              };
-              
-              // Adicionar ao array de novos investimentos
-              newInvestments.push(newInvestment);
-              importedCount++;
-              
-            } catch (error) {
-              console.error(`Erro ao processar linha ${index + 1}:`, error);
-              errorCount++;
-            }
-          });
-          
-          // Adicionar os novos investimentos
-          if (newInvestments.length > 0) {
-            setInvestments(prev => [...prev, ...newInvestments]);
-            
-            toast({
-              title: "Importação de aportes concluída",
-              description: `Foram importados ${importedCount} aportes com sucesso.`,
-              variant: "success",
-            });
-          } else {
-            toast({
-              title: "Nenhum aporte importado",
-              description: "Não foram encontrados registros de aportes válidos no arquivo CSV.",
-              variant: "destructive",
-            });
-          }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalRecords,
-            success: importedCount,
-            error: errorCount
-          });
-          
-        } catch (error) {
-          console.error("Erro ao processar o arquivo CSV de aportes:", error);
-          toast({
-            title: "Erro na importação",
-            description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsImporting(false);
-          setImportType(null);
-          if (event.target && event.target.files) {
-            event.target.value = '';
-          }
-        }
-      };
-      
-      reader.onerror = () => {
-        setIsImporting(false);
-        setImportType(null);
-        toast({
-          title: "Erro na leitura",
-          description: "Não foi possível ler o arquivo CSV selecionado.",
-          variant: "destructive",
-        });
-        if (event.target) {
-          event.target.value = '';
-        }
-      };
-      
-      reader.readAsText(file);
-      
-    } catch (error) {
-      setIsImporting(false);
-      setImportType(null);
-      console.error("Erro ao importar CSV de aportes:", error);
-      toast({
-        title: "Erro na importação",
-        description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
-        variant: "destructive",
-      });
-      if (event.target) {
-        event.target.value = '';
-      }
-    }
-  };
-
-  // Interface simplificada temporária
-  return (
-    <div className="space-y-6">
-      {usingFallbackRates && (
-        <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 px-3 py-2 rounded-md text-sm mb-2 flex items-center">
-          <AlertTriangle className="h-4 w-4 mr-2" />
-          Usando taxas de câmbio simuladas. Os valores podem não refletir o mercado atual.
-          <span className="ml-2 text-yellow-200">Use o botão "Atualizar Preços" no topo da página.</span>
-        </div>
-      )}
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-black/30 border border-purple-800/40">
-          <TabsTrigger value="register" className="data-[state=active]:bg-purple-800/70 data-[state=active]:text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            Registrar
-          </TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-purple-800/70 data-[state=active]:text-white">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Histórico
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="register" className="mt-4">
-          <Card className="panel border-purple-700/50 mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Importar/Exportar Dados</CardTitle>
-              <CardDescription>Gerencie todos os seus dados com facilidade</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3 border border-purple-700/20 rounded-md bg-black/20">
-                  <h3 className="text-sm font-medium mb-3">Importar Backup</h3>
-                  <p className="text-xs text-gray-400 mb-4">
-                    Restaure seus aportes e lucros a partir de um arquivo de backup
-                  </p>
-                  
-                  <input
-                    type="file"
-                    accept=".xlsx"
-                    onChange={handleImportInternalData}
-                    ref={internalFileInputRef}
-                    className="hidden"
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                    onClick={triggerInternalFileInput}
-                    disabled={isImporting}
-                  >
-                    {isImporting && importType === "internal" ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Importando...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="mr-2 h-4 w-4" />
-                        Importar Backup Completo
-                      </>
-                    )}
-                  </Button>
-                </div>
-                
-                <div className="p-3 border border-purple-700/20 rounded-md bg-black/20">
-                  <h3 className="text-sm font-medium mb-3">Exportar Dados</h3>
-                  <p className="text-xs text-gray-400 mb-4">
-                    Exporte todos os seus registros para backup
-                  </p>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                    onClick={() => exportData(true)}
-                    disabled={isExporting}
-                  >
-                    {isExporting ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Exportando...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Exportar Todos os Dados
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              
-              {importStats && importType === "internal" && (
-                <div className="mt-4 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-                  <div className="flex justify-between mb-1">
-                    <span>Total processado:</span>
-                    <span className="font-medium">{importStats.total}</span>
-                  </div>
-                  <div className="flex justify-between mb-1">
-                    <span>Importados com sucesso:</span>
-                    <span className="font-medium text-green-500">{importStats.success}</span>
-                  </div>
-                  {importStats.error > 0 && (
-                    <div className="flex justify-between">
-                      <span>Falhas:</span>
-                      <span className="font-medium text-red-500">{importStats.error}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="panel border-purple-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Registrar Aporte</CardTitle>
-                <CardDescription>Registre seus investimentos em Bitcoin</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-5">
-                  <div>
-                    <Label htmlFor="investment-amount" className="mb-1 block">Valor do Aporte</Label>
-                    <Input
-                      id="investment-amount"
-                      type="number"
-                      placeholder="Valor"
-                      value={investmentAmount}
-                      onChange={(e) => setInvestmentAmount(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="investment-date" className="mb-1 block">Data do Aporte</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20 mt-1"
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                          Selecione a data do aporte
-                        </div>
-                        <CalendarComponent
-                          mode="single"
-                          selected={investmentDate}
-                          onSelect={(date) => date && setInvestmentDate(date)}
-                          initialFocus
-                          className="bg-black/80"
-                          locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <Button onClick={addInvestment} className="mt-2 w-full md:w-auto">Adicionar Investimento</Button>
-                  
-                  {/* Adicionando botão para importar CSV de aportes */}
-                  <div className="mt-6 pt-5 border-t border-purple-700/30">
-                    <h3 className="text-sm font-medium mb-3">Importar Aportes</h3>
-                    <p className="text-xs text-gray-400 mb-3">
-                      Importe registros de aportes a partir de arquivo CSV
-                    </p>
-                    
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleImportInvestmentCSV}
-                      ref={useRef<HTMLInputElement>(null)}
-                      className="hidden"
-                      id="investment-csv-input"
-                    />
-                    
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                      onClick={() => document.getElementById("investment-csv-input")?.click()}
-                      disabled={isImporting}
-                    >
-                      {isImporting && importType === "investment-csv" ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Importando...
-                        </>
-                      ) : (
-                        <>
-                          <FileType className="mr-2 h-4 w-4" />
-                          Importar CSV de Aportes
-                        </>
-                      )}
-                    </Button>
-                    
-                    {importStats && importType === "investment-csv" && (
-                      <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-                        <div className="flex justify-between mb-1">
-                          <span>Total processado:</span>
-                          <span className="font-medium">{importStats.total}</span>
-                        </div>
-                        <div className="flex justify-between mb-1">
-                          <span>Importados com sucesso:</span>
-                          <span className="font-medium text-green-500">{importStats.success}</span>
-                        </div>
-                        {importStats.error > 0 && (
-                          <div className="flex justify-between">
+            {importStats.error > 0 && (
+              <div className="flex justify-between">
                             <span>Falhas:</span>
                             <span className="font-medium text-red-500">{importStats.error}</span>
                           </div>
@@ -3035,6 +2377,66 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo para mostrar informações sobre duplicações */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Registros duplicados encontrados</DialogTitle>
+            <DialogDescription>
+              Foram encontrados {duplicateInfo.count} {duplicateInfo.type} que já existem no sistema.
+              Estes registros foram ignorados para evitar duplicações que poderiam causar imprecisões nos dados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 p-4 bg-purple-900/20 border border-purple-800/40 rounded-md">
+            <div className="flex items-start">
+              <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+              <div className="text-sm">
+                <p className="mb-2">
+                  O sistema compara os identificadores únicos das operações para evitar duplicações durante a importação.
+                </p>
+                <p className="text-gray-400">
+                  Isto garante maior precisão nos seus cálculos de lucro e rendimento.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              onClick={() => setShowDuplicateDialog(false)}
+              className="bg-purple-800 hover:bg-purple-700"
+            >
+              <Check className="mr-2 h-4 w-4" />
+              Entendi
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+              {importStats && importType === "internal" && (
+                <div className="mt-4 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+                  <div className="flex justify-between mb-1">
+                    <span>Total processado:</span>
+                    <span className="font-medium">{importStats.total}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span>Importados com sucesso:</span>
+                    <span className="font-medium text-green-500">{importStats.success}</span>
+                  </div>
+                  {importStats.duplicated && importStats.duplicated > 0 && (
+                    <div className="flex justify-between mb-1">
+                      <span>Registros duplicados ignorados:</span>
+                      <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+                    </div>
+                  )}
+                  {importStats.error > 0 && (
+                    <div className="flex justify-between">
+                      <span>Falhas:</span>
+                      <span className="font-medium text-red-500">{importStats.error}</span>
+                    </div>
+                  )}
+                </div>
+              )}
     </div>
   );
 }
