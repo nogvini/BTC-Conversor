@@ -1,15 +1,14 @@
 "use client"
-import { ThemeProvider as NextThemesProvider, type ThemeProviderProps } from "next-themes"
+import { ThemeProvider as NextThemesProvider } from "next-themes"
 
-export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  // Forçar tema escuro independente das configurações do sistema
-  const forcedProps = {
-    ...props,
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const themeConfig = {
+    attribute: "class",
     enableSystem: false,
     forcedTheme: "dark",
     disableTransitionOnChange: false,
     defaultTheme: "dark"
   }
   
-  return <NextThemesProvider {...forcedProps}>{children}</NextThemesProvider>
+  return <NextThemesProvider {...themeConfig}>{children}</NextThemesProvider>
 }

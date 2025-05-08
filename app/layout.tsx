@@ -26,7 +26,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProviderClient>
-          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
+          <ThemeProvider>
             {children}
           </ThemeProvider>
         </AuthProviderClient>

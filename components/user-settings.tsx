@@ -16,7 +16,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Tipos para as configurações
 type UserSettings = {
-  theme: "system" | "dark" | "light"
   currency: "BRL" | "USD"
   autoRefresh: boolean
   refreshInterval: number // Em minutos
@@ -25,7 +24,6 @@ type UserSettings = {
 
 // Configurações padrão
 const defaultSettings: UserSettings = {
-  theme: "system",
   currency: "BRL",
   autoRefresh: true,
   refreshInterval: 5,
@@ -87,15 +85,6 @@ export default function UserSettings() {
 
   // Aplicar configurações
   const applySettings = () => {
-    // Aplicar tema
-    if (settings.theme !== "system") {
-      document.documentElement.classList.remove("light", "dark")
-      document.documentElement.classList.add(settings.theme)
-    } else {
-      // Usar preferência do sistema
-      document.documentElement.classList.remove("light", "dark")
-    }
-    
     // Outras configurações seriam aplicadas aqui quando implementadas
   }
 
@@ -152,30 +141,7 @@ export default function UserSettings() {
             
             <TabsContent value="appearance" className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">Tema</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="theme">Escolha o tema</Label>
-                    <Select 
-                      value={settings.theme} 
-                      onValueChange={(value: any) => 
-                        setSettings({ ...settings, theme: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um tema" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="system">Sistema (Padrão)</SelectItem>
-                        <SelectItem value="dark">Escuro</SelectItem>
-                        <SelectItem value="light">Claro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      O tema escuro é recomendado para uso noturno.
-                    </p>
-                  </div>
-                  
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="currency">Moeda padrão</Label>
                     <Select 
