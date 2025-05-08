@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Os comandos que serão direcionados ao CMD devem ser especificados, no entando não executados. Os comandos não devem interromper o fluxo de raciocínio, anote-os como parte do processo a ser feito manualmente pelo desenvolvedor. Ele executará todos os comandos de cmd forma manual.

@@ -1,4 +1,4 @@
-# BTC Conversor
+# Raid Bitcoin Toolkit
 
 Aplicativo para conversão e monitoramento de preços de Bitcoin, com gráficos históricos e calculadora de lucros.
 
@@ -77,3 +77,158 @@ O aplicativo utiliza uma arquitetura moderna com:
 - Adaptações específicas para dispositivos móveis
 - Menu de navegação otimizado para telas pequenas
 - Visualização de gráficos adaptada para diferentes tamanhos de tela
+
+## Integração com Supabase
+
+Este projeto utiliza o Supabase para autenticação de usuários. Para configurar o Supabase:
+
+1. Crie uma conta no [Supabase](https://supabase.com/) e crie um novo projeto
+2. Crie um arquivo `.env.local` na raiz do projeto com as seguintes variáveis:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+```
+
+3. No Supabase, habilite a autenticação por email e senha em "Authentication" > "Providers"
+4. Crie uma tabela `profiles` com a seguinte estrutura SQL:
+
+```sql
+create table public.profiles (
+  id uuid references auth.users on delete cascade not null primary key,
+  name text,
+  email text not null,
+  avatar_url text,
+  created_at timestamp with time zone default now()
+);
+
+-- Configurar acesso RLS (Row Level Security)
+alter table public.profiles enable row level security;
+
+-- Políticas de acesso
+create policy "Usuários podem ver seus próprios perfis" 
+  on profiles for select 
+  using (auth.uid() = id);
+
+create policy "Usuários podem atualizar seus próprios perfis" 
+  on profiles for update 
+  using (auth.uid() = id);
+
+-- Função para criar automaticamente um perfil ao cadastrar um usuário
+create or replace function public.handle_new_user() 
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, name)
+  values (new.id, new.email, new.raw_user_meta_data->>'name');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Trigger para chamar a função quando um novo usuário é criado
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+```
+
+## Sistema de Autenticação
+
+O sistema de autenticação implementa um fluxo completo para:
+
+1. **Login de usuário**: 
+   - Verifica credenciais (email/senha)
+   - Verifica se o email está confirmado
+   - Verifica se o perfil associado existe no banco de dados
+   - Redireciona para cadastro se não existir um perfil
+
+2. **Cadastro de usuário**:
+   - Cria conta de autenticação
+   - Cria perfil no banco de dados automaticamente
+   - Envia email de verificação
+
+3. **Recuperação de sessão**:
+   - Sistema de retry para conexão com Supabase
+   - Recuperação automática de sessão
+
+### Fluxo de autenticação
+
+```
+┌─────────────┐       ┌─────────────┐      ┌─────────────┐
+│             │       │             │      │             │
+│    Login    ├──────►│  Verifica   │─────►│   Perfil    │
+│             │       │   Email     │  ┌───┤  Existe?    │
+└─────────────┘       └─────────────┘  │   └──────┬──────┘
+                                       │          │
+┌─────────────┐                        │          │ Sim
+│             │◄──────────────────────┐│          │
+│  Cadastro   │  Não (Redirecionado)  ││          ▼
+│             │                       ││   ┌─────────────┐
+└─────┬───────┘                       ││   │             │
+      │                               ││   │   Acesso    │
+      ▼                               ││   │ Autorizado  │
+┌─────────────┐                       ││   │             │
+│             │                       ││   └─────────────┘
+│   Verifica  │                       ││
+│    Email    │◄──────────────────────┘│
+│             │                        │
+└─────────────┘                        │
+                                       │
+```
+
+### Tratamento de erros
+
+O sistema implementa tratamento robusto para:
+- Falhas de conexão com o Supabase
+- Usuários autenticados sem perfil
+- Emails não verificados
+- Credenciais inválidas
+
+### Ferramentas de diagnóstico
+
+Em modo de desenvolvimento, o sistema disponibiliza ferramentas para:
+- Testar a conexão com o banco de dados
+- Visualizar status de conexão com o Supabase
+- Monitorar tentativas de reconexão
+- Ver detalhes de diagnóstico
+
+## Deploy na Vercel
+
+Para fazer deploy deste projeto na Vercel:
+
+1. Conecte seu repositório GitHub à Vercel
+2. Configure as variáveis de ambiente necessárias na seção de configurações do projeto na Vercel:
+   - Vá para o Dashboard da Vercel > Seu Projeto > Settings > Environment Variables
+   - Adicione as mesmas variáveis que estão no seu arquivo `.env.local`:
+     ```
+     NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+     ```
+   - Estas variáveis devem ser adicionadas para todos os ambientes (Production, Preview e Development)
+3. Faça o redeploy do projeto para aplicar as novas variáveis:
+   - Vá para o Dashboard da Vercel > Seu Projeto > Deployments
+   - Encontre seu último deploy e clique em "Redeploy"
+   - Ou faça um novo commit no seu repositório para acionar um novo deploy
+
+Importante: As variáveis de ambiente com prefixo `NEXT_PUBLIC_` são expostas no navegador do cliente. Para informações sensíveis que não devem ser expostas ao cliente, use variáveis sem esse prefixo e acesse-as apenas no lado do servidor.
+
+## Configuração de Ambiente
+
+### Variáveis de Ambiente
+
+Este projeto utiliza o Supabase como backend. Para executar localmente, você precisa configurar as seguintes variáveis de ambiente:
+
+1. Crie um arquivo `.env.local` na raiz do projeto com o seguinte conteúdo:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+```
+
+Substitua `sua_url_do_supabase` e `sua_chave_anonima` pelas suas credenciais do Supabase.
+
+2. Para ambientes de produção ou preview, estas variáveis já estão configuradas nos arquivos `.env.production` e `.env.preview`, respectivamente.
+
+**Nota importante:** A aplicação necessita destas variáveis de ambiente para funcionar corretamente, especialmente para autenticação. Se você estiver tendo problemas de login, verifique se as variáveis estão definidas corretamente.
+
+### Inicialização do Banco de Dados
+
+O sistema possui uma rota `/api/init-db` que verifica e inicializa as tabelas necessárias para o funcionamento da aplicação. Você pode acessar esta rota após iniciar o servidor de desenvolvimento para garantir que o banco de dados está configurado corretamente.

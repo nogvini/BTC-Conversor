@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { AlertCircle, Bitcoin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 export default function GlobalError({
   error,
@@ -11,33 +10,22 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    // Logar o erro para análise
-    console.error('Erro global:', error);
-  }, [error]);
-
   return (
-    <html lang="pt-BR" className="dark">
-      <body className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-indigo-950 via-[#0c0e1d] to-black">
-        <div className="flex items-center gap-2 mb-8">
-          <Bitcoin className="h-10 w-10 text-indigo-500" />
-          <h1 className="text-3xl font-bold text-indigo-300">Raid Bitcoin</h1>
-        </div>
-        
-        <div className="max-w-md w-full p-8 bg-black/40 backdrop-blur-sm border border-indigo-900/30 rounded-xl text-center">
-          <div className="flex justify-center mb-4">
-            <AlertCircle className="h-12 w-12 text-red-500" />
-          </div>
-          
-          <h2 className="text-2xl font-bold text-white mb-2">Erro no Sistema</h2>
-          <p className="text-indigo-300 mb-6">
-            Ocorreu um erro inesperado. Estamos trabalhando para resolver o problema.
+    <html lang="pt-BR" suppressHydrationWarning className="dark">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="color-scheme" content="only dark" />
+        <meta name="theme-color" content="#1e1b4b" />
+        <title>Erro - Raid Bitcoin Toolkit</title>
+      </head>
+      <body className="bg-black text-white min-h-screen flex flex-col items-center justify-center">
+        <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-8 rounded-lg border border-purple-800/50 shadow-xl max-w-md mx-auto">
+          <h1 className="text-4xl font-bold text-white mb-4">Algo deu errado</h1>
+          <p className="text-gray-300 mb-8">
+            Ocorreu um erro inesperado. Por favor, tente novamente.
           </p>
-          
-          <Button 
-            onClick={reset}
-            className="bg-indigo-800 hover:bg-indigo-700"
-          >
+          <Button onClick={reset} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
             Tentar novamente
           </Button>
         </div>

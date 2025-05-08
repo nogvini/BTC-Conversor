@@ -42,6 +42,9 @@ import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -479,7 +482,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       // Criar workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = "BTC Monitor";
+      workbook.creator = "Raid Bitcoin Toolkit";
+      workbook.lastModifiedBy = "Raid Bitcoin Toolkit";
       workbook.created = new Date();
       
       // Obter cotação atual do BTC em USD e BRL
@@ -1354,7 +1358,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         >
           <div className="flex items-center">
             <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="font-medium">Exportar dados do mês atual</span>
+            <span className="font-medium">Exportar dados do mês selecionado</span>
           </div>
           {showFilterOptions && (
             <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
@@ -3034,3 +3038,5 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';

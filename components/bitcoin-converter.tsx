@@ -299,25 +299,11 @@ export default function BitcoinConverter() {
     return () => clearInterval(interval)
   }, [])
 
+  // Função de atualização que pode ser chamada externamente
   const handleRefresh = () => {
-    // Verificar se passou tempo suficiente desde a última atualização (2 segundos)
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
-    const MIN_UPDATE_INTERVAL = 2000; // 2 segundos
-    
-    if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL) {
-      // Se a última atualização foi muito recente, mostrar mensagem e abortar
-      console.log(`Atualização muito recente (${Math.floor(timeSinceLastUpdate)}ms), ignorando`);
-      return;
-    }
-    
-    // Registrar timestamp desta atualização
-    lastUpdateTimeRef.current = now;
-    
-    // Chamar a atualização
     updateCurrentPrice();
   }
-
+  
   const convertValue = (value: number, from: CurrencyUnit, to: CurrencyUnit): number => {
     if (!rates) return 0
 
@@ -533,12 +519,11 @@ export default function BitcoinConverter() {
 
   return (
     <ResponsiveContainer>
-      <div className="space-y-4">
-        {/* Nova barra de navegação */}
-        <NavigationBar onRefresh={handleRefresh} loading={loading} />
-        
+      <div className="space-y-6">
         {/* Conteúdo baseado na aba ativa */}
-        {renderTabContent()}
+        <div>
+          {renderTabContent()}
+        </div>
       </div>
 
       <Toaster />

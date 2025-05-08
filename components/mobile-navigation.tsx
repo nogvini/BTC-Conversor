@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight } from "lucide-react"
+import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useSearchParams, useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 
 export interface MobileNavigationProps {
   activeTab: string
@@ -16,6 +17,8 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
   const [open, setOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { session } = useAuth()
+  const isAuthenticated = !!session.user
 
   // Função para navegar para uma aba
   const navigateToTab = (tab: string) => {
@@ -26,6 +29,12 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
     const newParams = new URLSearchParams(searchParams.toString())
     newParams.set('tab', tab)
     router.push(`?${newParams.toString()}`)
+  }
+
+  // Função para navegar para uma página
+  const navigateToPage = (path: string) => {
+    setOpen(false)
+    router.push(path)
   }
 
   return (
@@ -71,6 +80,29 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
                 active={activeTab === "calculator"}
                 onClick={() => navigateToTab("calculator")}
               />
+              
+              {isAuthenticated && (
+                <>
+                  <div className="pt-3 pb-2 mt-3 border-t border-purple-700/30">
+                    <span className="text-xs text-purple-400/70 font-medium px-3">
+                      SUA CONTA
+                    </span>
+                  </div>
+                  
+                  <NavItem 
+                    icon={<UserCircle className="h-5 w-5" />}
+                    label="Perfil"
+                    active={false}
+                    onClick={() => navigateToPage("/profile")}
+                  />
+                  <NavItem 
+                    icon={<Settings className="h-5 w-5" />}
+                    label="Configurações"
+                    active={false}
+                    onClick={() => navigateToPage("/settings")}
+                  />
+                </>
+              )}
             </ul>
           </nav>
           

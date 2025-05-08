@@ -207,6 +207,32 @@
     @apply bg-black/30 p-3 rounded-md border border-purple-700/50 transition-all hover:border-purple-600/60 backdrop-blur-sm;
   }
 
+  /* Estilo para a barra de navegação */
+  .nav-container {
+    @apply fixed top-0 left-0 right-0 backdrop-blur-md border-b border-purple-800/20 z-50;
+    background: linear-gradient(to bottom, rgba(15, 13, 31, 0.7), rgba(15, 13, 31, 0.5));
+  }
+
+  /* Estilo personalizado para alertas */
+  .alert-supabase-error {
+    @apply bg-red-900/20 border-red-700/50 text-red-200 backdrop-blur-sm;
+  }
+  
+  /* Estilo para alerta de verificação de email */
+  .alert-email-verification {
+    @apply bg-amber-900/20 border-amber-600/40 text-amber-200 backdrop-blur-sm;
+    animation: pulse-border 2s infinite alternate;
+  }
+  
+  @keyframes pulse-border {
+    0% {
+      border-color: rgba(217, 119, 6, 0.2);
+    }
+    100% {
+      border-color: rgba(217, 119, 6, 0.5);
+    }
+  }
+
   /* Animações de transição de página */
   .page-transition-enter {
     opacity: 0;

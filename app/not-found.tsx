@@ -1,23 +1,20 @@
+"use client";
+
 import Link from "next/link";
-import { Bitcoin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Home } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-indigo-950 via-[#0c0e1d] to-black">
-      <div className="flex items-center gap-2 mb-8">
-        <Bitcoin className="h-10 w-10 text-indigo-500" />
-        <h1 className="text-3xl font-bold text-indigo-300">Raid Bitcoin</h1>
-      </div>
-      
-      <div className="max-w-md w-full p-8 bg-black/40 backdrop-blur-sm border border-indigo-900/30 rounded-xl text-center">
-        <h2 className="text-2xl font-bold text-white mb-2">Página não encontrada</h2>
-        <p className="text-indigo-300 mb-6">
-          A página que você está procurando não existe ou foi movida para outro local.
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+      <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-8 rounded-lg border border-purple-800/50 shadow-xl max-w-md mx-auto">
+        <h1 className="text-4xl font-bold text-white mb-4">Página Não Encontrada</h1>
+        <p className="text-gray-300 mb-8">
+          Desculpe, a página que você está procurando não existe ou foi movida.
         </p>
-        
         <Link href="/">
-          <Button className="bg-indigo-800 hover:bg-indigo-700">
+          <Button className="gap-2">
+            <Home className="h-4 w-4" />
             Voltar para a página inicial
           </Button>
         </Link>
