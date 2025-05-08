@@ -88,31 +88,6 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
     setIsMenuOpen(false)
   }
   
-  // Componente para exibir erro de autenticação
-  const AuthErrorDisplay = () => (
-    <div className="flex items-center">
-      <Button 
-        variant="destructive" 
-        size="sm" 
-        onClick={handleRetryConnection}
-        className="bg-red-800 hover:bg-red-700 text-white border border-red-700/50 flex items-center gap-1.5"
-      >
-        <AlertTriangle className="h-3.5 w-3.5" />
-        <span className="text-xs">Reconectar</span>
-      </Button>
-    </div>
-  )
-  
-  // Lidar com logout com feedback visual
-  const handleSignOut = async () => {
-    try {
-      await signOut()
-      setIsMenuOpen(false)
-    } catch (error) {
-      console.error("Erro ao fazer logout:", error)
-    }
-  }
-  
   // Renderiza a navegação para desktop
   const DesktopNavigation = () => (
     <div className="flex justify-between items-center w-full">
