@@ -64,6 +64,29 @@ export default function AuthForm() {
   const [loginEmail, setLoginEmail] = useState("")
   const [loginError, setLoginError] = useState<string | null>(null)
   const [registerError, setRegisterError] = useState<string | null>(null)
+  const [redirectInProgress, setRedirectInProgress] = useState(false)
+
+  // Verificar se já há um usuário logado e redirecionar para a página inicial
+  useEffect(() => {
+    // Se há um usuário autenticado e não estamos carregando, redirecionar
+    if (session.user && !session.isLoading && !redirectInProgress) {
+      console.log('Usuário já autenticado, redirecionando para a página inicial...');
+      
+      // Marcar que o redirecionamento já está em andamento para evitar múltiplas chamadas
+      setRedirectInProgress(true);
+      
+      toast({
+        title: "Você já está logado",
+        description: "Redirecionando para a página inicial...",
+        variant: "default",
+      });
+      
+      // Usar redirecionamento direto via window.location para garantir navegação completa
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+    }
+  }, [session.user, session.isLoading, toast, redirectInProgress]);
 
   // Verificar se há parâmetros na URL que indicam erro no link de verificação
   useEffect(() => {
@@ -241,31 +264,18 @@ export default function AuthForm() {
       // Exibir toast de sucesso
       toast({
         title: "Login realizado com sucesso",
-        description: "Bem-vindo de volta!",
+        description: "Bem-vindo de volta! Redirecionando...",
         variant: "success",
       })
       
-      // Monitorar progresso pós-login para detectar problemas
-      let loginComplete = false;
-      const postLoginTimeout = setTimeout(() => {
-        if (!loginComplete) {
-          console.error('ALERTA: Redirecionamento pós-login parece estar travado');
-          // Forçar redirecionamento manualmente
-          window.location.href = '/';
-        }
-      }, 3000); // 3 segundos
+      // Simplificar o processo de redirecionamento
+      console.log('REDIRECIONAMENTO DIRETO: Indo para a página inicial...')
       
-      // Redirecionar para a página inicial após login bem-sucedido
-      console.log('Redirecionando para a página inicial...')
-      try {
-        loginComplete = true;
-        clearTimeout(postLoginTimeout);
-        router.push('/');
-      } catch (routerError) {
-        console.error('Erro ao redirecionar:', routerError);
-        // Fallback para redirecionamento via window location
-        window.location.href = '/';
-      }
+      // Desativar o estado de loading
+      setIsLoading(false)
+      
+      // Redirecionamento direto sem atrasos ou complicações
+      window.location.href = '/'
       
     } catch (error: any) {
       // Usar a função auxiliar para tratar o erro
