@@ -973,9 +973,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         ))}
         <div className="flex items-center mt-4 pt-3 border-t border-purple-700/30">
           <Button 
-            variant="outline" 
+            variant="default"
             size="sm"
-            className="text-xs py-1 px-2 h-7 bg-black/30 border-purple-700/50 hover:bg-purple-900/20 mr-2 w-full"
+            className="text-xs w-full bg-purple-700 hover:bg-purple-600 text-white"
             onClick={selectAllReports}
           >
             Selecionar Todos
