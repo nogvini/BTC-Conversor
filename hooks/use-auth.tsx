@@ -53,6 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setSession(prev => ({ ...prev, isLoading: true }))
         
+        // Verificar se já existe uma sessão persistida no localStorage
+        const persistedSession = typeof window !== 'undefined' ? localStorage.getItem('supabase_session') : null
+        
+        if (persistedSession) {
+          try {
+            const savedSession = JSON.parse(persistedSession)
+            const expiresAt = savedSession.expires_at * 1000 // Converter para milissegundos
+            
+            // Verificar se a sessão ainda não expirou
+            if (expiresAt > Date.now()) {
+              console.log('Usando sessão persistida do localStorage')
+              // Usar a sessão persistida para evitar nova autenticação
+              supabaseClient.auth.setSession({
+                access_token: savedSession.access_token,
+                refresh_token: savedSession.refresh_token
+              })
+            } else {
+              console.log('Sessão persistida expirada, removendo do localStorage')
+              localStorage.removeItem('supabase_session')
+            }
+          } catch (e) {
+            console.error('Erro ao processar sessão persistida:', e)
+            localStorage.removeItem('supabase_session')
+          }
+        }
+        
         // Verificar se há uma sessão ativa
         const { data, error } = await supabaseClient.auth.getSession()
         
@@ -208,6 +234,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isConnected && supabaseClient) {
       try {
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+          console.log('Evento de autenticação:', event)
+          
+          // Persistir a sessão no localStorage quando o usuário fizer login
+          if (event === 'SIGNED_IN' && session) {
+            localStorage.setItem('supabase_session', JSON.stringify(session))
+          }
+          
+          // Remover a sessão do localStorage quando o usuário fizer logout
+          if (event === 'SIGNED_OUT') {
+            localStorage.removeItem('supabase_session')
+          }
+          
           if (session) {
             try {
               // Buscar dados adicionais do usuário

@@ -1,42 +1,48 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
 
-// Página estática com redirecionamento para a versão cliente
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
+// Componente de carregamento
+const ProfileLoading = () => (
+  <div className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
+    <div className="max-w-4xl mx-auto text-center">
+      <h1 className="text-2xl font-bold mb-4">Perfil do Usuário</h1>
+      <div className="py-8 flex flex-col items-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="mt-2 text-sm text-gray-500">Carregando perfil...</p>
+      </div>
+    </div>
+  </div>
+);
+
+// Componente de perfil carregado dinamicamente
+const UserProfile = dynamic(() => import("@/components/user-profile"), {
+  ssr: false,
+  loading: ProfileLoading,
+});
+
+// Componente de verificação de autenticação carregado dinamicamente
+const RequireAuth = dynamic(
+  () => import("@/components/require-auth").then(mod => mod.RequireAuth),
+  { ssr: false }
+);
 
 export default function ProfilePage() {
-  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Redirecionamento com um pequeno delay
-    const redirectTimeout = setTimeout(() => {
-      router.push('/profile/view');
-    }, 300);
+    setMounted(true);
+  }, []);
 
-    // Limpar o timeout se o componente desmontar
-    return () => clearTimeout(redirectTimeout);
-  }, [router]);
+  if (!mounted) {
+    return <ProfileLoading />;
+  }
 
   return (
-    <main className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
-      <div className="max-w-4xl mx-auto text-center">
-        <h1 className="text-2xl font-bold mb-4">Perfil do Usuário</h1>
-        <p className="mb-4">Carregando seu perfil...</p>
-        
-        <div className="mt-4 flex justify-center">
-          <div className="animate-pulse h-8 w-8 rounded-full bg-primary/20"></div>
-        </div>
-        
-        <p className="text-sm text-muted-foreground mt-4">
-          Se você não for redirecionado automaticamente, 
-          <a href="/profile/view" className="underline font-medium ml-1">
-            clique aqui
-          </a>
-        </p>
-      </div>
-    </main>
+    <RequireAuth>
+      <UserProfile />
+    </RequireAuth>
   );
 } 
