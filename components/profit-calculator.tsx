@@ -2401,31 +2401,25 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   return (
     <div className="flex flex-col space-y-4">
-      {/* Renderizar Dialog de Relatório */}
       <ReportDialog />
       
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-4"
-      >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid grid-cols-2 h-auto gap-2 bg-transparent">
           <TabsTrigger
             value="register"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+            className="data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2"
           >
             Registrar
           </TabsTrigger>
           <TabsTrigger
             value="history"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+            className="data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2"
           >
             Histórico
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="register">
-          {/* Adicionar Card para seleção de relatório */}
           <Card className="panel border-purple-700/50 mb-6">
             <CardHeader>
               <CardTitle className="text-lg">Relatório Atual</CardTitle>
@@ -2433,10 +2427,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </CardHeader>
             <CardContent>
               <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 items-center">
-                <Select
-                  value={activeReportId || ""}
-                  onValueChange={changeActiveReport}
-                >
+                <Select value={activeReportId || ""} onValueChange={changeActiveReport}>
                   <SelectTrigger className="w-full bg-black/30 border-purple-700/50">
                     <SelectValue placeholder="Selecione um relatório" />
                   </SelectTrigger>
@@ -2500,7 +2491,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           selected={investmentDate}
                           onSelect={(date) => {
                             if (date) {
-                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
                               const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
                               setInvestmentDate(newDate);
                             }
@@ -2574,7 +2564,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           selected={profitDate}
                           onSelect={(date) => {
                             if (date) {
-                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
                               const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
                               setProfitDate(newDate);
                             }
@@ -2587,7 +2576,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </Popover>
                   </div>
                   
-                  {/* Reorganizando os RadioGroups para ficarem lado a lado */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label className="block mb-2">Tipo</Label>
@@ -2634,7 +2622,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Card>
           </div>
           
-          {/* Nova seção para importação */}
           <Card className="panel border-purple-700/50">
             <CardHeader>
               <CardTitle className="text-lg">Importação de Registros</CardTitle>
@@ -2648,7 +2635,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="history" className="mt-4">
           <div className="space-y-4">
-            {/* Adicionar Card para filtro de relatórios */}
             <Card className="panel border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Filtrar Relatórios</CardTitle>
@@ -2656,6 +2642,216 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardHeader>
               <CardContent>
                 <ReportFilterOptions />
+              </CardContent>
+            </Card>
+
+            <Card className="panel border-purple-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Resumo do Período</CardTitle>
+                <CardDescription>
+                  Veja o resumo dos investimentos e lucros/perdas do período selecionado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Período selecionado</div>
+                    <div className="text-lg font-semibold text-white">
+                      {getDisplayPeriodText()}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Aporte total</div>
+                    <div className="text-lg font-semibold text-blue-400">
+                      {formatCryptoAmount(getFilteredInvestments().reduce((total, investment) => {
+                        return total + convertToBtc(investment.amount, investment.unit);
+                      }, 0), "BTC")}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatBtcValueInCurrency(getFilteredInvestments().reduce((total, investment) => {
+                        return total + convertToBtc(investment.amount, investment.unit);
+                      }, 0))}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Lucro/Perda do período</div>
+                    <div className={`text-lg font-semibold ${getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      {getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0) >= 0 ? "+" : ""}
+                      {formatCryptoAmount(Math.abs(getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0)), "BTC")}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0) >= 0 ? "+" : ""}
+                      {formatBtcValueInCurrency(Math.abs(getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0)))}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Rendimento</div>
+                    <div className={`text-lg font-semibold ${
+                      getFilteredInvestments().reduce((total, investment) => {
+                        return total + convertToBtc(investment.amount, investment.unit);
+                      }, 0) > 0 && 
+                      (getFilteredProfits().reduce((total, profit) => {
+                        const btcValue = convertToBtc(profit.amount, profit.unit);
+                        return total + (profit.isProfit ? btcValue : -btcValue);
+                      }, 0) / getFilteredInvestments().reduce((total, investment) => {
+                        return total + convertToBtc(investment.amount, investment.unit);
+                      }, 0) * 100) >= 0 ? 
+                      "text-green-500" : "text-red-500"}`}>
+                      {getFilteredInvestments().reduce((total, investment) => {
+                        return total + convertToBtc(investment.amount, investment.unit);
+                      }, 0) > 0 ? 
+                        `${(getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0) / getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0) * 100).toFixed(2)}%` : 
+                        "N/A"}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="panel border-purple-700/50">
+              <CardContent className="p-4">
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Button
+                      variant={dateRangeMode === "month" ? "default" : "outline"}
+                      size="sm"
+                      onClick={switchToMonthMode}
+                      className={dateRangeMode === "month" ? "" : "bg-black/30 border-purple-700/50"}
+                    >
+                      Mês Único
+                    </Button>
+                    <Button
+                      variant={dateRangeMode === "custom" ? "default" : "outline"}
+                      size="sm"
+                      onClick={switchToCustomMode}
+                      className={dateRangeMode === "custom" ? "" : "bg-black/30 border-purple-700/50"}
+                    >
+                      Período Personalizado
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={goToPreviousMonth}
+                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {dateRangeMode === "month" ? (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
+                          <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                            Selecione um mês
+                          </div>
+                          <CalendarComponent
+                            mode="single"
+                            selected={selectedMonth}
+                            onSelect={(date) => {
+                              if (date) {
+                                const newDate = new Date(date);
+                                newDate.setDate(1);
+                                setSelectedMonth(newDate);
+                              }
+                            }}
+                            initialFocus
+                            className="bg-black/80"
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      <Popover open={showDateRangePicker} onOpenChange={setShowDateRangePicker}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {dateRange.from && dateRange.to ? (
+                              <>
+                                {format(dateRange.from, 'd MMM', { locale: ptBR })} - {format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}
+                              </>
+                            ) : (
+                              "Selecionar período"
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
+                          <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                            Selecione um período
+                          </div>
+                          <CalendarComponent
+                            mode="range"
+                            selected={{
+                              from: dateRange.from,
+                              to: dateRange.to
+                            }}
+                            onSelect={(range) => {
+                              if (range?.from && range?.to) {
+                                setDateRange({
+                                  from: startOfDay(range.from),
+                                  to: endOfDay(range.to)
+                                });
+                                setShowDateRangePicker(false);
+                              } else {
+                                setDateRange(range || { from: undefined, to: undefined });
+                              }
+                            }}
+                            initialFocus
+                            numberOfMonths={2}
+                            className="bg-black/80"
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={goToNextMonth}
+                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                      disabled={dateRangeMode === "month" ? isCurrentMonth(selectedMonth) : false}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -2667,14 +2863,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </p>
             ) : (
               <>
-                {/* Listagem de investimentos */}
                 {getFilteredInvestments().length > 0 && (
                   <div className="mb-6">
                     <h3 className="text-base font-semibold mb-3">Investimentos</h3>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                          <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -2682,7 +2877,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         </TableHeader>
                         <TableBody>
                           {getFilteredInvestments().map(investment => (
-                            <TableRow key={investment.id} className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                            <TableRow key={investment.id}>
                               <TableCell>{formatDisplayDate(investment.date)}</TableCell>
                               <TableCell>
                                 {formatCryptoAmount(investment.amount, investment.unit)}
@@ -2697,7 +2892,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                   onClick={() => deleteInvestment(investment.id)}
                                   className="h-7 w-7"
                                 >
-                                  <Trash className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -2708,14 +2903,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </div>
                 )}
 
-                {/* Listagem de lucros/perdas */}
                 {getFilteredProfits().length > 0 && (
                   <div>
                     <h3 className="text-base font-semibold mb-3">Lucros/Perdas</h3>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                          <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Valor</TableHead>
@@ -2724,10 +2918,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         </TableHeader>
                         <TableBody>
                           {getFilteredProfits().map(profit => (
-                            <TableRow key={profit.id} className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                            <TableRow key={profit.id}>
                               <TableCell>{formatDisplayDate(profit.date)}</TableCell>
                               <TableCell>
-                                <Badge className={profit.isProfit ? "bg-green-500" : "bg-red-500"}>
+                                <Badge variant={profit.isProfit ? "default" : "destructive"}>
                                   {profit.isProfit ? "Lucro" : "Perda"}
                                 </Badge>
                               </TableCell>
@@ -2744,7 +2938,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                   onClick={() => deleteProfit(profit.id)}
                                   className="h-7 w-7"
                                 >
-                                  <Trash className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -2760,10 +2954,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
       </Tabs>
 
-      {/* Dialog para exportação em telas pequenas */}
       {useExportDialog && (
         <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
-          <DialogContent className="p-0 max-w-[95vw] bg-black/95 border-purple-800/60" style={{ maxHeight: "80vh" }}>
+          <DialogContent className="p-0 max-w-[95vw] bg-black/95 border-purple-800/60">
             <DialogHeader className="p-4 pb-0">
               <DialogTitle className="text-center">Exportar Dados</DialogTitle>
             </DialogHeader>
@@ -2774,7 +2967,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </Dialog>
       )}
       
-      {/* Dialog para confirmar exclusão de investimentos */}
       <Dialog open={showDeleteInvestmentsDialog} onOpenChange={setShowDeleteInvestmentsDialog}>
         <DialogContent className="bg-black/95 border-purple-800/60">
           <DialogHeader>
@@ -2802,7 +2994,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </DialogContent>
       </Dialog>
       
-      {/* Dialog para confirmar exclusão de lucros/perdas */}
       <Dialog open={showDeleteProfitsDialog} onOpenChange={setShowDeleteProfitsDialog}>
         <DialogContent className="bg-black/95 border-purple-800/60">
           <DialogHeader>
@@ -2830,7 +3021,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo para mostrar informações sobre duplicações */}
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <DialogContent className="bg-black/95 border-purple-800/60">
           <DialogHeader>
@@ -2865,317 +3055,88 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </DialogContent>
       </Dialog>
       
-      {/* Diálogo de confirmação para registros potencialmente duplicados */}
-      {showConfirmDuplicateDialog && duplicateConfirmInfo && (
-        <Dialog 
-          open={showConfirmDuplicateDialog} 
-          onOpenChange={setShowConfirmDuplicateDialog}
-        >
-          <DialogContent className="bg-black/95 border-purple-800/60">
-            <DialogHeader>
-              <DialogTitle>Possível duplicação de registro</DialogTitle>
-              <DialogDescription>
-                <div className="my-2">
-                  Já existe um registro {duplicateConfirmInfo.type === 'investment' ? 'de aporte' : 'de lucro/perda'} com a mesma data e valor:
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-3 bg-black/40 p-2 rounded border border-purple-700/30">
-                  <div className="text-sm font-medium">Data:</div>
-                  <div className="text-sm">
-                    {(() => {
-                      try {
-                        // Converter a string de data (YYYY-MM-DD) em objeto Date usando parseISODate
+      <Dialog open={showConfirmDuplicateDialog} onOpenChange={setShowConfirmDuplicateDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Possível duplicação de registro</DialogTitle>
+            <DialogDescription>
+              <div className="my-2">
+                Já existe um registro {duplicateConfirmInfo?.type === 'investment' ? 'de aporte' : 'de lucro/perda'} com a mesma data e valor:
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3 bg-black/40 p-2 rounded border border-purple-700/30">
+                <div className="text-sm font-medium">Data:</div>
+                <div className="text-sm">
+                  {(() => {
+                    try {
+                      if (duplicateConfirmInfo?.date) {
                         const dateObj = parseISODate(duplicateConfirmInfo.date);
                         return format(dateObj, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
-                      } catch (e) {
-                        return duplicateConfirmInfo.date;
                       }
-                    })()}
-                  </div>
-                  
-                  <div className="text-sm font-medium">Valor:</div>
-                  <div className="text-sm">{formatCryptoAmount(duplicateConfirmInfo.amount, duplicateConfirmInfo.unit)}</div>
-                  
-                  {duplicateConfirmInfo.type === 'profit' && (
-                    <>
-                      <div className="text-sm font-medium">Tipo:</div>
-                      <div className="text-sm">{pendingProfit?.isProfit ? 'Lucro' : 'Perda'}</div>
-                    </>
-                  )}
+                      return "";
+                    } catch (e) {
+                      return duplicateConfirmInfo?.date || "";
+                    }
+                  })()}
                 </div>
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="mt-2 p-4 bg-purple-900/20 border border-purple-800/40 rounded-md">
-              <div className="flex items-start">
-                <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+                
+                <div className="text-sm font-medium">Valor:</div>
                 <div className="text-sm">
-                  <p className="mb-2">
-                    Adicionar este registro pode causar uma duplicação nos seus dados, o que pode afetar a precisão dos cálculos de rendimento.
-                  </p>
-                  <p className="text-gray-400">
-                    Você deseja continuar mesmo assim?
-                  </p>
+                  {duplicateConfirmInfo ? formatCryptoAmount(duplicateConfirmInfo.amount, duplicateConfirmInfo.unit) : ""}
                 </div>
+                
+                {duplicateConfirmInfo?.type === 'profit' && pendingProfit && (
+                  <>
+                    <div className="text-sm font-medium">Tipo:</div>
+                    <div className="text-sm">{pendingProfit.isProfit ? 'Lucro' : 'Perda'}</div>
+                  </>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-2 p-4 bg-purple-900/20 border border-purple-800/40 rounded-md">
+            <div className="flex items-start">
+              <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+              <div className="text-sm">
+                <p className="mb-2">
+                  Adicionar este registro pode causar uma duplicação nos seus dados, o que pode afetar a precisão dos cálculos de rendimento.
+                </p>
+                <p className="text-gray-400">
+                  Você deseja continuar mesmo assim?
+                </p>
               </div>
             </div>
-            
-            <div className="flex justify-end space-x-2 mt-4">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setPendingInvestment(null);
-                  setPendingProfit(null);
-                  setDuplicateConfirmInfo(null);
-                  setShowConfirmDuplicateDialog(false);
-                }}
-                className="bg-black/30 border-purple-700/50"
-              >
-                Cancelar
-              </Button>
-              <Button 
-                variant="default"
-                onClick={() => {
-                  if (duplicateConfirmInfo.type === 'investment' && pendingInvestment) {
-                    confirmAddInvestment(pendingInvestment);
-                  } else if (duplicateConfirmInfo.type === 'profit' && pendingProfit) {
-                    confirmAddProfitRecord(pendingProfit);
-                  }
-                }}
-                className="bg-purple-800 hover:bg-purple-700"
-              >
-                Adicionar mesmo assim
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-              <Card className="panel border-purple-700/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">Resumo do Período</CardTitle>
-                  <CardDescription>
-                    Veja o resumo dos investimentos e lucros/perdas do período selecionado.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Período selecionado</div>
-                      <div className="text-lg font-semibold text-white">
-                        {getDisplayPeriodText()}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Aporte total</div>
-                      <div className="text-lg font-semibold text-blue-400">
-                        {formatCryptoAmount(getFilteredInvestments().reduce((total, investment) => {
-                          return total + convertToBtc(investment.amount, investment.unit);
-                        }, 0), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {formatBtcValueInCurrency(getFilteredInvestments().reduce((total, investment) => {
-                          return total + convertToBtc(investment.amount, investment.unit);
-                        }, 0))}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Lucro/Perda do período</div>
-                      <div className={`text-lg font-semibold ${getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0) >= 0 ? "+" : ""}
-                        {formatCryptoAmount(Math.abs(getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0)), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0) >= 0 ? "+" : ""}
-                        {formatBtcValueInCurrency(Math.abs(getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0)))}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Rendimento</div>
-                      <div className={`text-lg font-semibold ${
-                        getFilteredInvestments().reduce((total, investment) => {
-                          return total + convertToBtc(investment.amount, investment.unit);
-                        }, 0) > 0 && 
-                        (getFilteredProfits().reduce((total, profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return total + (profit.isProfit ? btcValue : -btcValue);
-                        }, 0) / getFilteredInvestments().reduce((total, investment) => {
-                          return total + convertToBtc(investment.amount, investment.unit);
-                        }, 0) * 100) >= 0 ? 
-                        "text-green-500" : "text-red-500"}`}>
-                        {getFilteredInvestments().reduce((total, investment) => {
-                          return total + convertToBtc(investment.amount, investment.unit);
-                        }, 0) > 0 ? 
-                          `${(getFilteredProfits().reduce((total, profit) => {
-                            const btcValue = convertToBtc(profit.amount, profit.unit);
-                            return total + (profit.isProfit ? btcValue : -btcValue);
-                          }, 0) / getFilteredInvestments().reduce((total, investment) => {
-                            return total + convertToBtc(investment.amount, investment.unit);
-                          }, 0) * 100).toFixed(2)}%` : 
-                          "N/A"}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card para navegação de período - modificado para permitir intervalo personalizado */}
-              <Card className="panel border-purple-700/50">
-                <CardContent className="p-4">
-                  <div className="flex flex-col space-y-4">
-                    {/* Seletores de tipo de período */}
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Button
-                        variant={dateRangeMode === "month" ? "default" : "outline"}
-                        size="sm"
-                        onClick={switchToMonthMode}
-                        className={dateRangeMode === "month" ? "" : "bg-black/30 border-purple-700/50"}
-                      >
-                        Mês Único
-                      </Button>
-                      <Button
-                        variant={dateRangeMode === "custom" ? "default" : "outline"}
-                        size="sm"
-                        onClick={switchToCustomMode}
-                        className={dateRangeMode === "custom" ? "" : "bg-black/30 border-purple-700/50"}
-                      >
-                        Período Personalizado
-                      </Button>
-                    </div>
-                    
-                    {/* Navegação */}
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToPreviousMonth}
-                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                      </Button>
-                      
-                      {dateRangeMode === "month" ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                            >
-                              <Calendar className="mr-2 h-4 w-4" />
-                              {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
-                            <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                              Selecione um mês
-                            </div>
-                            <CalendarComponent
-                              mode="single"
-                              selected={selectedMonth}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const newDate = new Date(date);
-                                  // Definir para o primeiro dia do mês
-                                  newDate.setDate(1);
-                                  setSelectedMonth(newDate);
-                                }
-                              }}
-                              initialFocus
-                              className="bg-black/80"
-                              locale={ptBR}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <Popover open={showDateRangePicker} onOpenChange={setShowDateRangePicker}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                            >
-                              <Calendar className="mr-2 h-4 w-4" />
-                              {dateRange.from && dateRange.to ? (
-                                <>
-                                  {format(dateRange.from, 'd MMM', { locale: ptBR })} - {format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}
-                                </>
-                              ) : (
-                                "Selecionar período"
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
-                            <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                              Selecione um período
-                            </div>
-                            <CalendarComponent
-                              mode="range"
-                              selected={{
-                                from: dateRange.from,
-                                to: dateRange.to
-                              }}
-                              onSelect={(range) => {
-                                // Verificar se é uma seleção completa
-                                if (range?.from && range?.to) {
-                                  setDateRange({
-                                    from: startOfDay(range.from),
-                                    to: endOfDay(range.to)
-                                  });
-                                  setShowDateRangePicker(false);
-                                } else {
-                                  setDateRange(range || { from: undefined, to: undefined });
-                                }
-                              }}
-                              initialFocus
-                              numberOfMonths={2}
-                              className="bg-black/80"
-                              locale={ptBR}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                      
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToNextMonth}
-                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                        disabled={dateRangeMode === "month" ? isCurrentMonth(selectedMonth) : false}
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  {showFilterOptions ? 
-                    `Nenhum registro encontrado para ${getDisplayPeriodText()}.` : 
-                    "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
-                </p>
-              ) : (
-                // ... o resto do código permanece igual
-              )}
-        </TabsContent>
-      </Tabs>
+          </div>
+          
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setPendingInvestment(null);
+                setPendingProfit(null);
+                setDuplicateConfirmInfo(null);
+                setShowConfirmDuplicateDialog(false);
+              }}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="default"
+              onClick={() => {
+                if (duplicateConfirmInfo?.type === 'investment' && pendingInvestment) {
+                  confirmAddInvestment(pendingInvestment);
+                } else if (duplicateConfirmInfo?.type === 'profit' && pendingProfit) {
+                  confirmAddProfitRecord(pendingProfit);
+                }
+              }}
+              className="bg-purple-800 hover:bg-purple-700"
+            >
+              Adicionar mesmo assim
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
