@@ -74,22 +74,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               
               // Mostrar aviso que o perfil não existe
               if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-                toast({
-                  title: "Perfil não encontrado",
-                  description: "Seu perfil não está registrado. Por favor, registre-se para continuar.",
-                  variant: "destructive",
-                })
-                
-                // Fazer logout se não houver perfil
-                await supabaseClient.auth.signOut()
-                
-                setSession({
-                  user: null,
-                  session: null,
-                  error: null,
-                  isLoading: false,
-                })
-                return
+                console.log('Perfil não encontrado durante fetchSession. Tentando criar automaticamente...');
+                  
+                // Tentar criar o perfil automaticamente
+                try {
+                  const { error: insertError } = await supabaseClient
+                    .from('profiles')
+                    .insert([{
+                      id: data.session.user.id,
+                      name: data.session.user.user_metadata?.name || '',
+                      email: data.session.user.email
+                    }]);
+                    
+                  if (insertError) {
+                    console.error('Erro ao criar perfil automaticamente durante fetchSession:', insertError);
+                    // Mostrar mensagem de erro e fazer logout
+                    toast({
+                      title: "Erro ao criar perfil",
+                      description: "Não foi possível criar seu perfil. Por favor, tente novamente.",
+                      variant: "destructive",
+                    });
+                    
+                    await supabaseClient.auth.signOut();
+                    
+                    setSession({
+                      user: null,
+                      session: null,
+                      error: null,
+                      isLoading: false,
+                    });
+                    return;
+                  } else {
+                    console.log('Perfil criado com sucesso durante fetchSession!');
+                    // Continuar com os dados do usuário recém-criado
+                    setSession({
+                      user: {
+                        id: data.session.user.id,
+                        email: data.session.user.email || '',
+                        name: data.session.user.user_metadata?.name,
+                        created_at: data.session.user.created_at,
+                      },
+                      session: data.session,
+                      error: null,
+                      isLoading: false,
+                    });
+                    return;
+                  }
+                } catch (insertError) {
+                  console.error('Exceção ao criar perfil automaticamente durante fetchSession:', insertError);
+                  // Fazer logout em caso de erro
+                  await supabaseClient.auth.signOut();
+                  
+                  setSession({
+                    user: null,
+                    session: null,
+                    error: null,
+                    isLoading: false,
+                  });
+                  return;
+                }
               }
               
               // Continuar mesmo sem os dados do perfil
@@ -179,22 +222,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 
                 // Mostrar aviso que o perfil não existe
                 if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-                  toast({
-                    title: "Perfil não encontrado",
-                    description: "Seu perfil não está registrado. Por favor, registre-se para continuar.",
-                    variant: "destructive",
-                  })
+                  console.log('Perfil não encontrado durante mudança de estado. Tentando criar automaticamente...');
                   
-                  // Fazer logout se não houver perfil
-                  await supabaseClient.auth.signOut()
-                  
-                  setSession({
-                    user: null,
-                    session: null,
-                    error: null,
-                    isLoading: false,
-                  })
-                  return
+                  // Tentar criar o perfil automaticamente
+                  try {
+                    const { error: insertError } = await supabaseClient
+                      .from('profiles')
+                      .insert([{
+                        id: session.user.id,
+                        name: session.user.user_metadata?.name || '',
+                        email: session.user.email
+                      }]);
+                      
+                    if (insertError) {
+                      console.error('Erro ao criar perfil automaticamente durante mudança de estado:', insertError);
+                      // Mostrar mensagem de erro e fazer logout
+                      toast({
+                        title: "Erro ao criar perfil",
+                        description: "Não foi possível criar seu perfil. Por favor, tente novamente.",
+                        variant: "destructive",
+                      });
+                      
+                      await supabaseClient.auth.signOut();
+                      
+                      setSession({
+                        user: null,
+                        session: null,
+                        error: null,
+                        isLoading: false,
+                      });
+                      return;
+                    } else {
+                      console.log('Perfil criado com sucesso durante mudança de estado!');
+                      // Continuar com os dados do usuário recém-criado
+                      setSession({
+                        user: {
+                          id: session.user.id,
+                          email: session.user.email || '',
+                          name: session.user.user_metadata?.name,
+                          created_at: session.user.created_at,
+                        },
+                        session,
+                        error: null,
+                        isLoading: false,
+                      });
+                      return;
+                    }
+                  } catch (insertError) {
+                    console.error('Exceção ao criar perfil automaticamente durante mudança de estado:', insertError);
+                    // Fazer logout em caso de erro
+                    await supabaseClient.auth.signOut();
+                    
+                    setSession({
+                      user: null,
+                      session: null,
+                      error: null,
+                      isLoading: false,
+                    });
+                    return;
+                  }
                 }
                 
                 // Continuar mesmo sem os dados do perfil
@@ -342,6 +428,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password
       })
 
+      // Diagnóstico detalhado da resposta do Supabase
+      console.log('Resposta de autenticação:', {
+        sucesso: !error,
+        temDados: !!data,
+        temUsuario: !!data?.user,
+        emailConfirmado: data?.user?.email_confirmed_at ? 'Sim' : 'Não',
+        userData: data?.user ? {
+          id: data.user.id,
+          email: data.user.email,
+          temMetadata: !!data.user.user_metadata,
+          metadata: data.user.user_metadata || {}
+        } : 'Sem dados de usuário'
+      });
+
       // Se houver erro, analisar causas comuns
       if (error) {
         console.error('Erro na API do Supabase:', error);
@@ -377,6 +477,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('id', data.user.id)
           .single()
+        
+        // Diagnóstico do perfil  
+        console.log('Resposta da busca de perfil:', {
+          sucesso: !profileError,
+          perfilEncontrado: !!profileData,
+          perfilId: profileData?.id || 'N/A',
+          mensagemErro: profileError?.message || 'Sem erro'
+        });
           
         if (profileError) {
           console.error('Erro ao buscar perfil após login:', profileError)
@@ -386,8 +494,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log('Perfil não encontrado para o usuário:', email, 'Redirecionando para cadastro.');
             profileNotFound = true;
             
-            // Fazer logout já que o usuário não tem perfil
-            await supabaseClient.auth.signOut()
+            // Criar perfil automaticamente em vez de fazer logout
+            try {
+              console.log('Tentando criar perfil automaticamente...');
+              const { error: insertError } = await supabaseClient
+                .from('profiles')
+                .insert([{
+                  id: data.user.id,
+                  name: data.user.user_metadata?.name || '',
+                  email: data.user.email
+                }]);
+                
+              if (insertError) {
+                console.error('Erro ao criar perfil automaticamente:', insertError);
+                // Se não conseguir criar o perfil, fazer logout
+                await supabaseClient.auth.signOut();
+              } else {
+                console.log('Perfil criado com sucesso! Continuando login');
+                profileNotFound = false;
+              }
+            } catch (insertError) {
+              console.error('Exceção ao criar perfil automaticamente:', insertError);
+              // Fazer logout em caso de erro
+              await supabaseClient.auth.signOut();
+            }
           }
         } else {
           console.log('Perfil encontrado com sucesso:', profileData.id);

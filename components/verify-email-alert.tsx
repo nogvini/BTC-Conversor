@@ -3,15 +3,16 @@
 import { useState } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { MailCheck, AlertTriangle, RefreshCw, Loader2, Mail } from "lucide-react"
+import { MailCheck, AlertTriangle, RefreshCw, Loader2, Mail, Clock } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 
 interface VerifyEmailAlertProps {
   email: string
+  hasExpiredError?: boolean
 }
 
-export function VerifyEmailAlert({ email }: VerifyEmailAlertProps) {
+export function VerifyEmailAlert({ email, hasExpiredError = false }: VerifyEmailAlertProps) {
   const { resendVerificationEmail } = useAuth()
   const { toast } = useToast()
   const [isResending, setIsResending] = useState(false)
@@ -65,14 +66,23 @@ export function VerifyEmailAlert({ email }: VerifyEmailAlertProps) {
   const maskedEmail = email ? email.replace(/(.{2})(.*)(@.*)/, '$1****$3') : '***@***.com'
   
   return (
-    <Alert className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 mb-6">
-      <Mail className="h-5 w-5" />
-      <AlertTitle>Verificação de email necessária</AlertTitle>
+    <Alert className={`${hasExpiredError ? 'bg-red-900/20 border-red-700/50 text-red-200' : 'bg-yellow-900/20 border-yellow-700/50 text-yellow-300'} mb-6`}>
+      {hasExpiredError ? <Clock className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
+      <AlertTitle>
+        {hasExpiredError ? "Link de verificação expirado" : "Verificação de email necessária"}
+      </AlertTitle>
       <AlertDescription className="space-y-3">
-        <p>
-          Enviamos um email de verificação para <strong>{maskedEmail}</strong>. 
-          Por favor, verifique sua caixa de entrada e a pasta de spam.
-        </p>
+        {hasExpiredError ? (
+          <p>
+            O link de verificação para <strong>{maskedEmail}</strong> expirou ou é inválido.
+            Solicite um novo link clicando no botão abaixo.
+          </p>
+        ) : (
+          <p>
+            Enviamos um email de verificação para <strong>{maskedEmail}</strong>. 
+            Por favor, verifique sua caixa de entrada e a pasta de spam.
+          </p>
+        )}
         
         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-2">
           <Button 
@@ -80,7 +90,10 @@ export function VerifyEmailAlert({ email }: VerifyEmailAlertProps) {
             size="sm" 
             onClick={handleResendEmail}
             disabled={isResending || sentRecently}
-            className="bg-yellow-900/30 border-yellow-700/50 hover:bg-yellow-800/50 text-yellow-200"
+            className={hasExpiredError 
+              ? "bg-red-900/30 border-red-700/50 hover:bg-red-800/50 text-red-200" 
+              : "bg-yellow-900/30 border-yellow-700/50 hover:bg-yellow-800/50 text-yellow-200"
+            }
           >
             {isResending ? (
               <>
@@ -95,7 +108,7 @@ export function VerifyEmailAlert({ email }: VerifyEmailAlertProps) {
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Reenviar email
+                {hasExpiredError ? "Solicitar novo link" : "Reenviar email"}
               </>
             )}
           </Button>
@@ -107,12 +120,18 @@ export function VerifyEmailAlert({ email }: VerifyEmailAlertProps) {
           )}
         </div>
         
-        <div className="text-xs space-y-1 mt-2 bg-yellow-950/40 p-2 rounded">
+        <div className={`text-xs space-y-1 mt-2 ${hasExpiredError ? 'bg-red-950/40' : 'bg-yellow-950/40'} p-2 rounded`}>
           <p className="font-medium">Dicas:</p>
           <ul className="list-disc pl-5 space-y-1">
             <li>Verifique sua pasta de spam ou lixo eletrônico</li>
             <li>Se você já verificou seu email, tente sair e entrar novamente</li>
             <li>Verifique se digitou o email corretamente</li>
+            {hasExpiredError && (
+              <>
+                <li>Os links de verificação expiram após 24 horas</li>
+                <li>Use o link mais recente enviado ao seu email</li>
+              </>
+            )}
           </ul>
         </div>
       </AlertDescription>

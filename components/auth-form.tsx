@@ -58,11 +58,46 @@ export default function AuthForm() {
   const { toast } = useToast()
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const [showEmailVerification, setShowEmailVerification] = useState(false)
+  const [hasExpiredEmailLink, setHasExpiredEmailLink] = useState(false)
   const [emailForVerification, setEmailForVerification] = useState("")
   const [showNoProfileDialog, setShowNoProfileDialog] = useState(false)
   const [loginEmail, setLoginEmail] = useState("")
   const [loginError, setLoginError] = useState<string | null>(null)
   const [registerError, setRegisterError] = useState<string | null>(null)
+
+  // Verificar se há parâmetros na URL que indicam erro no link de verificação
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.hash.substring(1));
+      const error = urlParams.get('error');
+      const errorCode = urlParams.get('error_code');
+      const errorDescription = urlParams.get('error_description');
+      
+      // Verificar se é um erro de token expirado (OTP expirado)
+      if (error === 'access_denied' && errorCode === 'otp_expired') {
+        console.log('Link de verificação expirado detectado:', errorDescription);
+        setHasExpiredEmailLink(true);
+        setShowEmailVerification(true);
+        
+        // Tentar extrair o email do erro ou usar o último email conhecido
+        const emailMatch = errorDescription?.match(/for\s+(.+@.+\..+)/i);
+        if (emailMatch && emailMatch[1]) {
+          setEmailForVerification(emailMatch[1]);
+        }
+        
+        toast({
+          title: "Link expirado",
+          description: "O link de verificação expirou. Solicite um novo.",
+          variant: "destructive",
+        });
+        
+        // Limpar a URL para não mostrar o erro repetidamente em reloads
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  }, [toast]);
 
   // Efeito para verificar se o Supabase está disponível
   useEffect(() => {
@@ -535,7 +570,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
           
           {/* Alerta de verificação de email */}
           {showEmailVerification && (
-            <VerifyEmailAlert email={emailForVerification || loginForm.getValues().email} />
+            <VerifyEmailAlert 
+              email={emailForVerification || loginForm.getValues().email} 
+              hasExpiredError={hasExpiredEmailLink}
+            />
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
