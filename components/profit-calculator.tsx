@@ -322,6 +322,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     return date > today;
   };
 
+  // Função para garantir que a data não seja afetada pelo fuso horário
+  const formatDateToUTC = (date: Date): string => {
+    // Pegando o dia, mês e ano no fuso horário local
+    const day = date.getDate();
+    const month = date.getMonth() + 1; // Janeiro é 0
+    const year = date.getFullYear();
+    
+    // Formata a data como YYYY-MM-DD, garantindo que tenha 2 dígitos para mês e dia
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
   // Funções de adição e remoção
   const addInvestment = () => {
     if (!investmentAmount || isNaN(Number(investmentAmount)) || Number(investmentAmount) <= 0) {
@@ -342,10 +353,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    // Criar novo investimento
+    // Criar novo investimento usando formatDateToUTC
     const newInvestment: Investment = {
       id: Date.now().toString(),
-      date: format(investmentDate, "yyyy-MM-dd"),
+      date: formatDateToUTC(investmentDate),
       amount: Number(investmentAmount),
       unit: investmentUnit,
     };
@@ -414,10 +425,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    // Criar novo registro de lucro
+    // Criar novo registro de lucro usando formatDateToUTC
     const newProfit: ProfitRecord = {
       id: Date.now().toString(),
-      date: format(profitDate, "yyyy-MM-dd"),
+      date: formatDateToUTC(profitDate),
       amount: Number(profitAmount),
       unit: profitUnit,
       isProfit,
@@ -3209,7 +3220,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-3 bg-black/40 p-2 rounded border border-purple-700/30">
                   <div className="text-sm font-medium">Data:</div>
-                  <div className="text-sm">{format(new Date(duplicateConfirmInfo.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}</div>
+                  <div className="text-sm">
+                    {(() => {
+                      // Converter a string de data (YYYY-MM-DD) em objeto Date
+                      const parts = duplicateConfirmInfo.date.split('-');
+                      const year = parseInt(parts[0]);
+                      const month = parseInt(parts[1]) - 1; // Mês em JavaScript é 0-indexed
+                      const day = parseInt(parts[2]);
+                      
+                      const dateObj = new Date(year, month, day);
+                      
+                      return format(dateObj, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+                    })()}
+                  </div>
                   
                   <div className="text-sm font-medium">Valor:</div>
                   <div className="text-sm">{formatCryptoAmount(duplicateConfirmInfo.amount, duplicateConfirmInfo.unit)}</div>
