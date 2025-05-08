@@ -2256,7 +2256,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             }
           }
           
-          // Adicionar os novos registros
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalCount,
+            success: investmentCount + profitCount,
+            error: errorCount,
+            duplicated: duplicatedCount
+          });
+          
+          // Adicionar os novos registros ou mostrar diálogo de duplicados
           if (newInvestments.length > 0 || newProfits.length > 0) {
             setInvestments(prevInvestments => [...prevInvestments, ...newInvestments]);
             setProfits(prevProfits => [...prevProfits, ...newProfits]);
@@ -2266,32 +2274,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               description: `Foram importados ${investmentCount} aportes e ${profitCount} registros de lucro/perda com sucesso.`,
               variant: "success",
             });
-            
-            // Se tiver registros duplicados, mostrar diálogo informativo
-            if (duplicatedCount > 0) {
-              setDuplicateInfo({
-                count: duplicatedCount,
-                type: 'registros'
-              });
-              setShowDuplicateDialog(true);
-            }
+          } else if (duplicatedCount > 0) {
+            // Mostrar diálogo de duplicações em vez de toast
+            setDuplicateInfo({
+              count: duplicatedCount,
+              type: 'registros'
+            });
+            setShowDuplicateDialog(true);
           } else {
             toast({
               title: "Nenhum registro importado",
-              description: duplicatedCount > 0 ?
-                `Todos os ${duplicatedCount} registros já existem no sistema.` :
-                "Não foram encontrados novos registros para importar.",
+              description: "Não foram encontrados novos registros para importar.",
               variant: "destructive",
             });
           }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalCount,
-            success: investmentCount + profitCount,
-            error: errorCount,
-            duplicated: duplicatedCount
-          });
           
         } catch (error) {
           console.error("Erro ao processar arquivo para importação interna:", error);
@@ -2450,7 +2446,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             }
           });
           
-          // Adicionar os novos investimentos
+          // Atualizar estatísticas
+          setImportStats({
+            total: totalRecords,
+            success: importedCount,
+            error: errorCount,
+            duplicated: duplicatedCount
+          });
+          
+          // Adicionar os novos investimentos ou mostrar diálogo de duplicados
           if (newInvestments.length > 0) {
             setInvestments(prev => [...prev, ...newInvestments]);
             
@@ -2459,32 +2463,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               description: `Foram importados ${importedCount} aportes com sucesso.`,
               variant: "success",
             });
-            
-            // Se tiver registros duplicados, mostrar diálogo informativo
-            if (duplicatedCount > 0) {
-              setDuplicateInfo({
-                count: duplicatedCount,
-                type: 'aportes'
-              });
-              setShowDuplicateDialog(true);
-            }
+          } else if (duplicatedCount > 0) {
+            // Mostrar diálogo de duplicações em vez de toast
+            setDuplicateInfo({
+              count: duplicatedCount,
+              type: 'aportes'
+            });
+            setShowDuplicateDialog(true);
           } else {
             toast({
               title: "Nenhum aporte importado",
-              description: duplicatedCount > 0 ?
-                `Todos os ${duplicatedCount} aportes já existem no sistema.` :
-                "Não foram encontrados registros de aportes válidos no arquivo CSV.",
+              description: "Não foram encontrados registros de aportes válidos no arquivo CSV.",
               variant: "destructive",
             });
           }
-          
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalRecords,
-            success: importedCount,
-            error: errorCount,
-            duplicated: duplicatedCount
-          });
           
         } catch (error) {
           console.error("Erro ao processar o arquivo CSV de aportes:", error);
