@@ -1898,13 +1898,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Componente para as opções de importação
   const ImportOptions = () => (
-    <div className="mt-6 pt-5 border-t border-purple-700/30">
+    <div className="space-y-3">
       <h3 className="text-sm font-medium mb-3">Importar Operações</h3>
       <p className="text-xs text-gray-400 mb-3">
         Importe registros de lucro/perda de operações a partir de arquivos
       </p>
       
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* Input para CSV de operações */}
         <input
           type="file"
@@ -1972,6 +1972,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
           onClick={triggerInternalFileInput}
           disabled={isImporting}
+          className="sm:col-span-2"
         >
           {isImporting && importType === "internal" ? (
             <>
@@ -2655,7 +2656,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsList>
 
         <TabsContent value="register">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Card className="panel border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Registrar Investimento</CardTitle>
@@ -2722,8 +2723,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   <Button onClick={addInvestment}>
                     Adicionar Aporte
                   </Button>
-
-                  {/* Componente para importação de CSVs de investimento aqui */}
                 </div>
               </CardContent>
             </Card>
@@ -2778,42 +2777,64 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <RadioGroup
-                    value={isProfit ? "profit" : "loss"}
-                    onValueChange={(value) => setIsProfit(value === "profit")}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="profit" id="type-profit" />
-                      <Label htmlFor="type-profit">Lucro</Label>
+                  
+                  {/* Reorganizando os RadioGroups para ficarem lado a lado */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="block mb-2">Tipo</Label>
+                      <RadioGroup
+                        value={isProfit ? "profit" : "loss"}
+                        onValueChange={(value) => setIsProfit(value === "profit")}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="profit" id="type-profit" />
+                          <Label htmlFor="type-profit">Lucro</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="loss" id="type-loss" />
+                          <Label htmlFor="type-loss">Perda</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="loss" id="type-loss" />
-                      <Label htmlFor="type-loss">Perda</Label>
+                    
+                    <div>
+                      <Label className="block mb-2">Unidade</Label>
+                      <RadioGroup
+                        value={profitUnit}
+                        onValueChange={(value) => setProfitUnit(value as CurrencyUnit)}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="BTC" id="profit-unit-btc" />
+                          <Label htmlFor="profit-unit-btc">BTC</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="SATS" id="profit-unit-sats" />
+                          <Label htmlFor="profit-unit-sats">Satoshis</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
-                  </RadioGroup>
-                  <RadioGroup
-                    value={profitUnit}
-                    onValueChange={(value) => setProfitUnit(value as CurrencyUnit)}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="BTC" id="profit-unit-btc" />
-                      <Label htmlFor="profit-unit-btc">BTC</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="SATS" id="profit-unit-sats" />
-                      <Label htmlFor="profit-unit-sats">Satoshis</Label>
-                    </div>
-                  </RadioGroup>
+                  </div>
+                  
                   <Button onClick={addProfitRecord}>
                     Adicionar {isProfit ? "Lucro" : "Perda"}
                   </Button>
-                  
-                  {/* Opções de importação */}
-                  <ImportOptions />
                 </div>
               </CardContent>
             </Card>
           </div>
+          
+          {/* Nova seção para importação */}
+          <Card className="panel border-purple-700/50">
+            <CardHeader>
+              <CardTitle className="text-lg">Importação de Registros</CardTitle>
+              <CardDescription>Importe operações e aportes de arquivos externos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ImportOptions />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
