@@ -3326,7 +3326,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <>
                 {getFilteredInvestments().length > 0 && (
                   <div className="mb-6">
-                    <h3 className="text-base font-semibold mb-3">Investimentos</h3>
+                    <h3 className="text-base font-semibold mb-3 flex justify-between items-center">
+                      <span>Investimentos</span>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        className="bg-red-900/70 hover:bg-red-800"
+                        onClick={() => setShowDeleteInvestmentsDialog(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Remover todos
+                      </Button>
+                    </h3>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -3368,7 +3379,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
                 {getFilteredProfits().length > 0 && (
                   <div>
-                    <h3 className="text-base font-semibold mb-3">Lucros/Perdas</h3>
+                    <h3 className="text-base font-semibold mb-3 flex justify-between items-center">
+                      <span>Lucros/Perdas</span>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        className="bg-red-900/70 hover:bg-red-800"
+                        onClick={() => setShowDeleteProfitsDialog(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Remover todos
+                      </Button>
+                    </h3>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
