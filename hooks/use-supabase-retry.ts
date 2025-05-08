@@ -1,44 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { createSupabaseClient, getSupabaseClient } from '@/lib/supabase';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createSupabaseClient } from "@/lib/supabase";
 
-type RetryConfig = {
-  initialDelay?: number;  // Delay inicial em ms (padrão: 2000ms)
-  maxRetries?: number;    // Número máximo de tentativas (padrão: 5)
-  backoffFactor?: number; // Fator de multiplicação para aumentar o delay (padrão: 1.5)
-  maxDelay?: number;      // Delay máximo em ms (padrão: 30000ms)
-};
+interface RetryConfig {
+  initialDelay?: number;
+  maxRetries?: number;
+  backoffFactor?: number;
+  maxDelay?: number;
+}
 
 /**
- * Hook para gerenciar tentativas de conexão com o Supabase em intervalos definidos
+ * Hook para gerenciar a conexão com o Supabase e automatizar tentativas de reconexão
  */
 export function useSupabaseRetry(config?: RetryConfig) {
   // Cliente Supabase
-  const [client, setClient] = useState(getSupabaseClient());
-  
-  // Estado de conexão
-  const [isConnected, setIsConnected] = useState(!!getSupabaseClient());
+  const [client, setClient] = useState(createSupabaseClient());
+  const [isConnected, setIsConnected] = useState(!!client);
   const [isAttemptingConnection, setIsAttemptingConnection] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastError, setLastError] = useState<Error | null>(null);
   
-  // Configuração de retry
+  // Referência para o timer de retry
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Configurações de retry com valores padrão
   const {
     initialDelay = 2000,
-    maxRetries = 5,
+    maxRetries = 10,
     backoffFactor = 1.5,
     maxDelay = 30000
   } = config || {};
   
-  // Referência para o timer de retry
-  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Função para calcular o delay baseado no número da tentativa
-  const calculateDelay = (attempt: number): number => {
-    const delay = initialDelay * Math.pow(backoffFactor, attempt);
-    return Math.min(delay, maxDelay);
-  };
+  // Função para calcular o delay para a próxima tentativa usando backoff exponencial
+  const calculateBackoff = useCallback((retryAttempt: number) => {
+    const delay = Math.min(initialDelay * Math.pow(backoffFactor, retryAttempt), maxDelay);
+    // Adicionar um jitter para evitar thundering herd
+    return delay + (Math.random() * 1000);
+  }, [initialDelay, backoffFactor, maxDelay]);
   
   // Função para tentar criar o cliente Supabase
   const attemptConnection = async () => {
@@ -50,6 +49,24 @@ export function useSupabaseRetry(config?: RetryConfig) {
     console.log('[useSupabaseRetry] Tentativa #' + (retryCount + 1) + ' de conexão ao Supabase');
     
     try {
+      // Limpar cliente anterior se existir
+      if (client) {
+        try {
+          console.log('[useSupabaseRetry] Limpando sessão do cliente anterior');
+          await client.auth.signOut(); // Limpar estado de autenticação
+        } catch (e) {
+          console.warn('[useSupabaseRetry] Erro ao limpar cliente anterior:', e);
+        }
+      }
+      
+      // Garantir que as credenciais estejam no localStorage
+      const storedUrl = localStorage.getItem('supabase_url');
+      const storedKey = localStorage.getItem('supabase_key');
+      
+      if (!storedUrl || !storedKey) {
+        console.warn('[useSupabaseRetry] Credenciais não encontradas no localStorage');
+      }
+      
       // Tentar criar o cliente
       const newClient = createSupabaseClient();
       
@@ -92,66 +109,80 @@ export function useSupabaseRetry(config?: RetryConfig) {
       console.error('[useSupabaseRetry] Erro durante tentativa de conexão:', error);
     }
     
-    // Se chegamos aqui, a conexão falhou
+    // Se chegou aqui, a conexão falhou
+    // Incrementar contador de tentativas
+    setRetryCount(prev => {
+      const newCount = prev + 1;
+      console.log(`[useSupabaseRetry] Falha na tentativa ${newCount} de ${maxRetries}`);
+      
+      // Se atingiu o número máximo de tentativas, parar
+      if (newCount >= maxRetries) {
+        console.error('[useSupabaseRetry] Número máximo de tentativas atingido. Desistindo.');
+        setIsAttemptingConnection(false);
+      } else {
+        // Caso contrário, agendar próxima tentativa com backoff
+        const nextDelay = calculateBackoff(newCount);
+        console.log(`[useSupabaseRetry] Próxima tentativa em ${Math.round(nextDelay / 1000)} segundos`);
+        
+        // Limpar timer anterior se existir
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+        }
+        
+        // Agendar próxima tentativa
+        retryTimerRef.current = setTimeout(() => {
+          attemptConnection();
+        }, nextDelay);
+      }
+      
+      return newCount;
+    });
+    
     setIsAttemptingConnection(false);
-    
-    // Incrementar o contador de tentativas
-    const newRetryCount = retryCount + 1;
-    setRetryCount(newRetryCount);
-    
-    // Verificar se ainda podemos tentar novamente
-    if (newRetryCount < maxRetries) {
-      // Calcular o próximo delay
-      const nextDelay = calculateDelay(newRetryCount);
-      
-      console.log(`[useSupabaseRetry] Tentativa ${newRetryCount} falhou. Próxima tentativa em ${(nextDelay / 1000).toFixed(1)}s`);
-      
-      // Agendar a próxima tentativa
-      retryTimerRef.current = setTimeout(() => {
-        attemptConnection();
-      }, nextDelay);
-    } else {
-      console.warn(`[useSupabaseRetry] Máximo de ${maxRetries} tentativas atingido. Usando tryConnectionManually() para tentar novamente.`);
-    }
   };
   
-  // Limpar o timer quando o componente desmontar
+  // Efeito para tentar conexão inicial
   useEffect(() => {
+    // Não tentar conectar durante SSR
+    if (typeof window === 'undefined') return;
+    
+    // Se já tiver um cliente, verificar se ele está funcionando
+    if (client) {
+      client.auth.getSession().then(({ error }) => {
+        if (error) {
+          console.error('[useSupabaseRetry] Erro com cliente existente, tentando reconectar:', error);
+          setIsConnected(false);
+          attemptConnection();
+        } else {
+          console.log('[useSupabaseRetry] Cliente existente está funcionando');
+          setIsConnected(true);
+          setRetryCount(0);
+          setLastError(null);
+        }
+      });
+    } else {
+      // Se não tiver cliente, tentar criar um
+      console.log('[useSupabaseRetry] Nenhum cliente existente, iniciando conexão');
+      attemptConnection();
+    }
+    
+    // Limpar timer ao desmontar
     return () => {
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Iniciar tentativas de conexão se não estiver conectado
-  useEffect(() => {
-    if (!isConnected && !isAttemptingConnection && typeof window !== 'undefined') {
-      attemptConnection();
-    }
-  }, [isConnected, isAttemptingConnection]);
-  
-  // Função para forçar uma nova tentativa manualmente
-  const retryConnection = () => {
-    if (isAttemptingConnection) {
-      console.log('[useSupabaseRetry] Já existe uma tentativa de conexão em andamento.');
-      return;
-    }
-    
-    // Resetar contador de tentativas
+  // Função exposta para forçar uma nova tentativa de conexão
+  const retryConnection = useCallback(() => {
+    console.log('[useSupabaseRetry] Forçando nova tentativa de conexão');
+    // Reiniciar contagem de tentativas
     setRetryCount(0);
-    setLastError(null);
-    
-    // Limpar qualquer timer pendente
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-    
-    // Iniciar nova tentativa
-    console.log('[useSupabaseRetry] Iniciando nova tentativa de conexão manual.');
     attemptConnection();
-  };
+  }, []);
   
   return {
     client,

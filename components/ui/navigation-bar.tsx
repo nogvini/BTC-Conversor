@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin, LogIn } from "lucide-react"
+import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin, LogIn, AlertTriangle } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { ProfileMenu } from "@/components/profile-menu"
 import { useAuth } from "@/hooks/use-auth"
+import { useToast } from "@/hooks/use-toast"
 
 interface NavigationBarProps {
   onRefresh?: () => void
@@ -22,8 +23,34 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   const searchParams = useSearchParams()
   const isMobile = useIsMobile()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { session } = useAuth()
-  const { user, isLoading: authLoading } = session
+  const { session, retryConnection } = useAuth()
+  const { user, isLoading: authLoading, error: authError } = session
+  const { toast } = useToast()
+  const [connectionAttempts, setConnectionAttempts] = useState(0)
+  
+  // Efeito para tentar reconectar automaticamente em caso de erro
+  useEffect(() => {
+    if (authError && connectionAttempts < 2) {
+      const retryTimeout = setTimeout(() => {
+        console.log(`Tentativa automática de reconexão #${connectionAttempts + 1}`)
+        handleRetryConnection()
+      }, 3000)
+      
+      return () => clearTimeout(retryTimeout)
+    }
+  }, [authError, connectionAttempts])
+  
+  // Função para tentar reconectar
+  const handleRetryConnection = () => {
+    setConnectionAttempts(prev => prev + 1)
+    retryConnection()
+    
+    toast({
+      title: "Reconectando...",
+      description: "Tentando restabelecer a conexão com o servidor",
+      duration: 3000,
+    })
+  }
   
   // Determinar qual botão está ativo com base no pathname ou parâmetro de URL
   let activeTab = "converter"
@@ -60,6 +87,21 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
     router.push("/auth")
     setIsMenuOpen(false)
   }
+  
+  // Componente para exibir erro de autenticação
+  const AuthErrorDisplay = () => (
+    <div className="flex items-center">
+      <Button 
+        variant="destructive" 
+        size="sm" 
+        onClick={handleRetryConnection}
+        className="bg-red-800 hover:bg-red-700 text-white border border-red-700/50 flex items-center gap-1.5"
+      >
+        <AlertTriangle className="h-3.5 w-3.5" />
+        <span className="text-xs">Reconectar</span>
+      </Button>
+    </div>
+  )
   
   // Renderiza a navegação para desktop
   const DesktopNavigation = () => (
@@ -134,7 +176,14 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           </Button>
         )}
         
-        {!authLoading && !user ? (
+        {/* Diferentes estados do botão de autenticação */}
+        {authError ? (
+          <AuthErrorDisplay />
+        ) : authLoading ? (
+          <div className="h-9 w-9 flex items-center justify-center">
+            <RefreshCw className="h-5 w-5 animate-spin text-purple-400" />
+          </div>
+        ) : !user ? (
           <Button 
             variant="default" 
             size="sm" 
@@ -261,6 +310,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   </div>}
                 </Button>
 
+                {/* Botão de login apenas se não estiver autenticado */}
                 {!authLoading && !user && (
                   <Button
                     variant="ghost"
@@ -283,10 +333,26 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                     </div>}
                   </Button>
                 )}
+                
+                {/* Botão de reconexão em caso de erro */}
+                {authError && (
+                  <Button
+                    variant="destructive"
+                    size="lg"
+                    className="justify-start w-full rounded-lg mt-4 bg-red-900/70 hover:bg-red-800"
+                    onClick={() => {
+                      handleRetryConnection();
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    <RefreshCw className="mr-3 h-5 w-5 text-white/80" />
+                    <span className="font-medium">Reconectar</span>
+                  </Button>
+                )}
               </div>
 
               {/* Botão de atualização no rodapé */}
-              <div className="p-4 border-t border-purple-800/30 bg-gradient-to-r from-purple-950/70 to-black/70">
+              <div className="border-t border-purple-800/30 p-4 space-y-4">
                 {onRefresh && (
                   <Button 
                     onClick={() => {
@@ -315,7 +381,18 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
 
       {/* Adicionar o menu de perfil à versão mobile */}
       <div className="flex items-center">
-        {!authLoading && user && <ProfileMenu />}
+        {authError ? (
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={handleRetryConnection}
+            className="bg-red-800 hover:bg-red-700 text-white border border-red-700/50"
+          >
+            <RefreshCw className="h-4 w-4 animate-pulse" />
+          </Button>
+        ) : !authLoading && user ? (
+          <ProfileMenu />
+        ) : null}
       </div>
     </div>
   )
