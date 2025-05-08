@@ -177,6 +177,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
   const [showDeleteProfitsDialog, setShowDeleteProfitsDialog] = useState(false);
   
+  // Estado para diálogo de confirmação de exclusão de relatório
+  const [showDeleteReportDialog, setShowDeleteReportDialog] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<string | null>(null);
+  
   // Variável para controlar se um toast está sendo exibido
   const [toastDebounce, setToastDebounce] = useState(false);
   
@@ -445,30 +449,53 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    // Confirmar exclusão
-    if (window.confirm(`Tem certeza que deseja excluir este relatório? Todos os dados associados serão perdidos.`)) {
-      // Remover o relatório
-      const updatedReports = reports.filter(report => report.id !== id);
-      setReports(updatedReports);
+    // Configurar para mostrar o diálogo de confirmação
+    setReportToDelete(id);
+    setShowDeleteReportDialog(true);
+  };
+  
+  // Função para confirmar a exclusão do relatório
+  const confirmDeleteReport = () => {
+    if (!reportToDelete) return;
+    
+    // Buscar nome do relatório para feedback
+    const reportName = reports.find(r => r.id === reportToDelete)?.name || "Desconhecido";
+    
+    // Remover o relatório
+    const updatedReports = reports.filter(report => report.id !== reportToDelete);
+    setReports(updatedReports);
+    
+    // Remover investimentos e lucros do relatório
+    setInvestments(prev => prev.filter(inv => inv.reportId !== reportToDelete));
+    setProfits(prev => prev.filter(prof => prof.reportId !== reportToDelete));
+    
+    // Atualizar relatório ativo se necessário
+    if (activeReportId === reportToDelete) {
+      const newActiveReport = updatedReports[0];
+      setActiveReportId(newActiveReport?.id || null);
       
-      // Remover investimentos e lucros do relatório
-      setInvestments(prev => prev.filter(inv => inv.reportId !== id));
-      setProfits(prev => prev.filter(prof => prof.reportId !== id));
-      
-      // Atualizar relatório ativo se necessário
-      if (activeReportId === id) {
-        setActiveReportId(updatedReports[0]?.id || null);
+      // Informar o usuário sobre a mudança de relatório ativo
+      if (newActiveReport) {
+        toast({
+          title: "Relatório ativo alterado",
+          description: `O relatório ativo foi alterado para "${newActiveReport.name}".`,
+          variant: "default",
+        });
       }
-      
-      // Atualizar relatórios selecionados
-      setSelectedReportIds(prev => prev.filter(reportId => reportId !== id));
-      
-      toast({
-        title: "Relatório excluído",
-        description: "O relatório foi excluído com sucesso.",
-        variant: "default",
-      });
     }
+    
+    // Atualizar relatórios selecionados
+    setSelectedReportIds(prev => prev.filter(reportId => reportId !== reportToDelete));
+    
+    toast({
+      title: "Relatório excluído",
+      description: `O relatório "${reportName}" foi excluído com sucesso.`,
+      variant: "default",
+    });
+    
+    // Limpar estado
+    setReportToDelete(null);
+    setShowDeleteReportDialog(false);
   };
 
   // Função para alterar o relatório ativo
@@ -978,11 +1005,25 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <Label htmlFor={`report-${report.id}`} className="text-sm cursor-pointer truncate w-full">
                 {report.name}
               </Label>
+              {reports.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteReport(report.id);
+                  }}
+                  className="h-6 w-6 ml-auto flex-shrink-0 text-gray-400 hover:text-red-500"
+                  title="Excluir relatório"
+                >
+                  <Trash className="h-3 w-3" />
+                </Button>
+              )}
             </div>
           ))}
         </div>
       </div>
-      <div className="p-3 pt-2 flex justify-end border-t border-purple-700/30 mt-2">
+      <div className="p-3 pt-2 flex justify-start border-t border-purple-700/30 mt-2">
         <Button 
           variant="default"
           size="sm"
@@ -3407,6 +3448,42 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               className="bg-purple-800 hover:bg-purple-700"
             >
               Adicionar mesmo assim
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Diálogo de confirmação para exclusão de relatório */}
+      <Dialog open={showDeleteReportDialog} onOpenChange={setShowDeleteReportDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Excluir relatório</DialogTitle>
+            <DialogDescription>
+              {reportToDelete && (
+                <>
+                  Você tem certeza que deseja excluir o relatório <span className="font-semibold">{reports.find(r => r.id === reportToDelete)?.name}</span>?
+                </>
+              )}
+              <p className="mt-2">Todos os dados associados a este relatório serão perdidos. Esta ação não pode ser desfeita.</p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteReportDialog(false);
+                setReportToDelete(null);
+              }}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDeleteReport}
+              className="bg-red-900 hover:bg-red-800"
+            >
+              Excluir relatório
             </Button>
           </div>
         </DialogContent>
