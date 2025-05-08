@@ -50,10 +50,10 @@ const registerSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>
 type RegisterFormValues = z.infer<typeof registerSchema>
 
-export default function AuthForm() {
+export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<string>("login")
+  const [activeTab, setActiveTab] = useState<string>(type)
   const { signIn, signUp, retryConnection, isConnecting, connectionRetries, session } = useAuth()
   const { toast } = useToast()
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
@@ -848,4 +848,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
       </Card>
     </PageTransition>
   )
-} 
+}
+
+export default AuthForm 
