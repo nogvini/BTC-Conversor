@@ -2282,6 +2282,40 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsList>
 
         <TabsContent value="register">
+          {/* Adicionar Card para seleção de relatório */}
+          <Card className="panel border-purple-700/50 mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Relatório Atual</CardTitle>
+              <CardDescription>Selecione o relatório para registro</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 items-center">
+                <Select
+                  value={activeReportId || ""}
+                  onValueChange={changeActiveReport}
+                >
+                  <SelectTrigger className="w-full bg-black/30 border-purple-700/50">
+                    <SelectValue placeholder="Selecione um relatório" />
+                  </SelectTrigger>
+                  <SelectGroup>
+                    {reports.map(report => (
+                      <SelectItem key={report.id} value={report.id}>
+                        {report.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </Select>
+                <Button 
+                  onClick={() => setShowReportDialog(true)}
+                  className="w-full sm:w-auto whitespace-nowrap"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar Novo Relatório
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Card className="panel border-purple-700/50">
               <CardHeader>
@@ -2469,7 +2503,72 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="history" className="mt-4">
           <div className="space-y-4">
-            {/* Card para navegação do mês */}
+            {/* Adicionar Card para filtro de relatórios */}
+            <Card className="panel border-purple-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Filtrar Relatórios</CardTitle>
+                <CardDescription>Selecione quais relatórios deseja visualizar</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReportFilterOptions />
+              </CardContent>
+            </Card>
+
+            {/* Card para resumo mensal - agora usando selectedMonth */}
+            <Card className="panel border-purple-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Resumo Mensal</CardTitle>
+                <CardDescription>
+                  Veja o resumo dos investimentos e lucros/perdas do mês selecionado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Mês selecionado</div>
+                    <div className="text-lg font-semibold text-white">
+                      {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Aporte total</div>
+                    <div className="text-lg font-semibold text-blue-400">
+                      {formatCryptoAmount(calculateTotalInvestmentsInMonth(selectedMonth), "BTC")}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(selectedMonth))}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
+                    <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      {calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "+" : ""}
+                      {formatCryptoAmount(calculateTotalProfitsInMonth(selectedMonth), "BTC")}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "+" : ""}
+                      {formatBtcValueInCurrency(calculateTotalProfitsInMonth(selectedMonth))}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                    <div className="text-xs text-gray-400">Rendimento</div>
+                    <div className={`text-lg font-semibold ${
+                      calculateTotalInvestmentsInMonth(selectedMonth) > 0 && 
+                      (calculateTotalProfitsInMonth(selectedMonth) / calculateTotalInvestmentsInMonth(selectedMonth) * 100) >= 0 ? 
+                      "text-green-500" : "text-red-500"}`}>
+                      {calculateTotalInvestmentsInMonth(selectedMonth) > 0 ? 
+                        `${(calculateTotalProfitsInMonth(selectedMonth) / calculateTotalInvestmentsInMonth(selectedMonth) * 100).toFixed(2)}%` : 
+                        "N/A"}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card para navegação do mês - movido para depois do resumo mensal */}
             <Card className="panel border-purple-700/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -2496,76 +2595,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
               </CardContent>
             </Card>
-            
-            {/* Adicionar Card para filtro de relatórios */}
-            <Card className="panel border-purple-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Filtrar Relatórios</CardTitle>
-                <CardDescription>Selecione quais relatórios deseja visualizar</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ReportFilterOptions />
-              </CardContent>
-            </Card>
-
-            {/* Card para resumo mensal */}
-            <Card className="panel border-purple-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo Mensal</CardTitle>
-                <CardDescription>
-                  Veja o resumo dos investimentos e lucros/perdas do mês selecionado.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Mês selecionado</div>
-                    <div className="text-lg font-semibold text-white">
-                      {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Aporte total</div>
-                    <div className="text-lg font-semibold text-blue-400">
-                      {formatCryptoAmount(calculateTotalInvestmentsInMonth(filterMonth), "BTC")}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(filterMonth))}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
-                    <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(filterMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                      {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                      {formatCryptoAmount(calculateTotalProfitsInMonth(filterMonth), "BTC")}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                      {formatBtcValueInCurrency(calculateTotalProfitsInMonth(filterMonth))}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Rendimento</div>
-                    <div className={`text-lg font-semibold ${
-                      calculateTotalInvestmentsInMonth(filterMonth) > 0 && 
-                      (calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100) >= 0 ? 
-                      "text-green-500" : "text-red-500"}`}>
-                      {calculateTotalInvestmentsInMonth(filterMonth) > 0 ? 
-                        `${(calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100).toFixed(2)}%` : 
-                        "N/A"}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
                 {showFilterOptions ? 
-                  `Nenhum registro encontrado para ${format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
+                  `Nenhum registro encontrado para ${format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
                   "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
               </p>
             ) : (
