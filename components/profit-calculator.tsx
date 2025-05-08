@@ -1899,11 +1899,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Componente para as opções de importação
   const ImportOptions = () => (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium mb-3">Importar Operações</h3>
-      <p className="text-xs text-gray-400 mb-3">
-        Importe registros de lucro/perda de operações a partir de arquivos
-      </p>
-      
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* Input para CSV de operações */}
         <input
@@ -1968,11 +1963,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           className="hidden"
         />
         <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          variant="outline"
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20 sm:col-span-2" 
           onClick={triggerInternalFileInput}
           disabled={isImporting}
-          className="sm:col-span-2"
         >
           {isImporting && importType === "internal" ? (
             <>
@@ -2707,19 +2701,22 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <RadioGroup
-                    value={investmentUnit}
-                    onValueChange={(value) => setInvestmentUnit(value as CurrencyUnit)}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="BTC" id="unit-btc" />
-                      <Label htmlFor="unit-btc">BTC</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="SATS" id="unit-sats" />
-                      <Label htmlFor="unit-sats">Satoshis</Label>
-                    </div>
-                  </RadioGroup>
+                  <div>
+                    <Label className="block mb-2">Unidade</Label>
+                    <RadioGroup
+                      value={investmentUnit}
+                      onValueChange={(value) => setInvestmentUnit(value as CurrencyUnit)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="BTC" id="unit-btc" />
+                        <Label htmlFor="unit-btc">BTC</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="SATS" id="unit-sats" />
+                        <Label htmlFor="unit-sats">Satoshis</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
                   <Button onClick={addInvestment}>
                     Adicionar Aporte
                   </Button>
