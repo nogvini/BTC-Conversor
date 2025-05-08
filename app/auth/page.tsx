@@ -1,21 +1,23 @@
 "use client";
 
 // Página estática que renderiza uma interface simples
-// Marcada como edge runtime para evitar problemas com SSR
+// Marcada como edge runtime para evitar problemas com SSR e tornar dinâmica
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function AuthPage() {
-  const { session } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const expired = searchParams.get("expired") === "true";
+  
+  // Usar useState para gerenciar o estado do usuário
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   // Limpar qualquer sessão expirada
   useEffect(() => {
@@ -41,12 +43,20 @@ export default function AuthPage() {
     }
   }, []);
 
-  // Redirecionar se já estiver autenticado
+  // Usando useAuth apenas no cliente, depois que a página for montada
   useEffect(() => {
-    if (session.user && !session.isLoading) {
-      router.push('/');
+    // Código de cliente seguro
+    try {
+      const { session } = useAuth();
+      // Redirecionar se já estiver autenticado
+      if (session.user && !session.isLoading) {
+        setIsLoggedIn(true);
+        router.push('/');
+      }
+    } catch (error) {
+      console.error("Erro ao verificar autenticação:", error);
     }
-  }, [session, router]);
+  }, [router]);
 
   return (
     <div className="flex justify-center items-center min-h-[100vh] p-4">

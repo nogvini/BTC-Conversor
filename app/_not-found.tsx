@@ -1,9 +1,5 @@
 "use client";
 
-// Marcar a página como dinâmica para evitar SSG
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";

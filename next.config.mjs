@@ -46,6 +46,14 @@ const nextConfig = {
     
     return config;
   },
+  // Configurar páginas que devem ser renderizadas dinamicamente no servidor
+  // e não devem ser pré-renderizadas estaticamente
+  output: 'standalone',
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{member}}',
+    },
+  },
 }
 
 export default nextConfig
