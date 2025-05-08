@@ -1228,7 +1228,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Componente para diálogo de seleção de relatório para importação
   const ImportReportDialog = () => {
     // Use o ID do relatório ativo como valor padrão
-    React.useEffect(() => {
+    useEffect(() => {
       if (showImportReportDialog) {
         setImportTargetReportId(activeReportId);
       }
