@@ -1241,11 +1241,22 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Salvar o ID do relatório atual
       const originalReportId = activeReportId;
       
+      // Definir variável para rastrear se a importação foi concluída
+      let importCompleted = false;
+      
       // Temporariamente definir o relatório alvo como ativo para a importação
       setActiveReportId(importTargetReportId);
       
       // Executar a importação com base no tipo
-      const event = { target: { files: [pendingImportFile] } } as any;
+      const event = { 
+        target: { 
+          files: [pendingImportFile],
+          // Adicionar callback para registrar quando a importação for concluída
+          onImportComplete: () => {
+            importCompleted = true;
+          }
+        } 
+      } as any;
       
       switch (pendingImportType) {
         case "csv":
@@ -1259,15 +1270,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           break;
       }
       
-      // Restaurar o relatório original como ativo (após um breve atraso para garantir que a importação foi processada)
-      setTimeout(() => {
-        setActiveReportId(originalReportId);
-      }, 100);
+      // Restaurar o relatório original como ativo (após um atraso maior para garantir que a importação foi processada)
+      // Verificar periodicamente se a importação foi concluída
+      const checkInterval = 100; // milissegundos
+      const maxWaitTime = 5000; // 5 segundos
+      let elapsedTime = 0;
       
-      // Limpar estados
-      setPendingImportFile(null);
-      setPendingImportType(null);
-      setShowImportReportDialog(false);
+      const checkAndRestoreReport = () => {
+        if (importCompleted || elapsedTime >= maxWaitTime) {
+          // Importação concluída ou tempo máximo atingido, restaurar relatório original
+          setActiveReportId(originalReportId);
+          
+          // Limpar estados
+          setPendingImportFile(null);
+          setPendingImportType(null);
+          setShowImportReportDialog(false);
+        } else {
+          // Ainda não concluído, verificar novamente após o intervalo
+          elapsedTime += checkInterval;
+          setTimeout(checkAndRestoreReport, checkInterval);
+        }
+      };
+      
+      // Iniciar verificação após um breve atraso para permitir que a importação comece
+      setTimeout(checkAndRestoreReport, 1000);
     };
     
     return (
@@ -1525,7 +1551,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos registros de lucro
           if (newProfits.length > 0) {
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            // Garantir que todos os registros tenham o reportId correto
+            const processedProfits = newProfits.map(profit => ({
+              ...profit,
+              reportId: activeReportId || ""
+            }));
+            
+            setProfits(prevProfits => {
+              const updatedProfits = [...prevProfits, ...processedProfits];
+              // Salvar no localStorage imediatamente para evitar perda de dados
+              if (isDataLoaded) {
+                localStorage.setItem("bitcoinProfits", JSON.stringify(updatedProfits));
+              }
+              return updatedProfits;
+            });
             
             if (!toastDebounce) {
               setToastDebounce(true);
@@ -1568,6 +1607,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             setShowDuplicateDialog(true);
           }
           
+          // Chamar o callback de conclusão se fornecido
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
+          
         } catch (error) {
           console.error("Erro ao processar o arquivo CSV:", error);
           toast({
@@ -1575,6 +1619,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
             variant: "destructive",
           });
+          
+          // Chamar o callback de conclusão mesmo em caso de erro
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
         } finally {
           setIsImporting(false);
           setImportType(null);
@@ -2267,8 +2316,34 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos registros ou mostrar diálogo de duplicados
           if (newInvestments.length > 0 || newProfits.length > 0) {
-            setInvestments(prevInvestments => [...prevInvestments, ...newInvestments]);
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            // Garantir que todos os registros tenham o reportId correto
+            const processedInvestments = newInvestments.map(investment => ({
+              ...investment,
+              reportId: activeReportId || ""
+            }));
+            
+            const processedProfits = newProfits.map(profit => ({
+              ...profit,
+              reportId: activeReportId || ""
+            }));
+            
+            setInvestments(prevInvestments => {
+              const updatedInvestments = [...prevInvestments, ...processedInvestments];
+              // Salvar no localStorage imediatamente para evitar perda de dados
+              if (isDataLoaded) {
+                localStorage.setItem("bitcoinInvestments", JSON.stringify(updatedInvestments));
+              }
+              return updatedInvestments;
+            });
+            
+            setProfits(prevProfits => {
+              const updatedProfits = [...prevProfits, ...processedProfits];
+              // Salvar no localStorage imediatamente para evitar perda de dados
+              if (isDataLoaded) {
+                localStorage.setItem("bitcoinProfits", JSON.stringify(updatedProfits));
+              }
+              return updatedProfits;
+            });
             
             toast({
               title: "Importação concluída",
@@ -2290,6 +2365,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             });
           }
           
+          // Chamar o callback de conclusão se fornecido
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
+          
         } catch (error) {
           console.error("Erro ao processar arquivo para importação interna:", error);
           toast({
@@ -2297,6 +2377,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             description: error instanceof Error ? error.message : "Falha ao processar o arquivo Excel.",
             variant: "destructive",
           });
+          
+          // Chamar o callback de conclusão mesmo em caso de erro
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
         } finally {
           setIsImporting(false);
           setImportType(null);
@@ -2464,7 +2549,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos investimentos ou mostrar diálogo de duplicados
           if (newInvestments.length > 0) {
-            setInvestments(prev => [...prev, ...newInvestments]);
+            // Garantir que todos os registros tenham o reportId correto
+            const processedInvestments = newInvestments.map(investment => ({
+              ...investment,
+              reportId: activeReportId || ""
+            }));
+            
+            setInvestments(prev => {
+              const updatedInvestments = [...prev, ...processedInvestments];
+              // Salvar no localStorage imediatamente para evitar perda de dados
+              if (isDataLoaded) {
+                localStorage.setItem("bitcoinInvestments", JSON.stringify(updatedInvestments));
+              }
+              return updatedInvestments;
+            });
             
             toast({
               title: "Importação de aportes concluída",
@@ -2486,6 +2584,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             });
           }
           
+          // Chamar o callback de conclusão se fornecido
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
+          
         } catch (error) {
           console.error("Erro ao processar o arquivo CSV de aportes:", error);
           toast({
@@ -2493,6 +2596,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
             variant: "destructive",
           });
+          
+          // Chamar o callback de conclusão mesmo em caso de erro
+          if (event.target.onImportComplete) {
+            event.target.onImportComplete();
+          }
         } finally {
           setIsImporting(false);
           setImportType(null);
