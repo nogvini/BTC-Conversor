@@ -1792,10 +1792,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     <div className="mt-6 pt-5 border-t border-purple-700/30">
       <h3 className="text-sm font-medium mb-3">Importar Operações</h3>
       <p className="text-xs text-gray-400 mb-3">
-        Importe registros de lucro/perda de operações a partir de arquivo CSV
+        Importe registros de lucro/perda de operações a partir de arquivos
       </p>
       
       <div className="grid grid-cols-1 gap-2">
+        {/* Input para CSV */}
         <input
           type="file"
           accept=".csv"
@@ -1821,9 +1822,116 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </>
           )}
         </Button>
+        
+        {/* Input para Excel */}
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleImportExcel}
+          ref={fileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerExcelFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "excel" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <FileType className="mr-2 h-4 w-4" />
+              Importar Excel
+            </>
+          )}
+        </Button>
+        
+        {/* Input para arquivo de backup interno */}
+        <input
+          type="file"
+          accept=".json"
+          onChange={handleImportInternalData}
+          ref={internalFileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerInternalFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "internal" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Importar Backup
+            </>
+          )}
+        </Button>
       </div>
       
+      {/* Exibir estatísticas de importação para CSV */}
       {importStats && importType === "csv" && (
+        <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+          <div className="flex justify-between mb-1">
+            <span>Total processado:</span>
+            <span className="font-medium">{importStats.total}</span>
+          </div>
+          <div className="flex justify-between mb-1">
+            <span>Importados com sucesso:</span>
+            <span className="font-medium text-green-500">{importStats.success}</span>
+          </div>
+          {importStats.duplicated && importStats.duplicated > 0 && (
+            <div className="flex justify-between mb-1">
+              <span>Registros duplicados ignorados:</span>
+              <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+            </div>
+          )}
+          {importStats.error > 0 && (
+            <div className="flex justify-between">
+              <span>Falhas:</span>
+              <span className="font-medium text-red-500">{importStats.error}</span>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Exibir estatísticas de importação para Excel */}
+      {importStats && importType === "excel" && (
+        <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+          <div className="flex justify-between mb-1">
+            <span>Total processado:</span>
+            <span className="font-medium">{importStats.total}</span>
+          </div>
+          <div className="flex justify-between mb-1">
+            <span>Importados com sucesso:</span>
+            <span className="font-medium text-green-500">{importStats.success}</span>
+          </div>
+          {importStats.duplicated && importStats.duplicated > 0 && (
+            <div className="flex justify-between mb-1">
+              <span>Registros duplicados ignorados:</span>
+              <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+            </div>
+          )}
+          {importStats.error > 0 && (
+            <div className="flex justify-between">
+              <span>Falhas:</span>
+              <span className="font-medium text-red-500">{importStats.error}</span>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Exibir estatísticas de importação para arquivo de backup interno */}
+      {importStats && importType === "internal" && (
         <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
           <div className="flex justify-between mb-1">
             <span>Total processado:</span>
@@ -1850,14 +1958,317 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     </div>
   );
 
-  return (
-    <div className="flex flex-col gap-4 relative">
-      <div className="flex flex-col md:flex-row gap-4 justify-between">
-        {/* ... cards informativos ... */}
-      </div>
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!event.target.files || event.target.files.length === 0) {
+        return;
+      }
+      
+      setIsImporting(true);
+      setImportType("excel");
+      
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        if (!e.target) return;
+        
+        try {
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(e.target.result as ArrayBuffer);
+          
+          // Assumindo que os dados estão na primeira planilha
+          const worksheet = workbook.getWorksheet(1);
+          
+          if (!worksheet) {
+            toast({
+              title: "Erro ao importar",
+              description: "Não foi possível encontrar dados na planilha.",
+              variant: "destructive",
+            });
+            setIsImporting(false);
+            event.target.value = '';
+            return;
+          }
+          
+          const headers: string[] = [];
+          const records: Record<string, any>[] = [];
+          
+          // Obter os cabeçalhos (primeira linha)
+          worksheet.getRow(1).eachCell((cell, colNumber) => {
+            headers[colNumber - 1] = cell.value?.toString() || `Coluna${colNumber}`;
+          });
+          
+          // Obter os dados (linhas seguintes)
+          let rowCount = 0;
+          let successCount = 0;
+          let errorCount = 0;
+          let duplicatedCount = 0;
+          
+          worksheet.eachRow((row, rowNumber) => {
+            // Pular a linha de cabeçalho
+            if (rowNumber === 1) return;
+            
+            const record: Record<string, any> = {};
+            
+            row.eachCell((cell, colNumber) => {
+              record[headers[colNumber - 1]] = cell.value;
+            });
+            
+            records.push(record);
+            rowCount++;
+          });
+          
+          // Processar os registros
+          const { newProfits, successCount: sCount, errorCount: eCount, duplicatedCount: dCount } = processTradeRecords(headers, records);
+          
+          successCount = sCount;
+          errorCount = eCount;
+          duplicatedCount = dCount;
+          
+          // Adicionar os novos registros
+          if (newProfits.length > 0) {
+            const combinedProfits = [...profits, ...newProfits];
+            setProfits(combinedProfits);
+            localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits));
+            
+            toast({
+              title: "Importação concluída",
+              description: `${successCount} registros importados com sucesso${
+                duplicatedCount > 0 ? `, ${duplicatedCount} duplicados ignorados` : ''
+              }${
+                errorCount > 0 ? ` e ${errorCount} falhas` : ''
+              }.`,
+              variant: errorCount > 0 ? "destructive" : "default",
+            });
+            
+            // Se tiver registros duplicados, mostrar diálogo informativo
+            if (duplicatedCount > 0) {
+              setDuplicateInfo({
+                count: duplicatedCount,
+                type: 'registros de operações'
+              });
+              setShowDuplicateDialog(true);
+            }
+          } else {
+            toast({
+              title: "Nenhum registro importado",
+              description: "Não foi possível extrair registros válidos do arquivo Excel.",
+              variant: "destructive",
+            });
+          }
+          
+          setImportStats({
+            total: rowCount,
+            success: successCount,
+            error: errorCount,
+            duplicated: duplicatedCount
+          });
+        } catch (error) {
+          console.error("Erro ao processar arquivo Excel:", error);
+          toast({
+            title: "Erro na importação",
+            description: "Ocorreu um erro ao processar o arquivo Excel.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          // Limpar o input para permitir selecionar o mesmo arquivo novamente
+          event.target.value = '';
+        }
+      };
+      
+      reader.onerror = () => {
+        toast({
+          title: "Erro na leitura do arquivo",
+          description: "Não foi possível ler o arquivo Excel.",
+          variant: "destructive",
+        });
+        setIsImporting(false);
+        event.target.value = '';
+      };
+      
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      console.error("Erro na importação Excel:", error);
+      toast({
+        title: "Erro na importação",
+        description: "Ocorreu um erro ao importar o arquivo Excel.",
+        variant: "destructive",
+      });
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
 
+  const handleImportInternalData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!event.target.files || event.target.files.length === 0) {
+        return;
+      }
+      
+      setIsImporting(true);
+      setImportType("internal");
+      
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        if (!e.target) return;
+        
+        try {
+          const content = e.target.result as string;
+          const data = JSON.parse(content);
+          
+          let totalItems = 0;
+          let successCount = 0;
+          let errorCount = 0;
+          let duplicatedCount = 0;
+          
+          // Importar investimentos
+          if (data.investments && Array.isArray(data.investments)) {
+            totalItems += data.investments.length;
+            
+            const existingIds = new Set(investments.map(inv => inv.id));
+            const existingOriginalIds = new Set(
+              investments
+                .filter(inv => inv.originalId !== undefined)
+                .map(inv => inv.originalId)
+            );
+            
+            const validInvestments = data.investments.filter((inv: Investment) => {
+              if (!inv.id || !inv.date || !inv.amount || !inv.unit) {
+                errorCount++;
+                return false;
+              }
+              
+              // Verificar se já existe esse ID ou originalId no sistema
+              if (existingIds.has(inv.id) || 
+                  (inv.originalId && existingOriginalIds.has(inv.originalId))) {
+                duplicatedCount++;
+                return false;
+              }
+              
+              successCount++;
+              return true;
+            });
+            
+            if (validInvestments.length > 0) {
+              const combinedInvestments = [...investments, ...validInvestments];
+              setInvestments(combinedInvestments);
+              localStorage.setItem("bitcoinInvestments", JSON.stringify(combinedInvestments));
+            }
+          }
+          
+          // Importar lucros/perdas
+          if (data.profits && Array.isArray(data.profits)) {
+            totalItems += data.profits.length;
+            
+            const existingIds = new Set(profits.map(p => p.id));
+            const existingOriginalIds = new Set(
+              profits
+                .filter(p => p.originalId !== undefined)
+                .map(p => p.originalId)
+            );
+            
+            const validProfits = data.profits.filter((profit: ProfitRecord) => {
+              if (!profit.id || !profit.date || !profit.amount || !profit.unit || profit.isProfit === undefined) {
+                errorCount++;
+                return false;
+              }
+              
+              // Verificar se já existe esse ID ou originalId no sistema
+              if (existingIds.has(profit.id) || 
+                  (profit.originalId && existingOriginalIds.has(profit.originalId))) {
+                duplicatedCount++;
+                return false;
+              }
+              
+              successCount++;
+              return true;
+            });
+            
+            if (validProfits.length > 0) {
+              const combinedProfits = [...profits, ...validProfits];
+              setProfits(combinedProfits);
+              localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits));
+            }
+          }
+          
+          setImportStats({
+            total: totalItems,
+            success: successCount,
+            error: errorCount,
+            duplicated: duplicatedCount
+          });
+          
+          if (successCount > 0) {
+            toast({
+              title: "Backup restaurado",
+              description: `${successCount} itens importados com sucesso${
+                duplicatedCount > 0 ? `, ${duplicatedCount} duplicados ignorados` : ''
+              }${
+                errorCount > 0 ? ` e ${errorCount} falhas` : ''
+              }.`,
+              variant: errorCount > 0 ? "destructive" : "default",
+            });
+            
+            // Se tiver registros duplicados, mostrar diálogo informativo
+            if (duplicatedCount > 0) {
+              setDuplicateInfo({
+                count: duplicatedCount,
+                type: 'registros'
+              });
+              setShowDuplicateDialog(true);
+            }
+          } else {
+            toast({
+              title: "Nenhum registro importado",
+              description: duplicatedCount > 0 ? 
+                `Todos os ${duplicatedCount} registros já existem no sistema.` : 
+                "O arquivo não contém dados válidos para importação.",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error("Erro ao processar backup:", error);
+          toast({
+            title: "Erro na restauração",
+            description: "O arquivo de backup está em formato inválido.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsImporting(false);
+          event.target.value = '';
+        }
+      };
+      
+      reader.onerror = () => {
+        toast({
+          title: "Erro na leitura do arquivo",
+          description: "Não foi possível ler o arquivo de backup.",
+          variant: "destructive",
+        });
+        setIsImporting(false);
+        event.target.value = '';
+      };
+      
+      reader.readAsText(file);
+    } catch (error) {
+      console.error("Erro na importação do backup:", error);
+      toast({
+        title: "Erro na restauração",
+        description: "Ocorreu um erro ao importar o arquivo de backup.",
+        variant: "destructive",
+      });
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div className="flex flex-col space-y-4">
       <Tabs
-        defaultValue="register"
         value={activeTab}
         onValueChange={setActiveTab}
         className="space-y-4"
@@ -1886,7 +2297,61 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* conteúdo do card de investimento */}
+                  <div>
+                    <Label htmlFor="investment-amount">Valor</Label>
+                    <Input
+                      id="investment-amount"
+                      type="number"
+                      placeholder="Valor"
+                      value={investmentAmount}
+                      onChange={(e) => setInvestmentAmount(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="investment-date">Data do Aporte</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                          Selecione a data do aporte
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={investmentDate}
+                          onSelect={(date) => date && setInvestmentDate(date)}
+                          initialFocus
+                          className="bg-black/80"
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <RadioGroup
+                    value={investmentUnit}
+                    onValueChange={(value) => setInvestmentUnit(value as CurrencyUnit)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="BTC" id="unit-btc" />
+                      <Label htmlFor="unit-btc">BTC</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="SATS" id="unit-sats" />
+                      <Label htmlFor="unit-sats">Satoshis</Label>
+                    </div>
+                  </RadioGroup>
+                  <Button onClick={addInvestment}>
+                    Adicionar Aporte
+                  </Button>
+
+                  {/* Componente para importação de CSVs de investimento aqui */}
                 </div>
               </CardContent>
             </Card>
@@ -1948,13 +2413,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <Label htmlFor="type-loss">Perda</Label>
                     </div>
                   </RadioGroup>
+                  <RadioGroup
+                    value={profitUnit}
+                    onValueChange={(value) => setProfitUnit(value as CurrencyUnit)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="BTC" id="profit-unit-btc" />
+                      <Label htmlFor="profit-unit-btc">BTC</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="SATS" id="profit-unit-sats" />
+                      <Label htmlFor="profit-unit-sats">Satoshis</Label>
+                    </div>
+                  </RadioGroup>
                   <Button onClick={addProfitRecord}>
                     Adicionar {isProfit ? "Lucro" : "Perda"}
                   </Button>
                   
-                  {/* Removido o botão de excluir lucros/perdas daqui */}
-
-                  {/* Substituir a seção de importação pelo novo componente */}
+                  {/* Opções de importação */}
                   <ImportOptions />
                 </div>
               </CardContent>
@@ -1964,13 +2440,427 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="history" className="mt-4">
           <Card className="panel border-purple-700/50">
-            {/* Conteúdo do histórico aqui */}
+            <CardHeader>
+              <CardTitle className="text-lg">Histórico</CardTitle>
+              <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant={showFilterOptions ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowFilterOptions(!showFilterOptions)}
+                    className={showFilterOptions ? "bg-purple-800 hover:bg-purple-700" : "bg-black/30 border-purple-700/50"}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {showFilterOptions ? "Filtro ativo" : "Filtrar por mês"}
+                  </Button>
+                  
+                  {showFilterOptions && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-black/30 border-purple-700/50"
+                      >
+                        {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
+                      <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                        Selecione o mês para filtrar
+                      </div>
+                      <div className="p-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-black/30 border-purple-700/30"
+                            onClick={() => setFilterMonth(subMonths(filterMonth, 1))}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <div className="font-medium text-center">
+                            {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-black/30 border-purple-700/30"
+                            onClick={() => {
+                              const nextMonth = addMonths(filterMonth, 1);
+                              if (isBefore(nextMonth, addMonths(new Date(), 1))) {
+                                setFilterMonth(nextMonth);
+                              }
+                            }}
+                            disabled={!isBefore(addMonths(filterMonth, 1), addMonths(new Date(), 1))}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  )}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleDisplayCurrency}
+                    className="bg-black/30 border-purple-700/50"
+                  >
+                    {displayCurrency === "USD" ? (
+                      <>
+                        <span className="font-bold mr-1">R$</span> BRL
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="h-4 w-4 mr-1" /> USD
+                      </>
+                    )}
+                  </Button>
+                  
+                  {useExportDialog ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowExportOptions(true)}
+                      disabled={isExporting}
+                      className="bg-black/30 border-purple-700/50"
+                    >
+                      {isExporting ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Exportando...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="mr-2 h-4 w-4" />
+                          Exportar
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Popover open={showExportOptions} onOpenChange={setShowExportOptions}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isExporting}
+                          className="bg-black/30 border-purple-700/50"
+                        >
+                          {isExporting ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Exportando...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="mr-2 h-4 w-4" />
+                              Exportar
+                            </>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="p-0 bg-black/90 border-purple-800/60" 
+                        align={isMobile ? "center" : "end"}
+                        alignOffset={isMobile ? 0 : -5}
+                        sideOffset={5}
+                        side={isMobile ? "bottom" : "bottom"}
+                        style={{ width: isMobile ? "calc(100vw - 30px)" : "280px", maxWidth: "95vw" }}
+                      >
+                        <ExportOptionsContent />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {showFilterOptions && (
+                <div className="px-6 pb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Mês selecionado</div>
+                      <div className="text-lg font-semibold text-white">
+                        {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Aporte total</div>
+                      <div className="text-lg font-semibold text-blue-400">
+                        {formatCryptoAmount(calculateTotalInvestmentsInMonth(filterMonth), "BTC")}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(filterMonth))}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
+                      <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(filterMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
+                        {formatCryptoAmount(calculateTotalProfitsInMonth(filterMonth), "BTC")}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
+                        {formatBtcValueInCurrency(calculateTotalProfitsInMonth(filterMonth))}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Rendimento</div>
+                      <div className={`text-lg font-semibold ${
+                        calculateTotalInvestmentsInMonth(filterMonth) > 0 && 
+                        (calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100) >= 0 ? 
+                        "text-green-500" : "text-red-500"}`}>
+                        {calculateTotalInvestmentsInMonth(filterMonth) > 0 ? 
+                          `${(calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100).toFixed(2)}%` : 
+                          "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  {showFilterOptions ? 
+                    `Nenhum registro encontrado para ${format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
+                    "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {getFilteredInvestments().length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-semibold text-blue-400">Investimentos</h3>
+                        {!showFilterOptions && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="bg-red-900/70 hover:bg-red-900"
+                            onClick={() => setShowDeleteInvestmentsDialog(true)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remover todos
+                          </Button>
+                        )}
+                      </div>
+                      <Table>
+                        <TableHeader className="bg-black/40">
+                          <TableRow>
+                            <TableHead className="w-1/4">Data</TableHead>
+                            <TableHead className="w-1/4">Valor em BTC</TableHead>
+                            <TableHead className="w-1/4">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-1/4 text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getFilteredInvestments().map((investment) => {
+                            const btcValue = convertToBtc(investment.amount, investment.unit);
+                            return (
+                              <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                                <TableCell>{format(new Date(investment.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
+                                <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => deleteInvestment(investment.id)}
+                                    className="hover:bg-red-900/20 hover:text-red-400"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                  
+                  {getFilteredProfits().length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-semibold text-green-500">Lucros/Perdas</h3>
+                        {!showFilterOptions && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="bg-red-900/70 hover:bg-red-900"
+                            onClick={() => setShowDeleteProfitsDialog(true)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remover todos
+                          </Button>
+                        )}
+                      </div>
+                      <Table>
+                        <TableHeader className="bg-black/40">
+                          <TableRow>
+                            <TableHead className="w-1/5">Data</TableHead>
+                            <TableHead className="w-1/5">Tipo</TableHead>
+                            <TableHead className="w-1/5">Valor em BTC</TableHead>
+                            <TableHead className="w-1/5">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-1/5 text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getFilteredProfits().map((profit) => {
+                            const btcValue = convertToBtc(profit.amount, profit.unit);
+                            return (
+                              <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                                <TableCell>{format(new Date(profit.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"
+                                  }`}>
+                                    {profit.isProfit ? "Lucro" : "Perda"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
+                                  {profit.isProfit ? "+" : "-"}
+                                  {formatCryptoAmount(btcValue, "BTC")}
+                                </TableCell>
+                                <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
+                                  {profit.isProfit ? "+" : "-"}
+                                  {formatBtcValueInCurrency(btcValue)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => deleteProfit(profit.id)}
+                                    className="hover:bg-red-900/20 hover:text-red-400"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Diálogos e modais */}
-      {/* ... */}
+      {/* Dialog para exportação em telas pequenas */}
+      {useExportDialog && (
+        <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
+          <DialogContent className="p-0 max-w-[95vw] bg-black/95 border-purple-800/60" style={{ maxHeight: "80vh" }}>
+            <DialogHeader className="p-4 pb-0">
+              <DialogTitle className="text-center">Exportar Dados</DialogTitle>
+            </DialogHeader>
+            <div className="overflow-y-auto">
+              <ExportOptionsContent />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      {/* Dialog para confirmar exclusão de investimentos */}
+      <Dialog open={showDeleteInvestmentsDialog} onOpenChange={setShowDeleteInvestmentsDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Excluir todos os aportes</DialogTitle>
+            <DialogDescription>
+              Você tem certeza que deseja excluir todos os registros de aporte? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteInvestmentsDialog(false)}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={deleteAllInvestments}
+              className="bg-red-900 hover:bg-red-800"
+            >
+              Excluir todos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog para confirmar exclusão de lucros/perdas */}
+      <Dialog open={showDeleteProfitsDialog} onOpenChange={setShowDeleteProfitsDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Excluir todos os lucros/perdas</DialogTitle>
+            <DialogDescription>
+              Você tem certeza que deseja excluir todos os registros de lucro e perda? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteProfitsDialog(false)}
+              className="bg-black/30 border-purple-700/50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={deleteAllProfits}
+              className="bg-red-900 hover:bg-red-800"
+            >
+              Excluir todos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo para mostrar informações sobre duplicações */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60">
+          <DialogHeader>
+            <DialogTitle>Registros duplicados encontrados</DialogTitle>
+            <DialogDescription>
+              Foram encontrados {duplicateInfo.count} {duplicateInfo.type} que já existem no sistema.
+              Estes registros foram ignorados para evitar duplicações que poderiam causar imprecisões nos dados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 p-4 bg-purple-900/20 border border-purple-800/40 rounded-md">
+            <div className="flex items-start">
+              <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+              <div className="text-sm">
+                <p className="mb-2">
+                  O sistema compara os identificadores únicos das operações para evitar duplicações durante a importação.
+                </p>
+                <p className="text-gray-400">
+                  Isto garante maior precisão nos seus cálculos de lucro e rendimento.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              onClick={() => setShowDuplicateDialog(false)}
+              className="bg-purple-800 hover:bg-purple-700"
+            >
+              <Check className="mr-2 h-4 w-4" />
+              Entendi
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

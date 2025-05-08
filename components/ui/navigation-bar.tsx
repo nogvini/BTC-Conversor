@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin, LogIn, AlertTriangle } from "lucide-react"
+import { ArrowRightLeft, TrendingUp, Calculator, RefreshCw, Menu, X, Bitcoin, LogIn, AlertTriangle, AlertCircle } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { ProfileMenu } from "@/components/profile-menu"
@@ -163,7 +163,9 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
         
         {/* Diferentes estados do botão de autenticação */}
         {authError ? (
-          <AuthErrorDisplay />
+          <div className="h-9 w-9 flex items-center justify-center">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+          </div>
         ) : authLoading ? (
           <div className="h-9 w-9 flex items-center justify-center">
             <RefreshCw className="h-5 w-5 animate-spin text-purple-400" />
