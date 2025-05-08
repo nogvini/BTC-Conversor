@@ -14,6 +14,25 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
   
   // Função para inicializar as credenciais no localStorage
   const initializeCredentials = () => {
+    // Verificar e limpar sessões expiradas
+    try {
+      const sessionStr = localStorage.getItem('supabase_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (session && session.expires_at) {
+          const expiresAt = session.expires_at * 1000; // Converter para milissegundos
+          // Se já expirou ou está prestes a expirar
+          if (Date.now() > (expiresAt - 2 * 60 * 1000)) { // 2 minutos de margem
+            console.warn('Sessão expirada ou prestes a expirar detectada na inicialização');
+            localStorage.removeItem('supabase_session');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao verificar sessão existente, removendo para segurança', e);
+      localStorage.removeItem('supabase_session');
+    }
+    
     // Verificar se as variáveis de ambiente necessárias estão presentes
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

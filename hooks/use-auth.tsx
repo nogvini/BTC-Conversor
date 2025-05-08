@@ -295,6 +295,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Se estiver autenticado, carregar os dados do perfil
           setSession(prev => ({ ...prev, isLoading: true }))
           
+          // IMPORTANTE: Verificar se a sessão está realmente válida
+          if (session) {
+            try {
+              // Verificar se o token está expirado
+              const expiresAt = session.expires_at * 1000; // Converter para milissegundos
+              if (Date.now() > expiresAt) {
+                console.warn('Token expirado detectado em evento de autenticação');
+                
+                // Invalidar esta sessão e forçar logout
+                await supabaseClient.auth.signOut();
+                
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('supabase_session');
+                }
+                
+                setSession({
+                  user: null,
+                  session: null,
+                  error: new Error('Sessão expirada'),
+                  isLoading: false,
+                });
+                
+                setLastAuthEvent('sessão expirada detectada em evento');
+                return; // Sair para evitar processamento de sessão expirada
+              }
+            } catch (e) {
+              console.warn('Erro ao verificar expiração em evento de autenticação:', e);
+            }
+          }
+          
           if (session) {
             try {
               // Salvar sessão no localStorage para recuperação futura

@@ -343,4 +343,109 @@ export function isSessionExpired(): boolean {
     localStorage.removeItem('supabase_session');
     return true;
   }
+}
+
+// Adicionar função que verifica e renova tokens prestes a expirar
+export function configureTokenRefresh() {
+  try {
+    if (typeof window === 'undefined') return;
+    
+    // Obter cliente
+    const client = getSupabaseClient();
+    if (!client) return;
+    
+    // Verificar e renovar token a cada 5 minutos
+    const refreshInterval = setInterval(async () => {
+      try {
+        // Verificar se há uma sessão
+        const sessionStr = localStorage.getItem('supabase_session');
+        if (!sessionStr) return;
+        
+        // Analisar a sessão
+        const session = JSON.parse(sessionStr);
+        if (!session || !session.expires_at) return;
+        
+        // Calcular quando o token expira
+        const expiresAt = session.expires_at * 1000; // milissegundos
+        const now = Date.now();
+        
+        // Se estiver a 20 minutos de expirar, renovar
+        if (expiresAt - now < 20 * 60 * 1000) {
+          console.log('Token expirando em breve, renovando...');
+          
+          // Tentar renovar a sessão
+          const { data, error } = await client.auth.refreshSession();
+          
+          if (error) {
+            console.warn('Erro ao renovar sessão:', error);
+            
+            // Se falhou, a sessão pode ser inválida
+            if (error.message.includes('token') && error.message.includes('expired')) {
+              localStorage.removeItem('supabase_session');
+              console.warn('Token expirado, sessão removida');
+            }
+          } else if (data.session) {
+            // Sessão renovada com sucesso
+            console.log('Sessão renovada com sucesso');
+            localStorage.setItem('supabase_session', JSON.stringify(data.session));
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao verificar renovação de token:', e);
+      }
+    }, 5 * 60 * 1000); // Verificar a cada 5 minutos
+    
+    // Iniciar verificação uma vez imediatamente
+    setTimeout(async () => {
+      try {
+        const sessionStr = localStorage.getItem('supabase_session');
+        if (!sessionStr) return;
+        
+        const session = JSON.parse(sessionStr);
+        if (!session || !session.expires_at) return;
+        
+        // Calcular quando o token expira
+        const expiresAt = session.expires_at * 1000;
+        const now = Date.now();
+        
+        // Se estiver a menos de 30 minutos de expirar, renovar imediatamente
+        if (expiresAt - now < 30 * 60 * 1000) {
+          console.log('Token prestes a expirar, renovando imediatamente...');
+          const { data, error } = await client.auth.refreshSession();
+          
+          if (error) {
+            console.warn('Falha ao renovar sessão:', error);
+            
+            if (error.message.includes('token') && error.message.includes('expired')) {
+              localStorage.removeItem('supabase_session');
+            }
+          } else if (data.session) {
+            localStorage.setItem('supabase_session', JSON.stringify(data.session));
+            console.log('Sessão renovada com sucesso na inicialização');
+          }
+        }
+      } catch (e) {
+        console.error('Erro na verificação inicial de token:', e);
+      }
+    }, 1000); // Verificar 1 segundo após inicialização
+    
+    // Limpar intervalo ao desmontar (para hot reloading em desenvolvimento)
+    if (typeof window !== 'undefined') {
+      const originalOnload = window.onunload;
+      window.onunload = function() {
+        clearInterval(refreshInterval);
+        if (originalOnload) originalOnload.apply(this, arguments);
+      };
+    }
+    
+    return refreshInterval;
+  } catch (e) {
+    console.error('Erro ao configurar renovação de token:', e);
+    return null;
+  }
+}
+
+// Executar configuração automaticamente no cliente
+if (typeof window !== 'undefined') {
+  configureTokenRefresh();
 } 
