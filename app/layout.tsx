@@ -3,6 +3,7 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
+import { SessionExpiredHandler } from "@/components/session-expired-handler"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,6 +29,7 @@ export default function RootLayout({
         <AuthProviderClient>
           <ThemeProvider>
             {children}
+            <SessionExpiredHandler />
           </ThemeProvider>
         </AuthProviderClient>
       </body>

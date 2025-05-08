@@ -12,51 +12,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User } from "lucide-react";
-import { useAuth } from "@/context/auth-context";
-import supabaseBrowser from "@/lib/supabase-browser";
+import { useAuth } from "@/hooks/use-auth";
 import { maskEmail } from "@/lib/utils";
 
 export function UserMenu() {
-  const { user, signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const [username, setUsername] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchUserProfile() {
-      if (!user) return;
+      if (!session.user) return;
       
       try {
         setIsLoading(true);
         
-        // Buscar perfil do usuário
-        const { data, error } = await supabaseBrowser
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (error) throw error;
-        
-        setUsername(data?.username || user.email?.split('@')[0] || "Usuário");
+        // Usar os dados do usuário já disponíveis no session
+        setUsername(session.user.name || session.user.email?.split('@')[0] || "Usuário");
       } catch (error) {
         console.error("Erro ao buscar perfil:", error);
-        setUsername(user.email?.split('@')[0] || "Usuário");
+        setUsername(session.user.email?.split('@')[0] || "Usuário");
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchUserProfile();
-  }, [user]);
+  }, [session.user]);
 
-  if (!user) return null;
+  if (!session.user) return null;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8 border border-indigo-700/30">
-            <AvatarImage src="" alt="Avatar" />
+            <AvatarImage src={session.user.avatar_url || ""} alt="Avatar" />
             <AvatarFallback className="bg-indigo-900 text-indigo-100">
               {username?.charAt(0).toUpperCase() || "U"}
             </AvatarFallback>
@@ -70,7 +61,7 @@ export function UserMenu() {
               {isLoading ? "Carregando..." : username}
             </p>
             <p className="text-xs leading-none text-indigo-400 truncate">
-              {maskEmail(user.email)}
+              {maskEmail(session.user.email)}
             </p>
           </div>
         </DropdownMenuLabel>

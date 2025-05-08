@@ -312,4 +312,35 @@ export type AuthSession = {
   session: any | null
   error: Error | null
   isLoading: boolean
+}
+
+// Adicionar função para verificar se uma sessão está expirada
+export function isSessionExpired(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    
+    const sessionStr = localStorage.getItem('supabase_session');
+    if (!sessionStr) return true;
+    
+    const session = JSON.parse(sessionStr);
+    if (!session || !session.expires_at) return true;
+    
+    // Verificar expiração (com 5 minutos de margem)
+    const expiresAt = session.expires_at * 1000; // Converter para milissegundos
+    const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
+    
+    // Sessão expira nos próximos 5 minutos ou já expirou
+    if (expiresAt < fiveMinutesFromNow) {
+      console.log('Sessão expirada ou expirando em breve, limpando dados locais');
+      localStorage.removeItem('supabase_session');
+      return true;
+    }
+    
+    return false;
+  } catch (e) {
+    console.error('Erro ao verificar expiração da sessão:', e);
+    // Em caso de erro, assumir que a sessão está inválida
+    localStorage.removeItem('supabase_session');
+    return true;
+  }
 } 

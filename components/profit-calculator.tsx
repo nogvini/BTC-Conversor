@@ -215,11 +215,23 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [importTargetReportId, setImportTargetReportId] = useState<string | null>(null);
   const [importInProgress, setImportInProgress] = useState(false); // Novo estado para controlar feedback visual
 
+  // Ref para controlar se o componente está montado
+  const isMounted = useRef(true);
+  
+  // Definir isMounted como false quando o componente for desmontado
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const checkScreenSize = () => {
-        setUseExportDialog(window.innerWidth < 350);
+        if (isMounted.current) {
+          setUseExportDialog(window.innerWidth < 350);
+        }
       };
       
       // Verificar tamanho inicial
@@ -235,14 +247,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Efeitos para carregar e salvar dados
   useEffect(() => {
-    if (appData) {
+    if (appData && isMounted.current) {
       const newRates = {
         btcToUsd: appData.currentPrice.usd,
         brlToUsd: appData.currentPrice.brl / appData.currentPrice.usd
       };
       setCurrentRates(newRates);
       setUsingFallbackRates(appData.isUsingCache || !!appData.currentPrice.isUsingCache);
-    } else {
+    } else if (isMounted.current) {
       setCurrentRates({ btcToUsd, brlToUsd });
       setUsingFallbackRates(btcToUsd === 65000 && brlToUsd === 5.2);
     }

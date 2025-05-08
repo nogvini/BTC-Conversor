@@ -62,6 +62,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     
+    // Verificar se a sessão expirou antes de tentar usar
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionStr = localStorage.getItem('supabase_session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          if (session && session.expires_at) {
+            const expiresAt = session.expires_at * 1000; // Converter para milissegundos
+            if (Date.now() > expiresAt) {
+              console.log('Sessão expirada detectada no localStorage, limpando dados');
+              localStorage.removeItem('supabase_session');
+              // Definir sessão como nula sem disparar erros
+              setSession({
+                user: null,
+                session: null,
+                error: new Error('Sessão expirada'),
+                isLoading: false,
+              });
+              setLastAuthEvent('sessão expirada');
+              return; // Sair da função para evitar tentativa de usar sessão inválida
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao verificar expiração de sessão:', e);
+      }
+    }
+    
     const fetchSession = async () => {
       try {
         setSession(prev => ({ ...prev, isLoading: true }))
