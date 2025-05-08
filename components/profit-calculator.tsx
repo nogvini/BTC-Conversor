@@ -1852,15 +1852,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   return (
     <div className="flex flex-col gap-4 relative">
-      {initialLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <RefreshCw className="h-8 w-8 animate-spin opacity-70" />
-            <p className="text-sm text-muted-foreground">Carregando...</p>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col md:flex-row gap-4 justify-between">
         {/* ... cards informativos ... */}
       </div>
