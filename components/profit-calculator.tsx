@@ -3,25 +3,22 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Calendar,
-  Coins,
-  TrendingUp,
-  Trash2,
   Plus,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronLeft,
-  ChevronRight,
-  DollarSign,
-  Check,
-  RefreshCw,
-  AlertTriangle,
-  FileText,
+  XCircle,
+  Settings,
   Download,
-  ChevronDown,
   Upload,
+  ArrowDown,
+  ArrowUp,
+  FileSpreadsheet,
+  FileText,
+  FileUp,
+  FileCheck,
+  Trash2,
   FileType,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Trash
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,6 +48,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectItem, SelectContent } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { v4 as uuidv4 } from "uuid";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -401,7 +401,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     const newReport: Report = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       name: reportName.trim(),
       description: reportDescription.trim() || undefined,
       createdAt: new Date().toISOString(),
@@ -618,7 +618,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     // Criar novo investimento usando formatDateToUTC
     const newInvestment: Investment = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       date: formatDateToUTC(investmentDate),
       amount: Number(investmentAmount),
       unit: investmentUnit,
@@ -691,7 +691,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     // Criar novo registro de lucro usando formatDateToUTC
     const newProfit: ProfitRecord = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       date: formatDateToUTC(profitDate),
       amount: Number(profitAmount),
       unit: profitUnit,
@@ -1619,7 +1619,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         
         // Criar registro de lucro/perda
         const newProfit: ProfitRecord = {
-          id: Date.now().toString() + index, // ID único local
+          id: uuidv4(), // ID único local
           originalId: originalId, // Salvar ID original da operação
           date: format(profitDate, "yyyy-MM-dd"),
           amount: Math.abs(netProfitSats), // Valor absoluto
@@ -2264,7 +2264,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               
               // Criar novo investimento
               const newInvestment: Investment = {
-                id: Date.now().toString() + index, // Usar ID único
+                id: uuidv4(), // Usar ID único
                 originalId: originalId, // Preservar ID original para evitar duplicações futuras
                 date: format(investmentDate, "yyyy-MM-dd"),
                 amount: amount,
@@ -2666,123 +2666,95 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
               </p>
             ) : (
-              <div className="space-y-6">
+              <>
+                {/* Listagem de investimentos */}
                 {getFilteredInvestments().length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-lg font-semibold text-blue-400">Investimentos</h3>
-                      {!showFilterOptions && (
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          className="bg-red-900/70 hover:bg-red-900"
-                          onClick={() => setShowDeleteInvestmentsDialog(true)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remover todos
-                        </Button>
-                      )}
-                    </div>
-                    <Table>
-                      <TableHeader className="bg-black/40">
-                        <TableRow>
-                          <TableHead className="w-1/4">Data</TableHead>
-                          <TableHead className="w-1/4">Valor em BTC</TableHead>
-                          <TableHead className="w-1/4">Valor em {displayCurrency}</TableHead>
-                          <TableHead className="w-1/4 text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {getFilteredInvestments().map((investment) => {
-                          const btcValue = convertToBtc(investment.amount, investment.unit);
-                          return (
-                            <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
-                              <TableCell>{formatDisplayDate(investment.date, "d MMM yyyy")}</TableCell>
-                              <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
-                              <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
+                  <div className="mb-6">
+                    <h3 className="text-base font-semibold mb-3">Investimentos</h3>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                            <TableHead>Data</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getFilteredInvestments().map(investment => (
+                            <TableRow key={investment.id} className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                              <TableCell>{formatDisplayDate(investment.date)}</TableCell>
+                              <TableCell>
+                                {formatCryptoAmount(investment.amount, investment.unit)}
+                                <div className="text-xs text-gray-400">
+                                  {formatBtcValueInCurrency(convertToBtc(investment.amount, investment.unit))}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-right">
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => deleteInvestment(investment.id)}
-                                  className="hover:bg-red-900/20 hover:text-red-400"
+                                  className="h-7 w-7"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
-                
+
+                {/* Listagem de lucros/perdas */}
                 {getFilteredProfits().length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-lg font-semibold text-green-500">Lucros/Perdas</h3>
-                      {!showFilterOptions && (
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          className="bg-red-900/70 hover:bg-red-900"
-                          onClick={() => setShowDeleteProfitsDialog(true)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remover todos
-                        </Button>
-                      )}
-                    </div>
-                    <Table>
-                      <TableHeader className="bg-black/40">
-                        <TableRow>
-                          <TableHead className="w-1/5">Data</TableHead>
-                          <TableHead className="w-1/5">Tipo</TableHead>
-                          <TableHead className="w-1/5">Valor em BTC</TableHead>
-                          <TableHead className="w-1/5">Valor em {displayCurrency}</TableHead>
-                          <TableHead className="w-1/5 text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {getFilteredProfits().map((profit) => {
-                          const btcValue = convertToBtc(profit.amount, profit.unit);
-                          return (
-                            <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
-                              <TableCell>{formatDisplayDate(profit.date, "d MMM yyyy")}</TableCell>
+                  <div>
+                    <h3 className="text-base font-semibold mb-3">Lucros/Perdas</h3>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                            <TableHead>Data</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getFilteredProfits().map(profit => (
+                            <TableRow key={profit.id} className="hover:bg-black/20 hover:text-white border-purple-700/50">
+                              <TableCell>{formatDisplayDate(profit.date)}</TableCell>
                               <TableCell>
-                                <span className={`px-2 py-1 rounded-full text-xs ${
-                                  profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"
-                                }`}>
+                                <Badge className={profit.isProfit ? "bg-green-500" : "bg-red-500"}>
                                   {profit.isProfit ? "Lucro" : "Perda"}
-                                </span>
+                                </Badge>
                               </TableCell>
-                              <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
-                                {profit.isProfit ? "+" : "-"}
-                                {formatCryptoAmount(btcValue, "BTC")}
-                              </TableCell>
-                              <TableCell className={profit.isProfit ? "text-green-500" : "text-red-500"}>
-                                {profit.isProfit ? "+" : "-"}
-                                {formatBtcValueInCurrency(btcValue)}
+                              <TableCell>
+                                {formatCryptoAmount(profit.amount, profit.unit)}
+                                <div className="text-xs text-gray-400">
+                                  {formatBtcValueInCurrency(convertToBtc(profit.amount, profit.unit))}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => deleteProfit(profit.id)}
-                                  className="hover:bg-red-900/20 hover:text-red-400"
+                                  className="h-7 w-7"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         </TabsContent>
