@@ -13,31 +13,23 @@ interface RequireAuthProps {
 }
 
 export function RequireAuth({ children }: RequireAuthProps) {
-  // Verificar se estamos no navegador
+  const router = useRouter()
+  const { session, retryConnection } = useAuth()
+  const { user, isLoading, error } = session
+  
   const [isBrowser, setIsBrowser] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   
+  // Efeito para verificar se estamos no navegador
   useEffect(() => {
     setIsBrowser(true)
   }, [])
   
-  // Se não estivermos no navegador, mostrar um fallback minimalista
-  if (!isBrowser) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="h-8 w-8 rounded-full bg-primary/20" />
-      </div>
-    )
-  }
-
-  // Agora podemos acessar o hook de autenticação com segurança
-  const { session, retryConnection } = useAuth()
-  const router = useRouter()
-  const { user, isLoading, error } = session
-
   // Verificar autenticação com timeout
   useEffect(() => {
+    if (!isBrowser) return;
+    
     let authTimeout: NodeJS.Timeout | null = null;
     
     if (!isLoading && !authChecked) {
@@ -54,14 +46,25 @@ export function RequireAuth({ children }: RequireAuthProps) {
     return () => {
       if (authTimeout) clearTimeout(authTimeout)
     }
-  }, [isLoading, user, error, authChecked])
+  }, [isLoading, user, error, authChecked, isBrowser])
 
   // Redirecionar para login se não estiver autenticado
   useEffect(() => {
+    if (!isBrowser) return;
+    
     if (!isLoading && !user && authChecked) {
       router.push("/auth")
     }
-  }, [isLoading, user, router, authChecked])
+  }, [isLoading, user, router, authChecked, isBrowser])
+
+  // Mostrar um fallback minimalista durante a renderização inicial no servidor
+  if (!isBrowser) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="h-8 w-8 rounded-full bg-primary/20" />
+      </div>
+    )
+  }
 
   // Mostrar carregamento enquanto verifica a autenticação
   if (isLoading) {

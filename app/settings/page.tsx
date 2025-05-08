@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -17,17 +17,27 @@ const SettingsLoading = () => (
   </div>
 );
 
-// Componente de configurações carregado dinamicamente
+// Componente de configurações carregado estaticamente para evitar problemas com hooks
 const UserSettings = dynamic(() => import("@/components/user-settings"), {
   ssr: false,
-  loading: SettingsLoading,
+  loading: () => <SettingsLoading />
 });
 
-// Componente de verificação de autenticação carregado dinamicamente
+// Componente de verificação de autenticação carregado estaticamente
 const RequireAuth = dynamic(
   () => import("@/components/require-auth").then(mod => mod.RequireAuth),
-  { ssr: false }
+  { ssr: false, loading: () => <SettingsLoading /> }
 );
+
+// Componente de wrapper para garantir que o componente de configurações
+// seja renderizado apenas no cliente, sem problemas de hidratação
+const ClientSettings = () => {
+  return (
+    <RequireAuth>
+      <UserSettings />
+    </RequireAuth>
+  );
+};
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
@@ -36,13 +46,15 @@ export default function SettingsPage() {
     setMounted(true);
   }, []);
 
+  // Renderizar apenas um esqueleto até que o componente esteja montado no cliente
   if (!mounted) {
     return <SettingsLoading />;
   }
 
+  // Usar Suspense para envolver o componente cliente, melhorando a hidratação
   return (
-    <RequireAuth>
-      <UserSettings />
-    </RequireAuth>
+    <Suspense fallback={<SettingsLoading />}>
+      <ClientSettings />
+    </Suspense>
   );
 } 

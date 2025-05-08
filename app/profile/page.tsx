@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -17,17 +17,27 @@ const ProfileLoading = () => (
   </div>
 );
 
-// Componente de perfil carregado dinamicamente
+// Componente de perfil carregado estaticamente para evitar problemas com hooks
 const UserProfile = dynamic(() => import("@/components/user-profile"), {
   ssr: false,
-  loading: ProfileLoading,
+  loading: () => <ProfileLoading />
 });
 
-// Componente de verificação de autenticação carregado dinamicamente
+// Componente de verificação de autenticação carregado estaticamente
 const RequireAuth = dynamic(
   () => import("@/components/require-auth").then(mod => mod.RequireAuth),
-  { ssr: false }
+  { ssr: false, loading: () => <ProfileLoading /> }
 );
+
+// Componente de wrapper para garantir que o componente de perfil
+// seja renderizado apenas no cliente, sem problemas de hidratação
+const ClientProfile = () => {
+  return (
+    <RequireAuth>
+      <UserProfile />
+    </RequireAuth>
+  );
+};
 
 export default function ProfilePage() {
   const [mounted, setMounted] = useState(false);
@@ -36,13 +46,15 @@ export default function ProfilePage() {
     setMounted(true);
   }, []);
 
+  // Renderizar apenas um esqueleto até que o componente esteja montado no cliente
   if (!mounted) {
     return <ProfileLoading />;
   }
 
+  // Usar Suspense para envolver o componente cliente, melhorando a hidratação
   return (
-    <RequireAuth>
-      <UserProfile />
-    </RequireAuth>
+    <Suspense fallback={<ProfileLoading />}>
+      <ClientProfile />
+    </Suspense>
   );
 } 
