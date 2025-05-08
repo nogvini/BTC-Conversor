@@ -114,10 +114,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Estados do formulário
   const [investmentAmount, setInvestmentAmount] = useState<string>("");
   const [investmentUnit, setInvestmentUnit] = useState<CurrencyUnit>("SATS");
-  const [investmentDate, setInvestmentDate] = useState<Date>(new Date());
+  const [investmentDate, setInvestmentDate] = useState<Date>(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+  });
   const [profitAmount, setProfitAmount] = useState<string>("");
   const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS");
-  const [profitDate, setProfitDate] = useState<Date>(new Date());
+  const [profitDate, setProfitDate] = useState<Date>(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+  });
   const [isProfit, setIsProfit] = useState<boolean>(true);
 
   // Estados adicionais para filtros
@@ -318,18 +324,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Verifica se uma data é no futuro
   const isFutureDate = (date: Date): boolean => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Resetar horas para comparar apenas as datas
-    return date > today;
+    // Comparar apenas dia, mês e ano
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return normalizedDate > normalizedToday;
   };
 
   // Função para garantir que a data não seja afetada pelo fuso horário
   const formatDateToUTC = (date: Date): string => {
-    // Pegando o dia, mês e ano no fuso horário local
-    const day = date.getDate();
-    const month = date.getMonth() + 1; // Janeiro é 0
-    const year = date.getFullYear();
+    // Criar uma nova data com o dia, mês e ano da data original
+    // Fixando o horário em 12:00 do dia para evitar problemas de fuso
+    const fixedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
     
-    // Formata a data como YYYY-MM-DD, garantindo que tenha 2 dígitos para mês e dia
+    // Obter o dia, mês e ano da data fixa
+    const day = fixedDate.getDate();
+    const month = fixedDate.getMonth() + 1; // Janeiro é 0
+    const year = fixedDate.getFullYear();
+    
+    // Formatar a data como YYYY-MM-DD
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
@@ -2669,7 +2681,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <CalendarComponent
                           mode="single"
                           selected={investmentDate}
-                          onSelect={(date) => date && setInvestmentDate(date)}
+                          onSelect={(date) => date && setInvestmentDate(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0))}
                           initialFocus
                           className="bg-black/80"
                           locale={ptBR}
@@ -2735,7 +2747,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <CalendarComponent
                           mode="single"
                           selected={profitDate}
-                          onSelect={(date) => date && setProfitDate(date)}
+                          onSelect={(date) => date && setProfitDate(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0))}
                           initialFocus
                           className="bg-black/80"
                           locale={ptBR}
