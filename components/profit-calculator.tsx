@@ -149,6 +149,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{count: number, type: string} | null>(null);
 
+  // Estados para confirmação de adição de registros potencialmente duplicados
+  const [pendingInvestment, setPendingInvestment] = useState<Investment | null>(null);
+  const [pendingProfit, setPendingProfit] = useState<ProfitRecord | null>(null);
+  const [showConfirmDuplicateDialog, setShowConfirmDuplicateDialog] = useState(false);
+  const [duplicateConfirmInfo, setDuplicateConfirmInfo] = useState<{
+    type: 'investment' | 'profit',
+    date: string,
+    amount: number,
+    unit: CurrencyUnit
+  } | null>(null);
+
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -331,6 +342,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
+    // Criar novo investimento
     const newInvestment: Investment = {
       id: Date.now().toString(),
       date: format(investmentDate, "yyyy-MM-dd"),
@@ -338,19 +350,49 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       unit: investmentUnit,
     };
 
-    setInvestments([...investments, newInvestment]);
-    setInvestmentAmount("");
+    // Verificar possíveis duplicações (mesma data e mesmo valor)
+    const possibleDuplicates = investments.filter(inv => 
+      inv.date === newInvestment.date && 
+      inv.amount === newInvestment.amount && 
+      inv.unit === newInvestment.unit
+    );
 
+    if (possibleDuplicates.length > 0) {
+      // Armazenar o investimento pendente para confirmação
+      setPendingInvestment(newInvestment);
+      setDuplicateConfirmInfo({
+        type: 'investment',
+        date: newInvestment.date,
+        amount: newInvestment.amount,
+        unit: newInvestment.unit
+      });
+      setShowConfirmDuplicateDialog(true);
+    } else {
+      // Adicionar diretamente se não houver possíveis duplicações
+      confirmAddInvestment(newInvestment);
+    }
+  };
+  
+  // Função para confirmar adição do investimento após possível duplicação
+  const confirmAddInvestment = (investment: Investment) => {
+    setInvestments([...investments, investment]);
+    setInvestmentAmount("");
+    
     // Evitar múltiplos toasts
     if (!toastDebounce) {
       setToastDebounce(true);
       toast({
         title: "Aporte registrado com sucesso!",
-        description: `Aporte de ${formatCryptoAmount(newInvestment.amount, newInvestment.unit)} registrado com sucesso.`,
+        description: `Aporte de ${formatCryptoAmount(investment.amount, investment.unit)} registrado com sucesso.`,
         variant: "success",
       });
       setTimeout(() => setToastDebounce(false), 500);
     }
+    
+    // Limpar estados de confirmação
+    setPendingInvestment(null);
+    setDuplicateConfirmInfo(null);
+    setShowConfirmDuplicateDialog(false);
   };
 
   const addProfitRecord = () => {
@@ -372,6 +414,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
+    // Criar novo registro de lucro
     const newProfit: ProfitRecord = {
       id: Date.now().toString(),
       date: format(profitDate, "yyyy-MM-dd"),
@@ -380,19 +423,50 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       isProfit,
     };
 
-    setProfits([...profits, newProfit]);
-    setProfitAmount("");
+    // Verificar possíveis duplicações (mesma data, mesmo valor e mesmo tipo lucro/perda)
+    const possibleDuplicates = profits.filter(p => 
+      p.date === newProfit.date && 
+      p.amount === newProfit.amount && 
+      p.unit === newProfit.unit &&
+      p.isProfit === newProfit.isProfit
+    );
 
+    if (possibleDuplicates.length > 0) {
+      // Armazenar o lucro pendente para confirmação
+      setPendingProfit(newProfit);
+      setDuplicateConfirmInfo({
+        type: 'profit',
+        date: newProfit.date,
+        amount: newProfit.amount,
+        unit: newProfit.unit
+      });
+      setShowConfirmDuplicateDialog(true);
+    } else {
+      // Adicionar diretamente se não houver possíveis duplicações
+      confirmAddProfitRecord(newProfit);
+    }
+  };
+  
+  // Função para confirmar adição do lucro/perda após possível duplicação
+  const confirmAddProfitRecord = (profit: ProfitRecord) => {
+    setProfits([...profits, profit]);
+    setProfitAmount("");
+    
     // Evitar múltiplos toasts
     if (!toastDebounce) {
       setToastDebounce(true);
       toast({
         title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
-        description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(newProfit.amount, newProfit.unit)} registrado com sucesso.`,
+        description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(profit.amount, profit.unit)} registrado com sucesso.`,
         variant: "success",
       });
       setTimeout(() => setToastDebounce(false), 500);
     }
+    
+    // Limpar estados de confirmação
+    setPendingProfit(null);
+    setDuplicateConfirmInfo(null);
+    setShowConfirmDuplicateDialog(false);
   };
 
   const deleteInvestment = (id: string) => {
@@ -3119,6 +3193,81 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Diálogo de confirmação para registros potencialmente duplicados */}
+      {showConfirmDuplicateDialog && duplicateConfirmInfo && (
+        <Dialog 
+          open={showConfirmDuplicateDialog} 
+          onOpenChange={setShowConfirmDuplicateDialog}
+        >
+          <DialogContent className="bg-black/95 border-purple-800/60">
+            <DialogHeader>
+              <DialogTitle>Possível duplicação de registro</DialogTitle>
+              <DialogDescription>
+                <div className="my-2">
+                  Já existe um registro {duplicateConfirmInfo.type === 'investment' ? 'de aporte' : 'de lucro/perda'} com a mesma data e valor:
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3 bg-black/40 p-2 rounded border border-purple-700/30">
+                  <div className="text-sm font-medium">Data:</div>
+                  <div className="text-sm">{format(new Date(duplicateConfirmInfo.date), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}</div>
+                  
+                  <div className="text-sm font-medium">Valor:</div>
+                  <div className="text-sm">{formatCryptoAmount(duplicateConfirmInfo.amount, duplicateConfirmInfo.unit)}</div>
+                  
+                  {duplicateConfirmInfo.type === 'profit' && (
+                    <>
+                      <div className="text-sm font-medium">Tipo:</div>
+                      <div className="text-sm">{pendingProfit?.isProfit ? 'Lucro' : 'Perda'}</div>
+                    </>
+                  )}
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="mt-2 p-4 bg-purple-900/20 border border-purple-800/40 rounded-md">
+              <div className="flex items-start">
+                <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+                <div className="text-sm">
+                  <p className="mb-2">
+                    Adicionar este registro pode causar uma duplicação nos seus dados, o que pode afetar a precisão dos cálculos de rendimento.
+                  </p>
+                  <p className="text-gray-400">
+                    Você deseja continuar mesmo assim?
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setPendingInvestment(null);
+                  setPendingProfit(null);
+                  setDuplicateConfirmInfo(null);
+                  setShowConfirmDuplicateDialog(false);
+                }}
+                className="bg-black/30 border-purple-700/50"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="default"
+                onClick={() => {
+                  if (duplicateConfirmInfo.type === 'investment' && pendingInvestment) {
+                    confirmAddInvestment(pendingInvestment);
+                  } else if (duplicateConfirmInfo.type === 'profit' && pendingProfit) {
+                    confirmAddProfitRecord(pendingProfit);
+                  }
+                }}
+                className="bg-purple-800 hover:bg-purple-700"
+              >
+                Adicionar mesmo assim
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
