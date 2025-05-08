@@ -46,7 +46,7 @@ export async function fetchAllAppData(force: boolean = false): Promise<AppData> 
  * @param forceUpdate Força a atualização dos dados ignorando o cache
  * @returns Dados atualizados do preço do Bitcoin
  */
-export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Promise<BitcoinPrice> {
+export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Promise<BitcoinPrice | null> {
   try {
     // Construir URL com parâmetro de força atualização se necessário
     const url = forceUpdate 
@@ -66,10 +66,18 @@ export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Prom
     
     // Fazer a requisição com as opções adequadas
     console.log(`Buscando preço atual${forceUpdate ? ' (forçando atualização)' : ''}`);
+    
+    // Adicionar timeout para evitar requisições intermináveis
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos de timeout
+    fetchOptions.signal = controller.signal;
+    
     const response = await fetch(url, fetchOptions);
+    clearTimeout(timeoutId); // Limpar timeout se obtiver resposta
     
     if (!response.ok) {
-      throw new Error(`Erro ao buscar preço: ${response.status}`);
+      console.warn(`Erro ao buscar preço: ${response.status} ${response.statusText}`);
+      return null; // Retornar null em vez de lançar erro
     }
     
     // Exibir informações de diagnóstico se disponíveis
@@ -81,7 +89,7 @@ export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Prom
     return await response.json();
   } catch (error) {
     console.error('Erro ao buscar preço atual:', error);
-    throw error;
+    return null; // Retornar null em vez de lançar erro
   }
 }
 

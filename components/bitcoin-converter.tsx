@@ -171,10 +171,30 @@ export default function BitcoinConverter() {
       setLoading(true);
       
       // Usar a nova função específica para atualizar preço, forçando atualização
-      const priceData = await getCurrentBitcoinPrice(true);
+      const priceData = await getCurrentBitcoinPrice(true)
+        .catch(err => {
+          console.warn("Erro ao atualizar preço, usando cache:", err);
+          // Em vez de lançar erro, retornamos null para tratamento
+          return null;
+        });
       
+      // Se não conseguimos obter nenhum dado, usar o que já temos e mostrar erro
       if (!priceData) {
-        throw new Error("Falha ao obter dados atualizados de preço");
+        console.warn("Falha ao obter dados atualizados de preço");
+        setApiError(true);
+        toast({
+          title: "Erro ao atualizar",
+          description: "Não foi possível obter cotações atualizadas. Tentando novamente...",
+          variant: "warning",
+        });
+        
+        // Tentar novamente após 5 segundos
+        setTimeout(() => {
+          isUpdatingRef.current = false;
+          setLoading(false);
+        }, 5000);
+        
+        return;
       }
       
       // Se a busca de preço for bem-sucedida, precisamos atualizar todo o appData
@@ -191,8 +211,16 @@ export default function BitcoinConverter() {
         setAppData(updatedAppData);
       } else {
         // Se não tivermos dados do app ainda, buscar tudo
-        const fullData = await fetchAllAppData(true);
-        setAppData(fullData);
+        const fullData = await fetchAllAppData(true)
+          .catch(err => {
+            console.warn("Erro ao buscar dados completos:", err);
+            // Em vez de falhar, retornar null e mostrar erro
+            return null;
+          });
+        
+        if (fullData) {
+          setAppData(fullData);
+        }
       }
       
       // Extrair as taxas de conversão dos dados
@@ -249,38 +277,16 @@ export default function BitcoinConverter() {
     } catch (error) {
       console.error("Erro ao atualizar dados:", error);
       setApiError(true);
-      toast({
-        title: "Erro ao atualizar preços",
-        description: "Usando última versão disponível.",
-        variant: "destructive",
-        duration: 4000
-      });
       
-      // Tentar atualizar com fetchAllAppData normal como fallback
-      try {
-        const fallbackData = await fetchAllAppData(false);
-        if (fallbackData) {
-          setAppData(fallbackData);
-          
-          // Criar taxas a partir dos dados de fallback
-          const fallbackRates: ConversionRates = {
-            BTC_USD: fallbackData.currentPrice.usd,
-            BRL_USD: fallbackData.currentPrice.brl / fallbackData.currentPrice.usd,
-            lastUpdated: new Date(fallbackData.currentPrice.timestamp),
-            isUsingFallback: true,
-          };
-          
-          setRates(fallbackRates);
-        }
-      } catch (fallbackError) {
-        console.error("Erro também no fallback:", fallbackError);
-      }
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível obter cotações atualizadas. Usando dados em cache.",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
-      // Marcar como não atualizando
+      // Independente do resultado, resetar o estado de loading e a flag de atualização
       isUpdatingRef.current = false;
-      // Registrar timestamp desta atualização
-      lastUpdateTimeRef.current = Date.now();
+      setLoading(false);
     }
   }
 
