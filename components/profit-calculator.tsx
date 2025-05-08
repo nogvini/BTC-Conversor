@@ -30,7 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
-import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore } from "date-fns";
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -128,6 +128,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [profits, setProfits] = useState<ProfitRecord[]>([]);
   const [activeTab, setActiveTab] = useState<string>("register");
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  
+  // Novos estados para seleção de período personalizado
+  const [dateRangeMode, setDateRangeMode] = useState<"month" | "custom">("month");
+  const [dateRange, setDateRange] = useState<{from: Date | undefined; to: Date | undefined}>({
+    from: new Date(),
+    to: new Date()
+  });
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
+  
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
   const [currentRates, setCurrentRates] = useState({ btcToUsd, brlToUsd });
@@ -790,14 +799,58 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Funções de navegação
   const goToPreviousMonth = () => {
-    setSelectedMonth(subMonths(selectedMonth, 1));
+    if (dateRangeMode === "month") {
+      setSelectedMonth(subMonths(selectedMonth, 1));
+    } else {
+      // Em modo de intervalo, mova ambas as datas para trás em um mês
+      if (dateRange.from && dateRange.to) {
+        setDateRange({
+          from: subMonths(dateRange.from, 1),
+          to: subMonths(dateRange.to, 1)
+        });
+      }
+    }
   };
 
   const goToNextMonth = () => {
-    const nextMonth = addMonths(selectedMonth, 1);
-    if (nextMonth <= new Date()) {
-      setSelectedMonth(nextMonth);
+    const today = new Date();
+    
+    if (dateRangeMode === "month") {
+      const nextMonth = addMonths(selectedMonth, 1);
+      if (nextMonth <= today) {
+        setSelectedMonth(nextMonth);
+      }
+    } else {
+      // Em modo de intervalo, mova ambas as datas para frente em um mês se não ultrapassar a data atual
+      if (dateRange.from && dateRange.to) {
+        const newEndDate = addMonths(dateRange.to, 1);
+        if (newEndDate <= today) {
+          setDateRange({
+            from: addMonths(dateRange.from, 1),
+            to: newEndDate
+          });
+        }
+      }
     }
+  };
+  
+  const switchToMonthMode = () => {
+    setDateRangeMode("month");
+    if (dateRange.from) {
+      // Use a data inicial do intervalo como mês selecionado
+      setSelectedMonth(dateRange.from);
+    }
+  };
+  
+  const switchToCustomMode = () => {
+    setDateRangeMode("custom");
+    // Inicializar o intervalo com o mês atual selecionado
+    const startOfSelectedMonth = startOfMonth(selectedMonth);
+    const endOfSelectedMonth = endOfMonth(selectedMonth);
+    setDateRange({
+      from: startOfSelectedMonth,
+      to: endOfSelectedMonth
+    });
   };
 
   const isCurrentMonth = (date: Date): boolean => {
@@ -812,31 +865,91 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setDisplayCurrency(displayCurrency === "USD" ? "BRL" : "USD");
   };
 
-  // Modificar função de filtragem para considerar relatórios selecionados
+  // Modificar função de filtragem para considerar relatórios selecionados e o intervalo de datas
   const getFilteredInvestments = (): Investment[] => {
-    if (!selectedMonth) return [];
+    if (dateRangeMode === "month" && !selectedMonth) return [];
+    if (dateRangeMode === "custom" && (!dateRange.from || !dateRange.to)) return [];
     
     return investments.filter(investment => {
       const investmentDate = new Date(investment.date);
-      const sameMonth = investmentDate.getMonth() === selectedMonth.getMonth();
-      const sameYear = investmentDate.getFullYear() === selectedMonth.getFullYear();
+      
+      // Verificar se está no intervalo de datas selecionado
+      let isInDateRange = false;
+      
+      if (dateRangeMode === "month") {
+        // Modo de mês: verificar mesmo mês e ano
+        isInDateRange = investmentDate.getMonth() === selectedMonth.getMonth() &&
+                         investmentDate.getFullYear() === selectedMonth.getFullYear();
+      } else {
+        // Modo personalizado: verificar se está entre as datas selecionadas
+        if (dateRange.from && dateRange.to) {
+          // Ajustar as datas para o início/fim do dia para comparação correta
+          const from = startOfDay(dateRange.from);
+          const to = endOfDay(dateRange.to);
+          isInDateRange = isWithinInterval(investmentDate, { start: from, end: to });
+        }
+      }
+      
+      // Verificar se pertence a um relatório selecionado
       const isSelectedReport = selectedReportIds.includes(investment.reportId);
       
-      return sameMonth && sameYear && isSelectedReport;
+      return isInDateRange && isSelectedReport;
     });
   };
 
   const getFilteredProfits = (): ProfitRecord[] => {
-    if (!selectedMonth) return [];
+    if (dateRangeMode === "month" && !selectedMonth) return [];
+    if (dateRangeMode === "custom" && (!dateRange.from || !dateRange.to)) return [];
     
     return profits.filter(profit => {
       const profitDate = new Date(profit.date);
-      const sameMonth = profitDate.getMonth() === selectedMonth.getMonth();
-      const sameYear = profitDate.getFullYear() === selectedMonth.getFullYear();
+      
+      // Verificar se está no intervalo de datas selecionado
+      let isInDateRange = false;
+      
+      if (dateRangeMode === "month") {
+        // Modo de mês: verificar mesmo mês e ano
+        isInDateRange = profitDate.getMonth() === selectedMonth.getMonth() &&
+                         profitDate.getFullYear() === selectedMonth.getFullYear();
+      } else {
+        // Modo personalizado: verificar se está entre as datas selecionadas
+        if (dateRange.from && dateRange.to) {
+          // Ajustar as datas para o início/fim do dia para comparação correta
+          const from = startOfDay(dateRange.from);
+          const to = endOfDay(dateRange.to);
+          isInDateRange = isWithinInterval(profitDate, { start: from, end: to });
+        }
+      }
+      
+      // Verificar se pertence a um relatório selecionado
       const isSelectedReport = selectedReportIds.includes(profit.reportId);
       
-      return sameMonth && sameYear && isSelectedReport;
+      return isInDateRange && isSelectedReport;
     });
+  };
+  
+  // Função para obter o texto de período para exibição
+  const getDisplayPeriodText = (): string => {
+    if (dateRangeMode === "month") {
+      return format(selectedMonth, 'MMMM yyyy', { locale: ptBR });
+    } else {
+      if (dateRange.from && dateRange.to) {
+        // Se estiverem no mesmo mês e ano
+        if (dateRange.from.getMonth() === dateRange.to.getMonth() && 
+            dateRange.from.getFullYear() === dateRange.to.getFullYear()) {
+          return `${format(dateRange.from, 'd', { locale: ptBR })} a ${format(dateRange.to, 'd', { locale: ptBR })} de ${format(dateRange.from, 'MMMM yyyy', { locale: ptBR })}`;
+        }
+        // Se estiverem no mesmo ano mas meses diferentes
+        else if (dateRange.from.getFullYear() === dateRange.to.getFullYear()) {
+          return `${format(dateRange.from, 'd MMM', { locale: ptBR })} a ${format(dateRange.to, 'd MMM', { locale: ptBR })} de ${format(dateRange.from, 'yyyy', { locale: ptBR })}`;
+        } 
+        // Anos diferentes
+        else {
+          return `${format(dateRange.from, 'd MMM yyyy', { locale: ptBR })} a ${format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}`;
+        }
+      }
+      return "Período personalizado";
+    }
   };
 
   // Componente para exibir opções de relatório no histórico
@@ -844,16 +957,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     <Card className="p-4 bg-black/40 border-purple-700/50">
       <h3 className="text-sm font-medium mb-4">Filtrar por Relatórios</h3>
       <div className="space-y-2 max-h-48 overflow-y-auto">
-        <div className="flex items-center mb-3">
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="text-xs py-1 px-2 h-7 bg-black/30 border-purple-700/50 hover:bg-purple-900/20 mr-2"
-            onClick={selectAllReports}
-          >
-            Selecionar Todos
-          </Button>
-        </div>
         {reports.map(report => (
           <div key={report.id} className="flex items-center space-x-2">
             <Checkbox 
@@ -866,11 +969,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Label>
           </div>
         ))}
+        <div className="flex items-center mt-4 pt-3 border-t border-purple-700/30">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="text-xs py-1 px-2 h-7 bg-black/30 border-purple-700/50 hover:bg-purple-900/20 mr-2 w-full"
+            onClick={selectAllReports}
+          >
+            Selecionar Todos
+          </Button>
+        </div>
       </div>
     </Card>
   );
 
-  // Modificar a função de exportação para permitir selecionar relatórios
+  // Modificar a função de exportação para trabalhar com o intervalo de datas
   const exportData = async (exportAll: boolean = false, reportIds?: string[]) => {
     try {
       setIsExporting(true);
@@ -878,27 +991,51 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Determinar quais relatórios exportar
       const reportsToExport = reportIds || selectedReportIds;
       
-      // Filtrar investimentos e lucros pelos relatórios selecionados
+      // Filtrar investimentos e lucros pelos relatórios selecionados e intervalo de datas
       const filteredInvestments = exportAll
         ? investments.filter(inv => reportsToExport.includes(inv.reportId))
         : investments.filter(inv => {
             const investmentDate = new Date(inv.date);
-            const sameMonth = investmentDate.getMonth() === selectedMonth.getMonth();
-            const sameYear = investmentDate.getFullYear() === selectedMonth.getFullYear();
-            const isSelectedReport = reportsToExport.includes(inv.reportId);
             
-            return sameMonth && sameYear && isSelectedReport;
+            // Verificar o intervalo de datas
+            let isInDateRange = false;
+            if (dateRangeMode === "month") {
+              isInDateRange = investmentDate.getMonth() === selectedMonth.getMonth() &&
+                             investmentDate.getFullYear() === selectedMonth.getFullYear();
+            } else {
+              if (dateRange.from && dateRange.to) {
+                isInDateRange = isWithinInterval(investmentDate, { 
+                  start: startOfDay(dateRange.from), 
+                  end: endOfDay(dateRange.to) 
+                });
+              }
+            }
+            
+            const isSelectedReport = reportsToExport.includes(inv.reportId);
+            return isInDateRange && isSelectedReport;
           });
       
       const filteredProfits = exportAll
         ? profits.filter(profit => reportsToExport.includes(profit.reportId))
         : profits.filter(profit => {
             const profitDate = new Date(profit.date);
-            const sameMonth = profitDate.getMonth() === selectedMonth.getMonth();
-            const sameYear = profitDate.getFullYear() === selectedMonth.getFullYear();
-            const isSelectedReport = reportsToExport.includes(profit.reportId);
             
-            return sameMonth && sameYear && isSelectedReport;
+            // Verificar o intervalo de datas
+            let isInDateRange = false;
+            if (dateRangeMode === "month") {
+              isInDateRange = profitDate.getMonth() === selectedMonth.getMonth() &&
+                             profitDate.getFullYear() === selectedMonth.getFullYear();
+            } else {
+              if (dateRange.from && dateRange.to) {
+                isInDateRange = isWithinInterval(profitDate, { 
+                  start: startOfDay(dateRange.from), 
+                  end: endOfDay(dateRange.to) 
+                });
+              }
+            }
+            
+            const isSelectedReport = reportsToExport.includes(profit.reportId);
+            return isInDateRange && isSelectedReport;
           });
       
       // Resto da função permanece igual
@@ -976,15 +1113,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       const link = document.createElement("a");
       link.href = url;
       
+      // Atualizar nome do arquivo para refletir o intervalo de datas
+      const periodStr = dateRangeMode === "month" 
+        ? format(selectedMonth, "MMMM-yyyy", { locale: ptBR })
+        : dateRange.from && dateRange.to
+          ? `${format(dateRange.from, "dd-MM-yyyy")}_a_${format(dateRange.to, "dd-MM-yyyy")}`
+          : "periodo-personalizado";
+      
       // Nome do arquivo baseado nos relatórios selecionados
       const reportNames = reportsToExport.length === reports.length 
         ? "todos-relatorios" 
         : reportsToExport.map(id => reports.find(r => r.id === id)?.name.toLowerCase().replace(/\s+/g, "-") || id).join("-");
       
-      const monthStr = format(selectedMonth, "MMMM-yyyy", { locale: ptBR });
       link.download = exportAll
         ? `bitcoin-dados-completos-${reportNames}.xlsx`
-        : `bitcoin-dados-${monthStr}-${reportNames}.xlsx`;
+        : `bitcoin-dados-${periodStr}-${reportNames}.xlsx`;
       
       document.body.appendChild(link);
       link.click();
@@ -2516,92 +2659,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardContent>
             </Card>
 
-            {/* Card para resumo mensal - agora usando selectedMonth */}
-            <Card className="panel border-purple-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo Mensal</CardTitle>
-                <CardDescription>
-                  Veja o resumo dos investimentos e lucros/perdas do mês selecionado.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Mês selecionado</div>
-                    <div className="text-lg font-semibold text-white">
-                      {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Aporte total</div>
-                    <div className="text-lg font-semibold text-blue-400">
-                      {formatCryptoAmount(calculateTotalInvestmentsInMonth(selectedMonth), "BTC")}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(selectedMonth))}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
-                    <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                      {calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "+" : ""}
-                      {formatCryptoAmount(calculateTotalProfitsInMonth(selectedMonth), "BTC")}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {calculateTotalProfitsInMonth(selectedMonth) >= 0 ? "+" : ""}
-                      {formatBtcValueInCurrency(calculateTotalProfitsInMonth(selectedMonth))}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                    <div className="text-xs text-gray-400">Rendimento</div>
-                    <div className={`text-lg font-semibold ${
-                      calculateTotalInvestmentsInMonth(selectedMonth) > 0 && 
-                      (calculateTotalProfitsInMonth(selectedMonth) / calculateTotalInvestmentsInMonth(selectedMonth) * 100) >= 0 ? 
-                      "text-green-500" : "text-red-500"}`}>
-                      {calculateTotalInvestmentsInMonth(selectedMonth) > 0 ? 
-                        `${(calculateTotalProfitsInMonth(selectedMonth) / calculateTotalInvestmentsInMonth(selectedMonth) * 100).toFixed(2)}%` : 
-                        "N/A"}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card para navegação do mês - movido para depois do resumo mensal */}
-            <Card className="panel border-purple-700/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={goToPreviousMonth}
-                    className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <h2 className="text-xl font-bold">
-                    {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
-                  </h2>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={goToNextMonth}
-                    className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                    disabled={isCurrentMonth(selectedMonth)}
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
                 {showFilterOptions ? 
-                  `Nenhum registro encontrado para ${format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
+                  `Nenhum registro encontrado para ${getDisplayPeriodText()}.` : 
                   "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
               </p>
             ) : (
@@ -2916,6 +2977,233 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </DialogContent>
         </Dialog>
       )}
+
+              <Card className="panel border-purple-700/50">
+                <CardHeader>
+                  <CardTitle className="text-lg">Resumo do Período</CardTitle>
+                  <CardDescription>
+                    Veja o resumo dos investimentos e lucros/perdas do período selecionado.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Período selecionado</div>
+                      <div className="text-lg font-semibold text-white">
+                        {getDisplayPeriodText()}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Aporte total</div>
+                      <div className="text-lg font-semibold text-blue-400">
+                        {formatCryptoAmount(getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0), "BTC")}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {formatBtcValueInCurrency(getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0))}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Lucro/Perda do período</div>
+                      <div className={`text-lg font-semibold ${getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0) >= 0 ? "+" : ""}
+                        {formatCryptoAmount(Math.abs(getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0)), "BTC")}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0) >= 0 ? "+" : ""}
+                        {formatBtcValueInCurrency(Math.abs(getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0)))}
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                      <div className="text-xs text-gray-400">Rendimento</div>
+                      <div className={`text-lg font-semibold ${
+                        getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0) > 0 && 
+                        (getFilteredProfits().reduce((total, profit) => {
+                          const btcValue = convertToBtc(profit.amount, profit.unit);
+                          return total + (profit.isProfit ? btcValue : -btcValue);
+                        }, 0) / getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0) * 100) >= 0 ? 
+                        "text-green-500" : "text-red-500"}`}>
+                        {getFilteredInvestments().reduce((total, investment) => {
+                          return total + convertToBtc(investment.amount, investment.unit);
+                        }, 0) > 0 ? 
+                          `${(getFilteredProfits().reduce((total, profit) => {
+                            const btcValue = convertToBtc(profit.amount, profit.unit);
+                            return total + (profit.isProfit ? btcValue : -btcValue);
+                          }, 0) / getFilteredInvestments().reduce((total, investment) => {
+                            return total + convertToBtc(investment.amount, investment.unit);
+                          }, 0) * 100).toFixed(2)}%` : 
+                          "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card para navegação de período - modificado para permitir intervalo personalizado */}
+              <Card className="panel border-purple-700/50">
+                <CardContent className="p-4">
+                  <div className="flex flex-col space-y-4">
+                    {/* Seletores de tipo de período */}
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Button
+                        variant={dateRangeMode === "month" ? "default" : "outline"}
+                        size="sm"
+                        onClick={switchToMonthMode}
+                        className={dateRangeMode === "month" ? "" : "bg-black/30 border-purple-700/50"}
+                      >
+                        Mês Único
+                      </Button>
+                      <Button
+                        variant={dateRangeMode === "custom" ? "default" : "outline"}
+                        size="sm"
+                        onClick={switchToCustomMode}
+                        className={dateRangeMode === "custom" ? "" : "bg-black/30 border-purple-700/50"}
+                      >
+                        Período Personalizado
+                      </Button>
+                    </div>
+                    
+                    {/* Navegação */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={goToPreviousMonth}
+                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      
+                      {dateRangeMode === "month" ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
+                            <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                              Selecione um mês
+                            </div>
+                            <CalendarComponent
+                              mode="single"
+                              selected={selectedMonth}
+                              onSelect={(date) => {
+                                if (date) {
+                                  const newDate = new Date(date);
+                                  // Definir para o primeiro dia do mês
+                                  newDate.setDate(1);
+                                  setSelectedMonth(newDate);
+                                }
+                              }}
+                              initialFocus
+                              className="bg-black/80"
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Popover open={showDateRangePicker} onOpenChange={setShowDateRangePicker}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {dateRange.from && dateRange.to ? (
+                                <>
+                                  {format(dateRange.from, 'd MMM', { locale: ptBR })} - {format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}
+                                </>
+                              ) : (
+                                "Selecionar período"
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
+                            <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                              Selecione um período
+                            </div>
+                            <CalendarComponent
+                              mode="range"
+                              selected={{
+                                from: dateRange.from,
+                                to: dateRange.to
+                              }}
+                              onSelect={(range) => {
+                                // Verificar se é uma seleção completa
+                                if (range?.from && range?.to) {
+                                  setDateRange({
+                                    from: startOfDay(range.from),
+                                    to: endOfDay(range.to)
+                                  });
+                                  setShowDateRangePicker(false);
+                                } else {
+                                  setDateRange(range || { from: undefined, to: undefined });
+                                }
+                              }}
+                              initialFocus
+                              numberOfMonths={2}
+                              className="bg-black/80"
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                      
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={goToNextMonth}
+                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                        disabled={dateRangeMode === "month" ? isCurrentMonth(selectedMonth) : false}
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  {showFilterOptions ? 
+                    `Nenhum registro encontrado para ${getDisplayPeriodText()}.` : 
+                    "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
+                </p>
+              ) : (
+                // ... o resto do código permanece igual
+              )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
