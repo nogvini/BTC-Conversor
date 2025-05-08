@@ -2769,102 +2769,81 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToPreviousMonth}
-                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    
                     {dateRangeMode === "month" ? (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
-                          <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                            Selecione um mês
-                          </div>
-                          <CalendarComponent
-                            mode="single"
-                            selected={selectedMonth}
-                            onSelect={(date) => {
-                              if (date) {
-                                const newDate = new Date(date);
-                                newDate.setDate(1);
-                                setSelectedMonth(newDate);
-                              }
-                            }}
-                            initialFocus
-                            className="bg-black/80"
-                            locale={ptBR}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={goToPreviousMonth}
+                          className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        
+                        {/* Quando estiver no modo "mês único", não é clicável */}
+                        <div className="min-w-[240px] p-2 flex justify-center items-center font-medium bg-black/30 border border-purple-700/50 rounded-md">
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+                        </div>
+                        
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={goToNextMonth}
+                          className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                          disabled={isCurrentMonth(selectedMonth)}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </>
                     ) : (
-                      <Popover open={showDateRangePicker} onOpenChange={setShowDateRangePicker}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {dateRange.from && dateRange.to ? (
-                              <>
-                                {format(dateRange.from, 'd MMM', { locale: ptBR })} - {format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}
-                              </>
-                            ) : (
-                              "Selecionar período"
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
-                          <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                            Selecione um período
-                          </div>
-                          <CalendarComponent
-                            mode="range"
-                            selected={{
-                              from: dateRange.from,
-                              to: dateRange.to
-                            }}
-                            onSelect={(range) => {
-                              if (range?.from && range?.to) {
-                                setDateRange({
-                                  from: startOfDay(range.from),
-                                  to: endOfDay(range.to)
-                                });
-                                setShowDateRangePicker(false);
-                              } else {
-                                setDateRange(range || { from: undefined, to: undefined });
-                              }
-                            }}
-                            initialFocus
-                            numberOfMonths={2}
-                            className="bg-black/80"
-                            locale={ptBR}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <div className="w-full flex justify-center">
+                        <Popover open={showDateRangePicker} onOpenChange={setShowDateRangePicker}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="min-w-[240px] justify-center font-medium bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {dateRange.from && dateRange.to ? (
+                                <>
+                                  {format(dateRange.from, 'd MMM', { locale: ptBR })} - {format(dateRange.to, 'd MMM yyyy', { locale: ptBR })}
+                                </>
+                              ) : (
+                                "Selecionar período"
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="center">
+                            <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                              Selecione um período
+                            </div>
+                            <CalendarComponent
+                              mode="range"
+                              selected={{
+                                from: dateRange.from,
+                                to: dateRange.to
+                              }}
+                              onSelect={(range) => {
+                                if (range?.from && range?.to) {
+                                  setDateRange({
+                                    from: startOfDay(range.from),
+                                    to: endOfDay(range.to)
+                                  });
+                                  setShowDateRangePicker(false);
+                                } else {
+                                  setDateRange(range || { from: undefined, to: undefined });
+                                }
+                              }}
+                              initialFocus
+                              numberOfMonths={2}
+                              className="bg-black/80"
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     )}
-                    
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToNextMonth}
-                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                      disabled={dateRangeMode === "month" ? isCurrentMonth(selectedMonth) : false}
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
