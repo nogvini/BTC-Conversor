@@ -1,48 +1,85 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
-import { Loader2, LogOut, User, Settings } from "lucide-react"
+import { User, Settings, LogOut, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
 
+/**
+ * Componente que exibe o menu de perfil do usuário
+ */
 export function ProfileMenu() {
-  const { session, signOut } = useAuth()
-  const { toast } = useToast()
-  const { user, isLoading } = session
+  const { session, signOut, retryConnection } = useAuth()
+  const { user, isLoading, error } = session
   const router = useRouter()
+  const { toast } = useToast()
+  
   const [showError, setShowError] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
+  const [errorTimeout, setErrorTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  
+  // Efeito para mostrar erro após um período de carregamento
   useEffect(() => {
+    // Limpar qualquer timeout existente
+    if (errorTimeout) {
+      clearTimeout(errorTimeout)
+      setErrorTimeout(null)
+    }
+    
+    // Se estiver carregando, configurar um timeout para mostrar erro
     if (isLoading) {
-      timeoutRef.current = setTimeout(() => {
+      const timeout = setTimeout(() => {
         setShowError(true)
-      }, 5000)
+      }, 5000) // 5 segundos
+      
+      setErrorTimeout(timeout)
     } else {
       setShowError(false)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
+    
+    // Limpar o timeout quando o componente for desmontado
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (errorTimeout) {
+        clearTimeout(errorTimeout)
+      }
     }
   }, [isLoading])
-
+  
+  // Efeito para iniciar tentativas de reconexão se houver erro
+  useEffect(() => {
+    if (error && !isLoading && retryCount < 3) {
+      const retryTimeout = setTimeout(() => {
+        console.log('Tentando reconectar automaticamente...')
+        handleRetry()
+      }, 2000 * (retryCount + 1)) // Backoff exponencial
+      
+      return () => clearTimeout(retryTimeout)
+    }
+  }, [error, isLoading, retryCount])
+  
+  // Função para tentar reconectar
   const handleRetry = () => {
-    setShowError(false)
-    window.location.reload()
+    setRetryCount(prev => prev + 1)
+    retryConnection()
   }
-
+  
+  // Função para navegar para outras páginas
+  const handleNavigate = (path: string) => {
+    router.push(path)
+  }
+  
+  // Função para fazer logout
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -59,10 +96,6 @@ export function ProfileMenu() {
       })
     }
   }
-  
-  const handleNavigate = (path: string) => {
-    router.push(path)
-  }
 
   // Se estiver carregando, mostrar um indicador ou fallback
   if (isLoading) {
@@ -70,11 +103,9 @@ export function ProfileMenu() {
       return (
         <div className="flex flex-col items-center space-y-2">
           <span className="text-xs text-muted-foreground">Não foi possível conectar ao serviço de autenticação.</span>
-          <Button size="sm" variant="outline" onClick={handleRetry}>
-            Tentar novamente
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => router.push('/auth')}>
-            Ir para Login
+          <Button size="sm" variant="outline" onClick={handleRetry} className="text-xs px-2 py-1 h-7">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Reconectar
           </Button>
         </div>
       )
@@ -86,9 +117,18 @@ export function ProfileMenu() {
     )
   }
 
-  // Se não estiver autenticado, não mostrar nada
+  // Se não estiver autenticado, mostrar botão de login
   if (!user) {
-    return null
+    return (
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={() => router.push('/auth')}
+        className="ml-auto"
+      >
+        Entrar
+      </Button>
+    )
   }
 
   // Obter as iniciais do nome do usuário para o avatar

@@ -5,6 +5,10 @@ import { createClient } from '@supabase/supabase-js'
 // Verificar se estamos no navegador
 const isBrowser = typeof window !== 'undefined'
 
+// URLs fixas para debugging - use apenas em desenvolvimento
+const fallbackUrl = 'https://sqnxrzndkppbwqdmvzer.supabase.co'
+const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxbnhyem5ka3BwYndxZG12emVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY0MDA0NDMsImV4cCI6MjA2MTk3NjQ0M30.yaMQFTEWoNT3OeOCq-P05w39hpe1ppDcMp4DR7gVMRw'
+
 // Log para debugging
 console.log('Ambiente Supabase:', { 
   isBrowser,
@@ -23,23 +27,59 @@ export const createSupabaseClient = () => {
     return null
   }
   
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Obter as variáveis de ambiente
+  let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  let supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
   // Verificar se as variáveis de ambiente estão definidas
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Variáveis de ambiente do Supabase não estão definidas', { 
-      url: supabaseUrl || 'indefinido',
-      key: supabaseKey ? 'presente mas não exibida por segurança' : 'indefinido' 
-    })
+    console.warn('Variáveis de ambiente do Supabase não detectadas, tentando valores do localStorage')
     
-    // Alerta no navegador, mas apenas uma vez por sessão
-    if (isBrowser && !sessionStorage.getItem('supabase_env_alert')) {
-      sessionStorage.setItem('supabase_env_alert', 'true')
-      console.error('Erro crítico: Variáveis de ambiente do Supabase não definidas')
+    // Tentar obter do localStorage 
+    if (typeof window !== 'undefined') {
+      const storedUrl = localStorage.getItem('supabase_url')
+      const storedKey = localStorage.getItem('supabase_key')
+      
+      if (storedUrl && storedKey) {
+        console.log('Usando credenciais do Supabase do localStorage')
+        supabaseUrl = storedUrl
+        supabaseKey = storedKey
+      } else {
+        // Em desenvolvimento, usar valores de fallback
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Usando valores de fallback para Supabase em desenvolvimento')
+          supabaseUrl = fallbackUrl
+          supabaseKey = fallbackKey
+          
+          // Salvar no localStorage para uso futuro
+          localStorage.setItem('supabase_url', supabaseUrl)
+          localStorage.setItem('supabase_key', supabaseKey)
+        } else {
+          console.error('Variáveis de ambiente do Supabase não estão definidas e não há valores salvos')
+          
+          // Alerta no navegador, mas apenas uma vez por sessão
+          if (!sessionStorage.getItem('supabase_env_alert')) {
+            sessionStorage.setItem('supabase_env_alert', 'true')
+            console.error('Erro crítico: Variáveis de ambiente do Supabase não definidas')
+          }
+          
+          return null
+        }
+      }
+    } else {
+      console.error('Variáveis de ambiente do Supabase não estão definidas', { 
+        url: supabaseUrl || 'indefinido',
+        key: supabaseKey ? 'presente mas não exibida por segurança' : 'indefinido' 
+      })
+      
+      return null
     }
-    
-    return null
+  } else {
+    // Salvar as variáveis no localStorage para uso futuro
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('supabase_url', supabaseUrl)
+      localStorage.setItem('supabase_key', supabaseKey)
+    }
   }
   
   try {
@@ -53,6 +93,16 @@ export const createSupabaseClient = () => {
     
     // Log de sucesso
     console.log('Cliente Supabase criado com sucesso')
+    
+    // Verificar se o cliente está funcionando corretamente
+    client.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error('Erro ao verificar sessão com cliente recém-criado:', error)
+      } else {
+        console.log('Cliente Supabase verificado com sucesso:', data.session ? 'Usuário autenticado' : 'Sem sessão ativa')
+      }
+    })
+    
     return client
   } catch (error) {
     console.error('Erro ao criar cliente Supabase:', error)

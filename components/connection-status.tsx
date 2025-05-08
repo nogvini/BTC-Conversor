@@ -10,75 +10,79 @@ interface ConnectionStatusProps {
   onConnected?: () => void;
 }
 
-export function ConnectionStatus({ onConnected }: ConnectionStatusProps) {
-  const { isConnecting, connectionRetries, retryConnection } = useAuth();
+export function ConnectionStatus({ onConnected }: ConnectionStatusProps = {}) {
+  const { session, retryConnection, isConnecting, connectionRetries } = useAuth();
   const [showAlert, setShowAlert] = useState(false);
-  const [hideTimeout, setHideTimeout] = useState<NodeJS.Timeout | null>(null);
-
-  // Mostrar alerta apenas se houver mais de 2 tentativas
+  const [lastError, setLastError] = useState<string | null>(null);
+  
+  // Verificar se há erros de conexão e mostrar alerta após um delay
   useEffect(() => {
-    if (connectionRetries > 2) {
-      setShowAlert(true);
-      
-      // Limpar timeout existente
-      if (hideTimeout) {
-        clearTimeout(hideTimeout);
+    let timeoutId: NodeJS.Timeout | null = null;
+    
+    // Se houver erro na sessão, mostrar alerta após 2 segundos
+    if (session.error) {
+      setLastError(session.error.message);
+      timeoutId = setTimeout(() => {
+        setShowAlert(true);
+      }, 2000);
+    } else if (isConnecting && connectionRetries > 2) {
+      // Se estiver tentando conectar por muito tempo
+      timeoutId = setTimeout(() => {
+        setShowAlert(true);
+      }, 5000);
+    } else {
+      // Se a conexão estiver ok, esconder o alerta e chamar callback
+      setShowAlert(false);
+      if (session.user && onConnected) {
+        onConnected();
       }
-    } else if (connectionRetries === 0 && !isConnecting) {
-      // Esconder após sucesso com um pequeno delay
-      const timeout = setTimeout(() => {
-        setShowAlert(false);
-        if (onConnected) onConnected();
-      }, 1500);
-      
-      setHideTimeout(timeout);
     }
     
     return () => {
-      if (hideTimeout) {
-        clearTimeout(hideTimeout);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [connectionRetries, isConnecting, onConnected]);
-
-  // Se não tiver nada para mostrar, retorna null
+  }, [session, isConnecting, connectionRetries, onConnected]);
+  
+  // Se não houver erro, não mostrar nada
   if (!showAlert) {
     return null;
   }
-
+  
+  // Tentar novamente a conexão
+  const handleRetry = () => {
+    setShowAlert(false);
+    retryConnection();
+  };
+  
   return (
-    <Alert 
-      variant={isConnecting ? "default" : "destructive"} 
-      className="fixed bottom-4 right-4 w-auto max-w-md z-50 shadow-lg animate-in fade-in duration-300"
-    >
-      <div className="flex items-center gap-2">
-        {isConnecting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <AlertCircle className="h-4 w-4" />
-        )}
-        <AlertTitle>
-          {isConnecting ? "Conectando..." : "Falha na conexão"}
+    <div className="fixed bottom-4 right-4 z-50 max-w-md animate-in fade-in-50 duration-300">
+      <Alert variant="destructive" className="border-red-700 bg-red-900/60 text-white backdrop-blur-sm">
+        <AlertCircle className="h-5 w-5" />
+        <AlertTitle className="text-white font-semibold">
+          Problema de conexão
         </AlertTitle>
-      </div>
-      <AlertDescription className="mt-2">
-        {isConnecting ? (
-          <p>Tentando conectar ao servidor (tentativa {connectionRetries + 1})...</p>
-        ) : (
-          <>
-            <p className="mb-2">Não foi possível conectar ao servidor após {connectionRetries} tentativas.</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => retryConnection()}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Tentar novamente
-            </Button>
-          </>
-        )}
-      </AlertDescription>
-    </Alert>
+        <AlertDescription className="text-white/90 text-sm mt-1">
+          <p className="mb-2">
+            {lastError || "Não foi possível conectar ao serviço de autenticação."}
+          </p>
+          <div className="flex items-center justify-end gap-2 mt-2">
+            {isConnecting ? (
+              <Button size="sm" variant="outline" disabled className="h-8 bg-white/10 border-white/30 text-white">
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Conectando...
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={handleRetry} className="h-8 bg-white/10 border-white/30 text-white hover:bg-white/20">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Tentar novamente
+              </Button>
+            )}
+            <small className="text-xs opacity-70">
+              Tentativa {connectionRetries}/10
+            </small>
+          </div>
+        </AlertDescription>
+      </Alert>
+    </div>
   );
 } 

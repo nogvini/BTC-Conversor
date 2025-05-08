@@ -21,37 +21,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
-  // Usar o sistema de retry para o Supabase
-  const { 
-    client: supabaseClient, 
-    isConnected, 
-    isAttemptingConnection, 
-    retryCount,
-    retryConnection 
-  } = useSupabaseRetry({
-    initialDelay: 2000,    // 2 segundos
-    maxRetries: 10,        // 10 tentativas
-    backoffFactor: 1.5,    // Cada tentativa aumenta 1.5x o tempo de espera
-    maxDelay: 30000        // Máximo de 30 segundos entre tentativas
-  })
+  const { client: supabaseClient, isConnected, retryConnection, isAttemptingConnection, retryCount } = useSupabaseRetry()
   
+  // Estado local de sessão
   const [session, setSession] = useState<AuthSession>({
     user: null,
     session: null,
     error: null,
     isLoading: true,
   })
+  
+  // Usado para exibir status de diagnóstico
+  const [lastAuthEvent, setLastAuthEvent] = useState<string>('nenhum')
 
+  // Effect para log de diagnóstico
+  useEffect(() => {
+    console.log('Estado atual da autenticação:', {
+      usuarioLogado: !!session.user,
+      userId: session.user?.id || 'nenhum',
+      nomeUsuario: session.user?.name || 'não definido',
+      carregando: session.isLoading,
+      erro: session.error ? session.error.message : 'nenhum',
+      clienteConectado: isConnected,
+      ultimoEvento: lastAuthEvent
+    })
+  }, [session, isConnected, lastAuthEvent])
+  
+  // Efeito para buscar a sessão quando o cliente estiver conectado
   useEffect(() => {
     // Não fazer nada se o cliente supabase não estiver disponível
-    if (!supabaseClient) {
-      setSession(prev => ({ ...prev, isLoading: false }))
+    if (!supabaseClient || !isConnected) {
+      console.log('Cliente Supabase indisponível ou não conectado')
       return
     }
     
     const fetchSession = async () => {
       try {
         setSession(prev => ({ ...prev, isLoading: true }))
+        console.log('Iniciando busca de sessão')
         
         // Verificar se já existe uma sessão persistida no localStorage
         const persistedSession = typeof window !== 'undefined' ? localStorage.getItem('supabase_session') : null
@@ -64,11 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Verificar se a sessão ainda não expirou
             if (expiresAt > Date.now()) {
               console.log('Usando sessão persistida do localStorage')
+              
               // Usar a sessão persistida para evitar nova autenticação
-              supabaseClient.auth.setSession({
+              const sessionResult = await supabaseClient.auth.setSession({
                 access_token: savedSession.access_token,
                 refresh_token: savedSession.refresh_token
               })
+              
+              if (sessionResult.error) {
+                console.error('Erro ao restaurar sessão:', sessionResult.error)
+                localStorage.removeItem('supabase_session')
+              } else {
+                console.log('Sessão restaurada com sucesso do localStorage')
+              }
             } else {
               console.log('Sessão persistida expirada, removendo do localStorage')
               localStorage.removeItem('supabase_session')
@@ -77,6 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Erro ao processar sessão persistida:', e)
             localStorage.removeItem('supabase_session')
           }
+        } else {
+          console.log('Nenhuma sessão encontrada no localStorage')
         }
         
         // Verificar se há uma sessão ativa
@@ -86,82 +103,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw error
         }
         
-        if (data?.session) {
+        console.log('Resultado getSession:', data.session ? 'Sessão encontrada' : 'Nenhuma sessão')
+        
+        // Se houver uma sessão ativa, buscar os dados do perfil
+        if (data.session) {
           try {
-            // Buscar dados adicionais do usuário se necessário
+            setLastAuthEvent('sessão encontrada')
+            
+            // Persisitir a sessão no localStorage para recuperação futura
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('supabase_session', JSON.stringify(data.session))
+              console.log('Sessão salva no localStorage')
+            }
+            
+            // Buscar dados do perfil na tabela profiles
             const { data: userData, error: profileError } = await supabaseClient
               .from('profiles')
               .select('*')
               .eq('id', data.session.user.id)
               .single()
-              
+            
+            console.log('Busca de perfil:', {
+              sucesso: !profileError,
+              perfilEncontrado: !!userData,
+              userId: data.session.user.id
+            })
+            
             if (profileError) {
               console.error('Erro ao buscar perfil:', profileError)
               
-              // Mostrar aviso que o perfil não existe
+              // Verificar se é erro de perfil não encontrado
               if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-                console.log('Perfil não encontrado durante fetchSession. Tentando criar automaticamente...');
-                  
+                console.log('Perfil não encontrado, tentando criar automaticamente...')
+                
                 // Tentar criar o perfil automaticamente
-                try {
-                  const { error: insertError } = await supabaseClient
+                const { error: insertError } = await supabaseClient
+                  .from('profiles')
+                  .insert([{
+                    id: data.session.user.id,
+                    name: data.session.user.user_metadata?.name || '',
+                    email: data.session.user.email
+                  }])
+                
+                if (insertError) {
+                  console.error('Erro ao criar perfil:', insertError)
+                } else {
+                  console.log('Perfil criado com sucesso')
+                  
+                  // Buscar o perfil recém-criado
+                  const { data: newUserData } = await supabaseClient
                     .from('profiles')
-                    .insert([{
-                      id: data.session.user.id,
-                      name: data.session.user.user_metadata?.name || '',
-                      email: data.session.user.email
-                    }]);
-                    
-                  if (insertError) {
-                    console.error('Erro ao criar perfil automaticamente durante fetchSession:', insertError);
-                    // Mostrar mensagem de erro e fazer logout
-                    toast({
-                      title: "Erro ao criar perfil",
-                      description: "Não foi possível criar seu perfil. Por favor, tente novamente.",
-                      variant: "destructive",
-                    });
-                    
-                    await supabaseClient.auth.signOut();
-                    
-                    setSession({
-                      user: null,
-                      session: null,
-                      error: null,
-                      isLoading: false,
-                    });
-                    return;
-                  } else {
-                    console.log('Perfil criado com sucesso durante fetchSession!');
-                    // Continuar com os dados do usuário recém-criado
+                    .select('*')
+                    .eq('id', data.session.user.id)
+                    .single()
+                  
+                  if (newUserData) {
                     setSession({
                       user: {
                         id: data.session.user.id,
                         email: data.session.user.email || '',
-                        name: data.session.user.user_metadata?.name,
+                        name: newUserData.name || data.session.user.user_metadata?.name,
+                        avatar_url: newUserData.avatar_url,
                         created_at: data.session.user.created_at,
                       },
                       session: data.session,
                       error: null,
                       isLoading: false,
-                    });
-                    return;
+                    })
+                    setLastAuthEvent('perfil criado automaticamente')
+                    return
                   }
-                } catch (insertError) {
-                  console.error('Exceção ao criar perfil automaticamente durante fetchSession:', insertError);
-                  // Fazer logout em caso de erro
-                  await supabaseClient.auth.signOut();
-                  
-                  setSession({
-                    user: null,
-                    session: null,
-                    error: null,
-                    isLoading: false,
-                  });
-                  return;
                 }
               }
               
-              // Continuar mesmo sem os dados do perfil
+              // Se houver erro no perfil, mas o usuário está autenticado
               setSession({
                 user: {
                   id: data.session.user.id,
@@ -173,21 +188,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 error: null,
                 isLoading: false,
               })
-              return
+              setLastAuthEvent('sessão sem perfil completo')
+            } else {
+              // Perfil encontrado com sucesso
+              setSession({
+                user: {
+                  id: data.session.user.id,
+                  email: data.session.user.email || '',
+                  name: userData.name || data.session.user.user_metadata?.name,
+                  avatar_url: userData.avatar_url,
+                  created_at: data.session.user.created_at,
+                },
+                session: data.session,
+                error: null,
+                isLoading: false,
+              })
+              setLastAuthEvent('perfil carregado com sucesso')
             }
-              
-            setSession({
-              user: {
-                id: data.session.user.id,
-                email: data.session.user.email || '',
-                name: userData?.name || data.session.user.user_metadata?.name,
-                avatar_url: userData?.avatar_url,
-                created_at: data.session.user.created_at,
-              },
-              session: data.session,
-              error: null,
-              isLoading: false,
-            })
           } catch (profileError) {
             console.error('Erro ao buscar perfil:', profileError)
             
@@ -203,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               error: null,
               isLoading: false,
             })
+            setLastAuthEvent('erro ao buscar perfil')
           }
         } else {
           setSession({
@@ -211,6 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             error: null,
             isLoading: false,
           })
+          setLastAuthEvent('nenhuma sessão encontrada')
         }
       } catch (error) {
         console.error('Erro ao buscar sessão:', error)
@@ -220,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error: error as Error,
           isLoading: false,
         })
+        setLastAuthEvent('erro ao buscar sessão')
       }
     }
 
@@ -231,21 +251,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener para mudanças na autenticação
     let authUnsubscribe: (() => void) | null = null;
     
-    if (isConnected && supabaseClient) {
+    if (supabaseClient) {
       try {
+        console.log('Configurando listener para mudanças na autenticação')
+        
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
           console.log('Evento de autenticação:', event, 'Timestamp:', new Date().toISOString());
+          setLastAuthEvent(event)
           
-          // Persistir a sessão no localStorage quando o usuário fizer login
-          if (event === 'SIGNED_IN' && session) {
-            console.log('Login bem-sucedido! Salvando sessão e iniciando carregamento de perfil...');
-            localStorage.setItem('supabase_session', JSON.stringify(session));
+          // Log para debug
+          if (session) {
+            console.log('Novo estado de autenticação:', { 
+              event, 
+              userId: session.user.id,
+              email: session.user.email
+            })
+          } else {
+            console.log('Novo estado de autenticação: sessão nula')
+          }
+          
+          // Definir timeout para não ficar esperando infinitamente
+          const profileTimeout = setTimeout(() => {
+            console.error('Timeout ao buscar perfil após mudança de estado de autenticação')
             
-            // Definir um timeout para evitar espera infinita
-            const profileTimeout = setTimeout(() => {
-              console.log('ALERTA: Timeout ao carregar perfil após autenticação');
-              
-              // Se ainda estiver carregando após o timeout, atualizar o estado mesmo sem perfil
+            if (session) {
+              // Continuar mesmo sem os dados do perfil
               setSession({
                 user: {
                   id: session.user.id,
@@ -256,58 +286,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 session,
                 error: null,
                 isLoading: false,
-              });
-            }, 5000); // 5 segundos de timeout
-            
+              })
+            }
+          }, 5000) // 5 segundos
+          
+          // Quando o usuário faz login
+          if (event === 'SIGNED_IN' && session) {
             try {
-              // Buscar dados adicionais do usuário
+              setSession(prev => ({ ...prev, isLoading: true }))
+              
+              // Persistir a sessão no localStorage para recuperação futura
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('supabase_session', JSON.stringify(session))
+                console.log('Sessão salva no localStorage após login')
+              }
+              
+              // Buscar dados do perfil na tabela profiles
               const { data: userData, error: profileError } = await supabaseClient
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
-                .single();
+                .single()
               
-              // Limpar o timeout porque recebemos uma resposta
-              clearTimeout(profileTimeout);
+              console.log('Busca de perfil após login:', {
+                sucesso: !profileError,
+                perfilEncontrado: !!userData,
+                userId: session.user.id
+              })
+              
+              // Limpar o timeout pois a operação foi concluída
+              clearTimeout(profileTimeout)
               
               if (profileError) {
-                console.error('Erro ao buscar perfil durante mudança de estado:', profileError)
+                console.error('Erro ao buscar perfil após login:', profileError)
                 
-                // Mostrar aviso que o perfil não existe
+                // Verificar se é erro de perfil não encontrado
                 if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-                  console.log('Perfil não encontrado durante mudança de estado. Tentando criar automaticamente...');
+                  console.log('Perfil não encontrado, tentando criar automaticamente...')
                   
                   // Tentar criar o perfil automaticamente
-                  try {
-                    const { error: insertError } = await supabaseClient
-                      .from('profiles')
-                      .insert([{
+                  const { error: insertError } = await supabaseClient
+                    .from('profiles')
+                    .insert([{
+                      id: session.user.id,
+                      name: session.user.user_metadata?.name || '',
+                      email: session.user.email
+                    }])
+                  
+                  if (insertError) {
+                    console.error('Erro ao criar perfil automaticamente:', insertError)
+                    // Continuar mesmo sem perfil
+                    setSession({
+                      user: {
                         id: session.user.id,
-                        name: session.user.user_metadata?.name || '',
-                        email: session.user.email
-                      }]);
-                      
-                    if (insertError) {
-                      console.error('Erro ao criar perfil automaticamente durante mudança de estado:', insertError);
-                      // Mostrar mensagem de erro e fazer logout
-                      toast({
-                        title: "Erro ao criar perfil",
-                        description: "Não foi possível criar seu perfil. Por favor, tente novamente.",
-                        variant: "destructive",
-                      });
-                      
-                      await supabaseClient.auth.signOut();
-                      
+                        email: session.user.email || '',
+                        name: session.user.user_metadata?.name,
+                        created_at: session.user.created_at,
+                      },
+                      session,
+                      error: null,
+                      isLoading: false,
+                    })
+                  } else {
+                    console.log('Perfil criado com sucesso após login')
+                    
+                    // Buscar o perfil recém-criado
+                    const { data: newUserData } = await supabaseClient
+                      .from('profiles')
+                      .select('*')
+                      .eq('id', session.user.id)
+                      .single()
+                    
+                    if (newUserData) {
                       setSession({
-                        user: null,
-                        session: null,
+                        user: {
+                          id: session.user.id,
+                          email: session.user.email || '',
+                          name: newUserData.name || session.user.user_metadata?.name,
+                          avatar_url: newUserData.avatar_url,
+                          created_at: session.user.created_at,
+                        },
+                        session,
                         error: null,
                         isLoading: false,
-                      });
-                      return;
+                      })
                     } else {
-                      console.log('Perfil criado com sucesso durante mudança de estado!');
-                      // Continuar com os dados do usuário recém-criado
+                      // Se não conseguir buscar o perfil recém-criado
                       setSession({
                         user: {
                           id: session.user.id,
@@ -318,36 +382,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         session,
                         error: null,
                         isLoading: false,
-                      });
-                      return;
+                      })
                     }
-                  } catch (insertError) {
-                    console.error('Exceção ao criar perfil automaticamente durante mudança de estado:', insertError);
-                    // Fazer logout em caso de erro
-                    await supabaseClient.auth.signOut();
-                    
-                    setSession({
-                      user: null,
-                      session: null,
-                      error: null,
-                      isLoading: false,
-                    });
-                    return;
                   }
+                } else {
+                  // Se for outro tipo de erro
+                  setSession({
+                    user: {
+                      id: session.user.id,
+                      email: session.user.email || '',
+                      name: session.user.user_metadata?.name,
+                      created_at: session.user.created_at,
+                    },
+                    session,
+                    error: null,
+                    isLoading: false,
+                  })
                 }
-                
-                // Continuar mesmo sem os dados do perfil
-                setSession({
-                  user: {
-                    id: session.user.id,
-                    email: session.user.email || '',
-                    name: session.user.user_metadata?.name,
-                    created_at: session.user.created_at,
-                  },
-                  session,
-                  error: null,
-                  isLoading: false,
-                });
               } else {
                 // Perfil encontrado com sucesso
                 setSession({
@@ -386,17 +437,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           // Se houver uma sessão mas não é um evento de login (já estava logado)
           else if (session && event !== 'SIGNED_IN') {
-            console.log('Sessão ativa detectada (usuário já logado)');
+            console.log('Sessão ativa detectada:', event);
             
-            // Verificar se precisamos atualizar a sessão armazenada
-            setSession(prevSession => {
-              // Se já temos a mesma sessão, não fazer nada
-              if (prevSession.session?.access_token === session.access_token) {
-                console.log('Sessão já atualizada, mantendo estado atual');
-                return prevSession;
+            // Limpar o timeout pois não vamos precisar buscar o perfil agora
+            clearTimeout(profileTimeout);
+            
+            // Atualizar o estado da sessão
+            setSession(prev => {
+              // Se já temos os dados do usuário, manter eles
+              if (prev.user) {
+                return {
+                  ...prev,
+                  session,
+                  error: null,
+                  isLoading: false
+                };
               }
               
-              console.log('Atualizando estado com sessão ativa');
+              // Caso contrário, usar apenas os dados básicos do usuário
               return {
                 user: {
                   id: session.user.id,
@@ -410,9 +468,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               };
             });
           }
-          // Quando não há sessão e não é um evento de logout (sessão expirada ou inválida)
-          else if (!session && event !== 'SIGNED_OUT') {
-            console.log('Evento sem sessão ativa detectado:', event);
+          // Quando o usuário faz logout
+          else if (event === 'SIGNED_OUT') {
+            console.log('Usuário desconectado');
+            
+            // Limpar o timeout pois não vamos buscar o perfil
+            clearTimeout(profileTimeout);
+            
+            // Limpar a sessão do localStorage
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('supabase_session');
+            }
+            
+            // Limpar o estado da sessão
             setSession({
               user: null,
               session: null,
@@ -420,43 +488,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               isLoading: false,
             });
           }
-          
-          // Remover a sessão do localStorage quando o usuário fizer logout
-          if (event === 'SIGNED_OUT') {
-            console.log('Usuário deslogado, removendo sessão do localStorage');
-            localStorage.removeItem('supabase_session');
-            
-            // Atualizar o estado após logout
-            setSession({
-              user: null,
-              session: null,
-              error: null,
-              isLoading: false,
-            });
-            
-            // Redirecionar não é necessário aqui pois é tratado nos componentes
-          }
-          
-          // Tratar outros eventos de autenticação
-          if (event === 'USER_UPDATED') {
-            console.log('Dados do usuário foram atualizados');
-            // Atualizar o estado com os novos dados se necessário
-          }
-        })
+        });
         
-        // Salvar a função de cancelamento da inscrição
-        authUnsubscribe = subscription.unsubscribe
+        authUnsubscribe = () => {
+          subscription.unsubscribe();
+        };
       } catch (error) {
-        console.error('Erro ao configurar listener de autenticação:', error)
+        console.error('Erro ao configurar listener de autenticação:', error);
       }
     }
-
+    
+    // Limpar a inscrição no evento de autenticação ao desmontar
     return () => {
       if (authUnsubscribe) {
-        authUnsubscribe()
+        console.log('Removendo listener de autenticação');
+        authUnsubscribe();
       }
-    }
-  }, [supabaseClient, isConnected, toast])
+    };
+  }, [supabaseClient, isConnected, toast]);
 
   // Cadastro de usuário
   const signUp = async (email: string, password: string, name?: string) => {
