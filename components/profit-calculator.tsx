@@ -1207,13 +1207,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Componente para diálogo de criação de relatório
   const ReportDialog = () => (
     <Dialog open={showReportDialog} onOpenChange={(open) => {
-      // Só permitir que o diálogo feche através do botão Cancelar ou após criar o relatório
+      // Se o usuário está tentando fechar o diálogo (open=false),
+      // permitimos que ele feche apenas através da ação explícita
       if (!open) {
         setShowReportDialog(false);
       }
     }}>
       <DialogContent 
-        className="bg-black border-purple-700/50 text-white max-w-md"
+        className="bg-black/95 border-purple-800/60 text-white max-w-md"
         onPointerDownOutside={(e) => {
           // Prevenir que o diálogo feche quando clicar fora
           e.preventDefault();
@@ -1235,7 +1236,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <Input
               id="report-name"
               value={reportName}
-              onChange={(e) => setReportName(e.target.value)}
+              onChange={(e) => {
+                e.stopPropagation(); // Evitar propagação do evento
+                setReportName(e.target.value);
+              }}
               placeholder="Ex: Conta Pessoal, Binance, etc."
               className="bg-black/30 border-purple-700/50"
             />
@@ -1245,7 +1249,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <Textarea
               id="report-description"
               value={reportDescription}
-              onChange={(e) => setReportDescription(e.target.value)}
+              onChange={(e) => {
+                e.stopPropagation(); // Evitar propagação do evento
+                setReportDescription(e.target.value);
+              }}
               placeholder="Descrição do relatório"
               className="bg-black/30 border-purple-700/50 min-h-[80px]"
             />
@@ -1254,12 +1261,20 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         <DialogFooter>
           <Button 
             variant="outline" 
-            onClick={() => setShowReportDialog(false)}
+            onClick={(e) => {
+              e.stopPropagation(); // Evitar propagação do evento
+              setShowReportDialog(false);
+            }}
             className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
           >
             Cancelar
           </Button>
-          <Button onClick={addReport}>
+          <Button 
+            onClick={(e) => {
+              e.stopPropagation(); // Evitar propagação do evento
+              addReport();
+            }}
+          >
             Criar Relatório
           </Button>
         </DialogFooter>
@@ -1975,33 +1990,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const ImportOptions = () => (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {/* Input para CSV de operações */}
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleImportCSV}
-          ref={csvFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerCSVFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "csv" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <FileType className="mr-2 h-4 w-4" />
-              Importar CSV de Operações
-            </>
-          )}
-        </Button>
-        
         {/* Input para CSV de aportes */}
         <input
           type="file"
@@ -2025,6 +2013,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <>
               <FileType className="mr-2 h-4 w-4" />
               Importar CSV de Aportes
+            </>
+          )}
+        </Button>
+        
+        {/* Input para CSV de operações */}
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleImportCSV}
+          ref={csvFileInputRef}
+          className="hidden"
+        />
+        <Button 
+          variant="outline" 
+          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+          onClick={triggerCSVFileInput}
+          disabled={isImporting}
+        >
+          {isImporting && importType === "csv" ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <FileType className="mr-2 h-4 w-4" />
+              Importar CSV de Operações
             </>
           )}
         </Button>
