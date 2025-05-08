@@ -115,14 +115,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [investmentAmount, setInvestmentAmount] = useState<string>("");
   const [investmentUnit, setInvestmentUnit] = useState<CurrencyUnit>("SATS");
   const [investmentDate, setInvestmentDate] = useState<Date>(() => {
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+    // Criar data com o horário no meio do dia em UTC
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
   });
   const [profitAmount, setProfitAmount] = useState<string>("");
   const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS");
   const [profitDate, setProfitDate] = useState<Date>(() => {
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+    // Criar data com o horário no meio do dia em UTC
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
   });
   const [isProfit, setIsProfit] = useState<boolean>(true);
 
@@ -324,22 +326,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Verifica se uma data é no futuro
   const isFutureDate = (date: Date): boolean => {
     const today = new Date();
-    // Comparar apenas dia, mês e ano
-    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    return normalizedDate > normalizedToday;
+    today.setHours(0, 0, 0, 0);
+    const dateToCompare = new Date(date);
+    dateToCompare.setHours(0, 0, 0, 0);
+    return dateToCompare > today;
   };
 
   // Função para garantir que a data não seja afetada pelo fuso horário
   const formatDateToUTC = (date: Date): string => {
-    // Criar uma nova data com o dia, mês e ano da data original
-    // Fixando o horário em 12:00 do dia para evitar problemas de fuso
-    const fixedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
-    
-    // Obter o dia, mês e ano da data fixa
-    const day = fixedDate.getDate();
-    const month = fixedDate.getMonth() + 1; // Janeiro é 0
-    const year = fixedDate.getFullYear();
+    // Usar o método getUTC* para obter os valores UTC da data
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1; // Janeiro é 0
+    const day = date.getUTCDate();
     
     // Formatar a data como YYYY-MM-DD
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -2621,6 +2619,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
+  // Função auxiliar para converter string de data ISO para objeto Date com fuso horário correto
+  const parseISODate = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    // Criar data UTC com meio-dia para evitar problemas de fuso horário
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  };
+
+  // Função para exibir data formatada a partir de uma string ISO
+  const formatDisplayDate = (dateString: string, formatStr: string = "d MMM yyyy"): string => {
+    const date = parseISODate(dateString);
+    return format(date, formatStr, { locale: ptBR });
+  };
+
   return (
     <div className="flex flex-col space-y-4">
       <Tabs
@@ -2681,7 +2692,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <CalendarComponent
                           mode="single"
                           selected={investmentDate}
-                          onSelect={(date) => date && setInvestmentDate(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0))}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
+                              const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
+                              setInvestmentDate(newDate);
+                            }
+                          }}
                           initialFocus
                           className="bg-black/80"
                           locale={ptBR}
@@ -2747,7 +2764,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <CalendarComponent
                           mode="single"
                           selected={profitDate}
-                          onSelect={(date) => date && setProfitDate(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0))}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
+                              const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
+                              setProfitDate(newDate);
+                            }
+                          }}
                           initialFocus
                           className="bg-black/80"
                           locale={ptBR}
@@ -3020,7 +3043,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             const btcValue = convertToBtc(investment.amount, investment.unit);
                             return (
                               <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
-                                <TableCell>{format(new Date(investment.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>{formatDisplayDate(investment.date, "d MMM yyyy")}</TableCell>
                                 <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
                                 <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
                                 <TableCell className="text-right">
@@ -3072,7 +3095,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             const btcValue = convertToBtc(profit.amount, profit.unit);
                             return (
                               <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
-                                <TableCell>{format(new Date(profit.date), "d MMM yyyy", { locale: ptBR })}</TableCell>
+                                <TableCell>{formatDisplayDate(profit.date, "d MMM yyyy")}</TableCell>
                                 <TableCell>
                                   <span className={`px-2 py-1 rounded-full text-xs ${
                                     profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"
@@ -3234,15 +3257,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   <div className="text-sm font-medium">Data:</div>
                   <div className="text-sm">
                     {(() => {
-                      // Converter a string de data (YYYY-MM-DD) em objeto Date
-                      const parts = duplicateConfirmInfo.date.split('-');
-                      const year = parseInt(parts[0]);
-                      const month = parseInt(parts[1]) - 1; // Mês em JavaScript é 0-indexed
-                      const day = parseInt(parts[2]);
-                      
-                      const dateObj = new Date(year, month, day);
-                      
-                      return format(dateObj, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+                      try {
+                        // Converter a string de data (YYYY-MM-DD) em objeto Date usando parseISODate
+                        const dateObj = parseISODate(duplicateConfirmInfo.date);
+                        return format(dateObj, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+                      } catch (e) {
+                        return duplicateConfirmInfo.date;
+                      }
                     })()}
                   </div>
                   
