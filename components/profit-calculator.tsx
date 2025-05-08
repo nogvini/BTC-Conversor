@@ -956,33 +956,36 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Componente para exibir opções de relatório no histórico
   const ReportFilterOptions = () => (
-    <Card className="p-4 bg-black/40 border-purple-700/50">
-      <h3 className="text-sm font-medium mb-4">Filtrar por Relatórios</h3>
-      <div className="space-y-2 max-h-48 overflow-y-auto">
-        {reports.map(report => (
-          <div key={report.id} className="flex items-center space-x-2">
-            <Checkbox 
-              id={`report-${report.id}`} 
-              checked={selectedReportIds.includes(report.id)}
-              onCheckedChange={() => toggleReportSelection(report.id)}
-            />
-            <Label htmlFor={`report-${report.id}`} className="text-sm cursor-pointer">
-              {report.name}
-            </Label>
-          </div>
-        ))}
-        <div className="flex items-center mt-4 pt-3 border-t border-purple-700/30">
-          <Button 
-            variant="default"
-            size="sm"
-            className="text-xs bg-purple-700 hover:bg-purple-600 text-white"
-            onClick={selectAllReports}
-          >
-            Selecionar Todos
-          </Button>
+    <div className="bg-black/40 border border-purple-700/50 rounded-md">
+      <div className="p-4 pb-2">
+        <h3 className="text-sm font-medium mb-3">Filtrar por Relatórios</h3>
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 auto-rows-auto">
+          {reports.map(report => (
+            <div key={report.id} className="flex items-center space-x-2 bg-black/30 p-2 rounded-md hover:bg-black/50 transition-colors">
+              <Checkbox 
+                id={`report-${report.id}`} 
+                checked={selectedReportIds.includes(report.id)}
+                onCheckedChange={() => toggleReportSelection(report.id)}
+                className="flex-shrink-0"
+              />
+              <Label htmlFor={`report-${report.id}`} className="text-sm cursor-pointer truncate w-full">
+                {report.name}
+              </Label>
+            </div>
+          ))}
         </div>
       </div>
-    </Card>
+      <div className="p-3 pt-2 flex justify-end border-t border-purple-700/30 mt-2">
+        <Button 
+          variant="default"
+          size="sm"
+          className="text-xs bg-purple-700 hover:bg-purple-600 text-white"
+          onClick={selectAllReports}
+        >
+          Selecionar Todos
+        </Button>
+      </div>
+    </div>
   );
 
   // Modificar a função de exportação para trabalhar com o intervalo de datas
@@ -2642,7 +2645,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <CardTitle className="text-lg">Filtrar Relatórios</CardTitle>
                 <CardDescription>Selecione quais relatórios deseja visualizar</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <ReportFilterOptions />
               </CardContent>
             </Card>
@@ -2892,8 +2895,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             <TableRow key={investment.id}>
                               <TableCell>{formatDisplayDate(investment.date)}</TableCell>
                               <TableCell>
-                                {formatCryptoAmount(investment.amount, investment.unit)}
-                                <div className="text-xs text-gray-400">
+                                <span className="font-medium text-yellow-500">
+                                  {formatCryptoAmount(investment.amount, investment.unit)}
+                                </span>
+                                <div className="text-xs text-yellow-500">
                                   {formatBtcValueInCurrency(convertToBtc(investment.amount, investment.unit))}
                                 </div>
                               </TableCell>
@@ -2938,8 +2943,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                {formatCryptoAmount(profit.amount, profit.unit)}
-                                <div className="text-xs text-gray-400">
+                                <span className={`font-medium ${profit.isProfit ? "text-green-500" : "text-red-500"}`}>
+                                  {formatCryptoAmount(profit.amount, profit.unit)}
+                                </span>
+                                <div className="text-xs text-green-500">
                                   {formatBtcValueInCurrency(convertToBtc(profit.amount, profit.unit))}
                                 </div>
                               </TableCell>
