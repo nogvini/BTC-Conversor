@@ -975,7 +975,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           <Button 
             variant="default"
             size="sm"
-            className="text-xs w-full bg-purple-700 hover:bg-purple-600 text-white"
+            className="text-xs bg-purple-700 hover:bg-purple-600 text-white"
             onClick={selectAllReports}
           >
             Selecionar Todos
@@ -2648,11 +2648,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Card>
 
             <Card className="panel border-purple-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo do Período</CardTitle>
-                <CardDescription>
-                  Veja o resumo dos investimentos e lucros/perdas do período selecionado.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Resumo do Período</CardTitle>
+                  <CardDescription>
+                    Veja o resumo dos investimentos e lucros/perdas do período selecionado.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleDisplayCurrency}
+                  className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                >
+                  {displayCurrency === "USD" ? "$ USD" : "R$ BRL"}
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
