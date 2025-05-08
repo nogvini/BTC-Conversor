@@ -50,7 +50,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectItem } from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectItem, SelectContent } from "@/components/ui/select";
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -2297,13 +2297,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   <SelectTrigger className="w-full bg-black/30 border-purple-700/50">
                     <SelectValue placeholder="Selecione um relatório" />
                   </SelectTrigger>
-                  <SelectGroup>
-                    {reports.map(report => (
-                      <SelectItem key={report.id} value={report.id}>
-                        {report.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
+                  <SelectContent className="bg-black border-purple-700/50">
+                    <SelectGroup>
+                      {reports.map(report => (
+                        <SelectItem key={report.id} value={report.id}>
+                          {report.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
                 </Select>
                 <Button 
                   onClick={() => setShowReportDialog(true)}
