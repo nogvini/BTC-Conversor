@@ -2706,6 +2706,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     <RadioGroup
                       value={investmentUnit}
                       onValueChange={(value) => setInvestmentUnit(value as CurrencyUnit)}
+                      className="space-y-2"
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="BTC" id="unit-btc" />
