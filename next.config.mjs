@@ -23,7 +23,13 @@ const nextConfig = {
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
-    return [];
+    return [
+      {
+        source: '/calculator',
+        destination: '/?tab=calculator',
+        permanent: false,
+      },
+    ];
   },
   async headers() {
     return [

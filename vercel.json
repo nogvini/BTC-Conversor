@@ -3,31 +3,12 @@
   "buildCommand": "next build",
   "framework": "nextjs",
   "outputDirectory": ".next",
+  "regions": ["iad1"],
   "cleanUrls": true,
   "trailingSlash": false,
-  "regions": ["iad1"],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
+  "functions": {
+    "app/calculator/**": {
+      "maxDuration": 15
     }
-  ],
-  "rewrites": [
-    { "source": "/calculator", "destination": "/" }
-  ],
-  "github": {
-    "silent": true
-  },
-  "env": {
-    "NEXT_PUBLIC_BUILD_ENV": "VERCEL"
-  },
-  "buildOptions": {
-    "uploadTimeout": 120000,
-    "minRetryWaitTime": 3000
   }
 } 
