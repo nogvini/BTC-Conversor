@@ -6,18 +6,26 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { AuthForm } from "@/components/auth-form";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
+import dynamic from "next/dynamic";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+
+// Carregando o AuthForm dinamicamente para evitar problemas de SSR com useAuth
+const AuthForm = dynamic(() => import("@/components/auth-form"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center min-h-[300px]">
+      <Loader2 className="h-8 w-8 animate-spin" />
+    </div>
+  ),
+});
 
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const expired = searchParams.get("expired") === "true";
-  
-  // Usar useState para gerenciar o estado do usuário
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [redirected, setRedirected] = useState(false);
   
   // Limpar qualquer sessão expirada
   useEffect(() => {
@@ -40,23 +48,17 @@ export default function AuthPage() {
         // Se houver erro ao processar, melhor remover
         localStorage.removeItem('supabase_session');
       }
-    }
-  }, []);
-
-  // Usando useAuth apenas no cliente, depois que a página for montada
-  useEffect(() => {
-    // Código de cliente seguro
-    try {
-      const { session } = useAuth();
-      // Redirecionar se já estiver autenticado
-      if (session.user && !session.isLoading) {
-        setIsLoggedIn(true);
+      
+      // Verificar se usuário já está logado usando o localStorage diretamente
+      // em vez de depender do hook useAuth na renderização inicial
+      const hasSession = !!localStorage.getItem('supabase_session');
+      if (hasSession && !redirected) {
+        console.log('Sessão encontrada, redirecionando...');
+        setRedirected(true);
         router.push('/');
       }
-    } catch (error) {
-      console.error("Erro ao verificar autenticação:", error);
     }
-  }, [router]);
+  }, [router, redirected]);
 
   return (
     <div className="flex justify-center items-center min-h-[100vh] p-4">
