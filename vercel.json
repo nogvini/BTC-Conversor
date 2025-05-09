@@ -1,11 +1,25 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "next build",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ],
+  "cleanUrls": true,
+  "trailingSlash": false,
   "regions": ["iad1"],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/calculator", "destination": "/" }
+  ],
   "github": {
     "silent": true
   },
