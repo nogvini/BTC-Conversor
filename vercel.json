@@ -1,9 +1,9 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
-  },
+  "buildCommand": "next build",
+  "installCommand": "pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "regions": ["iad1"],
   "headers": [
     {
       "source": "/(.*)",
@@ -15,14 +15,11 @@
       ]
     }
   ],
-  "rewrites": [],
-  "redirects": [],
-  "framework": {
-    "version": 3,
-    "name": "nextjs"
-  },
-  "buildCommand": "next build",
-  "installCommand": "pnpm install",
-  "regions": ["iad1"],
-  "outputDirectory": ".next"
+  "rewrites": [
+    { "source": "/auth/client", "destination": "/auth" },
+    { "source": "/auth/form", "destination": "/auth" }
+  ],
+  "env": {
+    "NEXT_PUBLIC_VERCEL_ENV": "production"
+  }
 } 
