@@ -1,15 +1,24 @@
-import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
-
-function Redirector() {
-  redirect('/?tab=calculator')
-  return null
-}
 
 export default function CalculatorPage() {
   return (
     <Suspense fallback={<div>Redirecionando...</div>}>
-      <Redirector />
+      <ClientRedirector />
     </Suspense>
   )
+}
+
+// Componente client-side para fazer o redirecionamento
+'use client'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
+function ClientRedirector() {
+  const router = useRouter()
+  
+  useEffect(() => {
+    router.push('/?tab=calculator')
+  }, [router])
+  
+  return null
 } 

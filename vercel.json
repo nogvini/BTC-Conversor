@@ -1,25 +1,19 @@
 {
   "buildCommand": "next build",
-  "installCommand": "pnpm install",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "regions": ["iad1"],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "s-maxage=1, stale-while-revalidate=59"
-        }
-      ]
-    }
-  ],
   "rewrites": [
-    { "source": "/auth/client", "destination": "/auth" },
-    { "source": "/auth/form", "destination": "/auth" }
+    { "source": "/(.*)", "destination": "/" }
   ],
+  "regions": ["iad1"],
+  "github": {
+    "silent": true
+  },
   "env": {
-    "NEXT_PUBLIC_VERCEL_ENV": "production"
+    "NEXT_PUBLIC_BUILD_ENV": "VERCEL"
+  },
+  "buildOptions": {
+    "uploadTimeout": 120000,
+    "minRetryWaitTime": 3000
   }
 } 
