@@ -16,6 +16,10 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
     },
+    // Novas configurações experimentais
+    serverComponents: true,
+    // Ajustar como o Next.js lida com páginas estáticas vs dinâmicas
+    legacyBrowsers: false
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
@@ -68,6 +72,11 @@ const nextConfig = {
   staticPageGenerationTimeout: 60,
   // Marcar certas páginas como dinâmicas em vez de estáticas
   pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'mdx'],
+  // Configuração de runtime para páginas específicas
+  serverRuntimeConfig: {
+    // Aplicado apenas no servidor
+    skipAuth: ['calculator']
+  }
 }
 
 export default nextConfig

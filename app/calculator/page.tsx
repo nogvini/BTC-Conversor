@@ -1,17 +1,22 @@
-import { Suspense } from 'react'
+// Adicionamos um comentário para o Next.js ignorar esta página durante a pré-renderização estática
+export const dynamic = 'force-dynamic';
 
 export default function CalculatorPage() {
+  return <CalculatorClient />;
+}
+
+// Componente client-side separado
+'use client'
+import { Suspense, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
+function CalculatorClient() {
   return (
     <Suspense fallback={<div>Redirecionando...</div>}>
       <ClientRedirector />
     </Suspense>
   )
 }
-
-// Componente client-side para fazer o redirecionamento
-'use client'
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 
 function ClientRedirector() {
   const router = useRouter()
