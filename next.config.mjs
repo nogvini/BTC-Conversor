@@ -15,11 +15,7 @@ const nextConfig = {
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
-    },
-    // Novas configurações experimentais
-    serverComponents: true,
-    // Ajustar como o Next.js lida com páginas estáticas vs dinâmicas
-    legacyBrowsers: false
+    }
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
@@ -29,6 +25,11 @@ const nextConfig = {
         destination: '/?tab=calculator',
         permanent: false,
       },
+      {
+        source: '/chart',
+        destination: '/?tab=chart',
+        permanent: false,
+      }
     ];
   },
   async headers() {
@@ -64,11 +65,6 @@ const nextConfig = {
       transform: 'lucide-react/dist/esm/icons/{{member}}',
     },
   },
-  // Configuração específica para evitar pré-renderização em páginas com autenticação
-  unstable_excludeFiles: [
-    '**/node_modules/@supabase/**/*',
-    '**/hooks/use-auth.tsx',
-  ],
   // Configuração para o app directory
   generateBuildId: async () => {
     // Retorna um ID de build único baseado no timestamp atual
@@ -81,7 +77,7 @@ const nextConfig = {
   // Configuração de runtime para páginas específicas
   serverRuntimeConfig: {
     // Aplicado apenas no servidor
-    skipAuth: ['calculator']
+    skipAuth: ['calculator', 'chart']
   }
 }
 

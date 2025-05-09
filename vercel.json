@@ -9,6 +9,9 @@
   "functions": {
     "app/calculator/**": {
       "maxDuration": 15
+    },
+    "app/chart/**": {
+      "maxDuration": 15
     }
   }
 } 
