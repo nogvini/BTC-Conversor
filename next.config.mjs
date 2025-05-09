@@ -15,22 +15,11 @@ const nextConfig = {
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
-    }
+    },
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
-    return [
-      {
-        source: '/calculator',
-        destination: '/?tab=calculator',
-        permanent: false,
-      },
-      {
-        source: '/chart',
-        destination: '/?tab=chart',
-        permanent: false,
-      }
-    ];
+    return [];
   },
   async headers() {
     return [
@@ -57,28 +46,6 @@ const nextConfig = {
     
     return config;
   },
-  // Configurar páginas que devem ser renderizadas dinamicamente no servidor
-  // e não devem ser pré-renderizadas estaticamente
-  output: 'standalone',
-  modularizeImports: {
-    'lucide-react': {
-      transform: 'lucide-react/dist/esm/icons/{{member}}',
-    },
-  },
-  // Configuração para o app directory
-  generateBuildId: async () => {
-    // Retorna um ID de build único baseado no timestamp atual
-    return `build-${Date.now()}`;
-  },
-  // Desativar a renderização estática para certas páginas
-  staticPageGenerationTimeout: 60,
-  // Marcar certas páginas como dinâmicas em vez de estáticas
-  pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'mdx'],
-  // Configuração de runtime para páginas específicas
-  serverRuntimeConfig: {
-    // Aplicado apenas no servidor
-    skipAuth: ['calculator', 'chart']
-  }
 }
 
 export default nextConfig

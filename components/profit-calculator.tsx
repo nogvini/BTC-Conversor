@@ -215,23 +215,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [importTargetReportId, setImportTargetReportId] = useState<string | null>(null);
   const [importInProgress, setImportInProgress] = useState(false); // Novo estado para controlar feedback visual
 
-  // Ref para controlar se o componente está montado
-  const isMounted = useRef(true);
-  
-  // Definir isMounted como false quando o componente for desmontado
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const checkScreenSize = () => {
-        if (isMounted.current) {
-          setUseExportDialog(window.innerWidth < 350);
-        }
+        setUseExportDialog(window.innerWidth < 350);
       };
       
       // Verificar tamanho inicial
@@ -247,14 +235,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Efeitos para carregar e salvar dados
   useEffect(() => {
-    if (appData && isMounted.current) {
+    if (appData) {
       const newRates = {
         btcToUsd: appData.currentPrice.usd,
         brlToUsd: appData.currentPrice.brl / appData.currentPrice.usd
       };
       setCurrentRates(newRates);
       setUsingFallbackRates(appData.isUsingCache || !!appData.currentPrice.isUsingCache);
-    } else if (isMounted.current) {
+    } else {
       setCurrentRates({ btcToUsd, brlToUsd });
       setUsingFallbackRates(btcToUsd === 65000 && brlToUsd === 5.2);
     }
@@ -3338,18 +3326,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <>
                 {getFilteredInvestments().length > 0 && (
                   <div className="mb-6">
-                    <h3 className="text-base font-semibold mb-3 flex justify-between items-center">
-                      <span>Investimentos</span>
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-base font-semibold">Investimentos</h3>
                       <Button 
                         variant="destructive" 
-                        size="sm"
-                        className="bg-red-900/70 hover:bg-red-800"
+                        size="sm" 
                         onClick={() => setShowDeleteInvestmentsDialog(true)}
+                        className="bg-red-900/70 hover:bg-red-800 text-xs"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remover todos
+                        <Trash className="h-3 w-3 mr-1" />
+                        Remover Todos os Aportes
                       </Button>
-                    </h3>
+                    </div>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -3391,18 +3379,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
                 {getFilteredProfits().length > 0 && (
                   <div>
-                    <h3 className="text-base font-semibold mb-3 flex justify-between items-center">
-                      <span>Lucros/Perdas</span>
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-base font-semibold">Lucros/Perdas</h3>
                       <Button 
                         variant="destructive" 
-                        size="sm"
-                        className="bg-red-900/70 hover:bg-red-800"
+                        size="sm" 
                         onClick={() => setShowDeleteProfitsDialog(true)}
+                        className="bg-red-900/70 hover:bg-red-800 text-xs"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remover todos
+                        <Trash className="h-3 w-3 mr-1" />
+                        Remover Todos os Lucros/Perdas
                       </Button>
-                    </h3>
+                    </div>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>

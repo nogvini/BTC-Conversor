@@ -1,13 +1,8 @@
 "use client";
 
-// Configuração para evitar pré-renderização durante o build
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
-
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { AuthProvider } from "@/hooks/use-auth";
 
 // Componente de carregamento
 const AuthFormLoading = () => (
@@ -34,10 +29,5 @@ export default function AuthFormPage() {
     return <AuthFormLoading />;
   }
 
-  // Garantir que o AuthForm esteja dentro de um AuthProvider
-  return (
-    <AuthProvider>
-      <AuthForm />
-    </AuthProvider>
-  );
+  return <AuthForm />;
 } 

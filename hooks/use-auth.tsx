@@ -62,34 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     
-    // Verificar se a sessão expirou antes de tentar usar
-    if (typeof window !== 'undefined') {
-      try {
-        const sessionStr = localStorage.getItem('supabase_session');
-        if (sessionStr) {
-          const session = JSON.parse(sessionStr);
-          if (session && session.expires_at) {
-            const expiresAt = session.expires_at * 1000; // Converter para milissegundos
-            if (Date.now() > expiresAt) {
-              console.log('Sessão expirada detectada no localStorage, limpando dados');
-              localStorage.removeItem('supabase_session');
-              // Definir sessão como nula sem disparar erros
-              setSession({
-                user: null,
-                session: null,
-                error: new Error('Sessão expirada'),
-                isLoading: false,
-              });
-              setLastAuthEvent('sessão expirada');
-              return; // Sair da função para evitar tentativa de usar sessão inválida
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Erro ao verificar expiração de sessão:', e);
-      }
-    }
-    
     const fetchSession = async () => {
       try {
         setSession(prev => ({ ...prev, isLoading: true }))
@@ -294,36 +266,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
           // Se estiver autenticado, carregar os dados do perfil
           setSession(prev => ({ ...prev, isLoading: true }))
-          
-          // IMPORTANTE: Verificar se a sessão está realmente válida
-          if (session) {
-            try {
-              // Verificar se o token está expirado
-              const expiresAt = session.expires_at * 1000; // Converter para milissegundos
-              if (Date.now() > expiresAt) {
-                console.warn('Token expirado detectado em evento de autenticação');
-                
-                // Invalidar esta sessão e forçar logout
-                await supabaseClient.auth.signOut();
-                
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('supabase_session');
-                }
-                
-                setSession({
-                  user: null,
-                  session: null,
-                  error: new Error('Sessão expirada'),
-                  isLoading: false,
-                });
-                
-                setLastAuthEvent('sessão expirada detectada em evento');
-                return; // Sair para evitar processamento de sessão expirada
-              }
-            } catch (e) {
-              console.warn('Erro ao verificar expiração em evento de autenticação:', e);
-            }
-          }
           
           if (session) {
             try {

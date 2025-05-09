@@ -1,17 +1,25 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "next build",
+  "installCommand": "pnpm install",
   "framework": "nextjs",
-  "outputDirectory": ".next",
   "regions": ["iad1"],
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "functions": {
-    "app/calculator/**": {
-      "maxDuration": 15
-    },
-    "app/chart/**": {
-      "maxDuration": 15
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
     }
-  }
+  ]
 } 

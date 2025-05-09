@@ -54,6 +54,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<string>(type)
+  const { signIn, signUp, retryConnection, isConnecting, connectionRetries, session } = useAuth()
   const { toast } = useToast()
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const [showEmailVerification, setShowEmailVerification] = useState(false)
@@ -64,119 +65,62 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   const [loginError, setLoginError] = useState<string | null>(null)
   const [registerError, setRegisterError] = useState<string | null>(null)
   const [redirectInProgress, setRedirectInProgress] = useState(false)
-  const [isAuthHookAvailable, setIsAuthHookAvailable] = useState(true)
-  const [authHookError, setAuthHookError] = useState<string | null>(null)
-
-  // Tentar usar o hook useAuth de maneira segura
-  let signInFunc: any = null
-  let signUpFunc: any = null
-  let retryConnectionFunc: any = null
-  let isConnectingState = false
-  let connectionRetriesCount = 0
-  let sessionData: any = {}
-
-  try {
-    // Usar o hook useAuth de maneira segura
-    const { 
-      signIn: signInHook, 
-      signUp: signUpHook, 
-      retryConnection: retryConnectionHook,
-      isConnecting: isConnectingHook,
-      connectionRetries: connectionRetriesHook,
-      session: sessionHook 
-    } = useAuth()
-
-    // Se chegou aqui, o hook está disponível
-    signInFunc = signInHook
-    signUpFunc = signUpHook
-    retryConnectionFunc = retryConnectionHook
-    isConnectingState = isConnectingHook
-    connectionRetriesCount = connectionRetriesHook
-    sessionData = sessionHook
-    
-    // Marcar como disponível apenas se chegou até aqui sem erro
-    if (!isAuthHookAvailable) {
-      setIsAuthHookAvailable(true)
-      setAuthHookError(null)
-    }
-  } catch (error: any) {
-    // Se o hook não estiver disponível, marcar como indisponível
-    setIsAuthHookAvailable(false)
-    setAuthHookError(error?.message || "Hook de autenticação indisponível")
-    console.error("Erro ao usar o hook useAuth:", error)
-    
-    // Definir valores padrão para evitar erros
-    signInFunc = async () => ({ error: new Error("Serviço de autenticação indisponível") })
-    signUpFunc = async () => ({ error: new Error("Serviço de autenticação indisponível") })
-    retryConnectionFunc = () => {}
-    isConnectingState = false
-    connectionRetriesCount = 0
-    sessionData = { user: null, isLoading: false, error: null, session: null }
-  }
-
-  // Substitua a linha que usa diretamente useAuth por nossas variáveis seguras
-  const signIn = signInFunc
-  const signUp = signUpFunc
-  const retryConnection = retryConnectionFunc
-  const isConnecting = isConnectingState
-  const connectionRetries = connectionRetriesCount
-  const session = sessionData
 
   // Verificar se já há um usuário logado e redirecionar para a página inicial
   useEffect(() => {
     // Se há um usuário autenticado e não estamos carregando, redirecionar
     if (session.user && !session.isLoading && !redirectInProgress) {
-      console.log('Usuário já autenticado, redirecionando para a página inicial...')
+      console.log('Usuário já autenticado, redirecionando para a página inicial...');
       
       // Marcar que o redirecionamento já está em andamento para evitar múltiplas chamadas
-      setRedirectInProgress(true)
+      setRedirectInProgress(true);
       
       toast({
         title: "Você já está logado",
         description: "Redirecionando para a página inicial...",
         variant: "default",
-      })
+      });
       
       // Usar redirecionamento direto via window.location para garantir navegação completa
       setTimeout(() => {
-        window.location.href = '/'
-      }, 500)
+        window.location.href = '/';
+      }, 500);
     }
-  }, [session.user, session.isLoading, toast, redirectInProgress])
+  }, [session.user, session.isLoading, toast, redirectInProgress]);
 
   // Verificar se há parâmetros na URL que indicam erro no link de verificação
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.hash.substring(1))
-      const error = urlParams.get('error')
-      const errorCode = urlParams.get('error_code')
-      const errorDescription = urlParams.get('error_description')
+      const urlParams = new URLSearchParams(window.location.hash.substring(1));
+      const error = urlParams.get('error');
+      const errorCode = urlParams.get('error_code');
+      const errorDescription = urlParams.get('error_description');
       
       // Verificar se é um erro de token expirado (OTP expirado)
       if (error === 'access_denied' && errorCode === 'otp_expired') {
-        console.log('Link de verificação expirado detectado:', errorDescription)
-        setHasExpiredEmailLink(true)
-        setShowEmailVerification(true)
+        console.log('Link de verificação expirado detectado:', errorDescription);
+        setHasExpiredEmailLink(true);
+        setShowEmailVerification(true);
         
         // Tentar extrair o email do erro ou usar o último email conhecido
-        const emailMatch = errorDescription?.match(/for\s+(.+@.+\..+)/i)
+        const emailMatch = errorDescription?.match(/for\s+(.+@.+\..+)/i);
         if (emailMatch && emailMatch[1]) {
-          setEmailForVerification(emailMatch[1])
+          setEmailForVerification(emailMatch[1]);
         }
         
         toast({
           title: "Link expirado",
           description: "O link de verificação expirou. Solicite um novo.",
           variant: "destructive",
-        })
+        });
         
         // Limpar a URL para não mostrar o erro repetidamente em reloads
         if (window.history && window.history.replaceState) {
-          window.history.replaceState({}, document.title, window.location.pathname)
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
     }
-  }, [toast])
+  }, [toast]);
 
   // Efeito para verificar se o Supabase está disponível
   useEffect(() => {
@@ -460,43 +404,43 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   // Função para testar a conexão com o banco de dados
   const testDatabaseConnection = async () => {
     try {
-      setIsLoading(true)
+      setIsLoading(true);
       toast({
         title: "Verificando banco de dados",
         description: "Tentando conectar ao Supabase...",
         variant: "default",
-      })
+      });
       
       // Chamar a API de inicialização do banco
-      const res = await fetch('/api/init-db')
-      const data = await res.json()
+      const res = await fetch('/api/init-db');
+      const data = await res.json();
       
-      console.log('Resposta da API init-db:', data)
+      console.log('Resposta da API init-db:', data);
       
       if (data.success) {
         toast({
           title: "Conexão bem-sucedida",
           description: data.message,
           variant: "success",
-        })
+        });
       } else {
         toast({
           title: "Erro na conexão",
           description: data.message,
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error('Erro ao testar conexão:', error)
+      console.error('Erro ao testar conexão:', error);
       toast({
         title: "Falha na conexão",
         description: "Não foi possível se comunicar com a API. Verifique o console para mais detalhes.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Efeito para debug - monitorar a sessão atual
   useEffect(() => {
@@ -505,11 +449,11 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
         usuarioLogado: true, 
         id: session.user.id,
         email: session.user.email
-      })
+      });
     } else if (!session.isLoading) {
-      console.log('Nenhum usuário logado')
+      console.log('Nenhum usuário logado');
     }
-  }, [session])
+  }, [session]);
 
   // Função para lidar com o fechamento do diálogo de perfil não encontrado
   const handleNoProfileDialogClose = () => {
@@ -528,9 +472,9 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
 
   // Função para limpar erros quando o usuário muda de aba
   useEffect(() => {
-    setLoginError(null)
-    setRegisterError(null)
-  }, [activeTab])
+    setLoginError(null);
+    setRegisterError(null);
+  }, [activeTab]);
 
   // Adicionar um componente de alerta para problemas de configuração
   function ConfigurationErrorAlert() {
@@ -703,9 +647,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             type="email" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
+                              field.onChange(e);
                               // Limpar erro quando o usuário começa a corrigir o campo
-                              if (loginError) setLoginError(null)
+                              if (loginError) setLoginError(null);
                             }}
                             className={loginError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
@@ -726,9 +670,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             type="password" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
+                              field.onChange(e);
                               // Limpar erro quando o usuário começa a corrigir o campo
-                              if (loginError) setLoginError(null)
+                              if (loginError) setLoginError(null);
                             }}
                             className={loginError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
@@ -784,8 +728,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             placeholder="Seu nome" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
-                              if (registerError) setRegisterError(null)
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
                             }}
                             className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
@@ -807,8 +751,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             type="email" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
-                              if (registerError) setRegisterError(null)
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
                             }}
                             className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
@@ -829,8 +773,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             type="password" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
-                              if (registerError) setRegisterError(null)
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
                             }}
                             className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
@@ -851,8 +795,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
                             type="password" 
                             {...field} 
                             onChange={(e) => {
-                              field.onChange(e)
-                              if (registerError) setRegisterError(null)
+                              field.onChange(e);
+                              if (registerError) setRegisterError(null);
                             }}
                             className={registerError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           />
