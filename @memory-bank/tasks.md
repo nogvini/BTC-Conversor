@@ -142,8 +142,9 @@
 - [x] Criar componente SafeNavigationBar para carregamento seguro do navegador.
 - [x] Implementar memoização no hook useAuth para reduzir renderizações.
 - [x] Adicionar indicadores visuais de carregamento durante autenticação.
-- [ ] Otimizar tempos de resposta do login.
-- [ ] Implementar mecanismo de timeout para carregamento de perfil.
+- [x] Otimizar tempos de resposta do login.
+- [x] Implementar mecanismo de timeout para carregamento de perfil.
+- [x] Adicionar detecção de problemas de conexão.
 
 ### Melhorias para Múltiplos Relatórios na Calculadora
 
@@ -155,6 +156,6 @@
 ### Otimizações Gerais de Performance
 
 - [x] Implementar carregamento dinâmico de componentes.
-- [ ] Otimizar renderizações com useMemo/useCallback.
+- [x] Otimizar renderizações com useMemo/useCallback.
 - [ ] Implementar virtualização para listas longas.
-- [ ] Melhorar feedback visual para estados de carregamento. 
+- [x] Melhorar feedback visual para estados de carregamento. 

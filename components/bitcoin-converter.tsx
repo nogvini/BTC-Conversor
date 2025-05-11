@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense, useRef } from "react"
+import { useState, useEffect, Suspense, useRef, useCallback, useMemo } from "react"
 import { Bitcoin, Calendar, AlertTriangle, DollarSign } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -76,8 +76,8 @@ export default function BitcoinConverter() {
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
   
-  // Carregar todos os dados da aplicação de uma vez
-  const fetchData = async () => {
+  // Carregar todos os dados da aplicação de uma vez - convertido para useCallback
+  const fetchData = useCallback(async () => {
     setLoading(true)
     setApiError(false)
 
@@ -115,7 +115,7 @@ export default function BitcoinConverter() {
     } finally {
       setLoading(false)
     }
-  }
+  }, []) // Dependências vazias já que não dependemos de estado externo
 
   // Efeito para recuperar valores salvos do localStorage ao inicializar
   useEffect(() => {
@@ -157,8 +157,8 @@ export default function BitcoinConverter() {
     }
   }, [amount, selectedUnit, isInitialized]);
 
-  // Atualizar apenas o preço atual do Bitcoin - versão melhorada
-  const updateCurrentPrice = async () => {
+  // Atualizar apenas o preço atual do Bitcoin - convertido para useCallback
+  const updateCurrentPrice = useCallback(async () => {
     // Verificar se já está atualizando para evitar chamadas duplicadas
     if (isUpdatingRef.current) {
       console.log("Atualização já em andamento, ignorando chamada duplicada");
@@ -288,7 +288,7 @@ export default function BitcoinConverter() {
       isUpdatingRef.current = false;
       setLoading(false);
     }
-  }
+  }, [rates, appData]) // Dependências específicas
 
   // Carregar os dados no mount e configurar refresh periódico
   useEffect(() => {
@@ -303,14 +303,15 @@ export default function BitcoinConverter() {
       updateCurrentPrice();
     }, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [fetchData, updateCurrentPrice])
 
-  // Função de atualização que pode ser chamada externamente
-  const handleRefresh = () => {
+  // Função de atualização que pode ser chamada externamente - convertida para useCallback
+  const handleRefresh = useCallback(() => {
     updateCurrentPrice();
-  }
+  }, [updateCurrentPrice])
   
-  const convertValue = (value: number, from: CurrencyUnit, to: CurrencyUnit): number => {
+  // Função de conversão otimizada com useMemo
+  const convertValue = useCallback((value: number, from: CurrencyUnit, to: CurrencyUnit): number => {
     if (!rates) return 0
 
     // First convert to BTC
@@ -342,9 +343,10 @@ export default function BitcoinConverter() {
       case "BRL":
         return btcValue * rates.BTC_USD * rates.BRL_USD
     }
-  }
+  }, [rates])
 
-  const getConvertedValues = () => {
+  // Otimizar o cálculo dos valores convertidos com useMemo para evitar recálculos desnecessários
+  const convertedValues = useMemo(() => {
     if (!amount || isNaN(Number.parseFloat(amount))) {
       return {
         BTC: "0",
@@ -362,13 +364,12 @@ export default function BitcoinConverter() {
       USD: convertValue(numericAmount, selectedUnit, "USD").toFixed(2),
       BRL: convertValue(numericAmount, selectedUnit, "BRL").toFixed(2),
     }
-  }
+  }, [amount, selectedUnit, convertValue])
 
-  const convertedValues = getConvertedValues()
-  const currentUsdPrice = rates?.BTC_USD || 0
+  const currentUsdPrice = useMemo(() => rates?.BTC_USD || 0, [rates])
 
-  // Renderizar os conteúdos com base na aba ativa
-  const renderTabContent = () => {
+  // Renderizar os conteúdos com base na aba ativa - convertido para useMemo
+  const renderedContent = useMemo(() => {
     switch (activeTab) {
       case "converter":
         return (
@@ -521,14 +522,14 @@ export default function BitcoinConverter() {
       default:
         return null;
     }
-  };
+  }, [activeTab, rates, appData, amount, selectedUnit, apiError, convertedValues]);
 
   return (
     <ResponsiveContainer>
       <div className="space-y-6">
         {/* Conteúdo baseado na aba ativa */}
         <div>
-          {renderTabContent()}
+          {renderedContent}
         </div>
       </div>
 

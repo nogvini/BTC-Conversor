@@ -6,6 +6,7 @@ import { PageTransition } from "@/components/page-transition";
 import { Loader2 } from "lucide-react";
 import { SafeNavigationBar } from "@/components/ui/safe-navigation-bar";
 import { AuthLoading } from "@/components/auth-loading";
+import { SlowConnectionDetector } from "@/components/slow-connection-detector";
 
 // Componente seguro para renderização no lado do cliente apenas
 export default function Home() {
@@ -86,6 +87,7 @@ export default function Home() {
       
       <Toaster />
       <AuthLoading />
+      <SlowConnectionDetector />
     </main>
   );
 }
