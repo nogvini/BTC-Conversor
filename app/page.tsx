@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { PageTransition } from "@/components/page-transition";
 import { Loader2 } from "lucide-react";
-import { NavigationBar } from "@/components/ui/navigation-bar";
+import { SafeNavigationBar } from "@/components/ui/safe-navigation-bar";
+import { AuthLoading } from "@/components/auth-loading";
 
 // Componente seguro para renderização no lado do cliente apenas
 export default function Home() {
@@ -66,7 +67,7 @@ export default function Home() {
           <div className="animate-pulse h-4 w-24 bg-purple-500/20 rounded"></div>
         </div>
       }>
-        <NavigationBar onRefresh={handleRefresh} loading={isRefreshing} />
+        <SafeNavigationBar onRefresh={handleRefresh} loading={isRefreshing} />
       </Suspense>
       
       <div className="p-4 pt-16 md:pt-20 pb-8 md:pb-12">
@@ -84,6 +85,7 @@ export default function Home() {
       </div>
       
       <Toaster />
+      <AuthLoading />
     </main>
   );
 }

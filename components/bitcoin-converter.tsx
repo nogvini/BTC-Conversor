@@ -18,7 +18,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { useActiveTab } from "@/hooks/use-active-tab"
-import { NavigationBar } from "./ui/navigation-bar"
+import { SafeNavigationBar } from "./ui/safe-navigation-bar"
 import { PageTransition } from "./page-transition"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
