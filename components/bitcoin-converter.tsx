@@ -12,6 +12,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
+import { MultiReportCalculator } from "./multi-report-calculator"
 import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
@@ -198,342 +199,288 @@ export default function BitcoinConverter() {
       }
       
       // Se a busca de preço for bem-sucedida, precisamos atualizar todo o appData
-      // mas já temos os dados de preço atualizados
-      if (appData) {
-        // Criar versão atualizada dos dados do app
-        const updatedAppData = {
-          ...appData,
-          currentPrice: priceData,
-          lastFetched: Date.now(),
-          isUsingCache: false
+      // para manter consistência com o restante da aplicação
+      try {
+        const newData = await fetchAllAppData();
+        setAppData(newData);
+        
+        const newRates: ConversionRates = {
+          BTC_USD: newData.currentPrice.usd,
+          BRL_USD: newData.currentPrice.brl / newData.currentPrice.usd,
+          lastUpdated: new Date(newData.currentPrice.timestamp),
+          isUsingFallback: newData.isUsingCache || newData.currentPrice.isUsingCache,
         };
         
-        setAppData(updatedAppData);
-      } else {
-        // Se não tivermos dados do app ainda, buscar tudo
-        const fullData = await fetchAllAppData(true)
-          .catch(err => {
-            console.warn("Erro ao buscar dados completos:", err);
-            // Em vez de falhar, retornar null e mostrar erro
-            return null;
-          });
+        setRates(newRates);
+        setApiError(newRates.isUsingFallback);
         
-        if (fullData) {
-          setAppData(fullData);
-        }
-      }
-      
-      // Extrair as taxas de conversão dos dados
-      const newRates: ConversionRates = {
-        BTC_USD: priceData.usd,
-        BRL_USD: priceData.brl / priceData.usd,
-        lastUpdated: new Date(priceData.timestamp),
-        isUsingFallback: priceData.isUsingCache,
-      };
-      
-      // Verificar se o preço mudou significativamente em relação ao anterior
-      const oldUsdPrice = rates?.BTC_USD || 0;
-      const newUsdPrice = newRates.BTC_USD;
-      const priceChangePercent = oldUsdPrice > 0 ? Math.abs((newUsdPrice - oldUsdPrice) / oldUsdPrice * 100) : 0;
-      const significantPriceChange = priceChangePercent > 0.1; // Mudança maior que 0.1%
-      
-      // Atualizar as taxas na interface
-      setRates(newRates);
-      
-      // Status de erro/sucesso e notificações
-      if (priceData.isUsingCache) {
-        setApiError(true);
-        // Notificação simplificada
+        // Armazenar o timestamp da última atualização
+        lastUpdateTimeRef.current = Date.now();
+        
         toast({
-          title: "Dados em cache",
-          description: "Alguns valores podem não estar atualizados",
-          variant: "warning",
-          duration: 3000,
+          title: "Cotações atualizadas",
+          description: `Taxas atualizadas com sucesso: BTC = $${newRates.BTC_USD.toLocaleString()}`,
         });
-      } else {
-        setApiError(false);
-        
-        // Mostrar uma mensagem diferente dependendo da taxa USD/BRL, destacando mudanças
-        const oldRate = rates?.BRL_USD || 0;
-        const newRate = newRates.BRL_USD;
-        let rateChangeMsg = "";
-        
-        if (oldRate > 0 && Math.abs(newRate - oldRate) > 0.01) {
-          const isRateUp = newRate > oldRate;
-          const change = ((newRate - oldRate) / oldRate * 100).toFixed(2);
-          rateChangeMsg = ` • USD/BRL ${isRateUp ? '↑' : '↓'} ${change}%`;
-        }
-        
-        // Mostrar notificação apenas se o preço mudou significativamente ou se é a primeira carga
-        if (significantPriceChange || oldUsdPrice === 0) {
-          toast({
-            title: "Preços atualizados",
-            description: `1 BTC = ${formatCurrency(priceData.usd, "$")} USD${rateChangeMsg}`,
-            variant: "success",
-            duration: 3000
-          });
-        }
+      } catch (error) {
+        console.error("Erro ao buscar dados completos após atualização de preço:", error);
+        setApiError(true);
       }
-    } catch (error) {
-      console.error("Erro ao atualizar dados:", error);
-      setApiError(true);
-      
-      toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível obter cotações atualizadas. Usando dados em cache.",
-        variant: "destructive",
-      });
     } finally {
-      // Independente do resultado, resetar o estado de loading e a flag de atualização
+      // Resetar flag de atualização e loading
       isUpdatingRef.current = false;
       setLoading(false);
     }
-  }, [rates, appData]) // Dependências específicas
+  }, []);
 
-  // Carregar os dados no mount e configurar refresh periódico
+  // Buscar dados quando montar o componente
   useEffect(() => {
-    // Registrar tempo inicial
-    lastUpdateTimeRef.current = Date.now();
     fetchData()
+  }, [fetchData])
 
-    // Refresh rates every 5 minutes
-    const interval = setInterval(() => {
-      // Registrar timestamp da atualização automática
-      lastUpdateTimeRef.current = Date.now();
-      updateCurrentPrice();
-    }, 5 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [fetchData, updateCurrentPrice])
-
-  // Função de atualização que pode ser chamada externamente - convertida para useCallback
-  const handleRefresh = useCallback(() => {
-    updateCurrentPrice();
-  }, [updateCurrentPrice])
-  
-  // Função de conversão otimizada com useMemo
-  const convertValue = useCallback((value: number, from: CurrencyUnit, to: CurrencyUnit): number => {
-    if (!rates) return 0
-
-    // First convert to BTC
-    let btcValue = 0
-
-    switch (from) {
-      case "BTC":
-        btcValue = value
-        break
-      case "SATS":
-        btcValue = value / 100000000
-        break
-      case "USD":
-        btcValue = value / rates.BTC_USD
-        break
-      case "BRL":
-        btcValue = value / (rates.BTC_USD * rates.BRL_USD)
-        break
-    }
-
-    // Then convert from BTC to target currency
-    switch (to) {
-      case "BTC":
-        return btcValue
-      case "SATS":
-        return btcValue * 100000000
-      case "USD":
-        return btcValue * rates.BTC_USD
-      case "BRL":
-        return btcValue * rates.BTC_USD * rates.BRL_USD
-    }
-  }, [rates])
-
-  // Otimizar o cálculo dos valores convertidos com useMemo para evitar recálculos desnecessários
+  // Memoize os valores convertidos para melhorar performance
   const convertedValues = useMemo(() => {
-    if (!amount || isNaN(Number.parseFloat(amount))) {
+    if (!rates || !amount || isNaN(parseFloat(amount))) {
       return {
-        BTC: "0",
-        SATS: "0",
-        USD: "0",
-        BRL: "0",
+        btc: 0,
+        sats: 0,
+        usd: 0,
+        brl: 0
       }
     }
 
-    const numericAmount = Number.parseFloat(amount)
-
+    let btcValue = 0
+    
+    // Converter para BTC conforme unidade selecionada
+    if (selectedUnit === "BTC") {
+      btcValue = parseFloat(amount)
+    } else if (selectedUnit === "SATS") {
+      btcValue = parseFloat(amount) / 100000000
+    } else if (selectedUnit === "USD") {
+      btcValue = parseFloat(amount) / rates.BTC_USD
+    } else if (selectedUnit === "BRL") {
+      btcValue = parseFloat(amount) / rates.BTC_USD / rates.BRL_USD
+    }
+    
     return {
-      BTC: convertValue(numericAmount, selectedUnit, "BTC").toFixed(8),
-      SATS: convertValue(numericAmount, selectedUnit, "SATS").toFixed(0),
-      USD: convertValue(numericAmount, selectedUnit, "USD").toFixed(2),
-      BRL: convertValue(numericAmount, selectedUnit, "BRL").toFixed(2),
+      btc: btcValue,
+      sats: btcValue * 100000000,
+      usd: btcValue * rates.BTC_USD,
+      brl: btcValue * rates.BTC_USD * rates.BRL_USD
     }
-  }, [amount, selectedUnit, convertValue])
+  }, [amount, selectedUnit, rates])
 
-  const currentUsdPrice = useMemo(() => rates?.BTC_USD || 0, [rates])
+  // Determinar se o preço precisa ser atualizado
+  const shouldUpdate = useMemo(() => {
+    // Se ainda não temos dados, sempre atualizar
+    if (!rates) return true
+    
+    const now = Date.now()
+    const lastUpdate = lastUpdateTimeRef.current || 0
+    // Atualizar a cada 5 minutos (300000ms)
+    return now - lastUpdate > 300000 || rates.isUsingFallback
+  }, [rates])
 
-  // Renderizar os conteúdos com base na aba ativa - convertido para useMemo
-  const renderedContent = useMemo(() => {
-    switch (activeTab) {
-      case "converter":
-        return (
-          <PageTransition>
-            <Card className="panel">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl">Conversor Bitcoin</CardTitle>
-                <CardDescription>
-                  Converta entre Bitcoin, Satoshis, USD e BRL com facilidade.
-                </CardDescription>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Formulário de Conversão */}
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="amount">Valor</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="Digite o valor..."
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="text-lg bg-black/30 border-[hsl(var(--panel-border))]"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Unidade/Moeda</Label>
-                    <RadioGroup
-                      value={selectedUnit}
-                      onValueChange={(v: string) => setSelectedUnit(v as CurrencyUnit)}
-                      className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-2"
-                    >
-                      <div>
-                        <RadioGroupItem value="BTC" id="BTC" className="peer sr-only" />
-                        <Label
-                          htmlFor="BTC"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <Bitcoin className="mb-1" />
-                          BTC
-                        </Label>
-                      </div>
-                      
-                      <div>
-                        <RadioGroupItem value="SATS" id="SATS" className="peer sr-only" />
-                        <Label
-                          htmlFor="SATS"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <Bitcoin className="mb-1" />
-                          SATS
-                        </Label>
-                      </div>
-                      
-                      <div>
-                        <RadioGroupItem value="USD" id="USD" className="peer sr-only" />
-                        <Label
-                          htmlFor="USD"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <DollarSign className="mb-1" />
-                          USD
-                        </Label>
-                      </div>
-                      
-                      <div>
-                        <RadioGroupItem value="BRL" id="BRL" className="peer sr-only" />
-                        <Label
-                          htmlFor="BRL"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-black/30 p-3 h-[4.5rem] hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <span className="mb-1 font-bold">R$</span>
-                          BRL
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                </div>
-                
-                {/* Resultados da Conversão */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-                  <div className="data-display flex justify-between items-center">
-                    <span className="font-medium">Bitcoin:</span>
-                    <span className="font-bold text-yellow-500">₿ {formatBtc(convertedValues.BTC)} </span>
-                  </div>
-                  <div className="data-display flex justify-between items-center">
-                    <span className="font-medium">Satoshis:</span>
-                    <span className="font-bold text-yellow-500">丰 {parseInt(convertedValues.SATS).toLocaleString()}</span>
-                  </div>
-                  <div className="data-display flex justify-between items-center">
-                    <span className="font-medium">Dólares:</span>
-                    <span className="font-bold text-green-500">$ {formatCurrency(convertedValues.USD)}</span>
-                  </div>
-                  <div className="data-display flex justify-between items-center">
-                    <span className="font-medium">Reais:</span>
-                    <span className="font-bold text-green-500">R$ {formatCurrency(convertedValues.BRL)}</span>
-                  </div>
-                </div>
-                
-                {apiError && (
-                  <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300 rounded-lg p-3 flex items-start">
-                    <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">
-                      Atenção: Usando dados em cache que podem não refletir os valores atuais de mercado.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-              
-              <CardFooter>
-                <p className="text-sm text-muted-foreground">
-                  {rates && (
-                    <>
-                      Atualizado em {rates.lastUpdated.toLocaleString()}
-                      <span className="hidden sm:inline"> • </span>
-                      <span className="block sm:inline sm:ml-2 font-medium">1 BTC = ${formatCurrency(rates.BTC_USD)}</span>
-                      <span className="hidden sm:inline"> • </span>
-                      <span className="block sm:inline sm:ml-0 font-medium">1 USD = R${formatCurrency(rates.BRL_USD)}</span>
-                    </>
-                  )}
-                </p>
-              </CardFooter>
-            </Card>
-          </PageTransition>
-        );
-      
-      case "chart":
-        return (
-          <PageTransition>
-            <HistoricalRatesChart historicalData={appData?.historicalData} />
-          </PageTransition>
-        );
-      
-      case "calculator":
-        return (
-          <PageTransition>
-            <ProfitCalculator 
-              btcToUsd={rates?.BTC_USD || 0} 
-              brlToUsd={rates?.BRL_USD || 0} 
-              appData={appData?.currentPrice && {
-                currentPrice: appData.currentPrice,
-                isUsingCache: appData.isUsingCache,
-              }}
-            />
-          </PageTransition>
-        );
-      
-      default:
-        return null;
+  // Função para atualizar manualmente as taxas
+  const handleRefresh = () => {
+    // Não permitir atualizações em sequência muito rápidas
+    const now = Date.now()
+    const lastUpdate = lastUpdateTimeRef.current
+    
+    if (now - lastUpdate < 10000) { // 10 segundos
+      toast({
+        title: "Muitas requisições",
+        description: "Aguarde alguns instantes antes de atualizar novamente.",
+        variant: "warning",
+      })
+      return
     }
-  }, [activeTab, rates, appData, amount, selectedUnit, apiError, convertedValues]);
+    
+    updateCurrentPrice()
+  }
 
+  useEffect(() => {
+    // Verificar se precisamos atualizar o preço automaticamente
+    if (shouldUpdate) {
+      updateCurrentPrice()
+    }
+  }, [shouldUpdate, updateCurrentPrice])
+ 
   return (
     <ResponsiveContainer>
-      <div className="space-y-6">
-        {/* Conteúdo baseado na aba ativa */}
-        <div>
-          {renderedContent}
-        </div>
-      </div>
-
-      <Toaster />
+      <Tabs 
+        value={activeTab} 
+        onValueChange={setActiveTab}
+        className="mb-8"
+      >
+        <TabsList className="grid grid-cols-3 md:w-[400px] mx-auto mb-6">
+          <TabsTrigger value="converter">Conversor</TabsTrigger>
+          <TabsTrigger value="calculator">Calculadora</TabsTrigger>
+          <TabsTrigger value="chart">Gráfico</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="converter" className="space-y-4">
+          <Card className="border-purple-700/50">
+            <CardHeader>
+              <CardTitle>Conversor de Bitcoin</CardTitle>
+              <CardDescription>
+                Converta entre Bitcoin, Satoshis e moedas fiduciárias
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {apiError && (
+                <div className="bg-yellow-900/20 border border-yellow-900/40 rounded-md px-4 py-3 text-sm flex items-start">
+                  <AlertTriangle className="text-yellow-500 h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-yellow-500">Aviso de dados</p>
+                    <p className="text-gray-300 mt-1">
+                      Usando taxas de conversão em cache. Os valores podem não refletir o mercado atual.
+                    </p>
+                    <button
+                      onClick={handleRefresh}
+                      className="text-yellow-400 hover:text-yellow-300 underline mt-1"
+                    >
+                      Tentar atualizar
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Valor</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    placeholder="Digite um valor"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="bg-gray-800/60"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Unidade</Label>
+                  <RadioGroup
+                    value={selectedUnit}
+                    onValueChange={(value) => setSelectedUnit(value as CurrencyUnit)}
+                    className="grid grid-cols-2 gap-4"
+                  >
+                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
+                      <RadioGroupItem value="BTC" id="unit-btc" />
+                      <Label htmlFor="unit-btc" className="flex items-center">
+                        <Bitcoin className="h-4 w-4 mr-2 text-purple-400" />
+                        Bitcoin
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
+                      <RadioGroupItem value="SATS" id="unit-sats" />
+                      <Label htmlFor="unit-sats">Satoshis</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
+                      <RadioGroupItem value="USD" id="unit-usd" />
+                      <Label htmlFor="unit-usd" className="flex items-center">
+                        <DollarSign className="h-4 w-4 mr-2 text-green-400" />
+                        Dólares
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
+                      <RadioGroupItem value="BRL" id="unit-brl" />
+                      <Label htmlFor="unit-brl">Reais</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <div className="w-full grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="bg-black/40 rounded-md p-4">
+                  <div className="text-sm text-gray-400 mb-1">Bitcoin</div>
+                  {loading ? (
+                    <Skeleton className="h-6 w-full bg-gray-700/30" />
+                  ) : (
+                    <div className="text-purple-400 font-medium text-lg">
+                      {formatBtc(convertedValues.btc)} BTC
+                    </div>
+                  )}
+                </div>
+                <div className="bg-black/40 rounded-md p-4">
+                  <div className="text-sm text-gray-400 mb-1">Satoshis</div>
+                  {loading ? (
+                    <Skeleton className="h-6 w-full bg-gray-700/30" />
+                  ) : (
+                    <div className="text-purple-400 font-medium text-lg">
+                      {Math.floor(convertedValues.sats).toLocaleString()} SATS
+                    </div>
+                  )}
+                </div>
+                <div className="bg-black/40 rounded-md p-4">
+                  <div className="text-sm text-gray-400 mb-1">Dólares</div>
+                  {loading ? (
+                    <Skeleton className="h-6 w-full bg-gray-700/30" />
+                  ) : (
+                    <div className="text-green-400 font-medium text-lg">
+                      {formatCurrency(convertedValues.usd, "$")}
+                    </div>
+                  )}
+                </div>
+                <div className="bg-black/40 rounded-md p-4">
+                  <div className="text-sm text-gray-400 mb-1">Reais</div>
+                  {loading ? (
+                    <Skeleton className="h-6 w-full bg-gray-700/30" />
+                  ) : (
+                    <div className="text-green-400 font-medium text-lg">
+                      {formatCurrency(convertedValues.brl, "R$")}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {rates && (
+                <div className="w-full text-center">
+                  <p className="text-xs text-gray-400">
+                    Taxa atual: 1 BTC = ${rates.BTC_USD.toLocaleString()} = R${(rates.BTC_USD * rates.BRL_USD).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    <button 
+                      onClick={handleRefresh}
+                      disabled={loading}
+                      className={cn(
+                        "ml-2 underline text-xs",
+                        loading ? "text-gray-500" : "text-purple-400 hover:text-purple-300"
+                      )}
+                    >
+                      {loading ? "Atualizando..." : "Atualizar"}
+                    </button>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Última atualização: {rates.lastUpdated.toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="calculator" className="space-y-4">
+          {appData && rates ? (
+            <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
+              <MultiReportCalculator
+                btcToUsd={rates.BTC_USD}
+                brlToUsd={rates.BRL_USD}
+                appData={appData}
+              />
+            </Suspense>
+          ) : (
+            <div className="flex items-center justify-center min-h-[300px]">
+              <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="chart" className="space-y-4">
+          <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
+            <HistoricalRatesChart />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </ResponsiveContainer>
-  )
+  );
 }

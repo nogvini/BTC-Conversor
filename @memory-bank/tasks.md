@@ -148,14 +148,55 @@
 
 ### Melhorias para Múltiplos Relatórios na Calculadora
 
-- [ ] Projetar estrutura de dados para múltiplos relatórios.
-- [ ] Implementar UI para seleção e gerenciamento de relatórios.
-- [ ] Adaptar o armazenamento local para suportar múltiplos relatórios.
-- [ ] Desenvolver visualizações comparativas entre relatórios.
+- [x] Projetar estrutura de dados para múltiplos relatórios.
+- [x] Implementar UI para seleção e gerenciamento de relatórios.
+- [x] Adaptar o armazenamento local para suportar múltiplos relatórios.
+- [x] Desenvolver visualizações comparativas entre relatórios.
 
-### Otimizações Gerais de Performance
+## Sprint 2: Desempenho e UX
 
-- [x] Implementar carregamento dinâmico de componentes.
-- [x] Otimizar renderizações com useMemo/useCallback.
+### Otimizações de Performance
+
 - [ ] Implementar virtualização para listas longas.
-- [x] Melhorar feedback visual para estados de carregamento. 
+- [ ] Otimizar renderização de componentes usando memo/useMemo.
+- [ ] Adicionar suspense e streaming para componentes pesados.
+- [ ] Implementar Intersection Observer para carregamento lazy.
+
+### Melhorias de UX
+
+- [ ] Adicionar animações suaves nas transições entre páginas.
+- [ ] Melhorar feedback visual em ações do usuário.
+- [ ] Implementar modo escuro/claro.
+- [ ] Adicionar atalhos de teclado para ações comuns.
+
+## Sprint 3: Funcionalidades Avançadas
+
+### Análise e Visualização
+
+- [ ] Implementar gráficos avançados de análise de portfolio.
+- [ ] Adicionar alertas de preço e notificações.
+- [ ] Desenvolver dashboard personalizado.
+- [ ] Criar relatório de performance mensal/anual.
+
+### Integração e Exportação
+
+- [ ] Implementar integração com APIs de exchanges.
+- [ ] Adicionar importação de transações de CSV de exchanges populares.
+- [ ] Implementar exportação avançada para Excel/CSV.
+- [ ] Criar sistema de backup/restauração de dados.
+
+## Sprint 4: Infraestrutura e Segurança
+
+### Backend e Sincronização
+
+- [ ] Implementar sincronização com backend.
+- [ ] Desenvolver sistema de conta/login.
+- [ ] Adicionar suporte a múltiplos dispositivos.
+- [ ] Implementar notificações push.
+
+### Segurança
+
+- [ ] Implementar criptografia de dados sensíveis.
+- [ ] Adicionar autenticação de dois fatores.
+- [ ] Implementar timeout de sessão.
+- [ ] Adicionar proteção contra ataques de força bruta. 
