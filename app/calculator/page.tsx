@@ -1,15 +1,71 @@
-import { redirect } from 'next/navigation'
-import { Suspense } from 'react'
+"use client";
 
-function Redirector() {
-  redirect('/?tab=calculator')
-  return null
-}
+import { useState, useEffect } from "react";
+import { RequireAuth } from "@/components/require-auth";
+import ProfitCalculatorWrapper from "@/components/profit-calculator-wrapper";
+import { getCurrentBitcoinPrice } from "@/lib/client-api";
+import { PageTransition } from "@/components/page-transition";
 
 export default function CalculatorPage() {
+  const [btcToUsd, setBtcToUsd] = useState(65000);
+  const [brlToUsd, setBrlToUsd] = useState(5.2);
+  const [isLoading, setIsLoading] = useState(true);
+  const [appData, setAppData] = useState<{
+    currentPrice: {
+      usd: number;
+      brl: number;
+      isUsingCache?: boolean;
+    };
+    isUsingCache: boolean;
+  } | null>(null);
+
+  // Carregar dados de mercado
+  useEffect(() => {
+    async function loadMarketData() {
+      try {
+        const priceData = await getCurrentBitcoinPrice();
+        if (priceData) {
+          setBtcToUsd(priceData.usd);
+          setBrlToUsd(priceData.brl / priceData.usd);
+          
+          setAppData({
+            currentPrice: {
+              usd: priceData.usd,
+              brl: priceData.brl,
+              isUsingCache: priceData.isUsingCache
+            },
+            isUsingCache: priceData.isUsingCache || false
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados de mercado:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadMarketData();
+  }, []);
+
   return (
-    <Suspense fallback={<div>Redirecionando...</div>}>
-      <Redirector />
-    </Suspense>
-  )
-} 
+    <RequireAuth>
+      <PageTransition>
+        <div className="container max-w-4xl py-6 px-4 md:px-6">
+          <h1 className="text-2xl md:text-3xl font-bold mb-6">Calculadora de Lucros</h1>
+          
+          {isLoading ? (
+            <div className="flex justify-center items-center h-48">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+            </div>
+          ) : (
+            <ProfitCalculatorWrapper 
+              btcToUsd={btcToUsd} 
+              brlToUsd={brlToUsd} 
+              appData={appData || undefined}
+            />
+          )}
+        </div>
+      </PageTransition>
+    </RequireAuth>
+  );
+}

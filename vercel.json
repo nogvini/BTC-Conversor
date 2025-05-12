@@ -21,5 +21,15 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_SWC_MINIFY": "false",
+    "DISABLE_SWC": "true"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_SWC_MINIFY": "false",
+      "DISABLE_SWC": "true"
+    }
+  }
 } 

@@ -14,10 +14,13 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 import {
   ChevronLeft,
-  PieChart,
+  PieChart as PieChartIcon,
   BarChart2,
   TrendingUp,
   Sliders,
@@ -54,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { useReports } from "@/hooks/use-reports";
 import { Report, ReportComparison, Investment, ProfitRecord } from "@/lib/calculator-types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import AnimatedCounter from "./animated-counter";
 
 interface ReportsComparisonProps {
   onBack: () => void;
@@ -76,6 +80,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     end: new Date(),
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("summary");
 
   const isMobile = useIsMobile();
 
@@ -274,13 +279,23 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       };
     });
     
+    // Calcular totais gerais
+    const totalInvestmentsBtc = statsData[selectedReportIds[0]]?.totalInvestments || 0;
+    const totalProfitsBtc = statsData[selectedReportIds[0]]?.totalProfits || 0;
+    const totalBalanceBtc = statsData[selectedReportIds[0]]?.finalBalance || 0;
+    const totalRoi = statsData[selectedReportIds[0]]?.roi || 0;
+    
     return {
       chartData,
       statsData,
       dateRange: {
         start: minDate,
         end: maxDate
-      }
+      },
+      totalInvestmentsBtc,
+      totalProfitsBtc,
+      totalBalanceBtc,
+      totalRoi
     };
   }, [reports, selectedReportIds, comparisonMode]);
 
@@ -352,6 +367,110 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     return null;
   };
 
+  // Preparar dados para os gráficos e tabelas
+  const comparisonDataForTabs = useMemo(() => {
+    // Calcular totais para cada relatório
+    const reportSummaries = reports.map(report => {
+      const totalInvestmentsBtc = report.investments.reduce(
+        (total, inv) => total + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount), 
+        0
+      );
+      
+      const totalProfitsBtc = report.profits.reduce((total, profit) => {
+        const btcAmount = (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+        return profit.isProfit ? total + btcAmount : total - btcAmount;
+      }, 0);
+      
+      // Calcular valores em USD e BRL
+      const totalInvestmentsUsd = totalInvestmentsBtc * btcToUsd;
+      const totalInvestmentsBrl = totalInvestmentsUsd * brlToUsd;
+      
+      const totalProfitsUsd = totalProfitsBtc * btcToUsd;
+      const totalProfitsBrl = totalProfitsUsd * brlToUsd;
+      
+      // Calcular ROI
+      const roi = totalInvestmentsBtc > 0 ? (totalProfitsBtc / totalInvestmentsBtc) * 100 : 0;
+      
+      return {
+        id: report.id,
+        name: report.name,
+        color: report.color || "#8844ee",
+        investments: {
+          btc: totalInvestmentsBtc,
+          usd: totalInvestmentsUsd,
+          brl: totalInvestmentsBrl
+        },
+        profits: {
+          btc: totalProfitsBtc,
+          usd: totalProfitsUsd,
+          brl: totalProfitsBrl
+        },
+        roi: roi,
+        balance: {
+          btc: totalInvestmentsBtc + totalProfitsBtc,
+          usd: totalInvestmentsUsd + totalProfitsUsd,
+          brl: totalInvestmentsBrl + totalProfitsBrl
+        },
+        investmentCount: report.investments.length,
+        profitCount: report.profits.length
+      };
+    });
+    
+    // Preparar dados para o gráfico de comparação
+    const barChartData = reportSummaries.map(summary => ({
+      name: summary.name,
+      investimentos: Number(summary.investments.btc.toFixed(8)),
+      lucros: Number(summary.profits.btc.toFixed(8)),
+      total: Number((summary.investments.btc + summary.profits.btc).toFixed(8)),
+      roi: Number(summary.roi.toFixed(2)),
+      color: summary.color
+    }));
+    
+    // Preparar dados para gráfico de pizza
+    const pieData = reportSummaries.map(summary => ({
+      name: summary.name,
+      value: summary.balance.btc > 0 ? summary.balance.btc : 0,
+      color: summary.color
+    }));
+    
+    return {
+      summaries: reportSummaries,
+      barChartData,
+      pieData
+    };
+  }, [reports, btcToUsd, brlToUsd]);
+  
+  const formatCryptoAmount = (amount: number): string => {
+    return amount.toFixed(8);
+  };
+  
+  const formatCurrencyAmount = (amount: number, currency: "USD" | "BRL"): string => {
+    return currency === "USD" 
+      ? `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `R$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+  
+  // Verificar se há dados suficientes para mostrar comparações
+  if (reports.length < 2) {
+    return (
+      <Card className="bg-black/30 border-purple-700/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Comparação de Relatórios</CardTitle>
+          <CardDescription>
+            Você precisa de pelo menos dois relatórios para ver comparações
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-muted-foreground">
+              Crie mais relatórios para visualizar comparações de desempenho
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -685,6 +804,234 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           </CardContent>
         </Card>
       )}
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid grid-cols-3 h-auto gap-2 bg-transparent">
+          <TabsTrigger
+            value="summary"
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+          >
+            Resumo
+          </TabsTrigger>
+          <TabsTrigger
+            value="charts"
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+          >
+            Gráficos
+          </TabsTrigger>
+          <TabsTrigger
+            value="details"
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+          >
+            Detalhes
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="summary" className="pt-2">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
+              <div className="text-xl font-bold">
+                <AnimatedCounter 
+                  value={comparisonData.totalInvestmentsBtc} 
+                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {formatCurrencyAmount(comparisonData.totalInvestmentsBtc * btcToUsd, "USD")}
+              </div>
+            </div>
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
+              <div className={`text-xl font-bold ${comparisonData.totalProfitsBtc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter 
+                  value={comparisonData.totalProfitsBtc} 
+                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {formatCurrencyAmount(comparisonData.totalProfitsBtc * btcToUsd, "USD")}
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
+              <div className="text-xl font-bold">
+                <AnimatedCounter 
+                  value={comparisonData.totalBalanceBtc} 
+                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {formatCurrencyAmount(comparisonData.totalBalanceBtc * btcToUsd, "USD")}
+              </div>
+            </div>
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
+              <div className={`text-xl font-bold ${comparisonData.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter 
+                  value={comparisonData.totalRoi} 
+                  formatFn={(val) => `${val.toFixed(2)}%`}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Retorno sobre investimento
+              </div>
+            </div>
+          </div>
+          
+          <ScrollArea className="h-[180px] mt-4 rounded-lg border border-purple-800/30">
+            <Table className="min-w-[640px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Relatório</TableHead>
+                  <TableHead>Investimentos</TableHead>
+                  <TableHead>Lucros</TableHead>
+                  <TableHead>ROI</TableHead>
+                  <TableHead>Saldo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comparisonDataForTabs.summaries.map(summary => (
+                  <TableRow key={summary.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <div 
+                          className="w-3 h-3 rounded-full mr-2" 
+                          style={{ backgroundColor: summary.color }}
+                        ></div>
+                        {summary.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {formatCryptoAmount(summary.investments.btc)} BTC
+                    </TableCell>
+                    <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {formatCryptoAmount(summary.profits.btc)} BTC
+                    </TableCell>
+                    <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {summary.roi.toFixed(2)}%
+                    </TableCell>
+                    <TableCell>
+                      {formatCryptoAmount(summary.balance.btc)} BTC
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </TabsContent>
+        
+        <TabsContent value="charts" className="pt-2">
+          <div className="space-y-6">
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <h4 className="text-sm font-medium mb-3">Comparação de Investimentos e Lucros</h4>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonDataForTabs.barChartData}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                    />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip 
+                      formatter={(value, name) => {
+                        const formattedValue = `${Number(value).toFixed(8)} BTC`;
+                        const formattedName = 
+                          name === 'investimentos' ? 'Investimentos' : 
+                          name === 'lucros' ? 'Lucros' : 
+                          name === 'total' ? 'Saldo Total' : 
+                          name === 'roi' ? 'ROI' : name;
+                        return [formattedValue, formattedName];
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="investimentos" name="Investimentos" fill="#8884d8" />
+                    <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
+              <h4 className="text-sm font-medium mb-3">Distribuição de Saldo</h4>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={comparisonDataForTabs.pieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      nameKey="name"
+                      label={(entry) => entry.name}
+                      labelLine={true}
+                    >
+                      {comparisonDataForTabs.pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => [`${value.toFixed(8)} BTC`, 'Saldo']}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="details" className="pt-2">
+          <ScrollArea className="h-[400px] rounded-lg border border-purple-800/30">
+            <Table className="min-w-[700px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Relatório</TableHead>
+                  <TableHead>Investimentos (BTC)</TableHead>
+                  <TableHead>Lucros (BTC)</TableHead>
+                  <TableHead>ROI</TableHead>
+                  <TableHead>Saldo (BTC)</TableHead>
+                  <TableHead>Saldo (USD)</TableHead>
+                  <TableHead># Aportes</TableHead>
+                  <TableHead># Lucros</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comparisonDataForTabs.summaries.map(summary => (
+                  <TableRow key={summary.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <div 
+                          className="w-3 h-3 rounded-full mr-2" 
+                          style={{ backgroundColor: summary.color }}
+                        ></div>
+                        {summary.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
+                    <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {formatCryptoAmount(summary.profits.btc)}
+                    </TableCell>
+                    <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      {summary.roi.toFixed(2)}%
+                    </TableCell>
+                    <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
+                    <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                    <TableCell>{summary.investmentCount}</TableCell>
+                    <TableCell>{summary.profitCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 

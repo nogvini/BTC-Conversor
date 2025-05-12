@@ -16,6 +16,28 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
     },
+    serverExternalPackages: [
+      'recharts',
+      '@react-pdf/renderer',
+      'zlib',
+      'crypto-browserify',
+      'path-browserify',
+      'stream-browserify',
+      'recharts-scale',
+      'd3-color',
+      'd3-interpolate',
+      'd3-shape',
+      'd3-path',
+      'd3-scale',
+      'd3-time',
+      'd3-array',
+      'd3-format',
+      'd3-time-format',
+      'resize-observer-polyfill',
+      'decimal.js-light',
+      'eventemitter3',
+      'react-smooth'
+    ]
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
@@ -44,7 +66,23 @@ const nextConfig = {
       }
     }
     
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      zlib: require.resolve('browserify-zlib'),
+      crypto: require.resolve('crypto-browserify'),
+      path: require.resolve('path-browserify'),
+      stream: require.resolve('stream-browserify'),
+    };
+
     return config;
+  },
+  transpilePackages: [
+    '@react-pdf/renderer',
+    'ahooks'
+  ],
+  env: {
+    NEXT_PUBLIC_SWC_MINIFY: 'false',
+    DISABLE_SWC: 'true'
   },
 }
 

@@ -21,18 +21,18 @@
   - [ ] Configurar persistência de sessão por período estendido.
 
 ### A2. Calculadora de Lucros - Sistema de Múltiplos Relatórios
-- [ ] **A2.1.** Implementar interface para criação e seleção de relatórios.
-  - [ ] Design do modal de criação de novo relatório.
-  - [ ] Implementar dropdown/seletor de relatório ativo.
-- [ ] **A2.2.** Desenvolver sistema de armazenamento para múltiplos relatórios.
-  - [ ] Adaptar estrutura de dados no localStorage.
-  - [ ] Adicionar suporte para sincronização na nuvem (opcional para usuários logados).
-- [ ] **A2.3.** Criar visualização comparativa entre relatórios.
-  - [ ] Implementar gráficos comparativos de performance.
-  - [ ] Adicionar tabela de resumo consolidando dados de múltiplos relatórios.
-- [ ] **A2.4.** Adaptar funcionalidades de importação/exportação.
-  - [ ] Modificar sistema para exportar relatórios selecionados ou todos.
-  - [ ] Garantir que importação respeite a estrutura de múltiplos relatórios.
+- [x] **A2.1.** Implementar interface para criação e seleção de relatórios.
+  - [x] Design do modal de criação de novo relatório.
+  - [x] Implementar dropdown/seletor de relatório ativo.
+- [x] **A2.2.** Desenvolver sistema de armazenamento para múltiplos relatórios.
+  - [x] Adaptar estrutura de dados no localStorage.
+  - [x] Adicionar suporte para sincronização na nuvem (opcional para usuários logados).
+- [x] **A2.3.** Criar visualização comparativa entre relatórios.
+  - [x] Implementar gráficos comparativos de performance.
+  - [x] Adicionar tabela de resumo consolidando dados de múltiplos relatórios.
+- [x] **A2.4.** Adaptar funcionalidades de importação/exportação.
+  - [x] Modificar sistema para exportar relatórios selecionados ou todos.
+  - [x] Garantir que importação respeite a estrutura de múltiplos relatórios.
 
 ### A3. Otimizações de Performance
 - [ ] **A3.1.** Reduzir tempo de carregamento inicial.
@@ -199,4 +199,80 @@
 - [ ] Implementar criptografia de dados sensíveis.
 - [ ] Adicionar autenticação de dois fatores.
 - [ ] Implementar timeout de sessão.
-- [ ] Adicionar proteção contra ataques de força bruta. 
+- [ ] Adicionar proteção contra ataques de força bruta.
+
+## Sprint Atual: Sprint 2 - Melhorias de Autenticação e Novos Recursos
+
+### A. Calculadora de Lucros - Melhorias
+- [x] **A1**: Implementar botões para remoção em massa de aportes e lucros/perdas
+- [x] **A2**: Criar sistema de múltiplos relatórios na calculadora
+  - [x] Interface para seleção de relatórios
+  - [x] CRUD de relatórios (criar, ler, atualizar, excluir)
+  - [x] Armazenamento local de múltiplos relatórios
+  - [x] Migração de dados legados
+  - [x] Comparação visual entre relatórios
+- [ ] **A3**: Adicionar funcionalidade de compartilhamento de relatórios
+
+### B. Sistema de Autenticação - Otimizações
+- [ ] **B1**: Melhorar desempenho do processo de login
+  - [ ] Identificar causa do delay no processo de login
+  - [ ] Implementar otimizações para reduzir o tempo de espera
+  - [ ] Aprimorar feedback visual durante o processo
+- [ ] **B2**: Solucionar problema de carregamento infinito na home
+  - [ ] Identificar causa raiz do problema
+  - [ ] Implementar correção mantendo a consistência do sistema
+- [ ] **B3**: Implementar opção "Lembrar-me" no login
+
+### C. Melhorias de UI/UX
+- [ ] **C1**: Aprimorar a experiência mobile
+  - [ ] Otimizar layouts para dispositivos móveis
+  - [ ] Melhorar interações touch
+  - [ ] Testar em diferentes tamanhos de tela
+- [ ] **C2**: Implementar transições e animações
+  - [ ] Adicionar animações sutis nas transições entre páginas
+  - [ ] Animar componentes interativos (botões, menus)
+  - [ ] Garantir que as animações não prejudiquem a performance
+
+### D. Infraestrutura e CI/CD
+- [x] **D1**: Resolver problemas de build no Vercel
+  - [x] Corrigir incompatibilidade do Recharts com SSR
+  - [x] Configurar corretamente o arquivo vercel.json
+  - [x] Assegurar que o build seja bem-sucedido em todos os ambientes
+- [ ] **D2**: Implementar pipeline de CI/CD
+  - [ ] Configurar testes automatizados
+  - [ ] Implementar verificações de qualidade de código
+  - [ ] Automatizar o processo de deploy
+
+### E. Documentação
+- [ ] **E1**: Criar documentação para desenvolvedores
+  - [ ] Documentar estrutura do projeto
+  - [ ] Explicar fluxos de trabalho e padrões adotados
+  - [ ] Criar guia de contribuição
+- [ ] **E2**: Elaborar manual do usuário
+  - [ ] Documentar funcionalidades principais
+  - [ ] Criar tutoriais passo a passo
+  - [ ] Incluir seção de perguntas frequentes
+
+## Tarefas Concluídas
+
+### Sprint 1 - Funcionalidades Base
+- [x] Implementar estrutura base do projeto com Next.js e TypeScript
+- [x] Configurar Tailwind CSS e componentes UI
+- [x] Implementar sistema de autenticação com Supabase
+- [x] Criar conversor de moedas (BTC, SATS, USD, BRL)
+- [x] Desenvolver visualização de gráficos de preços
+- [x] Implementar calculadora de lucros básica
+- [x] Adicionar funcionalidades de importação/exportação
+- [x] Corrigir problema de duplicação de toasts
+- [x] Implementar padrão Singleton para o cliente Supabase
+- [x] Adicionar sistema de comunicação entre abas
+
+## Backlog
+- [ ] Implementar sistema de alertas de preço
+- [ ] Criar dashboard personalizado
+- [ ] Adicionar suporte para múltiplas carteiras
+- [ ] Implementar cálculos avançados de ROI
+- [ ] Adicionar suporte para outros idiomas
+- [ ] Desenvolver modo offline
+- [ ] Implementar sistema de backup na nuvem
+- [ ] Adicionar suporte para outras criptomoedas além de Bitcoin 
