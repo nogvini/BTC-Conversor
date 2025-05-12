@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense, useRef, useCallback, useMemo } from "react"
-import { Bitcoin, Calendar, AlertTriangle, DollarSign, Copy, CheckCircle, RefreshCw, ArrowRightLeft, Calculator, TrendingUp } from "lucide-react"
+import { Bitcoin, Calendar, AlertTriangle, DollarSign, Copy, CheckCircle, RefreshCw, ArrowRightLeft, Calculator, TrendingUp, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -497,242 +497,292 @@ export default function BitcoinConverter() {
     }
   }, [searchParams])
 
+  // Efeito para limpar o estado "copiado" após um tempo (NÃO remover este)
+  useEffect(() => {
+    let copyTimeoutId: NodeJS.Timeout | null = null;
+    if (Object.values(copiedValues).some(v => v)) {
+      copyTimeoutId = setTimeout(() => {
+        setCopiedValues({});
+      }, 2000); // Limpar após 2 segundos
+    }
+    return () => {
+      if (copyTimeoutId) clearTimeout(copyTimeoutId);
+    };
+  }, [copiedValues]);
+
+  if (loading && !isInitialized) {
+    // Mostrar um loader simples enquanto carrega inicialmente
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
+      </div>
+    );
+  }
+
   return (
-    <PageTransition>
-      <div className="flex flex-col h-screen p-4 pb-8 md:pb-12">
-        <ResponsiveContainer className="flex flex-col flex-grow">
-          <Tabs 
-            value={activeTab} 
-            onValueChange={handleTabChange}
-            key={`tabs-container-${forceRender}`}
-            className="flex flex-col flex-grow mb-0"
-          >
-            <TabsList className="grid grid-cols-3 mb-6 flex-shrink-0">
-              <TabsTrigger value="converter" className="flex items-center gap-1">
-                <ArrowRightLeft className="h-4 w-4" />
-                <span>Conversor</span>
+    <TooltipProvider delayDuration={200}>
+      <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8">
+        {/* Container para Tabs com efeito Sticky */}
+        <div className="sticky top-16 z-40 pt-2 pb-1 bg-background/80 dark:bg-black/70 backdrop-blur-md -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 px-2 sm:px-4 md:px-6 lg:px-8 mb-3 border-b border-purple-700/30 shadow-sm">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 gap-2 bg-transparent p-0 h-auto">
+              <TabsTrigger 
+                value="converter"
+                className={cn(
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
+                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
+                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                )}
+              >
+                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                Conversor
               </TabsTrigger>
-              <TabsTrigger value="calculator" className="flex items-center gap-1">
-                <Calculator className="h-4 w-4" />
-                <span>Calculadora</span>
+              <TabsTrigger 
+                value="chart"
+                className={cn(
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
+                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
+                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                )}
+              >
+                <TrendingUp className="mr-1.5 h-4 w-4" />
+                Gráficos
               </TabsTrigger>
-              <TabsTrigger value="chart" className="flex items-center gap-1">
-                <TrendingUp className="h-4 w-4" />
-                <span>Gráfico</span>
+              <TabsTrigger 
+                value="calculator" 
+                className={cn(
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
+                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
+                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                )}
+              >
+                <Calculator className="mr-1.5 h-4 w-4" />
+                Calculadora
               </TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="converter" className="flex flex-col flex-grow overflow-y-auto mt-0">
-              <Card className="mb-6 border-2 border-purple-700/30 shadow-xl shadow-purple-900/20 flex flex-col flex-grow">
-                <CardHeader className="flex-shrink-0">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="mb-1.5">Conversor Bitcoin</CardTitle>
-                      <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                        Converta entre BTC, Satoshis, Dólares e Reais
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
-                        "p-2 sm:px-3 sm:py-1.5 sm:gap-1",
-                        loading && "text-purple-300 border-purple-500/90 bg-purple-700/20"
-                      )}
-                      onClick={handleRefresh}
-                      disabled={loading}
-                      aria-label="Atualizar Cotações"
-                    >
-                      {loading ? (
-                        <RefreshCw className="h-4 w-4 animate-spin text-purple-300" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      <span className={cn("hidden sm:inline-block", loading && "text-purple-300")}>Atualizar</span>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-grow overflow-y-auto pt-4 pb-6 px-6">
-                  {apiError && (
-                    <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
-                      <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium">Usando dados em cache</p>
-                        <p className="text-sm">
-                          Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
-                        </p>
+
+            {/* Conteúdo das Abas com PageTransition restaurado */}
+            <div className="mt-4">
+              <PageTransition>
+                <TabsContent value="converter">
+                  <Card className="bg-black/30 border-purple-700/30 shadow-xl shadow-purple-900/10">
+                    <CardHeader className="flex-shrink-0">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle className="mb-1.5">Conversor Bitcoin</CardTitle>
+                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                            Converta entre BTC, Satoshis, Dólares e Reais
+                          </CardDescription>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
+                            "p-2 sm:px-3 sm:py-1.5 sm:gap-1",
+                            loading && "text-purple-300 border-purple-500/90 bg-purple-700/20"
+                          )}
+                          onClick={handleRefresh}
+                          disabled={loading}
+                          aria-label="Atualizar Cotações"
+                        >
+                          {loading ? (
+                            <RefreshCw className="h-4 w-4 animate-spin text-purple-300" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          <span className={cn("hidden sm:inline-block", loading && "text-purple-300")}>Atualizar</span>
+                        </Button>
                       </div>
+                    </CardHeader>
+                    <CardContent className="flex-grow overflow-y-auto pt-4 pb-6 px-6">
+                      {apiError && (
+                        <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
+                          <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium">Usando dados em cache</p>
+                            <p className="text-sm">
+                              Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="amount">Valor para conversão</Label>
+                          <Input
+                            id="amount"
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="Digite um valor..."
+                            value={amount}
+                            onChange={handleAmountChange}
+                            className="text-lg border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Unidade de origem</Label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
+                                selectedUnit === "BTC"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                              )}
+                              onClick={() => handleUnitChange("BTC")}
+                            >
+                              <Bitcoin className="h-5 w-5 mb-1" /> 
+                              <span className="text-xs text-center">Bitcoin</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
+                                selectedUnit === "SATS"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                              )}
+                              onClick={() => handleUnitChange("SATS")}
+                            >
+                              <Bitcoin className="h-5 w-5 mb-1" /> 
+                              <span className="text-xs text-center">Satoshis</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
+                                selectedUnit === "USD"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                              )}
+                              onClick={() => handleUnitChange("USD")}
+                            >
+                              <DollarSign className="h-5 w-5 mb-1" /> 
+                              <span className="text-xs text-center">Dólar (USD)</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
+                                selectedUnit === "BRL"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                              )}
+                              onClick={() => handleUnitChange("BRL")}
+                            >
+                              <DollarSign className="h-5 w-5 mb-1" /> 
+                              <span className="text-xs text-center">Real (BRL)</span>
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+                          <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
+                          
+                          {loading ? (
+                            <div className="space-y-4">
+                              <Skeleton className="h-10 w-full" />
+                              <Skeleton className="h-10 w-full" />
+                              <Skeleton className="h-10 w-full" />
+                              <Skeleton className="h-10 w-full" />
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <ValueDisplay 
+                                value={convertedValues.btc} 
+                                unit="BTC"
+                                label="Bitcoin (BTC)"
+                                icon={<Bitcoin className="h-4 w-4" />}
+                              />
+                              <ValueDisplay 
+                                value={convertedValues.sats} 
+                                unit="SATS"
+                                label="Satoshis (SATS)"
+                                icon={<Bitcoin className="h-4 w-4" />}
+                              />
+                              <ValueDisplay 
+                                value={convertedValues.usd} 
+                                unit="USD"
+                                label="Dólar Americano (USD)"
+                                icon={<DollarSign className="h-4 w-4" />}
+                              />
+                              <ValueDisplay 
+                                value={convertedValues.brl} 
+                                unit="BRL"
+                                label="Real Brasileiro (BRL)"
+                                icon={<DollarSign className="h-4 w-4" />}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="text-sm text-muted-foreground flex flex-col md:flex-row justify-between md:items-center gap-2 md:gap-4 pt-4 flex-shrink-0">
+                      <div className="flex items-center text-purple-500 dark:text-purple-400 self-start md:self-center">
+                        <Calendar className="h-4 w-4 mr-1.5 flex-shrink-0" />
+                        <span>
+                          {rates ? (
+                            `Cotações atualizadas ${getTimeAgo(rates.lastUpdated)}`
+                          ) : (
+                            "Carregando cotações..."
+                          )}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-col items-start md:items-end gap-1 self-start md:self-center">
+                        {rates ? (
+                          <>
+                            <div>
+                              1 BTC = <span className="font-semibold text-amber-500 dark:text-amber-400">${rates.BTC_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div>
+                              1 USD = <span className="font-semibold text-green-500 dark:text-green-400">R$ {rates.BRL_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <span>Calculando cotações...</span>
+                        )}
+                      </div>
+                    </CardFooter>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="calculator">
+                  {appData && rates ? (
+                    <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
+                      <MultiReportCalculator
+                        btcToUsd={rates.BTC_USD} 
+                        brlToUsd={rates.BRL_USD} 
+                        appData={appData}
+                      />
+                    </Suspense>
+                  ) : (
+                    <div className="flex items-center justify-center min-h-[300px]">
+                      <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
                     </div>
                   )}
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Valor para conversão</Label>
-                      <Input
-                        id="amount"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="Digite um valor..."
-                        value={amount}
-                        onChange={handleAmountChange}
-                        className="text-lg border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Unidade de origem</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                            selectedUnit === "BTC"
-                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
-                          )}
-                          onClick={() => handleUnitChange("BTC")}
-                        >
-                          <Bitcoin className="h-5 w-5 mb-1" /> 
-                          <span className="text-xs text-center">Bitcoin</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                            selectedUnit === "SATS"
-                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
-                          )}
-                          onClick={() => handleUnitChange("SATS")}
-                        >
-                          <Bitcoin className="h-5 w-5 mb-1" /> 
-                          <span className="text-xs text-center">Satoshis</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                            selectedUnit === "USD"
-                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
-                          )}
-                          onClick={() => handleUnitChange("USD")}
-                        >
-                          <DollarSign className="h-5 w-5 mb-1" /> 
-                          <span className="text-xs text-center">Dólar (USD)</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                            selectedUnit === "BRL"
-                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
-                          )}
-                          onClick={() => handleUnitChange("BRL")}
-                        >
-                          <DollarSign className="h-5 w-5 mb-1" /> 
-                          <span className="text-xs text-center">Real (BRL)</span>
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-                      <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
-                      
-                      {loading ? (
-                        <div className="space-y-4">
-                          <Skeleton className="h-10 w-full" />
-                          <Skeleton className="h-10 w-full" />
-                          <Skeleton className="h-10 w-full" />
-                          <Skeleton className="h-10 w-full" />
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <ValueDisplay 
-                            value={convertedValues.btc} 
-                            unit="BTC"
-                            label="Bitcoin (BTC)"
-                            icon={<Bitcoin className="h-4 w-4" />}
-                          />
-                          <ValueDisplay 
-                            value={convertedValues.sats} 
-                            unit="SATS"
-                            label="Satoshis (SATS)"
-                            icon={<Bitcoin className="h-4 w-4" />}
-                          />
-                          <ValueDisplay 
-                            value={convertedValues.usd} 
-                            unit="USD"
-                            label="Dólar Americano (USD)"
-                            icon={<DollarSign className="h-4 w-4" />}
-                          />
-                          <ValueDisplay 
-                            value={convertedValues.brl} 
-                            unit="BRL"
-                            label="Real Brasileiro (BRL)"
-                            icon={<DollarSign className="h-4 w-4" />}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="text-sm text-muted-foreground flex flex-col md:flex-row justify-between md:items-center gap-2 md:gap-4 pt-4 flex-shrink-0">
-                  <div className="flex items-center text-purple-500 dark:text-purple-400 self-start md:self-center">
-                    <Calendar className="h-4 w-4 mr-1.5 flex-shrink-0" />
-                    <span>
-                      {rates ? (
-                        `Cotações atualizadas ${getTimeAgo(rates.lastUpdated)}`
-                      ) : (
-                        "Carregando cotações..."
-                      )}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-col items-start md:items-end gap-1 self-start md:self-center">
-                    {rates ? (
-                      <>
-                        <div>
-                          1 BTC = <span className="font-semibold text-amber-500 dark:text-amber-400">${rates.BTC_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div>
-                          1 USD = <span className="font-semibold text-green-500 dark:text-green-400">R$ {rates.BRL_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <span>Calculando cotações...</span>
-                    )}
-                  </div>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="calculator" className="flex flex-col flex-grow overflow-y-auto mt-0">
-              {appData && rates ? (
-                <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
-                  <MultiReportCalculator
-                    btcToUsd={rates.BTC_USD} 
-                    brlToUsd={rates.BRL_USD} 
-                    appData={appData}
-                  />
-                </Suspense>
-              ) : (
-                <div className="flex items-center justify-center min-h-[300px]">
-                  <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
-                </div>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="chart" className="flex flex-col flex-grow overflow-y-auto mt-0">
-              <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
-                <HistoricalRatesChart />
-              </Suspense>
-            </TabsContent>
+                </TabsContent>
+                
+                <TabsContent value="chart">
+                  <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
+                    <HistoricalRatesChart />
+                  </Suspense>
+                </TabsContent>
+              </PageTransition>
+            </div>
           </Tabs>
-        </ResponsiveContainer>
+        </div>
       </div>
-    </PageTransition>
+    </TooltipProvider>
   )
 }

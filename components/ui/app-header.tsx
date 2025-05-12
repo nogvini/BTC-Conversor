@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, LogIn, AlertCircle } from "lucide-react"
 import { ProfileMenu } from "@/components/profile-menu"
+import { MobileNavigation } from "@/components/mobile-navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -16,6 +17,7 @@ export function AppHeader() {
   const { user, isLoading: authLoading, error: authError } = session
   const { toast } = useToast()
   const [connectionAttempts, setConnectionAttempts] = useState(0)
+  const [activeMobileTab, setActiveMobileTab] = useState("converter")
 
   // Efeito para tentar reconectar automaticamente em caso de erro
   useEffect(() => {
@@ -55,13 +57,20 @@ export function AppHeader() {
   }
 
   const navLinkClasses = 
-    "px-3 py-2 text-sm font-medium text-gray-300 hover:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-black dark:focus:ring-offset-black rounded-md transition-colors duration-150 ease-in-out";
+    "px-3 py-2 text-sm font-medium text-gray-300 hover:text-purple-300 hover:bg-purple-900/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-black dark:focus:ring-offset-black rounded-md transition-colors duration-150 ease-in-out";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-purple-700/30 bg-background/90 backdrop-blur-lg dark:bg-black/80">
+    <header className="sticky top-0 z-50 w-full border-b border-purple-700/30 bg-gradient-to-b from-purple-950/90 to-black/90 backdrop-blur-lg">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        {/* Nome da Aplicação */}
+        {/* Botão de Menu Móvel e Nome da Aplicação */}
         <div className="flex items-center">
+          {/* Mobile Navigation Trigger - Adicionado aqui, visível apenas em SM e abaixo */}
+          <div className="md:hidden mr-2">
+            <MobileNavigation 
+              activeTab={activeMobileTab} 
+              onTabChange={setActiveMobileTab} 
+            />
+          </div>
           <Link href="/" className="flex items-center">
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-300 to-purple-400">
               RaidToolkit

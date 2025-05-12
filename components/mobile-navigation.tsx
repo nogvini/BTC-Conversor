@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle, Settings } from "lucide-react"
+import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle, Settings, Home, Info, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
@@ -62,6 +62,31 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
           
           <nav className="flex-1 p-4">
             <ul className="space-y-2">
+              <NavItem 
+                icon={<Home className="h-5 w-5" />}
+                label="Home"
+                active={router.pathname === "/"}
+                onClick={() => navigateToPage("/")}
+              />
+              <NavItem 
+                icon={<Info className="h-5 w-5" />}
+                label="Sobre Nós"
+                active={router.pathname === "/about"}
+                onClick={() => navigateToPage("/about")}
+              />
+              <NavItem 
+                icon={<Users className="h-5 w-5" />}
+                label="Parceiros"
+                active={router.pathname === "/partners"}
+                onClick={() => navigateToPage("/partners")}
+              />
+
+              <div className="pt-3 pb-2 mt-3 border-t border-purple-700/30">
+                <span className="text-xs text-purple-400/70 font-medium px-3">
+                  FERRAMENTAS
+                </span>
+              </div>
+
               <NavItem 
                 icon={<ArrowRightLeft className="h-5 w-5" />}
                 label="Conversor"
