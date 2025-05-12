@@ -19,16 +19,18 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
     // Verificar se já temos credenciais armazenadas
-    const storedUrl = localStorage.getItem('supabase_url');
-    const storedKey = localStorage.getItem('supabase_key');
+    const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('supabase_url') : null;
+    const storedKey = typeof window !== 'undefined' ? localStorage.getItem('supabase_key') : null;
     
     // Se temos credenciais no ambiente, usar e armazenar
     if (supabaseUrl && supabaseKey) {
       console.log('Variáveis de ambiente do Supabase detectadas, inicializando cliente');
       
       // Armazenar no localStorage para uso futuro
-      localStorage.setItem('supabase_url', supabaseUrl);
-      localStorage.setItem('supabase_key', supabaseKey);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('supabase_url', supabaseUrl);
+        localStorage.setItem('supabase_key', supabaseKey);
+      }
       
       setAuthInitialized(true);
       setIsLoadingCredentials(false);
@@ -62,15 +64,23 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
         if (!success) {
           console.error('Falha ao inicializar credenciais após timeout');
         }
-      }, 500); // Pequeno delay para garantir que o ambiente esteja pronto
+      }, 100); // Reduzido o delay, talvez 500ms seja muito
       
       return () => clearTimeout(timeoutId);
     }
   }, []);
 
-  // Durante o SSR ou a fase inicial de hidratação, renderizamos apenas os filhos
+  // Durante o SSR ou a fase inicial de hidratação, renderizamos um estado de carregamento mínimo
+  // para evitar renderizar children fora do provider
   if (!isMounted) {
-    return <>{children}</>;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/40 backdrop-blur-sm">
+        <div className="bg-black/60 p-6 rounded-lg border border-purple-800/30 flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-4" />
+          <p className="text-white text-sm">Montando aplicação...</p>
+        </div>
+      </div>
+    );
   }
   
   // Exibir estado de carregamento enquanto as credenciais são inicializadas
@@ -81,7 +91,7 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
           <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-4" />
           <p className="text-white text-sm">Inicializando autenticação...</p>
         </div>
-        {children}
+        {/* Não renderizar children aqui */}
       </div>
     );
   }
@@ -90,23 +100,25 @@ export function AuthProviderClient({ children }: { children: React.ReactNode }) 
   if (!authInitialized) {
     return (
       <>
-        <div className="fixed bottom-4 right-4 bg-red-900/80 text-white p-4 rounded-lg shadow-lg z-50 animate-in fade-in-50 duration-300">
-          <h3 className="font-bold text-lg">Erro de Configuração</h3>
-          <p className="text-sm">{initError || "Credenciais do Supabase não encontradas."}</p>
-          <p className="text-xs mt-2">Verifique as variáveis de ambiente no arquivo .env.local</p>
-          <button 
-            className="mt-3 px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs transition-colors"
-            onClick={() => window.location.reload()}
-          >
-            Tentar novamente
-          </button>
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/40 backdrop-blur-sm">
+           <div className="bg-red-900/90 text-white p-6 rounded-lg shadow-lg z-50 border border-red-600/50 max-w-md text-center">
+             <h3 className="font-bold text-lg mb-2">Erro Crítico de Configuração</h3>
+             <p className="text-sm mb-3">{initError || "Credenciais do Supabase não encontradas."}</p>
+             <p className="text-xs mb-4">Verifique as variáveis de ambiente (<code className="bg-red-800/50 px-1 rounded">.env.local</code>) ou o <code className="bg-red-800/50 px-1 rounded">localStorage</code>.</p>
+             <button
+               className="mt-3 px-4 py-2 bg-white/20 hover:bg-white/30 rounded text-sm font-medium transition-colors"
+               onClick={() => window.location.reload()}
+             >
+               Tentar Novamente
+             </button>
+           </div>
         </div>
-        {children}
+        {/* Não renderizar children aqui */}
       </>
     );
   }
 
-  // Uma vez inicializado com sucesso, usar o AuthProvider
+  // Uma vez inicializado com sucesso, usar o AuthProvider e SÓ AGORA renderizar children
   return (
     <AuthProvider>
       {children}
