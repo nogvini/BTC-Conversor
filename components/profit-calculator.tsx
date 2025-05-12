@@ -2629,8 +2629,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="register">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Card de Registrar Investimento atualizado */}
-            <Card className="bg-gray-950/60 rounded-lg shadow-md">
+            {/* Card de Registrar Investimento atualizado com borda */}
+            <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Registrar Investimento</CardTitle>
                 <CardDescription>Registre seus aportes</CardDescription>
@@ -2705,8 +2705,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardContent>
             </Card>
 
-            {/* Card de Registrar Lucro/Perda atualizado */}
-            <Card className="bg-gray-950/60 rounded-lg shadow-md">
+            {/* Card de Registrar Lucro/Perda atualizado com borda */}
+            <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
               <CardHeader>
                 <CardTitle className="text-lg">Registrar Lucro/Perda</CardTitle>
                 <CardDescription>Registre seus lucros ou perdas</CardDescription>
@@ -2805,8 +2805,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Card>
           </div>
           
-          {/* Card de Importação atualizado */}
-          <Card className="bg-gray-950/60 rounded-lg shadow-md">
+          {/* Card de Importação atualizado com borda */}
+          <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
             <CardHeader>
               <CardTitle className="text-lg">Importação de Registros</CardTitle>
               <CardDescription>Importe operações e aportes de arquivos externos</CardDescription>
