@@ -778,7 +778,7 @@ export default function BitcoinConverter() {
                 <TabsContent value="calculator">
                   {appData && rates ? (
                     <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
-                      <Card className="bg-black/30 shadow-xl shadow-purple-900/10 rounded-lg">
+                      <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
                         <CardHeader>
                           <CardTitle className="text-lg mb-1.5">Calculadora de Lucros</CardTitle>
                           <CardDescription className="text-purple-500/90 dark:text-purple-400/80">

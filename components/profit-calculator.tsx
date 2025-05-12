@@ -2629,12 +2629,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
         <TabsContent value="register">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Card de Registrar Investimento atualizado com borda */}
-            <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
+            {/* Card de Registrar Investimento atualizado com estilo padrão */}
+            <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
               <CardHeader>
-                {/* Estilo do CardTitle atualizado */}
                 <CardTitle className="text-lg mb-1.5">Registrar Investimento</CardTitle>
-                {/* Estilo da CardDescription atualizado */}
                 <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Registre seus aportes</CardDescription>
               </CardHeader>
               <CardContent>
@@ -2707,12 +2705,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardContent>
             </Card>
 
-            {/* Card de Registrar Lucro/Perda atualizado com borda */}
-            <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
+            {/* Card de Registrar Lucro/Perda atualizado com estilo padrão */}
+            <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
               <CardHeader>
-                {/* Estilo do CardTitle atualizado */}
                 <CardTitle className="text-lg mb-1.5">Registrar Lucro/Perda</CardTitle>
-                {/* Estilo da CardDescription atualizado */}
                 <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Registre seus lucros ou perdas</CardDescription>
               </CardHeader>
               <CardContent>
@@ -2809,12 +2805,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Card>
           </div>
           
-          {/* Card de Importação atualizado com borda */}
-          <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
+          {/* Card de Importação atualizado com estilo padrão */}
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
-              {/* Estilo do CardTitle atualizado */}
               <CardTitle className="text-lg mb-1.5">Importação de Registros</CardTitle>
-              {/* Estilo da CardDescription atualizado */}
               <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Importe operações e aportes de arquivos externos</CardDescription>
             </CardHeader>
             <CardContent>
