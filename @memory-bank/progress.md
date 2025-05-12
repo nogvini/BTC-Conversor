@@ -66,10 +66,16 @@
 5. ~~**Incompatibilidade do Recharts com SSR:** Problema que causava erros no build do Vercel.~~
 6. ~~**Erro de 'require' no next.config.mjs:** Problema resolvido convertendo o arquivo para formato CommonJS (.js).~~
 7. ~~**Configuração incompatível com Next.js 15.2.4:** Problema resolvido atualizando as opções de configuração.~~
+8. ~~**Erro de pré-renderização com useAuth:** Problema resolvido usando carregamento dinâmico com SSR desabilitado.~~
 
 ## Últimas Atualizações
 
-### Versão 0.9.8 (Atual)
+### Versão 0.9.9 (Atual)
+- Corrigido erro de pré-renderização nas páginas protegidas
+- Implementado carregamento dinâmico (dynamic import) do componente RequireAuth com SSR desabilitado
+- Atualizado app/calculator/page.tsx para evitar erros durante o build
+
+### Versão 0.9.8
 - Atualizado next.config.js para compatibilidade com o Next.js 15.2.4
 - Removida a opção 'serverExternalPackages' que não é mais suportada
 - Modificada a estratégia de polyfills para evitar erros durante o build
@@ -94,11 +100,6 @@
 - Corrigido problema de duplicação de toasts
 - Ajustado tempo de vida das notificações toast
 - Adicionado botões para remoção em massa de aportes e lucros/perdas na calculadora
-
-### Versão 0.9.0
-- Implementadas funcionalidades básicas de exportação e importação
-- Melhorias na UI/UX geral
-- Correções de bugs no sistema de conversão
 
 ## Próximos Passos
 

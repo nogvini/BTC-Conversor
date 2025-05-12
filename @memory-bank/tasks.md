@@ -240,6 +240,7 @@
   - [x] Assegurar que o build seja bem-sucedido em todos os ambientes
   - [x] Adaptar configuração para Next.js 15.2.4
   - [x] Corrigir problemas com polyfills e módulos externos
+  - [x] Resolver erro de pré-renderização com useAuth em páginas protegidas
 - [ ] **D2**: Implementar pipeline de CI/CD
   - [ ] Configurar testes automatizados
   - [ ] Implementar verificações de qualidade de código

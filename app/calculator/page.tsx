@@ -1,10 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RequireAuth } from "@/components/require-auth";
+import dynamic from "next/dynamic";
 import ProfitCalculatorWrapper from "@/components/profit-calculator-wrapper";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
 import { PageTransition } from "@/components/page-transition";
+
+// Importar RequireAuth dinamicamente com SSR desabilitado
+const RequireAuth = dynamic(() => import("@/components/require-auth").then(mod => mod.RequireAuth), {
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+    </div>
+  )
+});
 
 export default function CalculatorPage() {
   const [btcToUsd, setBtcToUsd] = useState(65000);
@@ -47,25 +57,30 @@ export default function CalculatorPage() {
     loadMarketData();
   }, []);
 
+  // Conteúdo da calculadora
+  const calculatorContent = (
+    <PageTransition>
+      <div className="container max-w-4xl py-6 px-4 md:px-6">
+        <h1 className="text-2xl md:text-3xl font-bold mb-6">Calculadora de Lucros</h1>
+        
+        {isLoading ? (
+          <div className="flex justify-center items-center h-48">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+          </div>
+        ) : (
+          <ProfitCalculatorWrapper 
+            btcToUsd={btcToUsd} 
+            brlToUsd={brlToUsd} 
+            appData={appData || undefined}
+          />
+        )}
+      </div>
+    </PageTransition>
+  );
+
   return (
     <RequireAuth>
-      <PageTransition>
-        <div className="container max-w-4xl py-6 px-4 md:px-6">
-          <h1 className="text-2xl md:text-3xl font-bold mb-6">Calculadora de Lucros</h1>
-          
-          {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-            </div>
-          ) : (
-            <ProfitCalculatorWrapper 
-              btcToUsd={btcToUsd} 
-              brlToUsd={brlToUsd} 
-              appData={appData || undefined}
-            />
-          )}
-        </div>
-      </PageTransition>
+      {calculatorContent}
     </RequireAuth>
   );
 }
