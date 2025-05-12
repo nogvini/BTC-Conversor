@@ -3,7 +3,15 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
-import { AppHeader } from "@/components/ui/app-header"
+import dynamic from 'next/dynamic'
+
+const AppHeader = dynamic(() => 
+  import('@/components/ui/app-header').then((mod) => mod.AppHeader),
+  {
+    ssr: false,
+    loading: () => <div className="sticky top-0 z-50 w-full h-16 border-b border-purple-700/30 bg-background/90 backdrop-blur-lg dark:bg-black/80"></div>
+  }
+)
 
 const inter = Inter({ subsets: ["latin"] })
 
