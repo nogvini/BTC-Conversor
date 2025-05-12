@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Camera, Save, User } from "lucide-react"
+import { Loader2, Camera, Save, User, Eye, EyeOff } from "lucide-react"
 import { PageTransition } from "@/components/page-transition"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Esquema de validação para o perfil
 const profileSchema = z.object({
@@ -23,6 +24,21 @@ const profileSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileSchema>
 
+// Função para mascarar email
+const maskEmail = (email: string): string => {
+  if (!email) return "";
+  
+  const [username, domain] = email.split('@');
+  if (!username || !domain) return email;
+  
+  // Se o nome de usuário for muito curto, manter pelo menos 1 caractere
+  const visibleChars = Math.max(1, Math.min(2, Math.floor(username.length / 3)));
+  const maskedUsername = username.substring(0, visibleChars) + 
+                         '*'.repeat(username.length - visibleChars);
+  
+  return `${maskedUsername}@${domain}`;
+}
+
 export default function UserProfile() {
   const { session, updateProfile } = useAuth()
   const { toast } = useToast()
@@ -30,6 +46,7 @@ export default function UserProfile() {
   const [isSaving, setIsSaving] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isFormReady, setIsFormReady] = useState(false)
+  const [showEmail, setShowEmail] = useState(false)
   
   // Inicializar o formulário com valores vazios
   const profileForm = useForm<ProfileFormValues>({
@@ -94,6 +111,11 @@ export default function UserProfile() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // Função para alternar a visibilidade do email
+  const toggleEmailVisibility = () => {
+    setShowEmail(prev => !prev);
   }
 
   // Se estiver carregando, mostrar um indicador
@@ -179,13 +201,40 @@ export default function UserProfile() {
                 
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input 
-                    value={user.email} 
-                    disabled 
-                    className="bg-black/30"
-                  />
+                  <div className="relative">
+                    <Input 
+                      value={showEmail ? user.email : maskEmail(user.email)} 
+                      disabled 
+                      className="bg-black/30 pr-10"
+                    />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full w-10 rounded-l-none"
+                            onClick={toggleEmailVisibility}
+                          >
+                            {showEmail ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{showEmail ? "Ocultar email" : "Mostrar email"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    O email não pode ser alterado.
+                    O email não pode ser alterado. {!showEmail && 
+                    <button 
+                      type="button" 
+                      onClick={toggleEmailVisibility}
+                      className="text-primary hover:underline focus:outline-none"
+                    >
+                      Mostrar email completo
+                    </button>}
                   </p>
                 </div>
                 

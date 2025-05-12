@@ -19,6 +19,16 @@
 - [ ] **A1.5.** Implementar funcionalidade "Lembrar-me".
   - [ ] Adicionar opção no formulário de login.
   - [ ] Configurar persistência de sessão por período estendido.
+- [ ] **A1.6.** Resolver problema de múltiplas instâncias de GoTrueClient.
+  - [ ] Identificar origem das múltiplas instanciações do GoTrueClient.
+  - [ ] Consolidar a criação de clientes Supabase em uma única instância global.
+  - [ ] Implementar verificações para evitar instanciações duplicadas.
+  - [ ] Revisar ciclo de vida de componentes que usam o cliente Supabase.
+- [ ] **A1.7.** Corrigir uso indevido do AuthProvider.
+  - [ ] Mapear todos os componentes que utilizam o hook useAuth.
+  - [ ] Garantir que todos estejam dentro do escopo do AuthProvider.
+  - [ ] Implementar verificações de contexto nos hooks para mensagens de erro mais claras.
+  - [ ] Refatorar componentes problemáticos para respeitar a hierarquia de contexto.
 
 ### A2. Calculadora de Lucros - Sistema de Múltiplos Relatórios
 - [x] **A2.1.** Implementar interface para criação e seleção de relatórios.
@@ -222,6 +232,10 @@
   - [ ] Identificar causa raiz do problema
   - [ ] Implementar correção mantendo a consistência do sistema
 - [ ] **B3**: Implementar opção "Lembrar-me" no login
+- [ ] **B4**: Resolver problemas estruturais de autenticação
+  - [ ] Resolver múltiplas instâncias de GoTrueClient causando o erro "Multiple GoTrueClient instances detected"
+  - [ ] Corrigir problema "useAuth deve ser usado dentro de um AuthProvider"
+  - [ ] Refatorar hierarquia de componentes para garantir uso correto do contexto de autenticação
 
 ### C. Melhorias de UI/UX
 - [ ] **C1**: Aprimorar a experiência mobile
@@ -232,6 +246,25 @@
   - [ ] Adicionar animações sutis nas transições entre páginas
   - [ ] Animar componentes interativos (botões, menus)
   - [ ] Garantir que as animações não prejudiquem a performance
+- [x] **C3**: Corrigir problema de navegação duplicada
+  - [x] Remover menu duplicado na versão desktop
+  - [x] Garantir que apenas o menu superior seja exibido
+  - [x] Verificar e corrigir hierarquia de componentes de navegação
+- [x] **C4**: Melhorar UI do conversor de moedas
+  - [x] Substituir RadioGroups por botões mais intuitivos
+  - [x] Implementar funcionalidade de copiar valores ao clicar
+  - [x] Adicionar pop-up de confirmação de cópia
+  - [x] Tornar o design mais coerente com o restante da aplicação
+  - [x] Adicionar ícones para melhorar a intuitividade
+- [ ] **C5**: Ampliar uso de ícones na aplicação
+  - [ ] Identificar pontos onde ícones podem melhorar a intuitividade
+  - [ ] Padronizar o uso de ícones em toda a interface
+  - [ ] Adicionar tooltips explicativos em ícones menos óbvios
+- [x] **C6**: Aprimorar privacidade da interface
+  - [x] Censurar email do usuário na aba de perfil da página principal
+  - [x] Implementar mascaramento de email (ex: j***@exemplo.com)
+  - [x] Adicionar opção para mostrar o email completo apenas ao clicar/hover
+  - [x] Revisar outros pontos da aplicação onde dados sensíveis são exibidos
 
 ### D. Infraestrutura e CI/CD
 - [x] **D1**: Resolver problemas de build no Vercel
@@ -245,6 +278,11 @@
   - [ ] Configurar testes automatizados
   - [ ] Implementar verificações de qualidade de código
   - [ ] Automatizar o processo de deploy
+- [x] **D3**: Resolver problemas de recursos estáticos
+  - [x] Adicionar favicon.ico para evitar erro 404
+  - [ ] Verificar outros recursos estáticos que possam estar faltando
+  - [ ] Otimizar carregamento de ativos estáticos
+  - [ ] Implementar estratégia de cache para recursos estáticos
 
 ### E. Documentação
 - [ ] **E1**: Criar documentação para desenvolvedores

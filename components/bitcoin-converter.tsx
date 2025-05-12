@@ -1,15 +1,16 @@
 "use client"
 
 import { useState, useEffect, Suspense, useRef, useCallback, useMemo } from "react"
-import { Bitcoin, Calendar, AlertTriangle, DollarSign } from "lucide-react"
+import { Bitcoin, Calendar, AlertTriangle, DollarSign, Copy, CheckCircle, RefreshCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
 import { MultiReportCalculator } from "./multi-report-calculator"
@@ -19,7 +20,6 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { useActiveTab } from "@/hooks/use-active-tab"
-import { SafeNavigationBar } from "./ui/safe-navigation-bar"
 import { PageTransition } from "./page-transition"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
@@ -73,6 +73,8 @@ export default function BitcoinConverter() {
   const lastUpdateTimeRef = useRef<number>(0)
   // Flag para controlar se o componente foi montado
   const [isInitialized, setIsInitialized] = useState<boolean>(false)
+  // Estados para controlar quais valores foram copiados recentemente
+  const [copiedValues, setCopiedValues] = useState<{[key in CurrencyUnit]?: boolean}>({})
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
@@ -248,48 +250,73 @@ export default function BitcoinConverter() {
       }
     }
 
-    let btcValue = 0
-    
-    // Converter para BTC conforme unidade selecionada
-    if (selectedUnit === "BTC") {
-      btcValue = parseFloat(amount)
-    } else if (selectedUnit === "SATS") {
-      btcValue = parseFloat(amount) / 100000000
-    } else if (selectedUnit === "USD") {
-      btcValue = parseFloat(amount) / rates.BTC_USD
-    } else if (selectedUnit === "BRL") {
-      btcValue = parseFloat(amount) / rates.BTC_USD / rates.BRL_USD
+    const numAmount = parseFloat(amount)
+
+    let btc = 0
+    let sats = 0
+    let usd = 0
+    let brl = 0
+
+    switch (selectedUnit) {
+      case "BTC":
+        btc = numAmount
+        sats = btc * 100000000
+        usd = btc * rates.BTC_USD
+        brl = usd * rates.BRL_USD
+        break
+      case "SATS":
+        sats = numAmount
+        btc = sats / 100000000
+        usd = btc * rates.BTC_USD
+        brl = usd * rates.BRL_USD
+        break
+      case "USD":
+        usd = numAmount
+        btc = usd / rates.BTC_USD
+        sats = btc * 100000000
+        brl = usd * rates.BRL_USD
+        break
+      case "BRL":
+        brl = numAmount
+        usd = brl / rates.BRL_USD
+        btc = usd / rates.BTC_USD
+        sats = btc * 100000000
+        break
     }
-    
+
     return {
-      btc: btcValue,
-      sats: btcValue * 100000000,
-      usd: btcValue * rates.BTC_USD,
-      brl: btcValue * rates.BTC_USD * rates.BRL_USD
+      btc,
+      sats,
+      usd,
+      brl
     }
-  }, [amount, selectedUnit, rates])
+  }, [rates, amount, selectedUnit])
 
-  // Determinar se o preço precisa ser atualizado
-  const shouldUpdate = useMemo(() => {
-    // Se ainda não temos dados, sempre atualizar
-    if (!rates) return true
+  // Função para atualizar os valores convertidos
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAmount = e.target.value
     
-    const now = Date.now()
-    const lastUpdate = lastUpdateTimeRef.current || 0
-    // Atualizar a cada 5 minutos (300000ms)
-    return now - lastUpdate > 300000 || rates.isUsingFallback
-  }, [rates])
+    // Verifica se é um número válido (incluindo separador decimal)
+    if (newAmount === "" || /^[0-9]*\.?[0-9]*$/.test(newAmount)) {
+      setAmount(newAmount)
+    }
+  }
 
-  // Função para atualizar manualmente as taxas
+  // Função para selecionar a unidade
+  const handleUnitChange = (unit: CurrencyUnit) => {
+    setSelectedUnit(unit)
+  }
+
+  // Função para atualizar as cotações
   const handleRefresh = () => {
-    // Não permitir atualizações em sequência muito rápidas
-    const now = Date.now()
-    const lastUpdate = lastUpdateTimeRef.current
+    // Previnir atualizações muito frequentes (menos de 30 segundos)
+    const currentTime = Date.now()
+    const timeSinceLastUpdate = currentTime - lastUpdateTimeRef.current
     
-    if (now - lastUpdate < 10000) { // 10 segundos
+    if (timeSinceLastUpdate < 30000 && lastUpdateTimeRef.current > 0) {
       toast({
-        title: "Muitas requisições",
-        description: "Aguarde alguns instantes antes de atualizar novamente.",
+        title: "Aguarde um momento",
+        description: "As cotações só podem ser atualizadas a cada 30 segundos.",
         variant: "warning",
       })
       return
@@ -298,189 +325,271 @@ export default function BitcoinConverter() {
     updateCurrentPrice()
   }
 
-  useEffect(() => {
-    // Verificar se precisamos atualizar o preço automaticamente
-    if (shouldUpdate) {
-      updateCurrentPrice()
-    }
-  }, [shouldUpdate, updateCurrentPrice])
- 
+  // Função para copiar um valor para a área de transferência
+  const copyToClipboard = (value: number, unit: CurrencyUnit) => {
+    const formattedValue = (() => {
+      switch (unit) {
+        case "BTC": return formatBtc(value);
+        case "SATS": return Math.round(value).toString();
+        case "USD": return formatCurrency(value, "$");
+        case "BRL": return formatCurrency(value, "R$");
+        default: return value.toString();
+      }
+    })();
+    
+    // Remover símbolos de moeda e espaços para obter apenas o número
+    const cleanValue = formattedValue.replace(/[^0-9.,]/g, '');
+    
+    navigator.clipboard.writeText(cleanValue).then(() => {
+      // Atualizar estado para mostrar o ícone de confirmação
+      setCopiedValues(prev => ({ ...prev, [unit]: true }));
+      
+      // Mostrar mensagem de sucesso
+      toast({
+        title: "Valor copiado",
+        description: `${formattedValue} copiado para a área de transferência.`,
+        variant: "success",
+      });
+      
+      // Resetar após 2 segundos
+      setTimeout(() => {
+        setCopiedValues(prev => ({ ...prev, [unit]: false }));
+      }, 2000);
+    }).catch(err => {
+      console.error("Falha ao copiar:", err);
+      toast({
+        title: "Erro ao copiar",
+        description: "Não foi possível copiar o valor para a área de transferência.",
+        variant: "destructive",
+      });
+    });
+  };
+
+  // Componente para exibir um valor com botão de cópia
+  const ValueDisplay = ({ value, unit, label, icon }: { 
+    value: number, 
+    unit: CurrencyUnit, 
+    label: string,
+    icon: React.ReactNode
+  }) => {
+    const formattedValue = (() => {
+      switch (unit) {
+        case "BTC": return formatBtc(value);
+        case "SATS": return Math.round(value).toLocaleString();
+        case "USD": return formatCurrency(value, "$");
+        case "BRL": return formatCurrency(value, "R$");
+        default: return value.toString();
+      }
+    })();
+    
+    const isCopied = copiedValues[unit];
+    
+    return (
+      <div className="flex flex-col space-y-1">
+        <div className="flex justify-between items-center">
+          <Label className="text-sm font-medium flex items-center gap-1">
+            {icon}
+            <span>{label}</span>
+          </Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7" 
+                  onClick={() => copyToClipboard(value, unit)}
+                >
+                  {isCopied ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isCopied ? "Copiado!" : "Copiar valor"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <div 
+          className={cn(
+            "p-2 bg-black/5 dark:bg-white/5 rounded border text-lg font-mono cursor-pointer",
+            "hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          )}
+          onClick={() => copyToClipboard(value, unit)}
+        >
+          {formattedValue}
+        </div>
+      </div>
+    );
+  };
+
+  // Converter time since para string "há X minutos"
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    
+    if (diffMin < 1) return "agora mesmo"
+    if (diffMin === 1) return "há 1 minuto"
+    return `há ${diffMin} minutos`
+  }
+
   return (
-    <ResponsiveContainer>
-      <Tabs 
-        value={activeTab} 
-        onValueChange={setActiveTab}
-        className="mb-8"
-      >
-        <TabsList className="grid grid-cols-3 md:w-[400px] mx-auto mb-6">
-          <TabsTrigger value="converter">Conversor</TabsTrigger>
-          <TabsTrigger value="calculator">Calculadora</TabsTrigger>
-          <TabsTrigger value="chart">Gráfico</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="converter" className="space-y-4">
-          <Card className="border-purple-700/50">
+    <PageTransition>
+      <div className="min-h-screen p-4 pt-24 md:pt-28 pb-8 md:pb-12">
+        <ResponsiveContainer>
+          <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Conversor de Bitcoin</CardTitle>
-              <CardDescription>
-                Converta entre Bitcoin, Satoshis e moedas fiduciárias
-              </CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Conversor Bitcoin</CardTitle>
+                  <CardDescription>
+                    Converta entre BTC, Satoshis, Dólares e Reais
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={handleRefresh}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline-block">Atualizar</span>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {apiError && (
-                <div className="bg-yellow-900/20 border border-yellow-900/40 rounded-md px-4 py-3 text-sm flex items-start">
-                  <AlertTriangle className="text-yellow-500 h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
+                  <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-medium text-yellow-500">Aviso de dados</p>
-                    <p className="text-gray-300 mt-1">
-                      Usando taxas de conversão em cache. Os valores podem não refletir o mercado atual.
+                    <p className="font-medium">Usando dados em cache</p>
+                    <p className="text-sm">
+                      Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
                     </p>
-                    <button
-                      onClick={handleRefresh}
-                      className="text-yellow-400 hover:text-yellow-300 underline mt-1"
-                    >
-                      Tentar atualizar
-                    </button>
                   </div>
                 </div>
               )}
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Valor</Label>
+                  <Label htmlFor="amount">Valor para conversão</Label>
                   <Input
                     id="amount"
-                    type="number"
-                    placeholder="Digite um valor"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Digite um valor..."
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="bg-gray-800/60"
+                    onChange={handleAmountChange}
+                    className="text-lg"
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Unidade</Label>
-                  <RadioGroup
-                    value={selectedUnit}
-                    onValueChange={(value) => setSelectedUnit(value as CurrencyUnit)}
-                    className="grid grid-cols-2 gap-4"
-                  >
-                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
-                      <RadioGroupItem value="BTC" id="unit-btc" />
-                      <Label htmlFor="unit-btc" className="flex items-center">
-                        <Bitcoin className="h-4 w-4 mr-2 text-purple-400" />
-                        Bitcoin
-                      </Label>
+                  <Label>Unidade de origem</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <Button
+                      variant={selectedUnit === "BTC" ? "default" : "outline"}
+                      className="w-full flex items-center justify-center gap-1"
+                      onClick={() => handleUnitChange("BTC")}
+                    >
+                      <Bitcoin className="h-4 w-4" /> 
+                      <span>Bitcoin</span>
+                    </Button>
+                    <Button
+                      variant={selectedUnit === "SATS" ? "default" : "outline"}
+                      className="w-full flex items-center justify-center gap-1"
+                      onClick={() => handleUnitChange("SATS")}
+                    >
+                      <Bitcoin className="h-4 w-4" /> 
+                      <span>Satoshis</span>
+                    </Button>
+                    <Button
+                      variant={selectedUnit === "USD" ? "default" : "outline"}
+                      className="w-full flex items-center justify-center gap-1"
+                      onClick={() => handleUnitChange("USD")}
+                    >
+                      <DollarSign className="h-4 w-4" /> 
+                      <span>Dólar (USD)</span>
+                    </Button>
+                    <Button
+                      variant={selectedUnit === "BRL" ? "default" : "outline"}
+                      className="w-full flex items-center justify-center gap-1"
+                      onClick={() => handleUnitChange("BRL")}
+                    >
+                      <DollarSign className="h-4 w-4" /> 
+                      <span>Real (BRL)</span>
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+                  <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
+                  
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
                     </div>
-                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
-                      <RadioGroupItem value="SATS" id="unit-sats" />
-                      <Label htmlFor="unit-sats">Satoshis</Label>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <ValueDisplay 
+                        value={convertedValues.btc} 
+                        unit="BTC"
+                        label="Bitcoin (BTC)"
+                        icon={<Bitcoin className="h-4 w-4" />}
+                      />
+                      <ValueDisplay 
+                        value={convertedValues.sats} 
+                        unit="SATS"
+                        label="Satoshis (SATS)"
+                        icon={<Bitcoin className="h-4 w-4" />}
+                      />
+                      <ValueDisplay 
+                        value={convertedValues.usd} 
+                        unit="USD"
+                        label="Dólar Americano (USD)"
+                        icon={<DollarSign className="h-4 w-4" />}
+                      />
+                      <ValueDisplay 
+                        value={convertedValues.brl} 
+                        unit="BRL"
+                        label="Real Brasileiro (BRL)"
+                        icon={<DollarSign className="h-4 w-4" />}
+                      />
                     </div>
-                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
-                      <RadioGroupItem value="USD" id="unit-usd" />
-                      <Label htmlFor="unit-usd" className="flex items-center">
-                        <DollarSign className="h-4 w-4 mr-2 text-green-400" />
-                        Dólares
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 bg-gray-800/40 p-3 rounded-md">
-                      <RadioGroupItem value="BRL" id="unit-brl" />
-                      <Label htmlFor="unit-brl">Reais</Label>
-                    </div>
-                  </RadioGroup>
+                  )}
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <div className="w-full grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="bg-black/40 rounded-md p-4">
-                  <div className="text-sm text-gray-400 mb-1">Bitcoin</div>
-                  {loading ? (
-                    <Skeleton className="h-6 w-full bg-gray-700/30" />
+            <CardFooter className="text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
+              <div className="flex items-center">
+                <Calendar className="h-4 w-4 mr-1" />
+                <span>
+                  {rates ? (
+                    `Cotações atualizadas ${getTimeAgo(rates.lastUpdated)}`
                   ) : (
-                    <div className="text-purple-400 font-medium text-lg">
-                      {formatBtc(convertedValues.btc)} BTC
-                    </div>
+                    "Carregando cotações..."
                   )}
-                </div>
-                <div className="bg-black/40 rounded-md p-4">
-                  <div className="text-sm text-gray-400 mb-1">Satoshis</div>
-                  {loading ? (
-                    <Skeleton className="h-6 w-full bg-gray-700/30" />
-                  ) : (
-                    <div className="text-purple-400 font-medium text-lg">
-                      {Math.floor(convertedValues.sats).toLocaleString()} SATS
-                    </div>
-                  )}
-                </div>
-                <div className="bg-black/40 rounded-md p-4">
-                  <div className="text-sm text-gray-400 mb-1">Dólares</div>
-                  {loading ? (
-                    <Skeleton className="h-6 w-full bg-gray-700/30" />
-                  ) : (
-                    <div className="text-green-400 font-medium text-lg">
-                      {formatCurrency(convertedValues.usd, "$")}
-                    </div>
-                  )}
-                </div>
-                <div className="bg-black/40 rounded-md p-4">
-                  <div className="text-sm text-gray-400 mb-1">Reais</div>
-                  {loading ? (
-                    <Skeleton className="h-6 w-full bg-gray-700/30" />
-                  ) : (
-                    <div className="text-green-400 font-medium text-lg">
-                      {formatCurrency(convertedValues.brl, "R$")}
-                    </div>
-                  )}
-                </div>
+                </span>
               </div>
-              
-              {rates && (
-                <div className="w-full text-center">
-                  <p className="text-xs text-gray-400">
-                    Taxa atual: 1 BTC = ${rates.BTC_USD.toLocaleString()} = R${(rates.BTC_USD * rates.BRL_USD).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    <button 
-                      onClick={handleRefresh}
-                      disabled={loading}
-                      className={cn(
-                        "ml-2 underline text-xs",
-                        loading ? "text-gray-500" : "text-purple-400 hover:text-purple-300"
-                      )}
-                    >
-                      {loading ? "Atualizando..." : "Atualizar"}
-                    </button>
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Última atualização: {rates.lastUpdated.toLocaleString()}
-                  </p>
-                </div>
-              )}
+              <div>
+                1 BTC = {rates ? `$${rates.BTC_USD.toLocaleString()}` : "..."}
+              </div>
             </CardFooter>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="calculator" className="space-y-4">
-          {appData && rates ? (
-            <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
-              <MultiReportCalculator
-                btcToUsd={rates.BTC_USD}
-                brlToUsd={rates.BRL_USD}
-                appData={appData}
-              />
-            </Suspense>
-          ) : (
-            <div className="flex items-center justify-center min-h-[300px]">
-              <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="chart" className="space-y-4">
-          <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
-            <HistoricalRatesChart />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
-    </ResponsiveContainer>
-  );
+        </ResponsiveContainer>
+      </div>
+    </PageTransition>
+  )
 }
