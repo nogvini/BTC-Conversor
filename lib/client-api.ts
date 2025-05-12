@@ -150,3 +150,5 @@ export async function getHistoricalBitcoinData(
     throw error;
   }
 } 
+
+export { HistoricalDataPoint };

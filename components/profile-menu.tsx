@@ -141,6 +141,23 @@ export function ProfileMenu() {
     return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase()
   }
 
+  // Função para censurar o email
+  const censorEmail = (email: string | undefined): string => {
+    if (!email) return "E-mail não disponível";
+    
+    const [localPart, domain] = email.split('@');
+    if (!domain || localPart.length <= 2) {
+      // Retorna email não modificado se for inválido ou muito curto
+      return email;
+    }
+    
+    const firstChar = localPart[0];
+    const lastChar = localPart[localPart.length - 1];
+    const censoredPart = firstChar + "***" + lastChar;
+    
+    return `${censoredPart}@${domain}`;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -157,7 +174,7 @@ export function ProfileMenu() {
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{user.name || "Usuário"}</p>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className="text-xs text-muted-foreground truncate">{censorEmail(user.email)}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
