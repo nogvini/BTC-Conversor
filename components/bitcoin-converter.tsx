@@ -255,7 +255,8 @@ export default function BitcoinConverter() {
 
   // Memoize os valores convertidos para melhorar performance
   const convertedValues = useMemo(() => {
-    if (!rates || !amount || isNaN(parseFloat(amount))) {
+    // Se não houver taxas ou valor, retornar zero
+    if (!rates || !amount) {
       return {
         btc: 0,
         sats: 0,
@@ -264,8 +265,27 @@ export default function BitcoinConverter() {
       }
     }
 
-    const numAmount = parseFloat(amount)
+    // Processar a string de entrada
+    let processedAmountString = amount;
+    // Se a unidade selecionada for SATS, remover pontos e vírgulas
+    if (selectedUnit === "SATS") {
+      processedAmountString = amount.replace(/[.,]/g, '');
+    }
 
+    // Tentar converter a string processada (ou original) para número
+    const numAmount = parseFloat(processedAmountString);
+
+    // Se a conversão falhar (resultar em NaN), retornar zero
+    if (isNaN(numAmount)) {
+      return {
+        btc: 0,
+        sats: 0,
+        usd: 0,
+        brl: 0
+      };
+    }
+
+    // Lógica de conversão existente usando numAmount
     let btc = 0
     let sats = 0
     let usd = 0
@@ -510,7 +530,7 @@ export default function BitcoinConverter() {
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
-                      <CardTitle>Conversor Bitcoin</CardTitle>
+                      <CardTitle className="mb-1.5">Conversor Bitcoin</CardTitle>
                       <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
                         Converta entre BTC, Satoshis, Dólares e Reais
                       </CardDescription>
@@ -519,22 +539,24 @@ export default function BitcoinConverter() {
                       variant="outline"
                       size="sm"
                       className={cn(
-                        "gap-1 border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90", // Borda roxa e hover
-                        loading && "text-purple-300 border-purple-500/90 bg-purple-700/20" // Estilo quando loading
+                        "border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
+                        "p-2 sm:px-3 sm:py-1.5 sm:gap-1",
+                        loading && "text-purple-300 border-purple-500/90 bg-purple-700/20"
                       )}
                       onClick={handleRefresh}
                       disabled={loading}
+                      aria-label="Atualizar Cotações"
                     >
                       {loading ? (
-                        <RefreshCw className="h-4 w-4 animate-spin text-purple-300" /> // Ícone roxo quando loading
+                        <RefreshCw className="h-4 w-4 animate-spin text-purple-300" />
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      <span className={cn(loading && "text-purple-300")}>Atualizar</span>
+                      <span className={cn("hidden sm:inline-block", loading && "text-purple-300")}>Atualizar</span>
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 pt-4 pb-6 px-6">
                   {apiError && (
                     <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
                       <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
