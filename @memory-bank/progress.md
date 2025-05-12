@@ -65,10 +65,17 @@
 4. ~~**Múltiplas Instâncias do GoTrueClient:** Problema já corrigido que ocorria quando o usuário tinha múltiplas abas abertas.~~
 5. ~~**Incompatibilidade do Recharts com SSR:** Problema que causava erros no build do Vercel.~~
 6. ~~**Erro de 'require' no next.config.mjs:** Problema resolvido convertendo o arquivo para formato CommonJS (.js).~~
+7. ~~**Configuração incompatível com Next.js 15.2.4:** Problema resolvido atualizando as opções de configuração.~~
 
 ## Últimas Atualizações
 
-### Versão 0.9.7 (Atual)
+### Versão 0.9.8 (Atual)
+- Atualizado next.config.js para compatibilidade com o Next.js 15.2.4
+- Removida a opção 'serverExternalPackages' que não é mais suportada
+- Modificada a estratégia de polyfills para evitar erros durante o build
+- Adicionado Recharts à lista de módulos externos para evitar problemas de SSR
+
+### Versão 0.9.7
 - Corrigido erro de build relacionado ao uso de 'require' em arquivo ESM
 - Convertido next.config.mjs para next.config.js (formato CommonJS)
 
@@ -92,11 +99,6 @@
 - Implementadas funcionalidades básicas de exportação e importação
 - Melhorias na UI/UX geral
 - Correções de bugs no sistema de conversão
-
-### Versão 0.8.0
-- Implementada calculadora de lucros com adição, edição e remoção de registros
-- Adicionado sistema de visualização de histórico
-- Implementada persistência local de dados
 
 ## Próximos Passos
 

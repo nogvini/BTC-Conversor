@@ -15,29 +15,8 @@ const nextConfig = {
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
-    },
-    serverExternalPackages: [
-      'recharts',
-      '@react-pdf/renderer',
-      'zlib',
-      'crypto-browserify',
-      'path-browserify',
-      'stream-browserify',
-      'recharts-scale',
-      'd3-color',
-      'd3-interpolate',
-      'd3-shape',
-      'd3-path',
-      'd3-scale',
-      'd3-time',
-      'd3-array',
-      'd3-format',
-      'd3-time-format',
-      'resize-observer-polyfill',
-      'decimal.js-light',
-      'eventemitter3',
-      'react-smooth'
-    ]
+    }
+    // A opção 'serverExternalPackages' não é mais suportada no Next.js 15.2.4
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
@@ -56,7 +35,7 @@ const nextConfig = {
       },
     ];
   },
-  // Resolver o problema com o Supabase durante o build
+  // Resolver o problema com o Supabase durante o build e adicionar polyfills
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Quando estiver no servidor durante o build na Vercel,
@@ -66,13 +45,21 @@ const nextConfig = {
       }
     }
     
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      zlib: require.resolve('browserify-zlib'),
-      crypto: require.resolve('crypto-browserify'),
-      path: require.resolve('path-browserify'),
-      stream: require.resolve('stream-browserify'),
-    };
+    // Adicionar fallbacks para módulos de navegador
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        zlib: false,
+        crypto: false,
+        path: false,
+        stream: false,
+      };
+    }
+    
+    // Em vez de transpilePackages, vamos adicionar o Recharts à lista de externals
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'recharts'];
+    }
 
     return config;
   },
