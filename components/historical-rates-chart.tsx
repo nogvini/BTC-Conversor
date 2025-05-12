@@ -357,7 +357,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
                 <SelectTrigger 
                   id="time-range-select" 
-                  className="h-8 w-[90px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70"
+                  className="h-8 w-[90px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 justify-start pl-3"
                 >
                   <SelectValue placeholder="Período" />
                 </SelectTrigger>
