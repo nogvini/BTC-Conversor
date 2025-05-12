@@ -8,6 +8,7 @@ import { RefreshCw, LogIn, AlertCircle } from "lucide-react"
 import { ProfileMenu } from "@/components/profile-menu"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 export function AppHeader() {
   const router = useRouter()
@@ -53,18 +54,36 @@ export function AppHeader() {
     router.push("/auth")
   }
 
+  const navLinkClasses = 
+    "px-3 py-2 text-sm font-medium text-gray-300 hover:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-black dark:focus:ring-offset-black rounded-md transition-colors duration-150 ease-in-out";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-purple-700/30 bg-background/90 backdrop-blur-lg dark:bg-black/80">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
         {/* Nome da Aplicação */}
         <div className="flex items-center">
-          <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-300 to-purple-400">
-            RaidToolkit
-          </h2>
+          <Link href="/" className="flex items-center">
+            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-300 to-purple-400">
+              RaidToolkit
+            </h2>
+          </Link>
         </div>
 
+        {/* Navegação Central */}
+        <nav className="hidden md:flex flex-grow justify-center space-x-4">
+          <Link href="/" className={navLinkClasses}>
+            Home
+          </Link>
+          <Link href="/about" className={navLinkClasses}>
+            Sobre Nós
+          </Link>
+          <Link href="/partners" className={navLinkClasses}>
+            Parceiros
+          </Link>
+        </nav>
+
         {/* Área de Autenticação/Perfil */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           {authError ? (
             // Botão de erro/reconectar
             <Button 
