@@ -951,46 +951,64 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         sortedMonthKeys.forEach(monthKey => {
           const monthData = monthlyData[monthKey];
           
-          // Calcular valores atuais baseados na cotação atual
-          const investmentBtc = monthData.investmentTotalBtc;
-          const investmentUsd = investmentBtc * currentBtcUsdRate;
-          const investmentBrl = investmentUsd * currentBrlUsdRate;
-          
-          const profitBtc = monthData.profitTotalBtc;
-          const profitUsd = profitBtc * currentBtcUsdRate;
-          const profitBrl = profitUsd * currentBrlUsdRate;
-          
-          // Porcentagens
-          const percentOfMonthly = investmentBtc > 0 ? (profitBtc / investmentBtc) * 100 : 0;
-          const percentOfTotal = totalInvestmentsBtc > 0 ? (profitBtc / totalInvestmentsBtc) * 100 : 0;
-          
-          const row = monthlyAnalysisSheet.addRow({
-            month: monthData.label,
-            investmentBtc: investmentBtc.toFixed(8),
-            investmentUsd: investmentUsd.toFixed(2),
-            investmentBrl: investmentBrl.toFixed(2),
-            profitBtc: profitBtc.toFixed(8),
-            profitUsd: profitUsd.toFixed(2),
-            profitBrl: profitBrl.toFixed(2),
-            percentOfMonthly: percentOfMonthly.toFixed(2) + '%',
-            percentOfTotal: percentOfTotal.toFixed(2) + '%',
-            investmentCount: monthData.investments.length,
-            profitCount: monthData.profits.length
-          });
-          
-          // Colorir a linha baseado no lucro/perda
-          if (profitBtc > 0) {
-            row.getCell('profitBtc').font = { color: { argb: '00B050' } };
-            row.getCell('profitUsd').font = { color: { argb: '00B050' } };
-            row.getCell('profitBrl').font = { color: { argb: '00B050' } };
-            row.getCell('percentOfMonthly').font = { color: { argb: '00B050' } };
-            row.getCell('percentOfTotal').font = { color: { argb: '00B050' } };
-          } else if (profitBtc < 0) {
-            row.getCell('profitBtc').font = { color: { argb: 'FF0000' } };
-            row.getCell('profitUsd').font = { color: { argb: 'FF0000' } };
-            row.getCell('profitBrl').font = { color: { argb: 'FF0000' } };
-            row.getCell('percentOfMonthly').font = { color: { argb: 'FF0000' } };
-            row.getCell('percentOfTotal').font = { color: { argb: 'FF0000' } };
+          if (monthData && typeof monthData.investmentTotalBtc === 'number' && typeof monthData.profitTotalBtc === 'number') {
+            // Calcular valores atuais baseados na cotação atual
+            const investmentBtc = monthData.investmentTotalBtc;
+            const investmentUsd = investmentBtc * currentBtcUsdRate;
+            const investmentBrl = investmentUsd * currentBrlUsdRate;
+            
+            const profitBtc = monthData.profitTotalBtc;
+            const profitUsd = profitBtc * currentBtcUsdRate;
+            const profitBrl = profitUsd * currentBrlUsdRate;
+            
+            // Porcentagens
+            const percentOfMonthly = investmentBtc > 0 ? (profitBtc / investmentBtc) * 100 : 0;
+            const percentOfTotal = totalInvestmentsBtc > 0 ? (profitBtc / totalInvestmentsBtc) * 100 : 0;
+            
+            const row = monthlyAnalysisSheet.addRow({
+              month: monthData.label,
+              investmentBtc: investmentBtc.toFixed(8),
+              investmentUsd: investmentUsd.toFixed(2),
+              investmentBrl: investmentBrl.toFixed(2),
+              profitBtc: profitBtc.toFixed(8),
+              profitUsd: profitUsd.toFixed(2),
+              profitBrl: profitBrl.toFixed(2),
+              percentOfMonthly: percentOfMonthly.toFixed(2) + '%',
+              percentOfTotal: percentOfTotal.toFixed(2) + '%',
+              investmentCount: monthData.investments.length,
+              profitCount: monthData.profits.length
+            });
+            
+            // Colorir a linha baseado no lucro/perda
+            if (profitBtc > 0) {
+              row.getCell('profitBtc').font = { color: { argb: '00B050' } };
+              row.getCell('profitUsd').font = { color: { argb: '00B050' } };
+              row.getCell('profitBrl').font = { color: { argb: '00B050' } };
+              row.getCell('percentOfMonthly').font = { color: { argb: '00B050' } };
+              row.getCell('percentOfTotal').font = { color: { argb: '00B050' } };
+            } else if (profitBtc < 0) {
+              row.getCell('profitBtc').font = { color: { argb: 'FF0000' } };
+              row.getCell('profitUsd').font = { color: { argb: 'FF0000' } };
+              row.getCell('profitBrl').font = { color: { argb: 'FF0000' } };
+              row.getCell('percentOfMonthly').font = { color: { argb: 'FF0000' } };
+              row.getCell('percentOfTotal').font = { color: { argb: 'FF0000' } };
+            }
+          } else {
+            // Adicionar uma linha indicando dados ausentes ou inválidos para este mês
+            monthlyAnalysisSheet.addRow({
+              month: monthKey, // Ou monthData?.label se monthData existir parcialmente
+              investmentBtc: 'N/A',
+              investmentUsd: 'N/A',
+              investmentBrl: 'N/A',
+              profitBtc: 'N/A',
+              profitUsd: 'N/A',
+              profitBrl: 'N/A',
+              percentOfMonthly: 'N/A',
+              percentOfTotal: 'N/A',
+              investmentCount: 'N/A',
+              profitCount: 'N/A'
+            });
+            console.warn(`Dados mensais ausentes ou inválidos para o mês ${monthKey} durante a exportação da Análise Mensal.`);
           }
         });
         
