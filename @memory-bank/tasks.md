@@ -2,6 +2,14 @@
 
 ## Prioridade Alta
 
+### A0. Correção Urgente - Problemas de Navegação
+- [ ] **A0.1.** Corrigir problemas de navegação entre abas após remoção de menu duplicado.
+  - [ ] Investigar por que as páginas de gráficos e calculadora não carregam ao clicar no menu.
+  - [ ] Verificar a comunicação entre SafeNavigationBar em app/page.tsx e o conteúdo de cada aba.
+  - [ ] Revisar a implementação do hook useActiveTab para garantir que as abas funcionem corretamente.
+  - [ ] Corrigir o carregamento dinâmico de cada componente de aba para responder às mudanças de navegação.
+  - [ ] Testar a navegação entre todas as abas (conversor, gráficos, calculadora) em desktop e mobile.
+
 ### A1. Sistema de Autenticação
 - [ ] **A1.1.** Investigar e otimizar o delay no processo de login.
   - [ ] Realizar profiling do processo de login para identificar gargalos.
@@ -126,6 +134,11 @@
   - [ ] Testes de integração para fluxos principais.
 
 ## Próximas Ações Imediatas
+
+0. **Corrigir problemas de navegação entre abas (A0.1)**
+   - Responsável: [A definir]
+   - Prazo: Imediato (urgente)
+   - Critério de Sucesso: Navegação funcionando perfeitamente entre todas as abas (conversor, gráficos, calculadora).
 
 1. **Iniciar investigação do delay no login (A1.1)**
    - Responsável: [A definir]

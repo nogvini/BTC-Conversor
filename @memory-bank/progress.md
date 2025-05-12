@@ -75,6 +75,7 @@
 
 ## Problemas Conhecidos
 
+0. **Navegação entre Abas Quebrada:** Após correção de menus duplicados, a navegação entre as abas (conversor, gráficos, calculadora) parou de funcionar corretamente. As páginas não são carregadas ao clicar nas opções do menu. (URGENTE)
 1. **Delay no Login:** Tempo considerável para completar o processo de login a partir da tela inicial.
 2. **Carregamento Infinito na Home:** Após atualizações no sistema de autenticação, ocorre carregamento infinito na página inicial.
 3. ~~**Menus Duplicados no Desktop:** A interface apresenta dois menus de navegação, quando apenas o superior deveria existir.~~
@@ -93,6 +94,7 @@
 
 ### Versão 1.0.1 (Atual)
 - Corrigido problema de menu de navegação duplicado na versão desktop.
+- Identificado novo problema: a navegação entre abas (conversor, gráficos, calculadora) não está funcionando após a correção dos menus duplicados. (Problema crítico a ser resolvido com prioridade máxima)
 
 ### Versão 1.0.0 (Atual)
 - Implementado mascaramento de email no perfil do usuário com opção para mostrar/ocultar
@@ -141,6 +143,7 @@
 
 ## Próximos Passos
 
+0. Corrigir urgentemente o problema de navegação entre abas após remoção de menu duplicado.
 1. Focar na investigação e otimização do delay no login.
 2. Corrigir o problema de carregamento infinito na home.
 3. Resolver problemas estruturais com GoTrueClient e uso incorreto do AuthProvider.

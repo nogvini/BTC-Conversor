@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { PageTransition } from "@/components/page-transition";
 import { Loader2 } from "lucide-react";
-import { SafeNavigationBar } from "@/components/ui/safe-navigation-bar";
 import { AuthLoading } from "@/components/auth-loading";
 import { SlowConnectionDetector } from "@/components/slow-connection-detector";
 
@@ -13,7 +12,6 @@ export default function Home() {
   const [isBrowser, setIsBrowser] = useState(false);
   const [BitcoinConverter, setBitcoinConverter] = useState<React.ComponentType<any> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Verificar se estamos no navegador
   useEffect(() => {
@@ -33,22 +31,6 @@ export default function Home() {
     }
   }, [isBrowser]);
   
-  // Função para atualizar os dados
-  const handleRefresh = () => {
-    if (BitcoinConverter && !isRefreshing) {
-      setIsRefreshing(true);
-      
-      // Recarregar o componente
-      import("@/components/bitcoin-converter").then((mod) => {
-        setBitcoinConverter(() => mod.default);
-        setIsRefreshing(false);
-      }).catch(error => {
-        console.error("Erro ao recarregar componente:", error);
-        setIsRefreshing(false);
-      });
-    }
-  };
-
   // Durante SSR ou hidratação inicial, mostrar apenas um esqueleto
   if (!isBrowser) {
     return (
@@ -63,15 +45,7 @@ export default function Home() {
   // Renderização no lado do cliente
   return (
     <main className="min-h-screen">
-      <Suspense fallback={
-        <div className="h-16 w-full flex items-center justify-center">
-          <div className="animate-pulse h-4 w-24 bg-purple-500/20 rounded"></div>
-        </div>
-      }>
-        <SafeNavigationBar onRefresh={handleRefresh} loading={isRefreshing} />
-      </Suspense>
-      
-      <div className="p-4 pt-16 md:pt-20 pb-8 md:pb-12">
+      <div className="p-4 pb-8 md:pb-12">
         <Suspense fallback={<div>Carregando...</div>}>
           <PageTransition>
             {isLoading ? (

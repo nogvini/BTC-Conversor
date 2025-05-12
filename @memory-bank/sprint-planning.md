@@ -196,4 +196,16 @@ Este documento apresenta o planejamento detalhado de sprints para o desenvolvime
 - Tempo de login reduzido em pelo menos 70%
 - Tempo de carregamento inicial reduzido em 50%
 - Capacidade de gerenciar pelo menos 10 relatórios diferentes
-- Performance aceitável com pelo menos 1000 registros de aportes/lucros 
+- Performance aceitável com pelo menos 1000 registros de aportes/lucros
+
+## Sprint Atual: Sprint 2 - Melhorias de Autenticação e Novos Recursos
+
+### A0. Correção Urgente - Navegação
+- [ ] **A0.1**: Corrigir problemas de navegação entre abas
+  - [ ] Investigar falha na navegação após remoção dos menus duplicados
+  - [ ] Implementar solução para garantir carregamento correto de cada aba (conversor, gráficos, calculadora)
+  - [ ] Testar navegação em todos os navegadores e dispositivos
+  - [ ] Verificar impacto em todas as funcionalidades relacionadas ao TabsContent
+
+### A. Calculadora de Lucros - Melhorias
+// ... existing code ... 

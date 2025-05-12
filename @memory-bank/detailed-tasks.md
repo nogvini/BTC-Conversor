@@ -261,4 +261,77 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 ### Sprint 4: Finalização de Múltiplos Relatórios (5 dias)
 - Implementar A2.1.3: Gerenciamento completo de relatórios
 - Implementar A2.3.1 a A2.3.2: Visualizações comparativas
-- Implementar A2.4.1 a A2.4.2: Adaptação de importação/exportação 
+- Implementar A2.4.1 a A2.4.2: Adaptação de importação/exportação
+
+## Plano Detalhado: Correção Urgente da Navegação Entre Abas
+
+### Contexto do Problema
+Após a remoção do componente `SafeNavigationBar` duplicado do `BitcoinConverter`, as abas não estão sendo carregadas corretamente quando o usuário clica nas opções do menu de navegação (Conversor, Gráficos, Calculadora). A mudança que resolveu o problema de menu duplicado quebrou a comunicação entre a navegação e o conteúdo das abas.
+
+### Causas Prováveis
+1. **Perda do estado compartilhado**: O hook `useActiveTab()` utilizado em ambos (navegação e conteúdo) não está sincronizando corretamente.
+2. **Falha na atualização do conteúdo**: O componente `BitcoinConverter` não está respondendo às mudanças de parâmetros de URL.
+3. **Arquitetura de navegação inconsistente**: A refatoração removeu a navegação interna, mas o `BitcoinConverter` ainda espera que exista uma navegação dentro dele.
+
+### Abordagem de Correção
+
+#### Passo 1: Diagnóstico Detalhado
+- Verificar como o hook `useActiveTab()` é implementado e se ele está funcionando corretamente com a mudança de parâmetros URL.
+- Verificar se o componente `BitcoinConverter` ainda espera renderizar um `TabsContent` baseado no valor de `activeTab`.
+- Verificar se existe algum conflito entre a navegação em `app/page.tsx` e a lógica de abas no `BitcoinConverter`.
+
+#### Passo 2: Implementação da Correção (Opções)
+
+**Opção A: Corrigir a Estrutura Atual**
+- Manter a navegação principal em `app/page.tsx` 
+- Modificar o componente `BitcoinConverter` para:
+  1. Escutar corretamente as mudanças de URL/parâmetros
+  2. Ajustar a renderização de conteúdo baseado no valor atualizado de `activeTab`
+  3. Usar um efeito específico para reagir a mudanças no parâmetro 'tab' da URL
+
+**Opção B: Reestruturar a Navegação**
+- Mover toda a lógica de navegação para `app/page.tsx`
+- Criar componentes separados para cada aba (ConverterContent, ChartContent, CalculatorContent)
+- Renderizar o componente correto com base no valor do parâmetro 'tab', sem depender da lógica interna do `BitcoinConverter`
+
+**Opção C: Voltar à Abordagem Original com Ajustes**
+- Restaurar o `SafeNavigationBar` dentro do `BitcoinConverter` mas com uma flag para desativar a renderização visual
+- Manter apenas a lógica de gerenciamento de abas, sem duplicar visualmente os menus
+
+#### Passo 3: Testes Abrangentes
+- Testar a navegação em todos os cenários (desktop/mobile)
+- Verificar se o conteúdo correto é exibido para cada aba
+- Verificar se o histórico de navegação do navegador funciona corretamente com os botões voltar/avançar
+- Garantir que não há efeitos colaterais em outras funcionalidades
+
+### Implementação Recomendada
+A **Opção A** parece a mais direta e de menor impacto, uma vez que preserva a estrutura atual. O problema provavelmente está na sincronização do estado, não na arquitetura geral.
+
+### Mudanças de Código Necessárias
+
+1. **Modificar o hook `useActiveTab`** para garantir que ele reage corretamente às mudanças de URL:
+```tsx
+// Adicionar force update
+useEffect(() => {
+  const tabParam = searchParams.get('tab') as Tab;
+  if (tabParam && (tabParam === 'chart' || tabParam === 'calculator' || tabParam === 'converter')) {
+    setActiveTab(tabParam);
+  }
+}, [searchParams]); // Dependência simplificada para reagir apenas a mudanças nos parâmetros
+```
+
+2. **Ajustar o `BitcoinConverter`** para garantir que ele sincroniza o estado corretamente:
+```tsx
+// Adicionar um useEffect específico para forçar recarregamento do conteúdo
+useEffect(() => {
+  // Forçar atualização do conteúdo quando activeTab mudar
+  console.log("Tab changed to:", activeTab);
+  // Possivelmente adicionar um forceUpdate ou manipulação específica aqui
+}, [activeTab]);
+```
+
+### Métricas de Sucesso
+- Navegação funcionando em todos os botões e abas
+- Não há menus duplicados
+- Transições entre abas são suaves e previsíveis
+- Dados são preservados ao navegar entre abas 
