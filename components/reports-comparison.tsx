@@ -470,7 +470,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       </Card>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -825,8 +825,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           >
             Detalhes
           </TabsTrigger>
-        </TabsList>
-        
+              </TabsList>
+              
         <TabsContent value="summary" className="pt-2">
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
@@ -836,11 +836,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalInvestmentsBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-              </div>
+                                </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalInvestmentsBtc * btcToUsd, "USD")}
-              </div>
-            </div>
+                                      </div>
+                                  </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
               <div className={`text-xl font-bold ${comparisonData.totalProfitsBtc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -848,10 +848,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalProfitsBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-              </div>
+                  </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalProfitsBtc * btcToUsd, "USD")}
-              </div>
+                </div>
             </div>
           </div>
           
@@ -863,11 +863,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalBalanceBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-              </div>
+                                </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalBalanceBtc * btcToUsd, "USD")}
-              </div>
-            </div>
+                                </div>
+                                </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
               <div className={`text-xl font-bold ${comparisonData.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -879,9 +879,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground">
                 Retorno sobre investimento
               </div>
-            </div>
-          </div>
-          
+                                </div>
+                              </div>
+                              
           <ScrollArea className="h-[180px] mt-4 rounded-lg border border-purple-800/30">
             <Table className="min-w-[640px]">
               <TableHeader>
@@ -954,9 +954,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-            
+                                </div>
+                              </div>
+                              
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <h4 className="text-sm font-medium mb-3">Distribuição de Saldo</h4>
               <div className="h-[250px]">
@@ -982,11 +982,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-        
+                                </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
         <TabsContent value="details" className="pt-2">
           <ScrollArea className="h-[400px] rounded-lg border border-purple-800/30">
             <Table className="min-w-[700px]">
@@ -1012,7 +1012,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                           style={{ backgroundColor: summary.color }}
                         ></div>
                         {summary.name}
-                      </div>
+                                </div>
                     </TableCell>
                     <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
                     <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
@@ -1030,8 +1030,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               </TableBody>
             </Table>
           </ScrollArea>
-        </TabsContent>
-      </Tabs>
+              </TabsContent>
+            </Tabs>
     </div>
   );
 } 

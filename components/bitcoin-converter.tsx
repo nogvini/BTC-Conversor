@@ -442,8 +442,9 @@ export default function BitcoinConverter() {
         </div>
         <div 
           className={cn(
-            "p-2 bg-black/5 dark:bg-white/5 rounded border text-lg font-mono cursor-pointer",
-            "hover:bg-purple-500/10 dark:hover:bg-purple-400/10 hover:border-purple-500/30 transition-colors group" // Adicionado group para hover state
+            "p-2 rounded border text-lg font-mono cursor-pointer",
+            "bg-purple-900/10 dark:bg-purple-800/10 border-purple-700/30", // Fundo mais escuro e borda roxa sutil
+            "hover:bg-purple-700/20 dark:hover:bg-purple-600/20 hover:border-purple-500/70 transition-colors group" 
           )}
           onClick={() => copyToClipboard(value, unit)}
         >
@@ -493,19 +494,19 @@ export default function BitcoinConverter() {
               <TabsTrigger value="converter" className="flex items-center gap-1">
                 <ArrowRightLeft className="h-4 w-4" />
                 <span>Conversor</span>
-              </TabsTrigger>
+          </TabsTrigger>
               <TabsTrigger value="calculator" className="flex items-center gap-1">
                 <Calculator className="h-4 w-4" />
                 <span>Calculadora</span>
-              </TabsTrigger>
+          </TabsTrigger>
               <TabsTrigger value="chart" className="flex items-center gap-1">
                 <TrendingUp className="h-4 w-4" />
                 <span>Gráfico</span>
-              </TabsTrigger>
-            </TabsList>
-            
+          </TabsTrigger>
+        </TabsList>
+        
             <TabsContent value="converter" className="space-y-4">
-              <Card className="mb-6">
+              <Card className="mb-6 border-2 border-purple-700/30 shadow-xl shadow-purple-900/20">
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
@@ -517,16 +518,19 @@ export default function BitcoinConverter() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1"
+                      className={cn(
+                        "gap-1 border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90", // Borda roxa e hover
+                        loading && "text-purple-300 border-purple-500/90 bg-purple-700/20" // Estilo quando loading
+                      )}
                       onClick={handleRefresh}
                       disabled={loading}
                     >
                       {loading ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <RefreshCw className="h-4 w-4 animate-spin text-purple-300" /> // Ícone roxo quando loading
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      <span className="hidden sm:inline-block">Atualizar</span>
+                      <span className={cn(loading && "text-purple-300")}>Atualizar</span> // Texto roxo quando loading, corrigido para Atualizar
                     </Button>
                   </div>
                 </CardHeader>
@@ -538,26 +542,26 @@ export default function BitcoinConverter() {
                         <p className="font-medium">Usando dados em cache</p>
                         <p className="text-sm">
                           Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  
+                </p>
+              </div>
+            </div>
+          )}
+          
                   <div className="space-y-4">
-                    <div className="space-y-2">
+              <div className="space-y-2">
                       <Label htmlFor="amount">Valor para conversão</Label>
-                      <Input
-                        id="amount"
+                <Input
+                  id="amount"
                         type="text"
                         inputMode="decimal"
                         placeholder="Digite um valor..."
-                        value={amount}
+                  value={amount}
                         onChange={handleAmountChange}
                         className="text-lg"
-                      />
-                    </div>
+                />
+              </div>
                     
-                    <div className="space-y-2">
+              <div className="space-y-2">
                       <Label>Unidade de origem</Label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <Button
@@ -613,8 +617,8 @@ export default function BitcoinConverter() {
                           <span>Real (BRL)</span>
                         </Button>
                       </div>
-                    </div>
-                    
+                  </div>
+                  
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                       <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
                       
@@ -665,39 +669,39 @@ export default function BitcoinConverter() {
                       ) : (
                         "Carregando cotações..."
                       )}
-                    </span>
+                      </span>
                   </div>
                   <div>
                     1 BTC = {rates ? `$${rates.BTC_USD.toLocaleString()}` : "..."}
                   </div>
                 </CardFooter>
-              </Card>
-            </TabsContent>
-            
+          </Card>
+        </TabsContent>
+        
             <TabsContent value="calculator" className="space-y-4">
               {appData && rates ? (
                 <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
                   <MultiReportCalculator
-                    btcToUsd={rates.BTC_USD}
-                    brlToUsd={rates.BRL_USD}
-                    appData={appData}
-                  />
+              btcToUsd={rates.BTC_USD} 
+              brlToUsd={rates.BRL_USD} 
+              appData={appData}
+            />
                 </Suspense>
               ) : (
                 <div className="flex items-center justify-center min-h-[300px]">
                   <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
                 </div>
-              )}
-            </TabsContent>
-            
+          )}
+        </TabsContent>
+        
             <TabsContent value="chart" className="space-y-4">
               <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
                 <HistoricalRatesChart />
               </Suspense>
-            </TabsContent>
-          </Tabs>
+        </TabsContent>
+      </Tabs>
         </ResponsiveContainer>
-      </div>
+    </div>
     </PageTransition>
   )
 }
