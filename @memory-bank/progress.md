@@ -64,10 +64,15 @@
 3. ~~**Duplicação de Toasts:** Problema já corrigido que envolvia múltiplas instâncias de notificações toast.~~
 4. ~~**Múltiplas Instâncias do GoTrueClient:** Problema já corrigido que ocorria quando o usuário tinha múltiplas abas abertas.~~
 5. ~~**Incompatibilidade do Recharts com SSR:** Problema que causava erros no build do Vercel.~~
+6. ~~**Erro de 'require' no next.config.mjs:** Problema resolvido convertendo o arquivo para formato CommonJS (.js).~~
 
 ## Últimas Atualizações
 
-### Versão 0.9.6 (Atual)
+### Versão 0.9.7 (Atual)
+- Corrigido erro de build relacionado ao uso de 'require' em arquivo ESM
+- Convertido next.config.mjs para next.config.js (formato CommonJS)
+
+### Versão 0.9.6
 - Implementado sistema completo de múltiplos relatórios na calculadora de lucros
 - Criado componente ReportSelector para gerenciamento de relatórios
 - Desenvolvido ReportsComparison para visualização comparativa entre relatórios
