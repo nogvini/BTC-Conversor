@@ -563,58 +563,58 @@ export default function BitcoinConverter() {
                     
               <div className="space-y-2">
                       <Label>Unidade de origem</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <Button
-                          variant={selectedUnit === "BTC" ? "default" : "outline"}
+                          variant="outline"
                           className={cn(
-                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
-                            selectedUnit === "BTC" 
-                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700" 
-                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
+                            selectedUnit === "BTC"
+                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
                           )}
                           onClick={() => handleUnitChange("BTC")}
                         >
-                          <Bitcoin className="h-4 w-4" /> 
-                          <span>Bitcoin</span>
+                          <Bitcoin className="h-5 w-5 mb-1" /> 
+                          <span className="text-xs text-center">Bitcoin</span>
                         </Button>
                         <Button
-                          variant={selectedUnit === "SATS" ? "default" : "outline"}
+                          variant="outline"
                           className={cn(
-                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                             selectedUnit === "SATS"
-                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
-                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
                           )}
                           onClick={() => handleUnitChange("SATS")}
                         >
-                          <Bitcoin className="h-4 w-4" /> 
-                          <span>Satoshis</span>
+                          <Bitcoin className="h-5 w-5 mb-1" /> 
+                          <span className="text-xs text-center">Satoshis</span>
                         </Button>
                         <Button
-                          variant={selectedUnit === "USD" ? "default" : "outline"}
+                          variant="outline"
                           className={cn(
-                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                             selectedUnit === "USD"
-                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
-                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
                           )}
                           onClick={() => handleUnitChange("USD")}
                         >
-                          <DollarSign className="h-4 w-4" /> 
-                          <span>Dólar (USD)</span>
+                          <DollarSign className="h-5 w-5 mb-1" /> 
+                          <span className="text-xs text-center">Dólar (USD)</span>
                         </Button>
                         <Button
-                          variant={selectedUnit === "BRL" ? "default" : "outline"}
+                          variant="outline"
                           className={cn(
-                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                             selectedUnit === "BRL"
-                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
-                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                              ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
+                              : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
                           )}
                           onClick={() => handleUnitChange("BRL")}
                         >
-                          <DollarSign className="h-4 w-4" /> 
-                          <span>Real (BRL)</span>
+                          <DollarSign className="h-5 w-5 mb-1" /> 
+                          <span className="text-xs text-center">Real (BRL)</span>
                         </Button>
                       </div>
                   </div>
