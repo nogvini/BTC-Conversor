@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle } from "lucide-react"
-import { Card, CardTitle, CardHeader, CardContent } from "@/components/ui/card"
+import { Card, CardTitle, CardHeader, CardContent, CardDescription } from "@/components/ui/card"
 import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/client-api"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -329,10 +329,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       <CardHeader className="p-0 mb-4 md:mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
           <div className="space-y-1">
-            <CardTitle className="text-lg">Histórico de Cotações</CardTitle>
-            <div className="text-xs text-gray-400">
+            <CardTitle className="text-lg mb-1.5">Histórico de Cotações</CardTitle>
+            <CardDescription className="text-xs text-purple-500/90 dark:text-purple-400/80">
               Fonte: {dataSource} {isUsingCachedData ? "(cache)" : ""}
-            </div>
+            </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* Controles de Moeda e Período */}

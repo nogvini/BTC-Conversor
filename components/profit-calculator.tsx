@@ -2632,8 +2632,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             {/* Card de Registrar Investimento atualizado com borda */}
             <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
               <CardHeader>
-                <CardTitle className="text-lg">Registrar Investimento</CardTitle>
-                <CardDescription>Registre seus aportes</CardDescription>
+                {/* Estilo do CardTitle atualizado */}
+                <CardTitle className="text-lg mb-1.5">Registrar Investimento</CardTitle>
+                {/* Estilo da CardDescription atualizado */}
+                <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Registre seus aportes</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -2708,8 +2710,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             {/* Card de Registrar Lucro/Perda atualizado com borda */}
             <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
               <CardHeader>
-                <CardTitle className="text-lg">Registrar Lucro/Perda</CardTitle>
-                <CardDescription>Registre seus lucros ou perdas</CardDescription>
+                {/* Estilo do CardTitle atualizado */}
+                <CardTitle className="text-lg mb-1.5">Registrar Lucro/Perda</CardTitle>
+                {/* Estilo da CardDescription atualizado */}
+                <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Registre seus lucros ou perdas</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -2808,8 +2812,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           {/* Card de Importação atualizado com borda */}
           <Card className="bg-gray-950/60 rounded-lg shadow-md border border-purple-700/50">
             <CardHeader>
-              <CardTitle className="text-lg">Importação de Registros</CardTitle>
-              <CardDescription>Importe operações e aportes de arquivos externos</CardDescription>
+              {/* Estilo do CardTitle atualizado */}
+              <CardTitle className="text-lg mb-1.5">Importação de Registros</CardTitle>
+              {/* Estilo da CardDescription atualizado */}
+              <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Importe operações e aportes de arquivos externos</CardDescription>
             </CardHeader>
             <CardContent>
               <ImportOptions />
@@ -2818,10 +2824,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          <Card className="panel border-purple-700/50">
+          {/* Card principal do Histórico atualizado com borda e descrição */}
+          <Card className="panel border border-purple-700/40">
             <CardHeader>
-              <CardTitle className="text-lg">Histórico</CardTitle>
-              <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2">
+              {/* Estilo do CardTitle atualizado */}
+              <CardTitle className="text-lg mb-1.5">Histórico de Registros</CardTitle>
+              {/* Nova CardDescription adicionada */}
+              <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                Visualize seus aportes e lucros/perdas registrados.
+              </CardDescription>
+              <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2 pt-3">
                 <div className="flex items-center space-x-2">
                   <Button
                     variant={showFilterOptions ? "default" : "outline"}
