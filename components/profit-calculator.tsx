@@ -2644,6 +2644,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       placeholder="Valor"
                       value={investmentAmount}
                       onChange={(e) => setInvestmentAmount(e.target.value)}
+                      className="bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70"
                     />
                   </div>
                   <div>
@@ -2652,7 +2653,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
@@ -2696,7 +2697,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </div>
                     </RadioGroup>
                   </div>
-                  <Button onClick={addInvestment}>
+                  <Button onClick={addInvestment} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
                     Adicionar Aporte
                   </Button>
                 </div>
@@ -2718,6 +2719,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       placeholder="Valor"
                       value={profitAmount}
                       onChange={(e) => setProfitAmount(e.target.value)}
+                      className="bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70"
                     />
                   </div>
                   <div>
@@ -2726,7 +2728,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                          className="w-full justify-start text-left bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {profitDate ? format(profitDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
@@ -2793,7 +2795,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </div>
                   </div>
                   
-                  <Button onClick={addProfitRecord}>
+                  <Button onClick={addProfitRecord} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
                     Adicionar {isProfit ? "Lucro" : "Perda"}
                   </Button>
                 </div>
@@ -2823,7 +2825,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant={showFilterOptions ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowFilterOptions(!showFilterOptions)}
-                    className={showFilterOptions ? "bg-purple-800 hover:bg-purple-700" : "bg-black/30 border-purple-700/50"}
+                    className={cn(
+                      showFilterOptions 
+                        ? "bg-purple-800 hover:bg-purple-700 border border-purple-600/80"
+                        : "bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                    )}
                   >
                     <Calendar className="mr-2 h-4 w-4" />
                     {showFilterOptions ? "Filtro ativo" : "Filtrar por mês"}
@@ -2835,7 +2841,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <Button
                         variant="outline"
                         size="sm"
-                        className="bg-black/30 border-purple-700/50"
+                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                       >
                         {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
                         <ChevronDown className="ml-2 h-4 w-4" />
@@ -2884,7 +2890,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     variant="outline"
                     size="sm"
                     onClick={toggleDisplayCurrency}
-                    className="bg-black/30 border-purple-700/50"
+                    className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                   >
                     {displayCurrency === "USD" ? (
                       <>
@@ -2903,7 +2909,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       size="sm"
                       onClick={() => setShowExportOptions(true)}
                       disabled={isExporting}
-                      className="bg-black/30 border-purple-700/50"
+                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                     >
                       {isExporting ? (
                         <>
@@ -2924,7 +2930,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           variant="outline"
                           size="sm"
                           disabled={isExporting}
-                          className="bg-black/30 border-purple-700/50"
+                          className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
                         >
                           {isExporting ? (
                             <>

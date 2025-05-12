@@ -587,7 +587,7 @@ export default function BitcoinConverter() {
                           variant="outline"
                           size="sm"
                           className={cn(
-                            "border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
+                            "bg-background/30 dark:bg-black/40 border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
                             "p-2 sm:px-3 sm:py-1.5 sm:gap-1",
                             loading && "text-purple-300 border-purple-500/90 bg-purple-700/20"
                           )}
@@ -627,7 +627,7 @@ export default function BitcoinConverter() {
                             placeholder="Digite um valor..."
                             value={amount}
                             onChange={handleAmountChange}
-                            className="text-lg border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
+                            className="text-lg bg-background/30 dark:bg-black/40 border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
                           />
                         </div>
                         
@@ -639,8 +639,8 @@ export default function BitcoinConverter() {
                               className={cn(
                                 "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                                 selectedUnit === "BTC"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
+                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
                               )}
                               onClick={() => handleUnitChange("BTC")}
                             >
@@ -652,8 +652,8 @@ export default function BitcoinConverter() {
                               className={cn(
                                 "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                                 selectedUnit === "SATS"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
+                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
                               )}
                               onClick={() => handleUnitChange("SATS")}
                             >
@@ -665,8 +665,8 @@ export default function BitcoinConverter() {
                               className={cn(
                                 "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                                 selectedUnit === "USD"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
+                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
                               )}
                               onClick={() => handleUnitChange("USD")}
                             >
@@ -678,8 +678,8 @@ export default function BitcoinConverter() {
                               className={cn(
                                 "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
                                 selectedUnit === "BRL"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/10"
-                                  : "border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-white/10 hover:border-gray-500/70 dark:hover:border-gray-400/60 hover:text-foreground"
+                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
+                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
                               )}
                               onClick={() => handleUnitChange("BRL")}
                             >
@@ -763,11 +763,13 @@ export default function BitcoinConverter() {
                 <TabsContent value="calculator">
                   {appData && rates ? (
                     <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
-                      <MultiReportCalculator
-                        btcToUsd={rates.BTC_USD} 
-                        brlToUsd={rates.BRL_USD} 
-                        appData={appData}
-                      />
+                      <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
+                        <MultiReportCalculator
+                          btcToUsd={rates.BTC_USD} 
+                          brlToUsd={rates.BRL_USD} 
+                          appData={appData}
+                        />
+                      </Card>
                     </Suspense>
                   ) : (
                     <div className="flex items-center justify-center min-h-[300px]">
@@ -778,7 +780,9 @@ export default function BitcoinConverter() {
                 
                 <TabsContent value="chart">
                   <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
-                    <HistoricalRatesChart />
+                    <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
+                      <HistoricalRatesChart />
+                    </Card>
                   </Suspense>
                 </TabsContent>
               </PageTransition>
