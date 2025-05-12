@@ -537,8 +537,13 @@ export default function BitcoinConverter() {
                   activeTab === "converter" && "data-[state=active]:animate-pulse"
                 )}
               >
-                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
-                <span>Conversor</span>
+                <ArrowRightLeft className={cn(
+                  "mr-1.5 h-4 w-4",
+                  activeTab === "converter" && "data-[state=active]:animate-pulse"
+                )} />
+                <span className={cn(
+                  activeTab === "converter" && "data-[state=active]:animate-pulse"
+                )}>Conversor</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="chart"
@@ -551,8 +556,13 @@ export default function BitcoinConverter() {
                   activeTab === "chart" && "data-[state=active]:animate-pulse"
                 )}
               >
-                <TrendingUp className="mr-1.5 h-4 w-4" />
-                <span>Gráficos</span>
+                <TrendingUp className={cn(
+                  "mr-1.5 h-4 w-4",
+                  activeTab === "chart" && "data-[state=active]:animate-pulse"
+                )} />
+                <span className={cn(
+                  activeTab === "chart" && "data-[state=active]:animate-pulse"
+                )}>Gráficos</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="calculator" 
@@ -565,8 +575,13 @@ export default function BitcoinConverter() {
                   activeTab === "calculator" && "data-[state=active]:animate-pulse"
                 )}
               >
-                <Calculator className="mr-1.5 h-4 w-4" />
-                <span>Calculadora</span>
+                <Calculator className={cn(
+                  "mr-1.5 h-4 w-4",
+                  activeTab === "calculator" && "data-[state=active]:animate-pulse"
+                )} />
+                <span className={cn(
+                  activeTab === "calculator" && "data-[state=active]:animate-pulse"
+                )}>Calculadora</span>
               </TabsTrigger>
             </TabsList>
 
