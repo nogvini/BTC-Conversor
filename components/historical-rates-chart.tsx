@@ -325,8 +325,8 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
   // Render
   return (
-    <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg p-4 md:p-6">
-      <CardHeader className="p-0 mb-4 md:mb-6">
+    <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
+      <CardHeader className="mb-4 md:mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
           <div className="space-y-1">
             <CardTitle className="text-lg mb-1.5">Histórico de Cotações</CardTitle>
@@ -383,7 +383,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="pt-0 pb-6 px-6">
         {/* Gráfico */}
         <div className="h-[300px] sm:h-[400px]">
           {loading ? (

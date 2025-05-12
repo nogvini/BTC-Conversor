@@ -2824,8 +2824,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          {/* Card principal do Histórico atualizado com borda e descrição */}
-          <Card className="panel border border-purple-700/40">
+          {/* Card principal do Histórico atualizado com a borda correta */}
+          <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
             <CardHeader>
               {/* Estilo do CardTitle atualizado */}
               <CardTitle className="text-lg mb-1.5">Histórico de Registros</CardTitle>
