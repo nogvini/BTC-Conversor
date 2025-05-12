@@ -397,6 +397,19 @@ export default function BitcoinConverter() {
     })();
     
     const isCopied = copiedValues[unit];
+
+    const valueColorClass = () => {
+      switch (unit) {
+        case "BTC":
+        case "SATS":
+          return "text-amber-400 dark:text-amber-300"; // Dourado
+        case "USD":
+        case "BRL":
+          return "text-green-500 dark:text-green-400"; // Verde
+        default:
+          return "text-foreground";
+      }
+    };
     
     return (
       <div className="flex flex-col space-y-1">
@@ -430,11 +443,11 @@ export default function BitcoinConverter() {
         <div 
           className={cn(
             "p-2 bg-black/5 dark:bg-white/5 rounded border text-lg font-mono cursor-pointer",
-            "hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            "hover:bg-purple-500/10 dark:hover:bg-purple-400/10 hover:border-purple-500/30 transition-colors group" // Adicionado group para hover state
           )}
           onClick={() => copyToClipboard(value, unit)}
         >
-          {formattedValue}
+          <span className={cn(valueColorClass(), "group-hover:text-purple-400 dark:group-hover:text-purple-300 transition-colors")}>{formattedValue}</span>
         </div>
       </div>
     );
@@ -549,7 +562,12 @@ export default function BitcoinConverter() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <Button
                           variant={selectedUnit === "BTC" ? "default" : "outline"}
-                          className="w-full flex items-center justify-center gap-1"
+                          className={cn(
+                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            selectedUnit === "BTC" 
+                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700" 
+                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                          )}
                           onClick={() => handleUnitChange("BTC")}
                         >
                           <Bitcoin className="h-4 w-4" /> 
@@ -557,7 +575,12 @@ export default function BitcoinConverter() {
                         </Button>
                         <Button
                           variant={selectedUnit === "SATS" ? "default" : "outline"}
-                          className="w-full flex items-center justify-center gap-1"
+                          className={cn(
+                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            selectedUnit === "SATS"
+                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
+                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                          )}
                           onClick={() => handleUnitChange("SATS")}
                         >
                           <Bitcoin className="h-4 w-4" /> 
@@ -565,7 +588,12 @@ export default function BitcoinConverter() {
                         </Button>
                         <Button
                           variant={selectedUnit === "USD" ? "default" : "outline"}
-                          className="w-full flex items-center justify-center gap-1"
+                          className={cn(
+                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            selectedUnit === "USD"
+                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
+                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                          )}
                           onClick={() => handleUnitChange("USD")}
                         >
                           <DollarSign className="h-4 w-4" /> 
@@ -573,7 +601,12 @@ export default function BitcoinConverter() {
                         </Button>
                         <Button
                           variant={selectedUnit === "BRL" ? "default" : "outline"}
-                          className="w-full flex items-center justify-center gap-1"
+                          className={cn(
+                            "w-full flex items-center justify-center gap-1 transition-all duration-300",
+                            selectedUnit === "BRL"
+                              ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
+                              : "border-purple-400/50 hover:bg-purple-500/10 hover:border-purple-500/70 hover:text-purple-300"
+                          )}
                           onClick={() => handleUnitChange("BRL")}
                         >
                           <DollarSign className="h-4 w-4" /> 

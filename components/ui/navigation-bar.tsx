@@ -91,21 +91,21 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
   // Renderiza a navegação para desktop
   const DesktopNavigation = () => (
     <div className="flex justify-between items-center w-full">
-      <div className="flex border border-purple-800/40 rounded-md p-1 shadow-md backdrop-blur-sm">
+      <div className="flex border border-purple-700/60 rounded-lg p-1 shadow-lg backdrop-blur-sm bg-purple-900/20">
         <Button
           variant="ghost"
           size="default"
           className={cn(
-            "text-sm rounded-md transition-all duration-300",
+            "text-sm rounded-md transition-all duration-300 border border-transparent",
             activeTab === "converter" 
-              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-              : "hover:bg-purple-800/20 hover:text-white"
+              ? "bg-gradient-to-r from-purple-700/90 to-purple-600/70 text-white shadow-md shadow-purple-600/40 border-purple-500/80"
+              : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 hover:border-purple-600/60"
           )}
           onClick={() => router.push("/?tab=converter")}
         >
           <ArrowRightLeft className={cn(
             "mr-2 h-4 w-4 transition-transform duration-300",
-            activeTab === "converter" ? "text-purple-300" : ""
+            activeTab === "converter" ? "text-purple-200" : "text-purple-400/90"
           )} />
           <span>Conversor</span>
         </Button>
@@ -114,16 +114,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           variant="ghost"
           size="default"
           className={cn(
-            "text-sm rounded-md transition-all duration-300",
+            "text-sm rounded-md transition-all duration-300 border border-transparent",
             activeTab === "chart" 
-              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-              : "hover:bg-purple-800/20 hover:text-white"
+              ? "bg-gradient-to-r from-purple-700/90 to-purple-600/70 text-white shadow-md shadow-purple-600/40 border-purple-500/80"
+              : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 hover:border-purple-600/60"
           )}
           onClick={() => router.push("/?tab=chart")}
         >
           <TrendingUp className={cn(
             "mr-2 h-4 w-4 transition-transform duration-300",
-            activeTab === "chart" ? "text-purple-300" : ""
+            activeTab === "chart" ? "text-purple-200" : "text-purple-400/90"
           )} />
           <span>Gráficos</span>
         </Button>
@@ -132,16 +132,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           variant="ghost"
           size="default"
           className={cn(
-            "text-sm rounded-md transition-all duration-300",
+            "text-sm rounded-md transition-all duration-300 border border-transparent",
             activeTab === "calculator" 
-              ? "bg-gradient-to-r from-purple-800/80 to-purple-700/50 text-white shadow-sm shadow-purple-700/30"
-              : "hover:bg-purple-800/20 hover:text-white"
+              ? "bg-gradient-to-r from-purple-700/90 to-purple-600/70 text-white shadow-md shadow-purple-600/40 border-purple-500/80"
+              : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 hover:border-purple-600/60"
           )}
           onClick={() => router.push("/?tab=calculator")}
         >
           <Calculator className={cn(
             "mr-2 h-4 w-4 transition-transform duration-300",
-            activeTab === "calculator" ? "text-purple-300" : ""
+            activeTab === "calculator" ? "text-purple-200" : "text-purple-400/90"
           )} />
           <span>Calculadora</span>
         </Button>
@@ -203,7 +203,7 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
           </SheetTrigger>
           <SheetContent 
             side="left" 
-            className="w-4/5 p-0 border-r border-purple-700/30 backdrop-blur-md bg-gradient-to-br from-purple-900/95 via-purple-950/95 to-black/95"
+            className="w-4/5 p-0 border-r-2 border-purple-700/50 backdrop-blur-xl bg-gradient-to-br from-purple-900/90 via-purple-950/90 to-black/90"
           >
             <div className="flex flex-col h-full relative">
               {/* Botão de fechar posicionado no canto superior esquerdo */}
@@ -238,16 +238,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   variant="ghost"
                   size="lg"
                   className={cn(
-                    "justify-start w-full rounded-lg transition-all duration-300",
+                    "justify-start w-full rounded-lg transition-all duration-300 py-3",
                     activeTab === "converter" 
-                      ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
-                      : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
+                      ? "bg-purple-600/40 text-purple-100 border-l-4 border-l-purple-400 pl-4 shadow-inner shadow-purple-900/50"
+                      : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 border-l-4 border-l-transparent pl-4"
                   )}
                   onClick={() => handleNavigate("converter")}
                 >
                   <ArrowRightLeft className={cn(
                     "mr-3 h-5 w-5 transition-all duration-300",
-                    activeTab === "converter" ? "text-purple-400" : "text-white/70"
+                    activeTab === "converter" ? "text-purple-300" : "text-purple-400/80"
                   )} />
                   <span className="font-medium">Conversor</span>
                   {activeTab === "converter" && <div className="ml-auto">
@@ -259,16 +259,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   variant="ghost"
                   size="lg"
                   className={cn(
-                    "justify-start w-full rounded-lg transition-all duration-300",
+                    "justify-start w-full rounded-lg transition-all duration-300 py-3",
                     activeTab === "chart" 
-                      ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
-                      : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
+                      ? "bg-purple-600/40 text-purple-100 border-l-4 border-l-purple-400 pl-4 shadow-inner shadow-purple-900/50"
+                      : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 border-l-4 border-l-transparent pl-4"
                   )}
                   onClick={() => handleNavigate("chart")}
                 >
                   <TrendingUp className={cn(
                     "mr-3 h-5 w-5 transition-all duration-300",
-                    activeTab === "chart" ? "text-purple-400" : "text-white/70"
+                    activeTab === "chart" ? "text-purple-300" : "text-purple-400/80"
                   )} />
                   <span className="font-medium">Gráficos</span>
                   {activeTab === "chart" && <div className="ml-auto">
@@ -280,16 +280,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                   variant="ghost"
                   size="lg"
                   className={cn(
-                    "justify-start w-full rounded-lg transition-all duration-300",
+                    "justify-start w-full rounded-lg transition-all duration-300 py-3",
                     activeTab === "calculator" 
-                      ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
-                      : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
+                      ? "bg-purple-600/40 text-purple-100 border-l-4 border-l-purple-400 pl-4 shadow-inner shadow-purple-900/50"
+                      : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 border-l-4 border-l-transparent pl-4"
                   )}
                   onClick={() => handleNavigate("calculator")}
                 >
                   <Calculator className={cn(
                     "mr-3 h-5 w-5 transition-all duration-300",
-                    activeTab === "calculator" ? "text-purple-400" : "text-white/70"
+                    activeTab === "calculator" ? "text-purple-300" : "text-purple-400/80"
                   )} />
                   <span className="font-medium">Calculadora</span>
                   {activeTab === "calculator" && <div className="ml-auto">
@@ -303,16 +303,16 @@ export function NavigationBar({ onRefresh, loading }: NavigationBarProps) {
                     variant="ghost"
                     size="lg"
                     className={cn(
-                      "justify-start w-full rounded-lg transition-all duration-300",
+                      "justify-start w-full rounded-lg transition-all duration-300 py-3",
                       activeTab === "auth" 
-                        ? "bg-white/10 text-white border-l-4 border-l-purple-500 pl-3" 
-                        : "hover:bg-white/5 hover:text-white border-l-4 border-l-transparent pl-3"
+                        ? "bg-purple-600/40 text-purple-100 border-l-4 border-l-purple-400 pl-4 shadow-inner shadow-purple-900/50"
+                        : "text-purple-300 hover:bg-purple-700/30 hover:text-purple-100 border-l-4 border-l-transparent pl-4"
                     )}
                     onClick={handleAuthClick}
                   >
                     <LogIn className={cn(
                       "mr-3 h-5 w-5 transition-all duration-300",
-                      activeTab === "auth" ? "text-purple-400" : "text-white/70"
+                      activeTab === "auth" ? "text-purple-300" : "text-purple-400/80"
                     )} />
                     <span className="font-medium">Entrar</span>
                     {activeTab === "auth" && <div className="ml-auto">
