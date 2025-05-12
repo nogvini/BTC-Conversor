@@ -328,8 +328,9 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
       <CardHeader className="mb-4 md:mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
+          
           <div className="space-y-1">
-            <CardTitle className="text-lg mb-1.5">Histórico de Cotações</CardTitle>
+            <CardTitle className="mb-1.5">Histórico de Cotações</CardTitle>
             <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
               Fonte: {dataSource} {isUsingCachedData ? "(cache)" : ""}
             </CardDescription>
