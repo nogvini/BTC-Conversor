@@ -20,7 +20,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning className="dark">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="only dark" />
         <meta name="theme-color" content="#1e1b4b" />
         <meta name="force-rendering" content="webkit" />

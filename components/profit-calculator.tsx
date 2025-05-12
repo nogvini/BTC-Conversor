@@ -1418,11 +1418,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     return investments
       .filter(investment => {
-        const investmentDate = new Date(investment.date);
-        return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+        // Adiciona verificação de validade do objeto e da data
+        if (!investment || !investment.date) {
+          console.warn("Ignorando investimento inválido ou sem data:", investment);
+          return false;
+        }
+        try {
+          const investmentDate = parseISODate(investment.date); // Usar parseISODate
+          // Verificar se a data é válida antes de usar isWithinInterval
+          if (isNaN(investmentDate.getTime())) {
+            console.warn("Ignorando investimento com data inválida:", investment);
+            return false; 
+          }
+          return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+        } catch (e) {
+          console.error("Erro ao processar data do investimento:", investment, e);
+          return false; // Ignorar entradas com data inválida
+        }
       })
       .reduce((total, investment) => {
-        return total + convertToBtc(investment.amount, investment.unit);
+        // Adiciona verificações de validade do valor e unidade
+        if (investment && typeof investment.amount === 'number' && investment.unit) {
+          const btcValue = convertToBtc(investment.amount, investment.unit);
+          // Garante que btcValue é um número válido antes de somar
+          return total + (isNaN(btcValue) ? 0 : btcValue); 
+        }
+        console.warn("Ignorando objeto de investimento inválido no reduce:", investment);
+        return total; // Retorna total atual se o investimento for inválido
       }, 0);
   };
 
@@ -1432,12 +1454,37 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     
     return profits
       .filter(profit => {
-        const profitDate = new Date(profit.date);
-        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+        // Adiciona verificação de validade do objeto e da data
+        if (!profit || !profit.date) {
+          console.warn("Ignorando lucro/perda inválido ou sem data:", profit);
+          return false;
+        }
+        try {
+          const profitDate = parseISODate(profit.date); // Usar parseISODate
+          // Verificar se a data é válida antes de usar isWithinInterval
+          if (isNaN(profitDate.getTime())) {
+            console.warn("Ignorando lucro/perda com data inválida:", profit);
+            return false; 
+          }
+          return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+        } catch (e) {
+          console.error("Erro ao processar data do lucro/perda:", profit, e);
+          return false; // Ignorar entradas com data inválida
+        }
       })
       .reduce((total, profit) => {
-        const btcAmount = convertToBtc(profit.amount, profit.unit);
-        return profit.isProfit ? total + btcAmount : total - btcAmount;
+        // Adiciona verificações de validade do valor e unidade
+        if (profit && typeof profit.amount === 'number' && profit.unit) {
+          const btcAmount = convertToBtc(profit.amount, profit.unit);
+          // Garante que btcAmount é um número válido
+          if (isNaN(btcAmount)) {
+             console.warn("Ignorando lucro/perda com valor inválido (NaN):", profit);
+             return total;
+          }
+          return profit.isProfit ? total + btcAmount : total - btcAmount;
+        }
+         console.warn("Ignorando objeto de lucro/perda inválido no reduce:", profit);
+        return total; // Retorna total atual se o lucro/perda for inválido
       }, 0);
   };
 
