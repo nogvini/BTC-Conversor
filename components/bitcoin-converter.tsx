@@ -443,7 +443,7 @@ export default function BitcoinConverter() {
         <div 
           className={cn(
             "p-2 rounded border text-lg font-mono cursor-pointer",
-            "bg-purple-900/10 dark:bg-purple-800/10 border-purple-700/30", // Fundo mais escuro e borda roxa sutil
+            "bg-gray-950/70 dark:bg-black/60 border-purple-700/40", // Fundo mais escuro (preto/cinza escuro) e borda roxa ajustada
             "hover:bg-purple-700/20 dark:hover:bg-purple-600/20 hover:border-purple-500/70 transition-colors group" 
           )}
           onClick={() => copyToClipboard(value, unit)}
