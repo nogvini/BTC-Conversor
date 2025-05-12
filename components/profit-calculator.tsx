@@ -1897,170 +1897,148 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Componente para as opções de importação
-  const ImportOptions = () => (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {/* Input para CSV de operações */}
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleImportCSV}
-          ref={csvFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerCSVFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "csv" ? (
+  const ImportOptions = () => {
+    const CsvOperacoesButton = (
+      <>
+        <input type="file" accept=".csv" onChange={handleImportCSV} ref={csvFileInputRef} className="hidden" />
+        <Button variant="outline" className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20" onClick={triggerCSVFileInput} disabled={isImporting}>
+          {isImporting && importType === "csv" ? ( <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Importando...</> ) : ( <><FileType className="mr-2 h-4 w-4" />Importar CSV de Operações</> )}
+        </Button>
+      </>
+    );
+
+    const CsvAportesButton = (
+      <>
+        <input type="file" accept=".csv" onChange={handleImportInvestmentCSV} ref={investmentCsvFileInputRef} className="hidden" />
+        <Button variant="outline" className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20" onClick={triggerInvestmentCsvFileInput} disabled={isImporting}>
+          {isImporting && importType === "investment-csv" ? ( <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Importando...</> ) : ( <><FileType className="mr-2 h-4 w-4" />Importar CSV de Aportes</> )}
+        </Button>
+      </>
+    );
+
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {isMobile ? (
             <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
+              {CsvAportesButton}      {/* Aportes primeiro no mobile */}
+              {CsvOperacoesButton}    {/* Operações depois no mobile */}
             </>
           ) : (
             <>
-              <FileType className="mr-2 h-4 w-4" />
-              Importar CSV de Operações
+              {CsvOperacoesButton}    {/* Ordem normal no desktop */}
+              {CsvAportesButton}
             </>
           )}
-        </Button>
+          
+          {/* Input para arquivo de backup (Excel) */}
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={handleImportInternalData}
+            ref={internalFileInputRef}
+            className="hidden"
+          />
+          <Button 
+            variant="outline"
+            className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20 sm:col-span-2" 
+            onClick={triggerInternalFileInput}
+            disabled={isImporting}
+          >
+            {isImporting && importType === "internal" ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Importar Backup (Excel)
+              </>
+            )}
+          </Button>
+        </div>
         
-        {/* Input para CSV de aportes */}
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleImportInvestmentCSV}
-          ref={investmentCsvFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline" 
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-          onClick={triggerInvestmentCsvFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "investment-csv" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <FileType className="mr-2 h-4 w-4" />
-              Importar CSV de Aportes
-            </>
-          )}
-        </Button>
+        {/* Exibir estatísticas de importação para CSV de operações */}
+        {importStats && importType === "csv" && (
+          <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+            <div className="flex justify-between mb-1">
+              <span>Total processado:</span>
+              <span className="font-medium">{importStats.total}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Importados com sucesso:</span>
+              <span className="font-medium text-green-500">{importStats.success}</span>
+            </div>
+            {importStats.duplicated && importStats.duplicated > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Registros duplicados ignorados:</span>
+                <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+              </div>
+            )}
+            {importStats.error > 0 && (
+              <div className="flex justify-between">
+                <span>Falhas:</span>
+                <span className="font-medium text-red-500">{importStats.error}</span>
+              </div>
+            )}
+          </div>
+        )}
         
-        {/* Input para arquivo de backup (Excel) */}
-        <input
-          type="file"
-          accept=".xlsx"
-          onChange={handleImportInternalData}
-          ref={internalFileInputRef}
-          className="hidden"
-        />
-        <Button 
-          variant="outline"
-          className="w-full justify-center bg-black/30 border-purple-700/50 hover:bg-purple-900/20 sm:col-span-2" 
-          onClick={triggerInternalFileInput}
-          disabled={isImporting}
-        >
-          {isImporting && importType === "internal" ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Importar Backup (Excel)
-            </>
-          )}
-        </Button>
+        {/* Exibir estatísticas de importação para CSV de aportes */}
+        {importStats && importType === "investment-csv" && (
+          <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+            <div className="flex justify-between mb-1">
+              <span>Total processado:</span>
+              <span className="font-medium">{importStats.total}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Importados com sucesso:</span>
+              <span className="font-medium text-green-500">{importStats.success}</span>
+            </div>
+            {importStats.duplicated && importStats.duplicated > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Registros duplicados ignorados:</span>
+                <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+              </div>
+            )}
+            {importStats.error > 0 && (
+              <div className="flex justify-between">
+                <span>Falhas:</span>
+                <span className="font-medium text-red-500">{importStats.error}</span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Exibir estatísticas de importação para arquivo de backup */}
+        {importStats && importType === "internal" && (
+          <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
+            <div className="flex justify-between mb-1">
+              <span>Total processado:</span>
+              <span className="font-medium">{importStats.total}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Importados com sucesso:</span>
+              <span className="font-medium text-green-500">{importStats.success}</span>
+            </div>
+            {importStats.duplicated && importStats.duplicated > 0 && (
+              <div className="flex justify-between mb-1">
+                <span>Registros duplicados ignorados:</span>
+                <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
+              </div>
+            )}
+            {importStats.error > 0 && (
+              <div className="flex justify-between">
+                <span>Falhas:</span>
+                <span className="font-medium text-red-500">{importStats.error}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      
-      {/* Exibir estatísticas de importação para CSV de operações */}
-      {importStats && importType === "csv" && (
-        <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-          <div className="flex justify-between mb-1">
-            <span>Total processado:</span>
-            <span className="font-medium">{importStats.total}</span>
-          </div>
-          <div className="flex justify-between mb-1">
-            <span>Importados com sucesso:</span>
-            <span className="font-medium text-green-500">{importStats.success}</span>
-          </div>
-          {importStats.duplicated && importStats.duplicated > 0 && (
-            <div className="flex justify-between mb-1">
-              <span>Registros duplicados ignorados:</span>
-              <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
-            </div>
-          )}
-          {importStats.error > 0 && (
-            <div className="flex justify-between">
-              <span>Falhas:</span>
-              <span className="font-medium text-red-500">{importStats.error}</span>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Exibir estatísticas de importação para CSV de aportes */}
-      {importStats && importType === "investment-csv" && (
-        <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-          <div className="flex justify-between mb-1">
-            <span>Total processado:</span>
-            <span className="font-medium">{importStats.total}</span>
-          </div>
-          <div className="flex justify-between mb-1">
-            <span>Importados com sucesso:</span>
-            <span className="font-medium text-green-500">{importStats.success}</span>
-          </div>
-          {importStats.duplicated && importStats.duplicated > 0 && (
-            <div className="flex justify-between mb-1">
-              <span>Registros duplicados ignorados:</span>
-              <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
-            </div>
-          )}
-          {importStats.error > 0 && (
-            <div className="flex justify-between">
-              <span>Falhas:</span>
-              <span className="font-medium text-red-500">{importStats.error}</span>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Exibir estatísticas de importação para arquivo de backup */}
-      {importStats && importType === "internal" && (
-        <div className="mt-3 p-3 text-xs rounded bg-purple-900/20 border border-purple-700/40">
-          <div className="flex justify-between mb-1">
-            <span>Total processado:</span>
-            <span className="font-medium">{importStats.total}</span>
-          </div>
-          <div className="flex justify-between mb-1">
-            <span>Importados com sucesso:</span>
-            <span className="font-medium text-green-500">{importStats.success}</span>
-          </div>
-          {importStats.duplicated && importStats.duplicated > 0 && (
-            <div className="flex justify-between mb-1">
-              <span>Registros duplicados ignorados:</span>
-              <span className="font-medium text-yellow-500">{importStats.duplicated}</span>
-            </div>
-          )}
-          {importStats.error > 0 && (
-            <div className="flex justify-between">
-              <span>Falhas:</span>
-              <span className="font-medium text-red-500">{importStats.error}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {

@@ -60,7 +60,7 @@ export function AppHeader() {
     "px-3 py-2 text-sm font-medium text-gray-300 hover:text-purple-300 hover:bg-purple-900/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-black dark:focus:ring-offset-black rounded-md transition-colors duration-150 ease-in-out";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-purple-700/30 bg-gradient-to-b from-purple-950/90 to-black/90 backdrop-blur-lg">
+    <header className="sticky top-0 z-50 w-full border-b border-purple-700/30 bg-gradient-to-r from-purple-950/90 to-black/90 backdrop-blur-lg">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
         {/* Botão de Menu Móvel e Nome da Aplicação */}
         <div className="flex items-center">
