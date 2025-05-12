@@ -530,7 +530,7 @@ export default function BitcoinConverter() {
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      <span className={cn(loading && "text-purple-300")}>Atualizar</span> // Texto roxo quando loading, corrigido para Atualizar
+                      <span className={cn(loading && "text-purple-300")}>Atualizar</span>
                     </Button>
                   </div>
                 </CardHeader>
