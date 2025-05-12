@@ -499,35 +499,32 @@ export default function BitcoinConverter() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen p-4 pb-8 md:pb-12">
-        <ResponsiveContainer>
-          {/* Adicionar o forceRender como key para o componente Tabs 
-              forçará uma remontagem completa quando a URL mudar */}
+      <div className="flex flex-col h-screen p-4 pb-8 md:pb-12">
+        <ResponsiveContainer className="flex flex-col flex-grow">
           <Tabs 
             value={activeTab} 
             onValueChange={handleTabChange}
             key={`tabs-container-${forceRender}`}
-            className="mb-8"
+            className="flex flex-col flex-grow mb-0"
           >
-            {/* Adicionar o TabsList para que a navegação entre abas funcione */}
-            <TabsList className="grid grid-cols-3 mb-6">
+            <TabsList className="grid grid-cols-3 mb-6 flex-shrink-0">
               <TabsTrigger value="converter" className="flex items-center gap-1">
                 <ArrowRightLeft className="h-4 w-4" />
                 <span>Conversor</span>
-          </TabsTrigger>
+              </TabsTrigger>
               <TabsTrigger value="calculator" className="flex items-center gap-1">
                 <Calculator className="h-4 w-4" />
                 <span>Calculadora</span>
-          </TabsTrigger>
+              </TabsTrigger>
               <TabsTrigger value="chart" className="flex items-center gap-1">
                 <TrendingUp className="h-4 w-4" />
                 <span>Gráfico</span>
-          </TabsTrigger>
-        </TabsList>
-        
-            <TabsContent value="converter" className="space-y-4">
-              <Card className="mb-6 border-2 border-purple-700/30 shadow-xl shadow-purple-900/20">
-                <CardHeader>
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="converter" className="flex flex-col flex-grow overflow-y-auto mt-0">
+              <Card className="mb-6 border-2 border-purple-700/30 shadow-xl shadow-purple-900/20 flex flex-col flex-grow">
+                <CardHeader className="flex-shrink-0">
                   <div className="flex justify-between items-center">
                     <div>
                       <CardTitle className="mb-1.5">Conversor Bitcoin</CardTitle>
@@ -556,7 +553,7 @@ export default function BitcoinConverter() {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6 pt-4 pb-6 px-6">
+                <CardContent className="flex-grow overflow-y-auto pt-4 pb-6 px-6">
                   {apiError && (
                     <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
                       <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
@@ -564,26 +561,26 @@ export default function BitcoinConverter() {
                         <p className="font-medium">Usando dados em cache</p>
                         <p className="text-sm">
                           Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
-                </p>
-              </div>
-            </div>
-          )}
-          
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="space-y-4">
-              <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label htmlFor="amount">Valor para conversão</Label>
-                <Input
-                  id="amount"
+                      <Input
+                        id="amount"
                         type="text"
                         inputMode="decimal"
                         placeholder="Digite um valor..."
-                  value={amount}
+                        value={amount}
                         onChange={handleAmountChange}
                         className="text-lg border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
-                />
-              </div>
+                      />
+                    </div>
                     
-              <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label>Unidade de origem</Label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <Button
@@ -639,8 +636,8 @@ export default function BitcoinConverter() {
                           <span className="text-xs text-center">Real (BRL)</span>
                         </Button>
                       </div>
-                  </div>
-                  
+                    </div>
+                    
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                       <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
                       
@@ -682,7 +679,7 @@ export default function BitcoinConverter() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="text-sm text-muted-foreground flex flex-col md:flex-row justify-between md:items-center gap-2 md:gap-4 pt-4">
+                <CardFooter className="text-sm text-muted-foreground flex flex-col md:flex-row justify-between md:items-center gap-2 md:gap-4 pt-4 flex-shrink-0">
                   <div className="flex items-center text-purple-500 dark:text-purple-400 self-start md:self-center">
                     <Calendar className="h-4 w-4 mr-1.5 flex-shrink-0" />
                     <span>
@@ -711,31 +708,31 @@ export default function BitcoinConverter() {
                 </CardFooter>
               </Card>
             </TabsContent>
-        
-            <TabsContent value="calculator" className="space-y-4">
+            
+            <TabsContent value="calculator" className="flex flex-col flex-grow overflow-y-auto mt-0">
               {appData && rates ? (
                 <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
                   <MultiReportCalculator
-              btcToUsd={rates.BTC_USD} 
-              brlToUsd={rates.BRL_USD} 
-              appData={appData}
-            />
+                    btcToUsd={rates.BTC_USD} 
+                    brlToUsd={rates.BRL_USD} 
+                    appData={appData}
+                  />
                 </Suspense>
               ) : (
                 <div className="flex items-center justify-center min-h-[300px]">
                   <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
                 </div>
-          )}
-        </TabsContent>
-        
-            <TabsContent value="chart" className="space-y-4">
+              )}
+            </TabsContent>
+            
+            <TabsContent value="chart" className="flex flex-col flex-grow overflow-y-auto mt-0">
               <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
                 <HistoricalRatesChart />
               </Suspense>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </Tabs>
         </ResponsiveContainer>
-    </div>
+      </div>
     </PageTransition>
   )
 }
