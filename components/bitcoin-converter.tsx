@@ -660,23 +660,35 @@ export default function BitcoinConverter() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-1" />
+                <CardFooter className="text-sm text-muted-foreground flex flex-col md:flex-row justify-between md:items-center gap-2 md:gap-4 pt-4">
+                  <div className="flex items-center text-purple-500 dark:text-purple-400 self-start md:self-center">
+                    <Calendar className="h-4 w-4 mr-1.5 flex-shrink-0" />
                     <span>
                       {rates ? (
                         `Cotações atualizadas ${getTimeAgo(rates.lastUpdated)}`
                       ) : (
                         "Carregando cotações..."
                       )}
-                      </span>
+                    </span>
                   </div>
-                  <div>
-                    1 BTC = {rates ? `$${rates.BTC_USD.toLocaleString()}` : "..."}
+                  
+                  <div className="flex flex-col items-start md:items-end gap-1 self-start md:self-center">
+                    {rates ? (
+                      <>
+                        <div>
+                          1 BTC = <span className="font-semibold text-amber-500 dark:text-amber-400">${rates.BTC_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div>
+                          1 USD = <span className="font-semibold text-green-500 dark:text-green-400">R$ {rates.BRL_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <span>Calculando cotações...</span>
+                    )}
                   </div>
                 </CardFooter>
-          </Card>
-        </TabsContent>
+              </Card>
+            </TabsContent>
         
             <TabsContent value="calculator" className="space-y-4">
               {appData && rates ? (
