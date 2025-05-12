@@ -511,7 +511,7 @@ export default function BitcoinConverter() {
                   <div className="flex justify-between items-center">
                     <div>
                       <CardTitle>Conversor Bitcoin</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
                         Converta entre BTC, Satoshis, Dólares e Reais
                       </CardDescription>
                     </div>
@@ -557,7 +557,7 @@ export default function BitcoinConverter() {
                         placeholder="Digite um valor..."
                   value={amount}
                         onChange={handleAmountChange}
-                        className="text-lg"
+                        className="text-lg border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
                 />
               </div>
                     
