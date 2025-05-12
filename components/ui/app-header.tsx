@@ -71,8 +71,9 @@ export function AppHeader() {
               onTabChange={setActiveMobileTab} 
             />
           </div>
-          <Link href="/" className="flex items-center">
-            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-purple-300 to-purple-400">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-purple-400 animate-pulse">₿</span>
+            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300 drop-shadow-lg">
               RaidToolkit
             </h2>
           </Link>

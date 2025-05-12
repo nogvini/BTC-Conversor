@@ -529,41 +529,41 @@ export default function BitcoinConverter() {
               <TabsTrigger 
                 value="converter"
                 className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
-                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
+                  "border border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
                   "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50"
                 )}
               >
-                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
-                Conversor
+                <ArrowRightLeft className={cn("mr-1.5 h-4 w-4", activeTab === "converter" && "animate-pulse")} />
+                <span className={cn(activeTab === "converter" && "animate-pulse")}>Conversor</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="chart"
                 className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
-                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
+                  "border border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
                   "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50"
                 )}
               >
-                <TrendingUp className="mr-1.5 h-4 w-4" />
-                Gráficos
+                <TrendingUp className={cn("mr-1.5 h-4 w-4", activeTab === "chart" && "animate-pulse")} />
+                <span className={cn(activeTab === "chart" && "animate-pulse")}>Gráficos</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="calculator" 
                 className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out",
-                  "border-b-2 border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-900/20",
+                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
+                  "border border-transparent text-gray-400 dark:text-gray-500",
+                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
                   "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-purple-300 data-[state=active]:border-purple-500 data-[state=active]:bg-purple-800/30 data-[state=active]:shadow-inner data-[state=active]:shadow-purple-950/50"
+                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50"
                 )}
               >
-                <Calculator className="mr-1.5 h-4 w-4" />
-                Calculadora
+                <Calculator className={cn("mr-1.5 h-4 w-4", activeTab === "calculator" && "animate-pulse")} />
+                <span className={cn(activeTab === "calculator" && "animate-pulse")}>Calculadora</span>
               </TabsTrigger>
             </TabsList>
 
