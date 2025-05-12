@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle, Settings, Home, Info, Users } from "lucide-react"
+import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle, Settings, Home, Info, Users, Bitcoin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
@@ -53,7 +53,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-purple-700/50 bg-gradient-to-r from-purple-900/40 to-transparent">
             <h2 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
-              <span className="text-purple-400 animate-pulse">₿</span>
+              <Bitcoin className="h-7 w-7 text-purple-400 animate-pulse" />
               <div className="bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300 drop-shadow-lg !important">
                 Raid Bitcoin Toolkit
               </div>

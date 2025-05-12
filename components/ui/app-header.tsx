@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, LogIn, AlertCircle } from "lucide-react"
+import { RefreshCw, LogIn, AlertCircle, Bitcoin } from "lucide-react"
 import { ProfileMenu } from "@/components/profile-menu"
 import { MobileNavigation } from "@/components/mobile-navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -72,7 +72,7 @@ export function AppHeader() {
             />
           </div>
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-purple-400 animate-pulse">₿</span>
+            <Bitcoin className="h-6 w-6 text-purple-400 animate-pulse" />
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-300 drop-shadow-lg">
               RaidToolkit
             </h2>
