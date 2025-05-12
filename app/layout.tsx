@@ -3,6 +3,7 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
+import { AppHeader } from "@/components/ui/app-header"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,7 +28,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProviderClient>
           <ThemeProvider>
-            {children}
+            <AppHeader />
+            <main className="pt-16">
+              {children}
+            </main>
           </ThemeProvider>
         </AuthProviderClient>
       </body>
