@@ -779,11 +779,19 @@ export default function BitcoinConverter() {
                   {appData && rates ? (
                     <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
                       <Card className="bg-black/30 shadow-xl shadow-purple-900/10 rounded-lg">
-                        <MultiReportCalculator
-                          btcToUsd={rates.BTC_USD} 
-                          brlToUsd={rates.BRL_USD} 
-                          appData={appData}
-                        />
+                        <CardHeader>
+                          <CardTitle className="text-lg mb-1.5">Calculadora de Lucros</CardTitle>
+                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                            Calcule seus lucros e perdas de operações e investimentos.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-4 md:pt-6">
+                          <MultiReportCalculator
+                            btcToUsd={rates.BTC_USD} 
+                            brlToUsd={rates.BRL_USD} 
+                            appData={appData}
+                          />
+                        </CardContent>
                       </Card>
                     </Suspense>
                   ) : (

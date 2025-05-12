@@ -330,7 +330,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
           <div className="space-y-1">
             <CardTitle className="text-lg mb-1.5">Histórico de Cotações</CardTitle>
-            <CardDescription className="text-xs text-purple-500/90 dark:text-purple-400/80">
+            <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
               Fonte: {dataSource} {isUsingCachedData ? "(cache)" : ""}
             </CardDescription>
           </div>
