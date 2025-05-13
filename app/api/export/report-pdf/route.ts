@@ -94,9 +94,11 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    const htmlString = ReactDOMServer.renderToStaticMarkup(
-      <ReportHtmlTemplate reportData={exportedReportData} />
-    );
+    // Usar React.createElement para renderizar ReportHtmlTemplate para string HTML
+    const reportHtmlElement = React.createElement(ReportHtmlTemplate, { 
+      reportData: exportedReportData 
+    });
+    const htmlString = ReactDOMServer.renderToStaticMarkup(reportHtmlElement);
 
     // Configure o Puppeteer para ambientes serverless se necessário (ex: Vercel)
     // Pode ser necessário usar chrome-aws-lambda ou puppeteer-core com um executável gerenciado.
