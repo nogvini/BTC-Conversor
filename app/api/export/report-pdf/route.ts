@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import ReactDOMServer from 'react-dom/server';
+// import ReactDOMServer from 'react-dom/server'; // Removido
 import puppeteer from 'puppeteer';
 import ReportHtmlTemplate from '@/components/report-html-template';
 import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/report-processing';
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
 import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
 import React from 'react';
+import { renderComponentToStaticMarkup } from '@/lib/server-render-utils'; // Adicionado
 // import { Report } from '@/lib/calculator-types'; // Descomente e defina quando o tipo Report estiver claro
 
 // TODO: Substituir z.any() por um schema Zod detalhado para o objeto Report 
@@ -62,16 +63,13 @@ export async function POST(request: NextRequest) {
       try {
         const chartWidth = 780;
         const chartHeight = 350;
-
-        // Instanciação do componente de forma mais explícita para evitar erros de parsing
-        const monthlyPLChartElement = React.createElement(MonthlyPLChart, {
+        
+        monthlyPLChartSvg = renderComponentToStaticMarkup(MonthlyPLChart, {
           data: calculatedReportData.monthlyBreakdown,
           currency: displayCurrency,
           width: chartWidth,
           height: chartHeight,
         });
-        
-        monthlyPLChartSvg = ReactDOMServer.renderToStaticMarkup(monthlyPLChartElement);
 
       } catch (chartError) {
         console.error('Error generating Monthly P/L chart SVG:', chartError);
@@ -94,11 +92,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Usar React.createElement para renderizar ReportHtmlTemplate para string HTML
-    const reportHtmlElement = React.createElement(ReportHtmlTemplate, { 
+    const htmlString = renderComponentToStaticMarkup(ReportHtmlTemplate, { 
       reportData: exportedReportData 
     });
-    const htmlString = ReactDOMServer.renderToStaticMarkup(reportHtmlElement);
 
     // Configure o Puppeteer para ambientes serverless se necessário (ex: Vercel)
     // Pode ser necessário usar chrome-aws-lambda ou puppeteer-core com um executável gerenciado.
