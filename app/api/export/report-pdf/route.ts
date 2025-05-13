@@ -6,6 +6,7 @@ import ReportHtmlTemplate from '@/components/report-html-template';
 import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/report-processing';
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
 import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
+import React from 'react';
 // import { Report } from '@/lib/calculator-types'; // Descomente e defina quando o tipo Report estiver claro
 
 // TODO: Substituir z.any() por um schema Zod detalhado para o objeto Report 
@@ -59,25 +60,21 @@ export async function POST(request: NextRequest) {
     let monthlyPLChartSvg: string | undefined = undefined;
     if (calculatedReportData.monthlyBreakdown && calculatedReportData.monthlyBreakdown.length > 0) {
       try {
-        // Definir dimensões para o gráfico no PDF
-        // Estas dimensões devem se adequar ao layout do PDF (ex: largura da coluna de conteúdo)
-        // A largura do container no HTML é 840px, padding 25px de cada lado, então conteúdo é ~790px.
-        // Poderíamos usar algo como 780px de largura para o gráfico.
         const chartWidth = 780;
         const chartHeight = 350;
 
-        const monthlyPLChartComponent = (
-          <MonthlyPLChart 
-            data={calculatedReportData.monthlyBreakdown} 
-            currency={displayCurrency} 
-            width={chartWidth}
-            height={chartHeight}
-          />
-        );
-        monthlyPLChartSvg = ReactDOMServer.renderToStaticMarkup(monthlyPLChartComponent);
+        // Instanciação do componente de forma mais explícita para evitar erros de parsing
+        const monthlyPLChartElement = React.createElement(MonthlyPLChart, {
+          data: calculatedReportData.monthlyBreakdown,
+          currency: displayCurrency,
+          width: chartWidth,
+          height: chartHeight,
+        });
+        
+        monthlyPLChartSvg = ReactDOMServer.renderToStaticMarkup(monthlyPLChartElement);
+
       } catch (chartError) {
         console.error('Error generating Monthly P/L chart SVG:', chartError);
-        // Não interromper a geração do PDF por causa de um erro no gráfico, apenas logar.
       }
     }
 

@@ -293,55 +293,108 @@ export function calculateReportMetrics(
     calculatedMetrics.roiAccumulated = 0; // Sem investimentos e sem lucro, ROI é 0
   }
 
-  // --- Início do Detalhamento Mensal ---\n  const monthlyBreakdownData: typeof calculatedMetrics.monthlyBreakdown = [];\n  const startDate = new Date(reportDateRange.minDate + 'T00:00:00Z'); // Usar Z para UTC\n  const endDate = new Date(reportDateRange.maxDate + 'T00:00:00Z');\n\n  let monthIterator = new Date(startDate.getFullYear(), startDate.getMonth(), 1);\n  
-  // Estado do portfólio no início do período (para o primeiro mês)\n  let monthlyPortfolioBtcQuantityStart = 0;\n  let monthlyPortfolioTotalCostStart = 0; // Na displayCurrency\n
-  while (monthIterator <= endDate) {\n    const year = monthIterator.getFullYear();\n    const month = monthIterator.getMonth(); // 0-11
+  // --- Início do Detalhamento Mensal ---
+  const monthlyBreakdownData: MonthlyBreakdown[] = [];
+  const startDate = new Date(reportDateRange.minDate + 'T00:00:00Z'); // Usar Z para UTC
+  const endDate = new Date(reportDateRange.maxDate + 'T00:00:00Z');
+
+  let monthIterator = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  
+  // Estado do portfólio no início do período (para o primeiro mês)
+  let monthlyPortfolioBtcQuantityStart = 0;
+  let monthlyPortfolioTotalCostStart = 0; // Na displayCurrency
+
+  while (monthIterator <= endDate) {
+    const year = monthIterator.getFullYear();
+    const month = monthIterator.getMonth(); // 0-11
     const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`; // YYYY-MM
-    const firstDayOfMonth = new Date(year, month, 1);\n    const lastDayOfMonth = new Date(year, month + 1, 0); // Pega o último dia do mês corretamente
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0); // Pega o último dia do mês corretamente
     
     // Filtrar operações para o mês atual
-    const operationsThisMonth = enrichedOperations.filter(op => {\n      const opDate = new Date(op.date);\n      return opDate >= firstDayOfMonth && opDate <= new Date(lastDayOfMonth.getFullYear(), lastDayOfMonth.getMonth(), lastDayOfMonth.getDate(), 23, 59, 59, 999); // Incluir todo o dia
+    const operationsThisMonth = enrichedOperations.filter(op => {
+      const opDate = new Date(op.date);
+      return opDate >= firstDayOfMonth && opDate <= new Date(lastDayOfMonth.getFullYear(), lastDayOfMonth.getMonth(), lastDayOfMonth.getDate(), 23, 59, 59, 999); // Incluir todo o dia
     });
 
-    let investmentsMonth = 0;\n    let withdrawalsMonth = 0;\n    let realizedProfitLossMonth = 0;\n    
+    let investmentsMonth = 0;
+    let withdrawalsMonth = 0;
+    let realizedProfitLossMonth = 0;
+    
     // Estado do portfólio para o cálculo dentro do mês (copiado do início do mês)
-    let intraMonthBtcQuantity = monthlyPortfolioBtcQuantityStart;\n    let intraMonthTotalCost = monthlyPortfolioTotalCostStart; 
+    let intraMonthBtcQuantity = monthlyPortfolioBtcQuantityStart;
+    let intraMonthTotalCost = monthlyPortfolioTotalCostStart; 
 
-    for (const op of operationsThisMonth) {\n      const operationAmountInDisplayCurrency = op[totalAmountFieldForDisplayCurrency];\n      if (op.type === 'buy') {\n        if (typeof operationAmountInDisplayCurrency === 'number') {\n          investmentsMonth += operationAmountInDisplayCurrency;\n          intraMonthTotalCost += operationAmountInDisplayCurrency;\n        }\n        intraMonthBtcQuantity += op.quantity;\n      } else if (op.type === 'sell') {\n        if (typeof operationAmountInDisplayCurrency === 'number') {\n          withdrawalsMonth += operationAmountInDisplayCurrency;\n          if (intraMonthBtcQuantity > 0 && op.quantity > 0) {\n            const cmp = intraMonthTotalCost / intraMonthBtcQuantity;\n            const costOfSoldBtc = op.quantity * cmp;\n            realizedProfitLossMonth += (operationAmountInDisplayCurrency - costOfSoldBtc);\n            intraMonthTotalCost -= costOfSoldBtc;\n            intraMonthTotalCost = Math.max(0, intraMonthTotalCost);\n          } else if (op.quantity > 0) {\n            realizedProfitLossMonth += operationAmountInDisplayCurrency;\n          }\n        }\n        intraMonthBtcQuantity -= op.quantity;\n      }\n    }\n    intraMonthBtcQuantity = Math.max(0, intraMonthBtcQuantity); // Saldo BTC no fim do mês
+    for (const op of operationsThisMonth) {
+      const operationAmountInDisplayCurrency = op[totalAmountFieldForDisplayCurrency as keyof OperationData] as number | undefined;
+      if (op.type === 'buy') {
+        if (typeof operationAmountInDisplayCurrency === 'number') {
+          investmentsMonth += operationAmountInDisplayCurrency;
+          intraMonthTotalCost += operationAmountInDisplayCurrency;
+        }
+        intraMonthBtcQuantity += op.quantity;
+      } else if (op.type === 'sell') {
+        if (typeof operationAmountInDisplayCurrency === 'number') {
+          withdrawalsMonth += operationAmountInDisplayCurrency;
+          if (intraMonthBtcQuantity > 0 && op.quantity > 0) {
+            const cmp = intraMonthTotalCost / intraMonthBtcQuantity;
+            const costOfSoldBtc = op.quantity * cmp;
+            realizedProfitLossMonth += (operationAmountInDisplayCurrency - costOfSoldBtc);
+            intraMonthTotalCost -= costOfSoldBtc;
+            intraMonthTotalCost = Math.max(0, intraMonthTotalCost);
+          } else if (op.quantity > 0) {
+            realizedProfitLossMonth += operationAmountInDisplayCurrency;
+          }
+        }
+        intraMonthBtcQuantity -= op.quantity;
+      }
+    }
+    intraMonthBtcQuantity = Math.max(0, intraMonthBtcQuantity); // Saldo BTC no fim do mês
 
     // Valor de mercado no início do mês
-    const firstDayOfMonthStr = firstDayOfMonth.toISOString().split('T')[0];\n    const btcPriceStartOfMonth = quotesForDisplayCurrency.get(firstDayOfMonthStr) || quotesForDisplayCurrency.get(new Date(year, month, 0).toISOString().split('T')[0]) ; // Fallback para ultimo dia do mes anterior se primeiro dia n tiver cotação
+    const firstDayOfMonthStr = firstDayOfMonth.toISOString().split('T')[0];
+    const btcPriceStartOfMonth = quotesForDisplayCurrency.get(firstDayOfMonthStr) || quotesForDisplayCurrency.get(new Date(year, month, 0).toISOString().split('T')[0]) ; // Fallback para ultimo dia do mes anterior se primeiro dia n tiver cotação
     const marketValuePortfolioStartOfMonth = btcPriceStartOfMonth ? monthlyPortfolioBtcQuantityStart * btcPriceStartOfMonth : 0;
 
     // Valor de mercado no fim do mês
-    const lastDayOfMonthStr = lastDayOfMonth.toISOString().split('T')[0];\n    const btcPriceEndOfMonth = quotesForDisplayCurrency.get(lastDayOfMonthStr) || btcPriceStartOfMonth; // Fallback para preço de início do mês se fim não tiver
+    const lastDayOfMonthStr = lastDayOfMonth.toISOString().split('T')[0];
+    const btcPriceEndOfMonth = quotesForDisplayCurrency.get(lastDayOfMonthStr) || btcPriceStartOfMonth; // Fallback para preço de início do mês se fim não tiver
     const marketValuePortfolioEndOfMonth = btcPriceEndOfMonth ? intraMonthBtcQuantity * btcPriceEndOfMonth : 0;
     
-    // P/L Não Realizado do Mês
-    // (Valor Fim) - (Valor Início) - Aportes Líquidos (Valor Compras - Valor Vendas)
-    // Ou: (Valor Fim com base no custo) - (Valor Início com base no custo)
-    // P/L Não Realizado = (Valor de Mercado Final da Carteira) - (Custo Final da Carteira) - [(Valor de Mercado Inicial da Carteira) - (Custo Inicial da Carteira)]
-    // Simplificado: (Valor Mercado Fim) - (Custo Fim) - ( (Valor Mercado Início) - (Custo Início) )
-    // Custo Fim = intraMonthTotalCost (custo do que sobrou)
-    // Custo Início = monthlyPortfolioTotalCostStart
     const unrealizedProfitLossMonth = (marketValuePortfolioEndOfMonth - intraMonthTotalCost) - (marketValuePortfolioStartOfMonth - monthlyPortfolioTotalCostStart);
 
-    const overallProfitLossMonth = realizedProfitLossMonth + unrealizedProfitLossMonth;\n    
-    const endingBalanceBRLMonth = historicalQuotesBRL.get(lastDayOfMonthStr) ? intraMonthBtcQuantity * (historicalQuotesBRL.get(lastDayOfMonthStr) as number) : 0;
+    const overallProfitLossMonth = realizedProfitLossMonth + unrealizedProfitLossMonth;
+    
+    const endingBalanceInDisplayCurrencyMonth = marketValuePortfolioEndOfMonth; // O valor de mercado no fim do mês na moeda de display
     const endingBalanceBTCMonth = intraMonthBtcQuantity;
     
-    // ROI Mensal (simples, pode ser melhorado com TWR ou MWR no futuro)
-    let roiMonthPercentage = 0;\n    const denominatorRoiMonth = marketValuePortfolioStartOfMonth + investmentsMonth; // Ou usar custo inicial + aportes
-    if (denominatorRoiMonth !== 0) {\n      roiMonthPercentage = (overallProfitLossMonth / denominatorRoiMonth) * 100;\n    }\n
+    let roiMonthPercentage = 0;
+    const denominatorRoiMonth = (marketValuePortfolioStartOfMonth > 0 ? marketValuePortfolioStartOfMonth : monthlyPortfolioTotalCostStart) + investmentsMonth; 
+    if (denominatorRoiMonth !== 0) {
+      roiMonthPercentage = (overallProfitLossMonth / denominatorRoiMonth) * 100;
+    }
+
     monthlyBreakdownData.push({
-      month: monthKey,\n      investmentsMonth,\n      withdrawalsMonth,\n      realizedProfitLossMonth,\n      unrealizedProfitLossMonth,\n      overallProfitLossMonth,\n      endingBalanceBRLMonth,\n      endingBalanceBTCMonth,\n    });
+      monthYear: monthKey,
+      investmentsInDisplayCurrency: investmentsMonth,
+      withdrawalsInDisplayCurrency: withdrawalsMonth,
+      realizedProfitLossInDisplayCurrency: realizedProfitLossMonth,
+      unrealizedProfitLossInDisplayCurrency: unrealizedProfitLossMonth,
+      overallProfitLossInDisplayCurrency: overallProfitLossMonth,
+      endOfMonthBalanceInDisplayCurrency: endingBalanceInDisplayCurrencyMonth,
+      endOfMonthBtcBalance: endingBalanceBTCMonth,
+      monthlyRoi: roiMonthPercentage,
+    });
     
     calculatedMetrics.roiMonthly.push({ month: monthKey, percentage: roiMonthPercentage });
 
     // Preparar para o próximo mês
-    monthlyPortfolioBtcQuantityStart = intraMonthBtcQuantity;\n    monthlyPortfolioTotalCostStart = intraMonthTotalCost;\n
+    monthlyPortfolioBtcQuantityStart = intraMonthBtcQuantity;
+    monthlyPortfolioTotalCostStart = intraMonthTotalCost;
+
     monthIterator.setMonth(monthIterator.getMonth() + 1);
-  }\n  calculatedMetrics.monthlyBreakdown = monthlyBreakdownData;
+  }
+  calculatedMetrics.monthlyBreakdown = monthlyBreakdownData;
   // --- Fim do Detalhamento Mensal ---
 
   console.log("Métricas Finais Completas (com detalhamento mensal):", calculatedMetrics);
