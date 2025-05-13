@@ -696,10 +696,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       setIsExporting(true);
       setShowExportOptions(false);
       
+      // MODIFICADO: Usar activeReport
+      const currentActiveReport = activeReport; 
+      if (!currentActiveReport) {
+        toast({ title: "Nenhum Relatório Ativo", description: "Por favor, selecione um relatório para exportar.", variant: "destructive" });
+        setIsExporting(false);
+        return;
+      }
+      
       // Determinar quais dados exportar
+      const investmentsToExport = exportAll ? currentActiveReport.investments : getFilteredInvestments();
+      const profitsToExport = exportAll ? currentActiveReport.profits : getFilteredProfits();
+      
       const dataToExport = {
-        investments: exportAll ? investments : getFilteredInvestments(),
-        profits: exportAll ? profits : getFilteredProfits()
+        investments: investmentsToExport,
+        profits: profitsToExport
       };
       
       // Verificar se há dados para exportar
@@ -748,7 +759,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Se for exportação completa, precisamos agrupar os dados por mês
       if (exportAll) {
         // Processar investimentos por mês
-        investments.forEach(investment => {
+        // MODIFICADO: Usar investmentsToExport
+        investmentsToExport.forEach(investment => {
           const investDate = new Date(investment.date);
           const monthKey = format(investDate, "yyyy-MM");
           const monthLabel = format(investDate, "MMMM yyyy", { locale: ptBR });
@@ -769,7 +781,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         });
         
         // Processar lucros por mês
-        profits.forEach(profit => {
+        // MODIFICADO: Usar profitsToExport
+        profitsToExport.forEach(profit => {
           const profitDate = new Date(profit.date);
           const monthKey = format(profitDate, "yyyy-MM");
           const monthLabel = format(profitDate, "MMMM yyyy", { locale: ptBR });
@@ -1147,8 +1160,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           profitBrl: profitValueBrl.toFixed(2),
           percentOfMonthly: roi.toFixed(2) + '%',
           percentOfTotal: roi.toFixed(2) + '%',
-          investmentCount: investments.length,
-          profitCount: profits.length
+          investmentCount: investmentsToExport.length, // MODIFICADO
+          profitCount: profitsToExport.length // MODIFICADO
         });
         
         // Estilizar linha de total
@@ -1264,8 +1277,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       });
       
       // Calcular média diária de lucro
-      if (profits.length > 0) {
-        const oldestProfit = [...profits].sort(
+      if (profitsToExport.length > 0) {
+        const oldestProfit = [...profitsToExport].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         )[0];
         
@@ -1523,10 +1536,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
     
-    if (investments.length === 0 && profits.length === 0) {
+    // MODIFICADO: Verificar activeReport e seus dados
+    if (!activeReport || (activeReport.investments.length === 0 && activeReport.profits.length === 0)) {
       toast({
         title: "Sem dados para exportar",
-        description: "Não há registros para exportar.",
+        description: "O relatório ativo não contém registros para exportar ou nenhum relatório está selecionado.",
         variant: "destructive"
       });
       return;
@@ -1751,6 +1765,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
+    // ADICIONADO: Verificar se um relatório está ativo
+    if (!activeReportId) {
+      toast({
+        title: "Importação CSV Falhou",
+        description: "Nenhum relatório ativo. Por favor, selecione ou crie um relatório antes de importar.",
+        variant: "destructive",
+      });
+      if (csvFileInputRef.current) csvFileInputRef.current.value = '';
+      return;
+    }
+
     const file = event.target.files[0];
     setIsImporting(true);
     setImportStats(null);
@@ -1787,7 +1812,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos registros de lucro
           if (newProfits.length > 0) {
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            // MODIFICADO: Adicionar lucros ao activeReport
+            setReports(prevReports => prevReports.map(r => 
+              r.id === activeReportId
+                ? { ...r, profits: [...r.profits, ...newProfits] }
+                : r
+            ));
             
             if (!toastDebounce) {
               setToastDebounce(true);
@@ -2210,6 +2240,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
       }
       
+      // ADICIONADO: Verificar se um relatório está ativo
+      if (!activeReportId) {
+        toast({
+          title: "Importação Excel Falhou",
+          description: "Nenhum relatório ativo. Por favor, selecione ou crie um relatório antes de importar.",
+          variant: "destructive",
+        });
+        if (fileInputRef.current) fileInputRef.current.value = ''; // Assumindo fileInputRef é para Excel aqui
+        return;
+      }
+      
       setIsImporting(true);
       setImportType("excel");
       
@@ -2274,9 +2315,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos registros
           if (newProfits.length > 0) {
-            const combinedProfits = [...profits, ...newProfits];
-            setProfits(combinedProfits);
-            localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits));
+            // MODIFICADO: Adicionar lucros ao activeReport e remover localStorage antigo
+            setReports(prevReports => prevReports.map(r => 
+              r.id === activeReportId
+                ? { ...r, profits: [...r.profits, ...newProfits] } // newProfits já inclui os existentes do arquivo se processTradeRecords não mudou muito
+                : r
+            ));
+            // localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits)); // REMOVIDO
             
             toast({
               title: "Importação concluída",
@@ -2353,6 +2398,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
     
+    // ADICIONADO: Verificar se um relatório está ativo
+    if (!activeReportId) {
+      toast({
+        title: "Importação Falhou",
+        description: "Nenhum relatório ativo. Por favor, selecione ou crie um relatório antes de importar o backup.",
+        variant: "destructive",
+      });
+      if (internalFileInputRef.current) internalFileInputRef.current.value = '';
+      return;
+    }
+    
     const file = event.target.files[0];
     setIsImporting(true);
     setImportStats(null);
@@ -2405,13 +2461,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let duplicatedCount = 0;
           
           // Obter conjunto de IDs existentes para verificar duplicações
+          // MODIFICADO: Usar activeReport para pegar IDs existentes
+          const currentActiveReport = reports.find(r => r.id === activeReportId);
+          if (!currentActiveReport) { // Segurança adicional, embora já verificado activeReportId
+            throw new Error("Relatório ativo não encontrado durante a importação.");
+          }
+
           const existingInvestmentIds = new Set(
-            investments
+            currentActiveReport.investments
               .map(inv => inv.originalId || inv.id)
           );
           
           const existingProfitIds = new Set(
-            profits
+            currentActiveReport.profits
               .map(p => p.originalId || p.id)
           );
           
@@ -2498,8 +2560,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos registros ou mostrar diálogo de duplicados
           if (newInvestments.length > 0 || newProfits.length > 0) {
-            setInvestments(prevInvestments => [...prevInvestments, ...newInvestments]);
-            setProfits(prevProfits => [...prevProfits, ...newProfits]);
+            // MODIFICADO: Atualizar investments e profits do activeReport via setReports
+            setReports(prevReports => prevReports.map(r => {
+              if (r.id === activeReportId) {
+                return {
+                  ...r,
+                  investments: [...r.investments, ...newInvestments],
+                  profits: [...r.profits, ...newProfits]
+                };
+              }
+              return r;
+            }));
             
             toast({
               title: "Importação concluída",
