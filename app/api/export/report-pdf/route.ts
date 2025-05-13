@@ -4,13 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 // import ReactDOMServer from 'react-dom/server'; // Removido
 import puppeteer from 'puppeteer';
-import ReportHtmlTemplate from '@/components/report-html-template';
+// Removidas importações de React e componentes de UI para o template principal
+// import ReportHtmlTemplate from '@/components/report-html-template'; 
+// import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
+// import React from 'react'; 
+// import { renderComponentToStaticMarkup } from '@/lib/server-render-utils';
+import { buildReportHtml } from '@/lib/html-template-builder'; // Adicionado
 import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/report-processing';
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
-import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
-import React from 'react';
-// Removida a importação estática de renderComponentToStaticMarkup
-// import { renderComponentToStaticMarkup } from '@/lib/server-render-utils';
+// import { Report } from '@/lib/calculator-types';
 
 // TODO: Substituir z.any() por um schema Zod detalhado para o objeto Report 
 // quando a estrutura de lib/calculator-types.ts -> Report estiver totalmente definida.
@@ -38,93 +40,66 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Report data or report name is missing' }, { status: 400 });
     }
 
+    // Etapa 1: Preparar dados base (enriquecer operações, buscar cotações)
+    // A função prepareReportFoundationData já foi fornecida e deve ser mantida.
     const foundationData = await prepareReportFoundationData(report);
+    // console.log('Foundation Data:', foundationData);
 
-    const reportName = report.name;
-    const periodDescription = customPeriodDescription || `${foundationData.firstOperationDate} - ${foundationData.lastOperationDate}`;
-    
+    // Etapa 2: Calcular métricas financeiras
+    // A função calculateReportMetrics já foi fornecida e deve ser mantida.
     const calculatedMetricsInput = {
         enrichedOperations: foundationData.enrichedOperations,
-        firstOperationDate: foundationData.firstOperationDate,
-        lastOperationDate: foundationData.lastOperationDate,
-        baseCurrency: 'BTC' as const, // Assumindo BTC como base, conforme implementações anteriores
-        initialPortfolioBtc: report.initialInvestment?.btcAmount || 0,
-        initialPortfolioCost: report.initialInvestment?.valueInFiat || 0, // Supondo que valueInFiat seja o custo na moeda de display original do aporte inicial
-        targetCurrency: displayCurrency,
-        quotations: foundationData.quotations,
-        // Os campos abaixo não são esperados por calculateReportMetrics, mas sim pela ExportedReport
-        // reportName: reportName,
-        // reportPeriodDescription: periodDescription,
+        historicalQuotesUSD: foundationData.historicalQuotesUSD,
+        historicalQuotesBRL: foundationData.historicalQuotesBRL,
+        reportDateRange: foundationData.reportDateRange,
+        reportName: report.name, 
+        reportPeriodDescription: customPeriodDescription || `${foundationData.reportDateRange?.minDate} - ${foundationData.reportDateRange?.maxDate}`,
+        displayCurrency: displayCurrency,
     };
-
     const calculatedReportData: CalculatedReportData = calculateReportMetrics(calculatedMetricsInput);
+    // console.log('Calculated Report Data:', calculatedReportData);
 
-    // Carregar dinamicamente a função de renderização
-    const { renderComponentToStaticMarkup } = await import('@/lib/server-render-utils');
-
-    // Gerar SVG do Gráfico de P/L Mensal
-    let monthlyPLChartSvg: string | undefined = undefined;
-    if (calculatedReportData.monthlyBreakdown && calculatedReportData.monthlyBreakdown.length > 0) {
-      try {
-        const chartWidth = 780;
-        const chartHeight = 350;
-        
-        monthlyPLChartSvg = renderComponentToStaticMarkup(MonthlyPLChart, {
-          data: calculatedReportData.monthlyBreakdown,
-          currency: displayCurrency,
-          width: chartWidth,
-          height: chartHeight,
-        });
-
-      } catch (chartError) {
-        console.error('Error generating Monthly P/L chart SVG:', chartError);
-      }
-    }
-
+    // Etapa 3: Montar o objeto ExportedReport
     const reportMetadata: ReportMetadata = {
-      reportName: reportName,
-      generatedAt: new Date().toISOString(),
-      periodDescription: periodDescription,
-      displayCurrency: displayCurrency,
+      reportName: report.name,
+      generatedAt: new Date().toISOString(), // Corrigido para metadata
+      periodDescription: calculatedMetricsInput.reportPeriodDescription, // Corrigido para metadata
+      displayCurrency: displayCurrency, // Corrigido para metadata
     };
 
     const exportedReportData: ExportedReport = {
       metadata: reportMetadata,
       data: calculatedReportData,
       operations: foundationData.enrichedOperations as OperationData[],
-      chartsSvg: {
-        monthlyPL: monthlyPLChartSvg,
+      chartsSvg: { // Gráfico omitido por enquanto
+        // monthlyPL: undefined, 
       },
     };
+    // console.log('Exported Report Data for HTML builder:', exportedReportData);
 
-    const htmlString = renderComponentToStaticMarkup(ReportHtmlTemplate, { 
-      reportData: exportedReportData 
-    });
+    // Etapa 4: Gerar HTML usando o construtor manual
+    const htmlString = buildReportHtml(exportedReportData);
+    // console.log('Generated HTML String:', htmlString.substring(0, 500)); // Logar início do HTML
 
-    // Configure o Puppeteer para ambientes serverless se necessário (ex: Vercel)
-    // Pode ser necessário usar chrome-aws-lambda ou puppeteer-core com um executável gerenciado.
+    // Etapa 5: Gerar PDF com Puppeteer (lógica existente mantida)
     const browser = await puppeteer.launch({ 
         headless: 'new', 
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            // Abaixo são flags adicionais que podem ser necessárias em alguns ambientes Linux:
-            // '--disable-dev-shm-usage',
-            // '--disable-accelerated-2d-canvas',
-            // '--no-first-run',
-            // '--no-zygote',
-            // '--single-process', // Isso não é recomendado para todas as situações
-            // '--disable-gpu'
+            '--disable-dev-shm-usage', // Adicionado para ambientes restritos
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            // '--single-process', // Comentado, geralmente não necessário e pode impactar performance
+            '--disable-gpu' // Adicionado para ambientes server/CI
         ]
     });
     const page = await browser.newPage();
-    
-    // Para garantir que estilos (Tailwind ou inline) sejam aplicados e imagens carregadas (se houver)
     await page.setContent(htmlString, { waitUntil: 'networkidle0' }); 
-
     const pdfBuffer = await page.pdf({
       format: 'A4',
-      printBackground: true, // Importante para que cores de fundo e imagens sejam impressas
+      printBackground: true,
       margin: {
         top: '20mm',
         right: '20mm',
@@ -132,14 +107,13 @@ export async function POST(request: NextRequest) {
         left: '20mm',
       },
     });
-
     await browser.close();
 
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${reportName.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Disposition': `attachment; filename="${report.name.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf"`,
       },
     });
 
