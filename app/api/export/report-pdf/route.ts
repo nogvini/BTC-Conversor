@@ -1,3 +1,5 @@
+export const runtime = 'nodejs'; // Forçar o runtime Node.js para esta rota
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 // import ReactDOMServer from 'react-dom/server'; // Removido
