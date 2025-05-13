@@ -79,6 +79,16 @@ type ChartType = "line" | "bar";
 type ComparisonMode = "accumulated" | "monthly";
 type DisplayUnit = "btc" | "usd" | "brl";
 
+// NOVA FUNÇÃO AUXILIAR
+const parseReportDateStringToUTCDate = (dateString: string): Date => {
+  if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    console.warn(`Invalid date string format encountered in reports-comparison: ${dateString}`);
+    return new Date(NaN); 
+  }
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+};
+
 export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsComparisonProps) {
   const { reports } = useReports();
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
@@ -207,12 +217,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           monthEndForAccumulation.setDate(0); // Agora é o último dia do mês 'month'
 
           const investmentsUntilMonth = reportInvestments.filter(inv => {
-            const invDate = new Date(inv.date);
+            const invDate = parseReportDateStringToUTCDate(inv.date);
             return invDate <= monthEndForAccumulation;
           });
           
           const profitsUntilMonth = reportProfits.filter(prof => {
-            const profitDate = new Date(prof.date);
+            const profitDate = parseReportDateStringToUTCDate(prof.date);
             return profitDate <= monthEndForAccumulation;
           });
 
@@ -236,12 +246,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           monthEnd.setDate(0); // Último dia do mês
           
           const investmentsInMonth = reportInvestments.filter(inv => {
-            const invDate = new Date(inv.date);
+            const invDate = parseReportDateStringToUTCDate(inv.date);
             return invDate >= monthStart && invDate <= monthEnd;
           });
           
           const profitsInMonth = reportProfits.filter(prof => {
-            const profitDate = new Date(prof.date);
+            const profitDate = parseReportDateStringToUTCDate(prof.date);
             return profitDate >= monthStart && profitDate <= monthEnd;
           });
           
