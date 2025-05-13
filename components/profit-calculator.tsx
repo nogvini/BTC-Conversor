@@ -215,6 +215,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
 
+  // Novos estados para o modal de exportação avançada
+  const [showAdvancedExportDialog, setShowAdvancedExportDialog] = useState(false);
+  const [exportReportSelectionType, setExportReportSelectionType] = useState<'active' | 'history' | 'manual'>('active');
+  const [manualSelectedReportIdsForExport, setManualSelectedReportIdsForExport] = useState<string[]>([]);
+  const [exportPeriodSelectionType, setExportPeriodSelectionType] = useState<'all' | 'historyFilter' | 'specificMonth' | 'customRange'>('all');
+  const [exportSpecificMonthDate, setExportSpecificMonthDate] = useState<Date | null>(new Date());
+  const [exportCustomStartDateForRange, setExportCustomStartDateForRange] = useState<Date | null>(null);
+  const [exportCustomEndDateForRange, setExportCustomEndDateForRange] = useState<Date | null>(null);
+  const [exportIncludeCharts, setExportIncludeCharts] = useState<boolean>(true);
+
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1086,44 +1096,34 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         <button
           className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex flex-col transition-colors"
           onClick={() => {
-            exportData(false);
-            setShowExportOptions(false);
-          }}
-          disabled={isExporting}
-        >
-          <div className="flex items-center">
-            <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="font-medium">Exportar dados do mês selecionado</span>
-          </div>
-          {showFilterOptions && (
-            <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
-              {format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}
-            </span>
-          )}
-          <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
-            Inclui cotações, lucros e rendimentos detalhados
-          </span>
-        </button>
-        <button
-          className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex flex-col border-t border-purple-700/20 transition-colors"
-          onClick={() => {
-            exportData(true);
-            setShowExportOptions(false);
+            // Este será o comportamento padrão do novo modal, chamando exportData com opções.
+            // Por agora, chamaremos a versão antiga.
+            console.log("Opções Avançadas Selecionadas:", {
+              reportSelection: exportReportSelectionType,
+              manualReportIds: manualSelectedReportIdsForExport,
+              periodSelection: exportPeriodSelectionType,
+              specificMonth: exportSpecificMonthDate,
+              customStart: exportCustomStartDateForRange,
+              customEnd: exportCustomEndDateForRange,
+              includeCharts: exportIncludeCharts
+            });
+            setShowAdvancedExportDialog(false); // Fecha o novo modal
+            exportData(exportPeriodSelectionType === 'all'); // Adaptação temporária
           }}
           disabled={isExporting}
         >
           <div className="flex items-center">
             <Download className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="font-medium">Exportar todos os dados</span>
+            <span className="font-medium">Exportar com Opções Avançadas</span>
           </div>
           <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
-            Inclui histórico completo com análise de rendimento
+            Configure relatórios, período e gráficos.
           </span>
         </button>
         <div className="border-t border-purple-700/20 p-2 text-center">
           <button
             className="text-center text-xs text-gray-400 hover:text-gray-300 w-full py-1"
-            onClick={() => setShowExportOptions(false)}
+            onClick={() => setShowAdvancedExportDialog(false)} // Fecha o novo modal
           >
             Cancelar
           </button>
@@ -2692,60 +2692,57 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     )}
                   </Button>
                   
-                  {useExportDialog ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowExportOptions(true)}
-                      disabled={isExporting}
-                      className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
-                    >
-                      {isExporting ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Exportando...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Exportar
-                        </>
-                      )}
-                    </Button>
-                  ) : (
-                    <Popover open={showExportOptions} onOpenChange={setShowExportOptions}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isExporting}
-                          className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
-                        >
-                          {isExporting ? (
-                            <>
-                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                              Exportando...
-                            </>
-                          ) : (
-                            <>
-                              <FileText className="mr-2 h-4 w-4" />
-                              Exportar
-                            </>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent 
-                        className="p-0 bg-black/90 border-purple-800/60" 
-                        align={isMobile ? "center" : "end"}
-                        alignOffset={isMobile ? 0 : -5}
-                        sideOffset={5}
-                        side={isMobile ? "bottom" : "bottom"}
-                        style={{ width: isMobile ? "calc(100vw - 30px)" : "280px", maxWidth: "95vw" }}
-                      >
-                        <ExportOptionsContent />
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                  {/* SUBSTITUIR O BLOCO DE EXPORTAÇÃO ANTIGO */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                        // Inicializar estados do modal de exportação avançada antes de abrir
+                        const activeId = activeReportIdFromHook;
+                        const historySelectionNotEmpty = selectedReportIdsForHistoryView.length > 0;
+
+                        if (historySelectionNotEmpty) {
+                            setExportReportSelectionType('history');
+                        } else if (activeId) {
+                            setExportReportSelectionType('active');
+                        } else {
+                            setExportReportSelectionType('manual'); // Ou um fallback mais robusto
+                        }
+                        setManualSelectedReportIdsForExport(historySelectionNotEmpty ? selectedReportIdsForHistoryView : (activeId ? [activeId] : []));
+                        
+                        // Definir período padrão com base no filtro do histórico se ativo
+                        if (showFilterOptions) {
+                            if (historyFilterType === 'month') {
+                                setExportPeriodSelectionType('historyFilter'); // Usará filterMonth
+                            } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+                                setExportPeriodSelectionType('historyFilter'); // Usará customStartDate/EndDate
+                            } else {
+                                setExportPeriodSelectionType('all');
+                            }
+                        } else {
+                             setExportPeriodSelectionType('all');
+                        }
+                        setExportSpecificMonthDate(filterMonth || new Date());
+                        setExportCustomStartDateForRange(customStartDate);
+                        setExportCustomEndDateForRange(customEndDate);
+                        setExportIncludeCharts(true);
+                        setShowAdvancedExportDialog(true);
+                    }}
+                    disabled={isExporting || (!allReportsFromHook || allReportsFromHook.length === 0)}
+                    className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Exportar
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -3115,10 +3112,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
           <DialogContent className="p-0 max-w-[95vw] bg-black/95 border-purple-800/60" style={{ maxHeight: "80vh" }}>
             <DialogHeader className="p-4 pb-0">
-              <DialogTitle className="text-center">Exportar Dados</DialogTitle>
+              <DialogTitle className="text-center">Exportar Dados (Simples)</DialogTitle>
             </DialogHeader>
             <div className="overflow-y-auto">
-              <ExportOptionsContent />
+              {/* <ExportOptionsContent /> */} {/* O conteúdo antigo pode ser removido ou adaptado se necessário para um modo "simples" no futuro */}
+              <div className="p-4 text-center text-sm">
+                A exportação avançada agora é o padrão. <br/> Clique no botão "Exportar" para ver as opções.
+                <Button onClick={() => setShowExportOptions(false)} className="mt-4 w-full">Fechar</Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -3301,6 +3302,205 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </DialogContent>
         </Dialog>
       )}
+
+      {/* NOVO DIÁLOGO PARA OPÇÕES AVANÇADAS DE EXPORTAÇÃO */}
+      <Dialog open={showAdvancedExportDialog} onOpenChange={setShowAdvancedExportDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60 text-white sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Opções Avançadas de Exportação</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Configure os detalhes da sua exportação em Excel.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="data" className="space-y-4 pt-4">
+            <TabsList className="grid w-full grid-cols-2 bg-black/30 border-purple-700/50">
+              <TabsTrigger value="data" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">Dados e Relatórios</TabsTrigger>
+              <TabsTrigger value="charts" className="data-[state=active]:bg-purple-800 data-[state=active]:text-white">Gráficos</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="data" className="space-y-6">
+              {/* SELEÇÃO DE RELATÓRIOS */}
+              <div className="space-y-2">
+                <Label className="text-base font-medium text-purple-300">Selecionar Relatórios</Label>
+                <RadioGroup value={exportReportSelectionType} onValueChange={(v) => setExportReportSelectionType(v as any)} className="space-y-1.5">
+                  {activeReportIdFromHook && currentActiveReportObjectFromHook && (
+                    <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                      <RadioGroupItem value="active" id="rep-active" />
+                      <Label htmlFor="rep-active" className="font-normal text-sm cursor-pointer flex-grow">
+                        Apenas o relatório ativo na aba 'Registrar': <span className="font-semibold" style={{color: currentActiveReportObjectFromHook.color || 'inherit'}}>{currentActiveReportObjectFromHook.name}</span>
+                      </Label>
+                    </div>
+                  )}
+                  {selectedReportIdsForHistoryView.length > 0 && (
+                    <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                      <RadioGroupItem value="history" id="rep-history" />
+                      <Label htmlFor="rep-history" className="font-normal text-sm cursor-pointer flex-grow">
+                        Usar seleção da aba 'Histórico' ({selectedReportIdsForHistoryView.length} relatório(s))
+                      </Label>
+                    </div>
+                  )}
+                  <div className="flex items-start space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                    <RadioGroupItem value="manual" id="rep-manual" className="mt-1"/>
+                    <Label htmlFor="rep-manual" className="font-normal text-sm cursor-pointer flex-grow">
+                      Selecionar manualmente para esta exportação:
+                      {exportReportSelectionType === 'manual' && allReportsFromHook && allReportsFromHook.length > 0 && (
+                        <ScrollArea className="mt-2 h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
+                          <div className="space-y-1.5">
+                            {allReportsFromHook.map(report => (
+                              <div key={`manual-exp-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
+                                <Checkbox
+                                  id={`manual-exp-report-${report.id}`}
+                                  checked={manualSelectedReportIdsForExport.includes(report.id)}
+                                  onCheckedChange={(checked) => {
+                                    setManualSelectedReportIdsForExport(prev => 
+                                      checked ? [...prev, report.id] : prev.filter(id => id !== report.id)
+                                    );
+                                  }}
+                                  style={{borderColor: report.color || '#A855F7'}}
+                                />
+                                <Label htmlFor={`manual-exp-report-${report.id}`} className="text-xs font-normal cursor-pointer" style={{color: report.color || '#E0E0E0'}}>
+                                  {report.name}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* SELEÇÃO DE PERÍODO */}
+              <div className="space-y-2">
+                <Label className="text-base font-medium text-purple-300">Selecionar Período</Label>
+                <RadioGroup value={exportPeriodSelectionType} onValueChange={(v) => setExportPeriodSelectionType(v as any)} className="space-y-1.5">
+                  <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                    <RadioGroupItem value="all" id="period-all" />
+                    <Label htmlFor="period-all" className="font-normal text-sm cursor-pointer flex-grow">Todos os dados (dos relatórios selecionados)</Label>
+                  </div>
+                  {showFilterOptions && (historyFilterType === 'month' || (historyFilterType === 'custom' && customStartDate && customEndDate)) && (
+                    <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                      <RadioGroupItem value="historyFilter" id="period-history" />
+                      <Label htmlFor="period-history" className="font-normal text-sm cursor-pointer flex-grow">
+                        Usar período do filtro da aba 'Histórico': 
+                        <span className="font-semibold ml-1">
+                           {historyFilterType === 'month' ? format(filterMonth, "MMMM yyyy", { locale: ptBR }) : 
+                           (customStartDate && customEndDate ? `${format(customStartDate, "dd/MM/yy")} - ${format(customEndDate, "dd/MM/yy")}` : 'N/A')}
+                        </span>
+                      </Label>
+                    </div>
+                  )}
+                  <div className="flex items-start space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                    <RadioGroupItem value="specificMonth" id="period-month" className="mt-1" />
+                    <Label htmlFor="period-month" className="font-normal text-sm cursor-pointer flex-grow">
+                      Mês específico:
+                      {exportPeriodSelectionType === 'specificMonth' && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70 mt-1.5">
+                              {exportSpecificMonthDate ? format(exportSpecificMonthDate, "MMMM yyyy", { locale: ptBR }) : "Selecione o mês"}
+                              <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                             <CalendarComponent mode="single" selected={exportSpecificMonthDate} onSelect={(date) => setExportSpecificMonthDate(date || new Date())} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </Label>
+                  </div>
+                  <div className="flex items-start space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                     <RadioGroupItem value="customRange" id="period-range" className="mt-1" />
+                     <Label htmlFor="period-range" className="font-normal text-sm cursor-pointer flex-grow">
+                       Intervalo de datas personalizado:
+                       {exportPeriodSelectionType === 'customRange' && (
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1.5">
+                           <Popover>
+                             <PopoverTrigger asChild>
+                               <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70">
+                                 <Calendar className="mr-2 h-4 w-4" />
+                                 {exportCustomStartDateForRange ? format(exportCustomStartDateForRange, "dd/MM/yy") : "Início"}
+                               </Button>
+                             </PopoverTrigger>
+                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomStartDateForRange} onSelect={setExportCustomStartDateForRange} disabled={(date) => (exportCustomEndDateForRange && date > exportCustomEndDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
+                           </Popover>
+                           <Popover>
+                             <PopoverTrigger asChild>
+                               <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70" disabled={!exportCustomStartDateForRange}>
+                                 <Calendar className="mr-2 h-4 w-4" />
+                                 {exportCustomEndDateForRange ? format(exportCustomEndDateForRange, "dd/MM/yy") : "Fim"}
+                               </Button>
+                             </PopoverTrigger>
+                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomEndDateForRange} onSelect={setExportCustomEndDateForRange} disabled={(date) => (exportCustomStartDateForRange && date < exportCustomStartDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
+                           </Popover>
+                         </div>
+                       )}
+                     </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="charts" className="space-y-4">
+              <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30">
+                <Checkbox id="include-charts" checked={exportIncludeCharts} onCheckedChange={(checked) => setExportIncludeCharts(Boolean(checked))} />
+                <Label htmlFor="include-charts" className="font-normal text-sm cursor-pointer flex-grow">Incluir gráficos na exportação</Label>
+              </div>
+              {exportIncludeCharts && (
+                <div className="p-3 bg-black/20 border border-purple-700/30 rounded-md text-xs text-gray-400">
+                  <p>Gráficos padrão serão incluídos:</p>
+                  <ul className="list-disc list-inside ml-2 mt-1">
+                    <li>Evolução do Saldo Total</li>
+                    <li>Volume de Investimentos Mensais</li>
+                    <li>Lucros/Prejuízos Líquidos Mensais</li>
+                    <li>Comparativo de Saldos (se múltiplos relatórios)</li>
+                  </ul>
+                  <p className="mt-2">A personalização detalhada de gráficos será adicionada em breve.</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="pt-4">
+            <Button variant="outline" onClick={() => setShowAdvancedExportDialog(false)} className="bg-black/30 border-purple-700/50 text-white hover:bg-black/50">Cancelar</Button>
+            <Button 
+              onClick={() => {
+                // Lógica de exportação com as novas opções virá aqui.
+                // Por agora, apenas logamos as opções e fechamos o modal.
+                console.log("Opções Avançadas de Exportação Selecionadas:", {
+                  reportSelectionType: exportReportSelectionType,
+                  manualSelectedReportIds: exportReportSelectionType === 'manual' ? manualSelectedReportIdsForExport : (exportReportSelectionType === 'history' ? selectedReportIdsForHistoryView : (activeReportIdFromHook ? [activeReportIdFromHook] : [])),
+                  periodSelectionType: exportPeriodSelectionType,
+                  specificMonthDate: exportPeriodSelectionType === 'specificMonth' ? exportSpecificMonthDate : null,
+                  customStartDate: exportPeriodSelectionType === 'customRange' ? exportCustomStartDateForRange : null,
+                  customEndDate: exportPeriodSelectionType === 'customRange' ? exportCustomEndDateForRange : null,
+                  historyFilterUsed: exportPeriodSelectionType === 'historyFilter' ? {type: historyFilterType, month: filterMonth, start: customStartDate, end: customEndDate} : null,
+                  includeCharts: exportIncludeCharts,
+                });
+                // A chamada real a exportData será modificada para aceitar estas opções
+                // exportData(COMPLEX_OPTIONS_OBJECT); 
+                
+                // Chamada temporária para simular e fechar
+                const exportAllDataFlag = exportPeriodSelectionType === 'all'; // Simplificação grosseira
+                exportData(exportAllDataFlag); 
+
+                setShowAdvancedExportDialog(false);
+                toast({
+                  title: "Exportação Iniciada (Configurado)",
+                  description: "As opções foram configuradas. A lógica de exportação será atualizada.",
+                  variant: "default"
+                });
+              }} 
+              className="bg-purple-700 hover:bg-purple-600 text-white"
+              disabled={isExporting || (exportReportSelectionType === 'manual' && manualSelectedReportIdsForExport.length === 0)}
+            >
+              {isExporting ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Exportando...</> : "Exportar Agora"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

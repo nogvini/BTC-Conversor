@@ -359,4 +359,23 @@
 - [ ] Adicionar suporte para outros idiomas
 - [ ] Desenvolver modo offline
 - [ ] Implementar sistema de backup na nuvem
-- [ ] Adicionar suporte para outras criptomoedas além de Bitcoin 
+- [ ] Adicionar suporte para outras criptomoedas além de Bitcoin
+
+# 📊 Backlog Priorizado (Próximo Sprint)
+
+### [HIGH] Implementar Sistema de Exportação Avançado para Calculadora de Lucros - ID: EXPORT_ADV_001
+- **Status:** Em Andamento - Fase 1 (UI/UX)
+- **Descrição:** Aprimorar a exportação Excel da Calculadora de Lucros (`profit-calculator.tsx`) para incluir gráficos (evolução de saldo, investimentos/lucros mensais, comparativos entre relatórios), permitir seleção de escopo de exportação (um/múltiplos relatórios, mês/período customizado) e melhorar a UI/UX para estas opções. O objetivo é fornecer uma ferramenta de análise de dados mais poderosa e flexível.
+- **Requisitos Chave:**
+    - Exportação para Excel com gráficos incorporados.
+    - UI intuitiva para selecionar relatórios (único/múltiplos) e período (mês/customizado/todos os dados) para exportação.
+    - Geração de gráficos relevantes: evolução de saldo, aportes mensais, lucros/perdas mensais, comparativos entre relatórios.
+    - Manter e aprimorar planilhas de dados existentes (Resumo, Investimentos, Lucros/Prejuízos, Metadados).
+- **Componentes Afetados Principais:** `components/profit-calculator.tsx`, `hooks/use-reports.ts` (potencialmente para lógica de dados).
+- **Fases Sugeridas:**
+    1.  **UI/UX:** Design e implementação do modal/popover de opções de exportação.
+    2.  **Gráficos (Relatório Único):** Implementar gráficos básicos para um relatório selecionado, filtrado por período.
+    3.  **Gráficos (Múltiplos Relatórios):** Adaptar para exportar dados agregados/comparativos de múltiplos relatórios com gráficos.
+    4.  **Testes e Refinamentos:** Testes abrangentes de funcionalidade, performance e validação dos dados/gráficos.
+- **Desafios Principais:** Dominar API de gráficos do `ExcelJS`, lógica complexa de preparação de dados, design de UI/UX claro para múltiplas opções.
+- **Plano Detalhado:** Consultar o plano completo gerado na conversa de DD/MM/YYYY (data da conversa atual). 
