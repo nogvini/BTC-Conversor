@@ -149,6 +149,56 @@ export async function getHistoricalBitcoinData(
     console.error('Erro ao buscar dados históricos:', error);
     throw error;
   }
-} 
+}
+
+export async function getHistoricalBitcoinDataForRange(
+  currency: 'usd' | 'brl',
+  fromDate: string, // Formato YYYY-MM-DD
+  toDate: string,   // Formato YYYY-MM-DD
+  forceUpdate: boolean = false
+): Promise<HistoricalDataPoint[]> {
+  try {
+    const params = new URLSearchParams();
+    params.append('currency', currency);
+    params.append('fromDate', fromDate);
+    params.append('toDate', toDate);
+    if (forceUpdate) {
+      params.append('force', 'true');
+    }
+
+    const url = `${API_BASE_URL}/historical?${params.toString()}`;
+    
+    const fetchOptions: RequestInit = {
+      cache: forceUpdate ? 'no-store' : 'default',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-App': 'BTCRaidToolkit', // Mantendo o header customizado
+      },
+      next: forceUpdate ? { revalidate: 0 } : { revalidate: 300 } // Consistente com fetchAllAppData
+    };
+
+    const response = await fetch(url, fetchOptions);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: response.statusText }));
+      console.error(`Erro ao buscar dados históricos por intervalo (${response.status}):`, errorData);
+      throw new Error(`Erro ${response.status}: ${errorData.error || response.statusText}`);
+    }
+
+    // Log dos headers de diagnóstico
+    const source = response.headers.get('X-Data-Source');
+    const usingCache = response.headers.get('X-Using-Cache');
+    const responseTime = response.headers.get('X-Response-Time');
+    console.log(
+      `Dados históricos (intervalo ${fromDate}-${toDate}): fonte=${source || 'desconhecida'}, ` +
+      `cache=${usingCache === 'true' ? 'sim' : 'não'}, tempo=${responseTime || 'n/a'}`
+    );
+
+    return await response.json();
+  } catch (error) {
+    console.error('Erro em getHistoricalBitcoinDataForRange:', error);
+    throw error; // Re-lançar para ser tratado pelo chamador
+  }
+}
 
 export { HistoricalDataPoint };

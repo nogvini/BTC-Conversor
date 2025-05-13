@@ -12,30 +12,30 @@
 ## FOCO ATUAL / URGENTE
 
 ### [MEDIUM] Correções e Melhorias no Sistema de Exportação da Calculadora de Lucros - ID: EXPORT_FIX_001
-- **Status:** Em Andamento (Foco Principal da Sessão Atual)
+- **Status:** Concluído
 - **Descrição:** Resolver problemas identificados na funcionalidade de exportação avançada do `profit-calculator.tsx`, incluindo a sincronização da seleção de relatório, a navegação por mês e um erro que impede a exportação de dados existentes.
 - **Requisitos Chave:**
-    - [ ] **Sincronização da Seleção de Relatório:** Garantir que a opção "Apenas o relatório ativo" no diálogo de exportação reflita em tempo real o relatório selecionado na aba "Registrar".
-    - [ ] **Navegação por Mês Aprimorada:** Substituir o pop-up de calendário para seleção de "Mês específico" na exportação por um indicador de mês com botões de seta para navegação (anterior/próximo).
-    - [ ] **Correção do Erro de Exportação:** Investigar e corrigir a causa do erro "Nenhum dado para exportar", assegurando que os dados do relatório ativo sejam corretamente identificados e processados para exportação.
-    - [ ] **Validação da Exportação:** Confirmar que o arquivo Excel gerado contém os dados corretos conforme as seleções do usuário (relatório, período).
+    - [x] **Sincronização da Seleção de Relatório:** Garantir que a opção "Apenas o relatório ativo" no diálogo de exportação reflita em tempo real o relatório selecionado na aba "Registrar".
+    - [x] **Navegação por Mês Aprimorada:** Substituir o pop-up de calendário para seleção de "Mês específico" na exportação por um indicador de mês com botões de seta para navegação (anterior/próximo).
+    - [x] **Correção do Erro de Exportação:** Investigar e corrigir a causa do erro "Nenhum dado para exportar", assegurando que os dados do relatório ativo sejam corretamente identificados e processados para exportação.
+    - [x] **Validação da Exportação:** Confirmar que o arquivo Excel gerado contém os dados corretos conforme as seleções do usuário (relatório, período).
 - **Componentes Afetados Principais:** `components/profit-calculator.tsx`, potencialmente `hooks/use-reports.ts`.
 - **Fases Sugeridas (do `tasks.md` original):**
     1.  **Diagnóstico e Investigação (Erro de Exportação):**
-        - [ ] Analisar a lógica de `exportData` e funções relacionadas.
-        - [ ] Depurar o fluxo de dados.
-        - [ ] Verificar interação de `exportReportSelectionType` e `manualSelectedReportIdsForExport` com `currentActiveReportObjectFromHook`.
+        - [x] Analisar a lógica de `exportData` e funções relacionadas.
+        - [x] Depurar o fluxo de dados.
+        - [x] Verificar interação de `exportReportSelectionType` e `manualSelectedReportIdsForExport` com `currentActiveReportObjectFromHook`.
     2.  **Correção do Erro de Exportação:**
-        - [ ] Implementar correções para passagem de dados do relatório ativo.
-        - [ ] Testar exportação com relatório ativo em diferentes cenários.
+        - [x] Implementar correções para passagem de dados do relatório ativo.
+        - [x] Testar exportação com relatório ativo em diferentes cenários.
     3.  **Implementação da Sincronização de Seleção de Relatório:**
-        - [ ] Modificar diálogo de exportação para refletir `activeReportIdFromHook`.
+        - [x] Modificar diálogo de exportação para refletir `activeReportIdFromHook`.
     4.  **Revisão da Navegação por Mês na Exportação:**
-        - [ ] Remover `Popover` e `CalendarComponent` para `exportSpecificMonthDate`.
-        - [ ] Adicionar botões de seta para navegação mensal.
+        - [x] Remover `Popover` e `CalendarComponent` para `exportSpecificMonthDate`.
+        - [x] Adicionar botões de seta para navegação mensal.
     5.  **Testes Integrados e Refinamentos:**
-        - [ ] Testar todas as funcionalidades de exportação.
-        - [ ] Verificar sincronização, navegação por mês e correção de erro.
+        - [x] Testar todas as funcionalidades de exportação.
+        - [x] Verificar sincronização, navegação por mês e correção de erro.
 ---
 
 ## Sprint 2: Múltiplos Relatórios - Fundação & Correções Calculadora (Sprint Atual)
@@ -46,10 +46,10 @@
 | A2.1.1 | Modal de Criação de Relatórios               | Alta       | [x]    | Concluído (ver `progress.md`)                  |
 | A2.1.2 | Seletor de Relatório Ativo                   | Alta       | [x]    | Concluído (ver `progress.md`)                  |
 | A2.2.1 | Estrutura de Dados para Múltiplos Relatórios | Alta       | [x]    | Concluído (ver `progress.md`)                  |
-| A1.1.4 | Lazy Loading de Componentes (Autenticação)   | Alta       | [ ]    |                                               |
+| A1.1.4 | Lazy Loading de Componentes (Autenticação)   | Alta       | [x]    | Implementado em `app/auth/page.tsx` para `AuthForm`. |
 | A3.1.1 | Code Splitting (Geral)                       | Alta       | [ ]    |                                               |
 | A1.4.1 | Refatoração do Singleton (Parte 1)           | Alta       | [ ]    |                                               |
-| -      | EXPORT_FIX_001 (detalhado acima)             | Crítica    | Em Andamento | **Foco Principal da Sessão Atual**          |
+| -      | EXPORT_FIX_001 (detalhado acima)             | Crítica    | Concluído | **Foco Principal da Sessão Atual**          |
 
 ---
 
@@ -172,7 +172,7 @@
 - [x] **A2.1.** Implementar interface para criação e seleção de relatórios.
 - [x] **A2.2.** Desenvolver sistema de armazenamento para múltiplos relatórios.
 - [x] **A2.3.** Criar visualização comparativa entre relatórios.
-- [x] **A2.4.** Adaptar funcionalidades de importação/exportação. (Parcialmente, EXPORT_FIX_001 é sobre isso)
+- [x] **A2.4.** Adaptar funcionalidades de importação/exportação. (Parcialmente, EXPORT_FIX_001 é sobre isso) => (Concluído com EXPORT_FIX_001)
 
 ### A3. Otimizações de Performance (Referência `tasks.md` original)
 - [ ] **A3.1.** Reduzir tempo de carregamento inicial.

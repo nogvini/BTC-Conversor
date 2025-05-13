@@ -11,28 +11,53 @@ const PERIOD_MAPPING = {
 };
 
 // GET /api/bitcoin/historical?currency=usd&days=30&force=true&period=30d
+// ou /api/bitcoin/historical?currency=usd&fromDate=2023-01-01&toDate=2023-01-31&force=true
 export async function GET(request: Request) {
   try {
     // Obter parâmetros da requisição
     const { searchParams } = new URL(request.url);
     const currency = searchParams.get('currency') || 'usd';
-    const periodParam = searchParams.get('period');
-    let days = parseInt(searchParams.get('days') || '30', 10);
     const forceUpdate = searchParams.get('force') === 'true';
-    
-    // Se um período específico foi fornecido, converter para dias
-    if (periodParam && PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING]) {
-      days = PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING];
-    }
-    
-    console.log(`API: Requisição de dados históricos - moeda: ${currency}, dias: ${days}${forceUpdate ? ', força atualização' : ''}`);
-    
-    // Validar parâmetros
-    if (isNaN(days) || days < 1 || days > 365) {
-      return NextResponse.json(
-        { error: 'Parâmetro "days" inválido. Deve ser um número entre 1 e 365.' },
-        { status: 400 }
-      );
+
+    const fromDateStr = searchParams.get('fromDate');
+    const toDateStr = searchParams.get('toDate');
+
+    let daysOrDateParams: number | { fromDate: string; toDate: string };
+    let periodForHeader: string;
+
+    if (fromDateStr && toDateStr) {
+      // Validar formato YYYY-MM-DD
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(fromDateStr) || !dateRegex.test(toDateStr)) {
+        return NextResponse.json(
+          { error: 'Parâmetros "fromDate" e "toDate" devem estar no formato YYYY-MM-DD.' },
+          { status: 400 }
+        );
+      }
+      if (new Date(fromDateStr) > new Date(toDateStr)) {
+        return NextResponse.json(
+          { error: '"fromDate" não pode ser posterior a "toDate".' },
+          { status: 400 }
+        );
+      }
+      daysOrDateParams = { fromDate: fromDateStr, toDate: toDateStr };
+      periodForHeader = `${fromDateStr}_to_${toDateStr}`;
+      console.log(`API: Requisição de dados históricos - moeda: ${currency}, de: ${fromDateStr}, até: ${toDateStr}${forceUpdate ? ', força atualização' : ''}`);
+    } else {
+      const periodParam = searchParams.get('period');
+      let days = parseInt(searchParams.get('days') || '30', 10);
+      if (periodParam && PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING]) {
+        days = PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING];
+      }
+      if (isNaN(days) || days < 1 || days > 1825) { // Aumentado limite para até 5 anos (CoinGecko suporta mais)
+        return NextResponse.json(
+          { error: 'Parâmetro "days" inválido. Deve ser um número entre 1 e 1825.' },
+          { status: 400 }
+        );
+      }
+      daysOrDateParams = days;
+      periodForHeader = periodParam || `${days}d`;
+      console.log(`API: Requisição de dados históricos - moeda: ${currency}, dias: ${days}${forceUpdate ? ', força atualização' : ''}`);
     }
     
     if (!['usd', 'brl'].includes(currency.toLowerCase())) {
@@ -48,8 +73,8 @@ export async function GET(request: Request) {
     
     try {
       historicalData = forceUpdate 
-        ? await forceUpdateHistoricalData(currency.toLowerCase(), days)
-        : await getHistoricalData(currency.toLowerCase(), days);
+        ? await forceUpdateHistoricalData(currency.toLowerCase(), daysOrDateParams)
+        : await getHistoricalData(currency.toLowerCase(), daysOrDateParams);
     } catch (error) {
       console.error('Erro ao obter dados históricos:', error);
       return NextResponse.json(
@@ -73,16 +98,16 @@ export async function GET(request: Request) {
     
     // Preparar os headers de resposta
     const headers = new Headers();
-    headers.set('X-Data-Source', historicalData[0]?.source || 'tradingview');
+    headers.set('X-Data-Source', historicalData[0]?.source || 'coingecko');
     headers.set('X-Using-Cache', isUsingCache ? 'true' : 'false');
     headers.set('X-Response-Time', `${endTime - startTime}ms`);
-    headers.set('X-Period', periodParam || `${days}d`);
+    headers.set('X-Period', periodForHeader);
     
     // Adicionar headers para cache do navegador
     // Permitir cache no navegador por até 5 minutos para reduzir requisições redundantes
     headers.set('Cache-Control', 'private, max-age=300');
     
-    console.log(`API: Resposta enviada - fonte: ${historicalData[0]?.source || 'tradingview'}, cache: ${isUsingCache}, tempo: ${endTime - startTime}ms`);
+    console.log(`API: Resposta enviada - fonte: ${historicalData[0]?.source || 'coingecko'}, cache: ${isUsingCache}, tempo: ${endTime - startTime}ms`);
     
     // Retornar os dados como JSON com os headers informativos
     return NextResponse.json(historicalData, {
