@@ -125,6 +125,17 @@ interface Report {
   createdAt: string;
 }
 
+// NOVA INTERFACE PARA OPÇÕES DE EXPORTAÇÃO
+interface ExportOptions {
+  reportSelectionType: 'active' | 'history' | 'manual';
+  manualSelectedReportIds?: string[];
+  periodSelectionType: 'all' | 'historyFilter' | 'specificMonth' | 'customRange';
+  specificMonthDate?: Date | null;
+  customStartDate?: Date | null;
+  customEndDate?: Date | null;
+  includeCharts?: boolean;
+}
+
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
   const {
@@ -626,16 +637,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Função para exportação com opções
-  const exportData = async (exportAll: boolean = false) => {
-    if (!currentActiveReportObjectFromHook) { // USAR currentActiveReportObjectFromHook
-      toast({
-        title: "Nenhum Relatório Ativo",
-        description: "Por favor, selecione ou crie um relatório para exportar os dados.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const exportData = async (options: ExportOptions) => {
     setIsExporting(true);
     toast({
       title: "Exportando Dados",
@@ -644,14 +646,114 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     });
 
     try {
-      // Filtrar dados se exportAll for false
-      const investmentsToExport = exportAll ? currentActiveReportObjectFromHook.investments : getFilteredInvestments(); // USAR currentActiveReportObjectFromHook
-      const profitsToExport = exportAll ? currentActiveReportObjectFromHook.profits : getFilteredProfits(); // USAR currentActiveReportObjectFromHook
+      let investmentsToExport: Investment[] = [];
+      let profitsToExport: ProfitRecord[] = [];
+      let reportNameForExport = "Exportação"; // Nome padrão
+      let allSelectedReports: Report[] = [];
 
-      if (investmentsToExport.length === 0 && profitsToExport.length === 0) {
+
+      // 1. SELECIONAR DADOS DO(S) RELATÓRIO(S)
+      if (options.reportSelectionType === 'active') {
+        if (!currentActiveReportObjectFromHook) {
+          toast({
+            title: "Nenhum Relatório Ativo",
+            description: "Por favor, selecione ou crie um relatório para exportar os dados.",
+            variant: "destructive",
+          });
+          setIsExporting(false);
+          return;
+        }
+        allSelectedReports = [currentActiveReportObjectFromHook];
+        reportNameForExport = currentActiveReportObjectFromHook.name;
+      } else if (options.reportSelectionType === 'manual' && options.manualSelectedReportIds && allReportsFromHook) {
+        allSelectedReports = allReportsFromHook.filter(r => options.manualSelectedReportIds!.includes(r.id));
+        reportNameForExport = allSelectedReports.length === 1 ? allSelectedReports[0].name : "Relatórios Selecionados";
+      } else if (options.reportSelectionType === 'history' && allReportsFromHook) {
+        allSelectedReports = allReportsFromHook.filter(r => selectedReportIdsForHistoryView.includes(r.id));
+        reportNameForExport = allSelectedReports.length === 1 ? allSelectedReports[0].name : "Seleção do Histórico";
+      }
+
+      if (allSelectedReports.length === 0) {
+         toast({
+          title: "Nenhum Relatório Selecionado",
+          description: "Nenhum relatório corresponde aos critérios de seleção para exportação.",
+          variant: "destructive",
+        });
+        setIsExporting(false);
+        return;
+      }
+
+      // Consolidar investimentos e lucros de todos os relatórios selecionados
+      allSelectedReports.forEach(report => {
+        investmentsToExport.push(...(report.investments || []));
+        profitsToExport.push(...(report.profits || []));
+      });
+      
+      // 2. FILTRAR DADOS PELO PERÍODO SELECIONADO
+      let finalInvestmentsToExport = [...investmentsToExport];
+      let finalProfitsToExport = [...profitsToExport];
+
+      if (options.periodSelectionType === 'specificMonth' && options.specificMonthDate) {
+        const monthStart = startOfMonth(options.specificMonthDate);
+        const monthEnd = endOfMonth(options.specificMonthDate);
+        finalInvestmentsToExport = investmentsToExport.filter(inv => {
+          try {
+            const invDate = parseISODate(inv.date);
+            return isWithinInterval(invDate, { start: monthStart, end: monthEnd });
+          } catch { return false; }
+        });
+        finalProfitsToExport = profitsToExport.filter(prof => {
+          try {
+            const profDate = parseISODate(prof.date);
+            return isWithinInterval(profDate, { start: monthStart, end: monthEnd });
+          } catch { return false; }
+        });
+      } else if (options.periodSelectionType === 'customRange' && options.customStartDate && options.customEndDate) {
+        const rangeStart = startOfDay(options.customStartDate);
+        const rangeEnd = endOfDay(options.customEndDate);
+        if (isBefore(rangeEnd, rangeStart)) {
+           toast({ title: "Erro no Período", description: "A data final do intervalo não pode ser anterior à data inicial.", variant: "destructive" });
+           setIsExporting(false);
+           return;
+        }
+        finalInvestmentsToExport = investmentsToExport.filter(inv => {
+          try {
+            const invDate = parseISODate(inv.date);
+            return isWithinInterval(invDate, { start: rangeStart, end: rangeEnd });
+          } catch { return false; }
+        });
+        finalProfitsToExport = profitsToExport.filter(prof => {
+          try {
+            const profDate = parseISODate(prof.date);
+            return isWithinInterval(profDate, { start: rangeStart, end: rangeEnd });
+          } catch { return false; }
+        });
+      } else if (options.periodSelectionType === 'historyFilter') {
+        if (historyFilterType === 'month') {
+          const monthStart = startOfMonth(filterMonth);
+          const monthEnd = endOfMonth(filterMonth);
+          finalInvestmentsToExport = investmentsToExport.filter(inv => { try { const d = parseISODate(inv.date); return isWithinInterval(d, { start: monthStart, end: monthEnd }); } catch { return false; }});
+          finalProfitsToExport = profitsToExport.filter(prof => { try { const d = parseISODate(prof.date); return isWithinInterval(d, { start: monthStart, end: monthEnd }); } catch { return false; }});
+        } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+          const histStart = startOfDay(customStartDate);
+          const histEnd = endOfDay(customEndDate);
+           if (isBefore(histEnd, histStart)) {
+             toast({ title: "Erro no Período do Histórico", description: "A data final do filtro de histórico não pode ser anterior à inicial.", variant: "destructive" });
+             setIsExporting(false);
+             return;
+          }
+          finalInvestmentsToExport = investmentsToExport.filter(inv => { try { const d = parseISODate(inv.date); return isWithinInterval(d, { start: histStart, end: histEnd }); } catch { return false; }});
+          finalProfitsToExport = profitsToExport.filter(prof => { try { const d = parseISODate(prof.date); return isWithinInterval(d, { start: histStart, end: histEnd }); } catch { return false; }});
+        }
+        // Se 'historyFilter' mas sem filtro ativo no histórico, não faz nada (mantém todos os dados dos relatórios selecionados)
+      }
+      // Se 'all', finalInvestmentsToExport e finalProfitsToExport já contêm todos os dados dos relatórios selecionados.
+
+
+      if (finalInvestmentsToExport.length === 0 && finalProfitsToExport.length === 0) {
         toast({
           title: "Nenhum Dado para Exportar",
-          description: exportAll ? "O relatório ativo não contém dados." : "Não há dados para o filtro atual.",
+          description: "Nenhum dado encontrado para as opções de relatório e período selecionadas.",
           variant: "destructive",
         });
         setIsExporting(false);
@@ -716,14 +818,27 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       ];
       summarySheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
 
-      const totalInvestmentsBtc = currentActiveReportObjectFromHook.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0); // USAR currentActiveReportObjectFromHook
-      const totalProfitsBtc = currentActiveReportObjectFromHook.profits.filter(p => p.isProfit).reduce((sum, prof) => sum + convertToBtc(prof.amount, prof.unit), 0); // USAR currentActiveReportObjectFromHook
-      const totalLossesBtc = currentActiveReportObjectFromHook.profits.filter(p => !p.isProfit).reduce((sum, loss) => sum + convertToBtc(loss.amount, loss.unit), 0); // USAR currentActiveReportObjectFromHook
+      // Calcular totais com base nos dados filtrados para exportação (finalInvestmentsToExport, finalProfitsToExport)
+      const totalInvestmentsBtc = finalInvestmentsToExport.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0);
+      const totalProfitsBtc = finalProfitsToExport.filter(p => p.isProfit).reduce((sum, prof) => sum + convertToBtc(prof.amount, prof.unit), 0);
+      const totalLossesBtc = finalProfitsToExport.filter(p => !p.isProfit).reduce((sum, loss) => sum + convertToBtc(loss.amount, loss.unit), 0);
       const netProfitBtc = totalProfitsBtc - totalLossesBtc;
+      // O saldo BTC é mais complexo se estivermos consolidando múltiplos relatórios ou filtrando.
+      // Para uma exportação, talvez o "saldo" não faça tanto sentido quanto os totais de investimento/lucro/perda do período.
+      // Vamos manter o cálculo original do saldo, mas ele será baseado nos *dados filtrados para exportação*.
       const balanceBtc = totalInvestmentsBtc + netProfitBtc;
 
-      summarySheet.addRow({ metric: 'Nome do Relatório', value: currentActiveReportObjectFromHook.name }); // USAR currentActiveReportObjectFromHook
-      summarySheet.addRow({ metric: 'Data de Criação', value: format(new Date(currentActiveReportObjectFromHook.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) }); // USAR currentActiveReportObjectFromHook
+
+      summarySheet.addRow({ metric: 'Relatório(s) Exportado(s)', value: reportNameForExport });
+      summarySheet.addRow({ metric: 'Período Exportado', 
+        value: options.periodSelectionType === 'all' ? 'Todos os dados' : 
+               options.periodSelectionType === 'specificMonth' && options.specificMonthDate ? format(options.specificMonthDate, "MMMM yyyy", { locale: ptBR }) :
+               options.periodSelectionType === 'customRange' && options.customStartDate && options.customEndDate ? `${format(options.customStartDate, "dd/MM/yy")} - ${format(options.customEndDate, "dd/MM/yy")}` :
+               options.periodSelectionType === 'historyFilter' ? 
+                  (historyFilterType === 'month' ? `Filtro Histórico: ${format(filterMonth, "MMMM yyyy", { locale: ptBR })}` : 
+                  (historyFilterType === 'custom' && customStartDate && customEndDate ? `Filtro Histórico: ${format(customStartDate, "dd/MM/yy")} - ${format(customEndDate, "dd/MM/yy")}` : 'Filtro Histórico (Não Especificado)')) 
+               : 'Não Especificado'
+      });
       summarySheet.addRow({ metric: 'Total de Investimentos (BTC)', value: totalInvestmentsBtc });
       summarySheet.addRow({ metric: 'Total de Lucros (BTC)', value: totalProfitsBtc });
       summarySheet.addRow({ metric: 'Total de Prejuízos (BTC)', value: totalLossesBtc });
@@ -749,7 +864,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       ];
       investmentSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
 
-      investmentsToExport.forEach(inv => {
+      finalInvestmentsToExport.forEach(inv => {
         const btcEquivalent = convertToBtc(inv.amount, inv.unit);
         // TODO: Precisaríamos de dados históricos para calcular o valor exato no momento da compra.
         // Por enquanto, deixaremos este campo como "N/A" ou usaremos o preço atual como uma aproximação,
@@ -779,7 +894,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       ];
       profitSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
 
-      profitsToExport.forEach(prof => {
+      finalProfitsToExport.forEach(prof => {
         const btcEquivalent = convertToBtc(prof.amount, prof.unit);
         // Similar ao investimento, o valor exato no momento do registro precisaria de dados históricos.
         profitSheet.addRow({
@@ -803,18 +918,45 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       ];
       metadataSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
 
-      metadataSheet.addRow({ key: 'Nome do Relatório', value: currentActiveReportObjectFromHook.name }); // USAR currentActiveReportObjectFromHook
-      metadataSheet.addRow({ key: 'ID do Relatório', value: currentActiveReportObjectFromHook.id }); // USAR currentActiveReportObjectFromHook
+      metadataSheet.addRow({ key: 'Relatório(s) Exportado(s)', value: reportNameForExport });
+      // Se for um único relatório e options.reportSelectionType !== 'manual', podemos adicionar o ID
+      if (allSelectedReports.length === 1 && options.reportSelectionType !== 'manual' && options.reportSelectionType !== 'history') {
+         metadataSheet.addRow({ key: 'ID do Relatório Exportado', value: allSelectedReports[0].id });
+      } else if (options.reportSelectionType === 'manual' && options.manualSelectedReportIds) {
+         metadataSheet.addRow({ key: 'IDs dos Relatórios Exportados (Manual)', value: options.manualSelectedReportIds.join(', ') });
+      } else if (options.reportSelectionType === 'history') {
+         metadataSheet.addRow({ key: 'IDs dos Relatórios Exportados (Histórico)', value: selectedReportIdsForHistoryView.join(', ') });
+      }
+      
       metadataSheet.addRow({ key: 'Data de Exportação', value: format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }) });
       metadataSheet.addRow({ key: 'Moeda de Exibição', value: displayCurrency });
       metadataSheet.addRow({ key: 'Preço BTC/USD na Exportação', value: currentRates.btcToUsd });
       metadataSheet.addRow({ key: 'Preço BRL/USD na Exportação', value: currentRates.brlToUsd });
-      metadataSheet.addRow({ key: 'Dados Completos Exportados', value: exportAll ? 'Sim' : 'Não (Filtrado)' });
-      if (!exportAll) {
-        metadataSheet.addRow({ key: 'Mês do Filtro (se aplicável)', value: format(filterMonth, "MMMM yyyy", { locale: ptBR }) });
+      metadataSheet.addRow({ key: 'Tipo de Seleção de Relatório', value: options.reportSelectionType });
+      metadataSheet.addRow({ key: 'Tipo de Seleção de Período', value: options.periodSelectionType });
+      // Ajuste para refletir se os dados são completos ou filtrados com base nas opções
+      metadataSheet.addRow({ key: 'Dados Completos Exportados', value: options.periodSelectionType === 'all' ? 'Sim (Todos os Dados do(s) Relatório(s) Selecionado(s))' : 'Não (Dados Filtrados por Período)' });
+
+      if (options.periodSelectionType === 'specificMonth' && options.specificMonthDate) {
+        metadataSheet.addRow({ key: 'Mês Específico Exportado', value: format(options.specificMonthDate, "MMMM yyyy", { locale: ptBR }) });
       }
-      metadataSheet.addRow({ key: 'Total de Investimentos Exportados', value: investmentsToExport.length });
-      metadataSheet.addRow({ key: 'Total de Lucros/Prejuízos Exportados', value: profitsToExport.length });
+      if (options.periodSelectionType === 'customRange' && options.customStartDate && options.customEndDate) {
+        metadataSheet.addRow({ key: 'Intervalo Customizado Início', value: format(options.customStartDate, "dd/MM/yyyy") });
+        metadataSheet.addRow({ key: 'Intervalo Customizado Fim', value: format(options.customEndDate, "dd/MM/yyyy") });
+      }
+      if (options.periodSelectionType === 'historyFilter') {
+         metadataSheet.addRow({ key: 'Usou Filtro do Histórico', value: 'Sim' });
+         metadataSheet.addRow({ key: 'Tipo Filtro Histórico', value: historyFilterType });
+         if(historyFilterType === 'month') metadataSheet.addRow({ key: 'Mês Filtro Histórico', value: format(filterMonth, "MMMM yyyy", { locale: ptBR }) });
+         if(historyFilterType === 'custom' && customStartDate && customEndDate) {
+            metadataSheet.addRow({ key: 'Início Filtro Histórico', value: format(customStartDate, "dd/MM/yyyy") });
+            metadataSheet.addRow({ key: 'Fim Filtro Histórico', value: format(customEndDate, "dd/MM/yyyy") });
+         }
+      }
+      metadataSheet.addRow({ key: 'Total de Investimentos Exportados', value: finalInvestmentsToExport.length });
+      metadataSheet.addRow({ key: 'Total de Lucros/Prejuízos Exportados', value: finalProfitsToExport.length });
+      metadataSheet.addRow({ key: 'Gráficos Incluídos', value: options.includeCharts ? 'Sim' : 'Não' });
+
 
       // Aplicar formatação às colunas
       [summarySheet, investmentSheet, profitSheet, metadataSheet].forEach(sheet => {
@@ -1096,38 +1238,49 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         <button
           className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex flex-col transition-colors"
           onClick={() => {
-            // Este será o comportamento padrão do novo modal, chamando exportData com opções.
-            // Por agora, chamaremos a versão antiga.
-            console.log("Opções Avançadas Selecionadas:", {
-              reportSelection: exportReportSelectionType,
-              manualReportIds: manualSelectedReportIdsForExport,
-              periodSelection: exportPeriodSelectionType,
-              specificMonth: exportSpecificMonthDate,
-              customStart: exportCustomStartDateForRange,
-              customEnd: exportCustomEndDateForRange,
+            // Este botão agora abre o diálogo avançado
+            setShowAdvancedExportDialog(true);
+            if (typeof setShowExportOptions === 'function') { // Se setShowExportOptions for para fechar um popover
+              setShowExportOptions(false);
+            }
+          }}
+        >
+          <div className="font-semibold">Opções Avançadas de Exportação...</div>
+          <div className="text-xs text-gray-400">Selecione relatórios, períodos e mais.</div>
+        </button>
+
+        <button
+          className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex items-center transition-colors border-t border-purple-900/30"
+          onClick={() => {
+            const opts: ExportOptions = {
+              reportSelectionType: 'history', 
+              manualSelectedReportIds: undefined, 
+              periodSelectionType: 'historyFilter', 
+              specificMonthDate: null,
+              customStartDate: null,
+              customEndDate: null,
+              includeCharts: exportIncludeCharts, 
+            };
+            exportData(opts);
+            if (typeof setShowExportOptions === 'function') { setShowExportOptions(false); }
+          }}
+        >
+          <FileType className="mr-2 h-4 w-4 text-purple-400" /> Exportar dados filtrados (aba Histórico)
+        </button>
+        
+        <button
+          className="w-full text-left px-4 py-3 hover:bg-purple-900/20 flex items-center transition-colors border-t border-purple-900/30"
+          onClick={() => {
+            exportData({ 
+              reportSelectionType: 'active',
+              periodSelectionType: 'all',
               includeCharts: exportIncludeCharts
             });
-            setShowAdvancedExportDialog(false); // Fecha o novo modal
-            exportData(exportPeriodSelectionType === 'all'); // Adaptação temporária
+            if (typeof setShowExportOptions === 'function') { setShowExportOptions(false); }
           }}
-          disabled={isExporting}
         >
-          <div className="flex items-center">
-            <Download className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="font-medium">Exportar com Opções Avançadas</span>
-          </div>
-          <span className="text-xs text-gray-400 block mt-1 ml-6 flex-wrap">
-            Configure relatórios, período e gráficos.
-          </span>
+          <Download className="mr-2 h-4 w-4 text-purple-400" /> Exportar todos os dados (relatório ativo)
         </button>
-        <div className="border-t border-purple-700/20 p-2 text-center">
-          <button
-            className="text-center text-xs text-gray-400 hover:text-gray-300 w-full py-1"
-            onClick={() => setShowAdvancedExportDialog(false)} // Fecha o novo modal
-          >
-            Cancelar
-          </button>
-        </div>
       </div>
     </>
   );
@@ -2255,9 +2408,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Função auxiliar para converter string de data ISO para objeto Date com fuso horário correto
   const parseISODate = (dateString: string): Date => {
-    const [year, month, day] = dateString.split('-').map(Number);
-    // Criar data UTC com meio-dia para evitar problemas de fuso horário
-    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    // Tenta converter vários formatos comuns, incluindo ISO com ou sem Z
+    // e formatos que podem vir de inputs date/datetime-local
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+    // Fallback para formatos que podem não ser diretamente parseados por new Date()
+    // Exemplo: DD/MM/YYYY HH:mm:ss - isso precisaria de uma lógica de parse mais robusta
+    // Por agora, vamos confiar na capacidade do new Date() de lidar com ISO e formatos próximos
+    // e adicionar um log se o parse falhar para formatos inesperados.
+    // console.warn('Falha ao parsear data diretamente, formato pode ser inesperado:', dateString);
+    // Retorna uma data inválida se o parse falhar, para ser tratada pelos callers
+    return new Date(NaN);
   };
 
   // Função para exibir data formatada a partir de uma string ISO
@@ -3405,7 +3568,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                             <CalendarComponent mode="single" selected={exportSpecificMonthDate} onSelect={(date) => setExportSpecificMonthDate(date || new Date())} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
+                             <CalendarComponent mode="single" selected={exportSpecificMonthDate || undefined} onSelect={(date) => setExportSpecificMonthDate(date || null)} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
                           </PopoverContent>
                         </Popover>
                       )}
@@ -3424,7 +3587,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                  {exportCustomStartDateForRange ? format(exportCustomStartDateForRange, "dd/MM/yy") : "Início"}
                                </Button>
                              </PopoverTrigger>
-                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomStartDateForRange} onSelect={setExportCustomStartDateForRange} disabled={(date) => (exportCustomEndDateForRange && date > exportCustomEndDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
+                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomStartDateForRange || undefined} onSelect={(date) => setExportCustomStartDateForRange(date || null)} disabled={(date) => (exportCustomEndDateForRange && date > exportCustomEndDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
                            </Popover>
                            <Popover>
                              <PopoverTrigger asChild>
@@ -3433,7 +3596,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                  {exportCustomEndDateForRange ? format(exportCustomEndDateForRange, "dd/MM/yy") : "Fim"}
                                </Button>
                              </PopoverTrigger>
-                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomEndDateForRange} onSelect={setExportCustomEndDateForRange} disabled={(date) => (exportCustomStartDateForRange && date < exportCustomStartDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
+                             <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60"><CalendarComponent mode="single" selected={exportCustomEndDateForRange || undefined} onSelect={(date) => setExportCustomEndDateForRange(date || null)} disabled={(date) => (exportCustomStartDateForRange && date < exportCustomStartDateForRange) || date > new Date()} className="bg-black/80 p-2" locale={ptBR}/></PopoverContent>
                            </Popover>
                          </div>
                        )}
@@ -3469,7 +3632,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               onClick={() => {
                 // Lógica de exportação com as novas opções virá aqui.
                 // Por agora, apenas logamos as opções e fechamos o modal.
-                console.log("Opções Avançadas de Exportação Selecionadas:", {
+                const optionsToLog = {
                   reportSelectionType: exportReportSelectionType,
                   manualSelectedReportIds: exportReportSelectionType === 'manual' ? manualSelectedReportIdsForExport : (exportReportSelectionType === 'history' ? selectedReportIdsForHistoryView : (activeReportIdFromHook ? [activeReportIdFromHook] : [])),
                   periodSelectionType: exportPeriodSelectionType,
@@ -3478,23 +3641,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   customEndDate: exportPeriodSelectionType === 'customRange' ? exportCustomEndDateForRange : null,
                   historyFilterUsed: exportPeriodSelectionType === 'historyFilter' ? {type: historyFilterType, month: filterMonth, start: customStartDate, end: customEndDate} : null,
                   includeCharts: exportIncludeCharts,
-                });
-                // A chamada real a exportData será modificada para aceitar estas opções
-                // exportData(COMPLEX_OPTIONS_OBJECT); 
+                };
+                console.log("Opções Avançadas de Exportação Selecionadas:", optionsToLog);
                 
-                // Chamada temporária para simular e fechar
-                const exportAllDataFlag = exportPeriodSelectionType === 'all'; // Simplificação grosseira
-                exportData(exportAllDataFlag); 
+                // Chamada REAL a exportData com o objeto construído
+                exportData(optionsToLog); 
 
                 setShowAdvancedExportDialog(false);
-                toast({
-                  title: "Exportação Iniciada (Configurado)",
-                  description: "As opções foram configuradas. A lógica de exportação será atualizada.",
-                  variant: "default"
-                });
+                // O toast de sucesso/início já é tratado dentro de exportData se a exportação for bem-sucedida
+                // Se houver erro na construção das opções ANTES de chamar exportData, um toast aqui seria útil.
               }} 
               className="bg-purple-700 hover:bg-purple-600 text-white"
-              disabled={isExporting || (exportReportSelectionType === 'manual' && manualSelectedReportIdsForExport.length === 0)}
+              disabled={isExporting || (exportReportSelectionType === 'manual' && manualSelectedReportIdsForExport.length === 0) || (exportReportSelectionType === 'active' && !activeReportIdFromHook)}
             >
               {isExporting ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Exportando...</> : "Exportar Agora"}
             </Button>
