@@ -35,7 +35,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
-import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore } from "date-fns";
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -196,6 +196,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // REINTRODUZIR ESTADOS PARA CRIAÇÃO DE RELATÓRIO
   const [reportNameInput, setReportNameInput] = useState("");
   const [showCreateReportDialog, setShowCreateReportDialog] = useState(false);
+
+  // NOVOS ESTADOS PARA FILTRO DE HISTÓRICO
+  const [historyFilterType, setHistoryFilterType] = useState<'month' | 'custom'>('month');
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
 
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
@@ -1049,30 +1054,72 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     if (!activeReport) return [];
     const baseInvestments = activeReport.investments;
     if (!showFilterOptions) return baseInvestments;
-    const monthStart = startOfMonth(filterMonth);
-    const monthEnd = endOfMonth(filterMonth);
-    return baseInvestments.filter(investment => {
-      try {
-        const investmentDate = parseISODate(investment.date);
-        if (isNaN(investmentDate.getTime())) return false;
-        return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
-      } catch (e) { console.error("Erro data inv filtro:", investment.date, e); return false; }
-    });
+
+    if (historyFilterType === 'month') {
+      const monthStart = startOfMonth(filterMonth);
+      const monthEnd = endOfMonth(filterMonth);
+      return baseInvestments.filter(investment => {
+        try {
+          const investmentDate = parseISODate(investment.date);
+          if (isNaN(investmentDate.getTime())) return false;
+          return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+        } catch (e) { console.error("Erro data inv filtro mensal:", investment.date, e); return false; }
+      });
+    } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+      const startDate = startOfDay(customStartDate); // startOfDay importado de date-fns
+      const endDate = endOfDay(customEndDate);     // endOfDay importado de date-fns
+      if (isBefore(endDate, startDate)) { // Validação simples
+        // console.warn("Data final anterior à data inicial no filtro personalizado.");
+        return []; // Ou mostrar um aviso
+      }
+      return baseInvestments.filter(investment => {
+        try {
+          const investmentDate = parseISODate(investment.date);
+          if (isNaN(investmentDate.getTime())) return false;
+          return isWithinInterval(investmentDate, { start: startDate, end: endDate });
+        } catch (e) { console.error("Erro data inv filtro custom:", investment.date, e); return false; }
+      });
+    } else if (historyFilterType === 'custom') {
+      // Se o filtro é customizado mas as datas não estão completas, retorna vazio para evitar confusão.
+      // Poderia também retornar baseInvestments se a intenção for mostrar tudo até que o filtro esteja pronto.
+      return []; 
+    }
+    return baseInvestments; // Fallback se nenhum filtro específico se aplicar
   };
 
   const getFilteredProfits = (): ProfitRecord[] => {
     if (!activeReport) return [];
     const baseProfits = activeReport.profits;
     if (!showFilterOptions) return baseProfits;
-    const monthStart = startOfMonth(filterMonth);
-    const monthEnd = endOfMonth(filterMonth);
-    return baseProfits.filter(profit => {
-      try {
-        const profitDate = parseISODate(profit.date);
-        if (isNaN(profitDate.getTime())) return false;
-        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-      } catch (e) { console.error("Erro data lucro filtro:", profit.date, e); return false; }
-    });
+
+    if (historyFilterType === 'month') {
+      const monthStart = startOfMonth(filterMonth);
+      const monthEnd = endOfMonth(filterMonth);
+      return baseProfits.filter(profit => {
+        try {
+          const profitDate = parseISODate(profit.date);
+          if (isNaN(profitDate.getTime())) return false;
+          return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+        } catch (e) { console.error("Erro data lucro filtro mensal:", profit.date, e); return false; }
+      });
+    } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+      const startDate = startOfDay(customStartDate);
+      const endDate = endOfDay(customEndDate);
+      if (isBefore(endDate, startDate)) {
+        // console.warn("Data final anterior à data inicial no filtro personalizado.");
+        return [];
+      }
+      return baseProfits.filter(profit => {
+        try {
+          const profitDate = parseISODate(profit.date);
+          if (isNaN(profitDate.getTime())) return false;
+          return isWithinInterval(profitDate, { start: startDate, end: endDate });
+        } catch (e) { console.error("Erro data lucro filtro custom:", profit.date, e); return false; }
+      });
+    } else if (historyFilterType === 'custom') {
+      return [];
+    }
+    return baseProfits;
   };
 
   // Função para formatar valor baseado na moeda selecionada
@@ -2597,10 +2644,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <CardTitle className="text-lg mb-1.5">Histórico de Registros</CardTitle>
               {/* Nova CardDescription adicionada */}
               <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                Visualize seus aportes e lucros/perdas registrados.
+                Visualize seus aportes e lucros/perdas registrados por relatório e período.
               </CardDescription>
+
+              {/* SELETOR DE RELATÓRIO PARA HISTÓRICO */}
+              <div className="mt-4 mb-2">
+                <Label className="text-sm text-purple-400 block mb-1">Selecionar Relatório para Visualização:</Label>
+                {reports.length > 0 ? (
+                  <Select value={activeReportId || ""} onValueChange={(value) => setActiveReportId(value || null)}>
+                    <SelectTrigger className="w-full bg-black/40 border-purple-600/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 text-white">
+                      <SelectValue placeholder="Selecione um relatório" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-purple-700/60 text-white">
+                      {reports.map(report => (
+                        <SelectItem key={report.id} value={report.id} style={{ color: report.color || '#E0E0E0' }}>
+                          {report.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Nenhum relatório criado. Crie um na aba "Registrar".</p>
+                )}
+              </div>
+
               <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2 pt-3">
-                <div className="flex items-center space-x-2">
+                {/* Controles de Filtro (Tipo e Datas) */}
+                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 items-start sm:items-center">
                   <Button
                     variant={showFilterOptions ? "default" : "outline"}
                     size="sm"
@@ -2608,64 +2678,46 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     className={cn(
                       showFilterOptions 
                         ? "bg-purple-800 hover:bg-purple-700 border border-purple-600/80"
-                        : "bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                        : "bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70",
+                      "w-full sm:w-auto"
                     )}
                   >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {showFilterOptions ? "Filtro ativo" : "Filtrar por mês"}
+                    <Sliders className="mr-2 h-4 w-4" />
+                    {showFilterOptions ? "Ocultar Filtros" : "Mostrar Filtros"}
                   </Button>
-                  
+
                   {showFilterOptions && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                    <RadioGroup 
+                      value={historyFilterType} 
+                      onValueChange={(value) => setHistoryFilterType(value as 'month' | 'custom')}
+                      className="flex space-x-1 bg-black/30 border border-purple-700/50 p-0.5 rounded-md text-xs"
+                    >
+                      <RadioGroupItem value="month" id="filter-month-type" className="sr-only" />
+                      <Label 
+                        htmlFor="filter-month-type" 
+                        className={cn(
+                          "px-2 py-1 rounded-sm cursor-pointer",
+                          historyFilterType === 'month' ? "bg-purple-700 text-white" : "text-gray-400 hover:bg-purple-900/30"
+                        )}
                       >
-                        {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60">
-                      <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                        Selecione o mês para filtrar
-                      </div>
-                      <div className="p-3">
-                        <div className="flex items-center justify-between mb-3">
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7 bg-black/30 border-purple-700/30"
-                            onClick={() => setFilterMonth(subMonths(filterMonth, 1))}
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <div className="font-medium text-center">
-                            {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7 bg-black/30 border-purple-700/30"
-                            onClick={() => {
-                              const nextMonth = addMonths(filterMonth, 1);
-                              if (isBefore(nextMonth, addMonths(new Date(), 1))) {
-                                setFilterMonth(nextMonth);
-                              }
-                            }}
-                            disabled={!isBefore(addMonths(filterMonth, 1), addMonths(new Date(), 1))}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                        Mensal
+                      </Label>
+                      <RadioGroupItem value="custom" id="filter-custom-type" className="sr-only" />
+                      <Label 
+                        htmlFor="filter-custom-type" 
+                        className={cn(
+                          "px-2 py-1 rounded-sm cursor-pointer",
+                          historyFilterType === 'custom' ? "bg-purple-700 text-white" : "text-gray-400 hover:bg-purple-900/30"
+                        )}
+                      >
+                        Personalizado
+                      </Label>
+                    </RadioGroup>
                   )}
                 </div>
                 
-                <div className="flex items-center space-x-2">
+                {/* Botões de Exportar e Moeda (mantidos à direita) */}
+                <div className="flex items-center space-x-2 justify-end">
                   <Button
                     variant="outline"
                     size="sm"
@@ -2742,49 +2794,186 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </CardHeader>
             <CardContent>
               {showFilterOptions && (
+                <div className="px-0 pt-4 pb-2 border-t border-purple-700/20 mt-3">
+                  {historyFilterType === 'month' && (
+                    <div className="flex items-center space-x-2">
+                      <Label className="text-sm">Mês:</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-auto justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                          >
+                            <span>{format(filterMonth, "MMMM yyyy", { locale: ptBR })}</span>
+                            <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                          <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
+                            Selecione o mês para filtrar
+                          </div>
+                          <div className="p-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 bg-black/30 border-purple-700/30"
+                                onClick={() => setFilterMonth(subMonths(filterMonth, 1))}
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </Button>
+                              <div className="font-medium text-center">
+                                {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 bg-black/30 border-purple-700/30"
+                                onClick={() => {
+                                  const nextMonth = addMonths(filterMonth, 1);
+                                  if (isBefore(nextMonth, addMonths(new Date(), 1))) {
+                                    setFilterMonth(nextMonth);
+                                  }
+                                }}
+                                disabled={!isBefore(addMonths(filterMonth, 1), addMonths(new Date(), 1))}
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
+                  {historyFilterType === 'custom' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="custom-start-date" className="text-sm">Data de Início:</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              id="custom-start-date"
+                              className="w-full justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {customStartDate ? format(customStartDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={customStartDate || undefined}
+                              onSelect={(date) => setCustomStartDate(date || null)}
+                              disabled={(date) => customEndDate ? date > customEndDate || date > new Date() : date > new Date()}
+                              initialFocus
+                              className="bg-black/80"
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <Label htmlFor="custom-end-date" className="text-sm">Data de Fim:</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              id="custom-end-date"
+                              className="w-full justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                              disabled={!customStartDate}
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {customEndDate ? format(customEndDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={customEndDate || undefined}
+                              onSelect={(date) => setCustomEndDate(date || null)}
+                              disabled={(date) => customStartDate ? date < customStartDate || date > new Date() : date > new Date()}
+                              initialFocus
+                              className="bg-black/80"
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Resumo dos dados filtrados */}
+              {showFilterOptions && activeReport && (
                 <div className="px-6 pb-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Mês selecionado</div>
-                      <div className="text-lg font-semibold text-white">
-                        {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                      </div>
-                    </div>
+                  {(() => {
+                    // Cálculos para o resumo com base nos filtros atuais
+                    const filteredInvestmentsForSummary = getFilteredInvestments();
+                    const totalInvestmentsBtcForPeriod = filteredInvestmentsForSummary.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0);
+                    
+                    const filteredProfitsForSummary = getFilteredProfits();
+                    const totalNetProfitsBtcForPeriod = filteredProfitsForSummary.reduce((sum, prof) => {
+                      const btcAmount = convertToBtc(prof.amount, prof.unit);
+                      if (isNaN(btcAmount)) return sum;
+                      return prof.isProfit ? sum + btcAmount : sum - btcAmount;
+                    }, 0);
 
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Aporte total</div>
-                      <div className="text-lg font-semibold text-blue-400">
-                        {formatCryptoAmount(calculateTotalInvestmentsInMonth(filterMonth), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(filterMonth))}
-                      </div>
-                    </div>
+                    const rendementForPeriod = totalInvestmentsBtcForPeriod > 0 
+                      ? (totalNetProfitsBtcForPeriod / totalInvestmentsBtcForPeriod) * 100 
+                      : 0;
 
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
-                      <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(filterMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                        {formatCryptoAmount(calculateTotalProfitsInMonth(filterMonth), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                        {formatBtcValueInCurrency(calculateTotalProfitsInMonth(filterMonth))}
-                      </div>
-                    </div>
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                          <div className="text-xs text-gray-400">Período Selecionado</div>
+                          <div className="text-lg font-semibold text-white">
+                            {historyFilterType === 'month' 
+                              ? format(filterMonth, "MMMM yyyy", { locale: ptBR }) 
+                              : customStartDate && customEndDate 
+                                ? `${format(customStartDate, "dd/MM/yy")} - ${format(customEndDate, "dd/MM/yy")}`
+                                : "Nenhum filtro aplicado"
+                            }
+                          </div>
+                        </div>
 
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Rendimento</div>
-                      <div className={`text-lg font-semibold ${
-                        calculateTotalInvestmentsInMonth(filterMonth) > 0 && 
-                        (calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100) >= 0 ? 
-                        "text-green-500" : "text-red-500"}`}>
-                        {calculateTotalInvestmentsInMonth(filterMonth) > 0 ? 
-                          `${(calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100).toFixed(2)}%` : 
-                          "N/A"}
+                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                          <div className="text-xs text-gray-400">Aporte total no período</div>
+                          <div className="text-lg font-semibold text-blue-400">
+                            {formatCryptoAmount(totalInvestmentsBtcForPeriod, "BTC")}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {formatBtcValueInCurrency(totalInvestmentsBtcForPeriod)}
+                          </div>
+                        </div>
+
+                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                          <div className="text-xs text-gray-400">Lucro/Perda no período</div>
+                          <div className={`text-lg font-semibold ${totalNetProfitsBtcForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
+                            {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
+                            {formatCryptoAmount(totalNetProfitsBtcForPeriod, "BTC")}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
+                            {formatBtcValueInCurrency(totalNetProfitsBtcForPeriod)}
+                          </div>
+                        </div>
+
+                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
+                          <div className="text-xs text-gray-400">Rendimento no período</div>
+                          <div className={`text-lg font-semibold ${rendementForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
+                            {totalInvestmentsBtcForPeriod > 0 || totalNetProfitsBtcForPeriod !== 0 ? 
+                              `${rendementForPeriod.toFixed(2)}%` : 
+                              "N/A"}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
               
