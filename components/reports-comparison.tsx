@@ -53,6 +53,16 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useReports } from "@/hooks/use-reports";
 import { Report, ReportComparison, Investment, ProfitRecord } from "@/lib/calculator-types";
