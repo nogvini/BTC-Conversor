@@ -19,7 +19,14 @@ import {
   Download,
   ChevronDown,
   Upload,
-  FileType
+  FileType,
+  PieChart as PieChartIcon,
+  BarChart2,
+  Sliders,
+  ArrowUp,
+  ArrowDown,
+  CircleSlash2,
+  HelpCircle
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +43,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import AnimatedCounter from "./animated-counter";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -45,6 +52,13 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -98,10 +112,25 @@ interface ImportStats {
   duplicated?: number;
 }
 
+// ADICIONAR NOVA INTERFACE REPORT
+interface Report {
+  id: string;
+  name: string;
+  description?: string;
+  investments: Investment[];
+  profits: ProfitRecord[];
+  color?: string;
+  createdAt: string;
+}
+
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
-  // Estados
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [profits, setProfits] = useState<ProfitRecord[]>([]);
+  // Estados MODIFICADOS
+  const [reports, setReports] = useState<Report[]>([]);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  // const [investments, setInvestments] = useState<Investment[]>([]); // REMOVIDO
+  // const [profits, setProfits] = useState<ProfitRecord[]>([]); // REMOVIDO
+  
+  // Manter outros estados (activeTab, selectedMonth, etc.)
   const [activeTab, setActiveTab] = useState<string>("register");
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -110,25 +139,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [loading, setLoading] = useState(false);
   const [usingFallbackRates, setUsingFallbackRates] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-
-  // Estados do formulário
   const [investmentAmount, setInvestmentAmount] = useState<string>("");
   const [investmentUnit, setInvestmentUnit] = useState<CurrencyUnit>("SATS");
   const [investmentDate, setInvestmentDate] = useState<Date>(() => {
-    // Criar data com o horário no meio do dia em UTC
     const now = new Date();
     return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
   });
   const [profitAmount, setProfitAmount] = useState<string>("");
   const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS");
   const [profitDate, setProfitDate] = useState<Date>(() => {
-    // Criar data com o horário no meio do dia em UTC
     const now = new Date();
     return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
   });
   const [isProfit, setIsProfit] = useState<boolean>(true);
-
-  // Estados adicionais para filtros
   const [filterMonth, setFilterMonth] = useState<Date>(new Date());
   const [showFilterOptions, setShowFilterOptions] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
@@ -136,8 +159,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [isImporting, setIsImporting] = useState(false);
   const [importStats, setImportStats] = useState<ImportStats | null>(null);
   const [importType, setImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
-  
-  // Estados para confirmação de exclusão em massa
   const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
   const [showDeleteProfitsDialog, setShowDeleteProfitsDialog] = useState(false);
   
@@ -201,26 +222,64 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   }, [btcToUsd, brlToUsd, appData]);
 
+  // NOVO BLOCO DE useEffect PARA CARREGAMENTO/SALVAMENTO/MIGRAÇÃO
+  // useEffect DE CARREGAMENTO DE DADOS - MODIFICADO
   useEffect(() => {
-    // Carregar dados do localStorage
-    const savedInvestments = localStorage.getItem("bitcoinInvestments");
-    const savedProfits = localStorage.getItem("bitcoinProfits");
+    const savedReportsString = localStorage.getItem("bitcoinReports");
     const savedDisplayCurrency = localStorage.getItem("bitcoinDisplayCurrency");
+    let loadedReports: Report[] = [];
+    let migrated = false;
 
-    if (savedInvestments) {
+    if (savedReportsString) {
       try {
-        setInvestments(JSON.parse(savedInvestments));
+        const parsedReports = JSON.parse(savedReportsString);
+        if (Array.isArray(parsedReports) && parsedReports.every(r => r.id && r.name && Array.isArray(r.investments) && Array.isArray(r.profits))) {
+          loadedReports = parsedReports;
+        } else {
+          console.error("Formato de relatórios salvos inválido.");
+          loadedReports = [];
+        }
       } catch (e) {
-        console.error("Erro ao analisar investimentos salvos:", e);
+        console.error("Erro ao analisar relatórios salvos:", e);
+        loadedReports = [];
+      }
+    } else {
+      const oldInvestmentsString = localStorage.getItem("bitcoinInvestments");
+      const oldProfitsString = localStorage.getItem("bitcoinProfits");
+
+      if (oldInvestmentsString || oldProfitsString) {
+        let oldInvestments: Investment[] = [];
+        let oldProfits: ProfitRecord[] = [];
+        try {
+          if (oldInvestmentsString) oldInvestments = JSON.parse(oldInvestmentsString);
+          if (oldProfitsString) oldProfits = JSON.parse(oldProfitsString);
+
+          if (oldInvestments.length > 0 || oldProfits.length > 0) {
+            const defaultReport: Report = {
+              id: `migrated-${Date.now()}`,
+              name: "Relatório Principal (Migrado)",
+              investments: oldInvestments,
+              profits: oldProfits,
+              createdAt: new Date().toISOString(),
+              color: "#8844ee"
+            };
+            loadedReports = [defaultReport];
+            migrated = true;
+            localStorage.setItem("bitcoinReports", JSON.stringify(loadedReports)); // Salva o migrado
+            localStorage.removeItem("bitcoinInvestments");
+            localStorage.removeItem("bitcoinProfits");
+          }
+        } catch (e) {
+          console.error("Erro ao migrar dados antigos:", e);
+        }
       }
     }
-
-    if (savedProfits) {
-      try {
-        setProfits(JSON.parse(savedProfits));
-      } catch (e) {
-        console.error("Erro ao analisar lucros salvos:", e);
-      }
+    
+    setReports(loadedReports);
+    if (loadedReports.length > 0 && !activeReportId) {
+      setActiveReportId(loadedReports[0].id);
+    } else if (loadedReports.length === 0) {
+        setActiveReportId(null);
     }
 
     if (savedDisplayCurrency) {
@@ -232,27 +291,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     setIsDataLoaded(true);
-    updateRates();
-  }, []);
+    
+    if (migrated) {
+        toast({
+            title: "Dados Migrados",
+            description: "Seus dados antigos foram migrados para um novo formato de relatório.",
+            variant: "success",
+        });
+    }
+  }, []); // Array de dependências vazio para executar apenas na montagem
 
-  // Salvar dados no localStorage quando mudam
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem("bitcoinInvestments", JSON.stringify(investments));
+      localStorage.setItem("bitcoinReports", JSON.stringify(reports));
     }
-  }, [investments, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem("bitcoinProfits", JSON.stringify(profits));
-    }
-  }, [profits, isDataLoaded]);
+  }, [reports, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
       localStorage.setItem("bitcoinDisplayCurrency", JSON.stringify(displayCurrency));
     }
   }, [displayCurrency, isDataLoaded]);
+  
+  useEffect(() => {
+    if (isDataLoaded) {
+      updateRates();
+    }
+  }, [isDataLoaded, appData]); // Adicionado appData se updateRates o utiliza e não é pego por outro useEffect
 
   // Funções auxiliares
   const updateRates = async () => {
@@ -360,51 +425,67 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         description: "Não é possível registrar aportes com data futura.",
         variant: "destructive",
       });
-      return;
+        return;
     }
 
-    // Criar novo investimento usando formatDateToUTC
+    let targetReportId = activeReportId;
+    if (!targetReportId) {
+      if (reports.length === 0) {
+        const newReport: Report = {
+          id: `report-default-${Date.now()}`, name: "Relatório Padrão",
+          investments: [], profits: [], createdAt: new Date().toISOString(), color: "#8844ee"
+        };
+        setReports([newReport]);
+        setActiveReportId(newReport.id);
+        targetReportId = newReport.id;
+        toast({ title: "Relatório Criado", description: "Um 'Relatório Padrão' foi criado para seu primeiro registro.", variant: "info" });
+      } else {
+        // Se há relatórios mas nenhum ativo, poderia selecionar o primeiro ou pedir para selecionar
+        // Por simplicidade, vamos exigir que um relatório seja selecionado ou criado via UI se já existirem relatórios
+         toast({ title: "Nenhum relatório ativo", description: "Por favor, selecione um relatório na aba Histórico ou crie um novo.", variant: "warning" });
+        return;
+      }
+    }
+    
+    const reportToUpdate = reports.find(r => r.id === targetReportId); // Usar targetReportId aqui
+    if (!reportToUpdate) {
+        toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar aporte.", variant: "destructive" });
+        return;
+    }
+
     const newInvestment: Investment = {
-      id: Date.now().toString(),
-      date: formatDateToUTC(investmentDate),
-      amount: Number(investmentAmount),
-      unit: investmentUnit,
+      id: Date.now().toString(), date: formatDateToUTC(investmentDate),
+      amount: Number(investmentAmount), unit: investmentUnit,
     };
 
-    // Verificar possíveis duplicações (mesma data e mesmo valor)
-    const possibleDuplicates = investments.filter(inv => 
-      inv.date === newInvestment.date && 
-      inv.amount === newInvestment.amount && 
-      inv.unit === newInvestment.unit
+    const possibleDuplicates = reportToUpdate.investments.filter(inv => 
+      inv.date === newInvestment.date && inv.amount === newInvestment.amount && inv.unit === newInvestment.unit
     );
 
     if (possibleDuplicates.length > 0) {
-      // Armazenar o investimento pendente para confirmação
       setPendingInvestment(newInvestment);
-      setDuplicateConfirmInfo({
-        type: 'investment',
-        date: newInvestment.date,
-        amount: newInvestment.amount,
-        unit: newInvestment.unit
-      });
+      setDuplicateConfirmInfo({ type: 'investment', date: newInvestment.date, amount: newInvestment.amount, unit: newInvestment.unit });
       setShowConfirmDuplicateDialog(true);
     } else {
-      // Adicionar diretamente se não houver possíveis duplicações
       confirmAddInvestment(newInvestment);
     }
   };
   
   // Função para confirmar adição do investimento após possível duplicação
   const confirmAddInvestment = (investment: Investment) => {
-    setInvestments([...investments, investment]);
+    setReports(prevReports => prevReports.map(r => 
+      r.id === activeReportId // Garante que está atualizando o relatório ativo
+        ? { ...r, investments: [...r.investments, investment] }
+        : r
+    ));
     setInvestmentAmount("");
     
     // Evitar múltiplos toasts
     if (!toastDebounce) {
       setToastDebounce(true);
       toast({
-        title: "Aporte registrado com sucesso!",
-        description: `Aporte de ${formatCryptoAmount(investment.amount, investment.unit)} registrado com sucesso.`,
+        title: "Aporte registrado!",
+        description: `Aporte de ${formatCryptoAmount(investment.amount, investment.unit)} adicionado ao relatório "${reports.find(r => r.id === activeReportId)?.name || ''}".`,
         variant: "success",
       });
       setTimeout(() => setToastDebounce(false), 500);
@@ -432,7 +513,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         description: `Não é possível registrar ${isProfit ? "lucros" : "perdas"} com data futura.`,
         variant: "destructive",
       });
-      return;
+        return;
+    }
+
+    let targetReportId = activeReportId;
+    if (!targetReportId) {
+      if (reports.length === 0) {
+        const newReport: Report = {
+          id: `report-default-${Date.now()}`, name: "Relatório Padrão",
+          investments: [], profits: [], createdAt: new Date().toISOString(), color: "#8844ee"
+        };
+        setReports([newReport]);
+        setActiveReportId(newReport.id);
+        targetReportId = newReport.id;
+        toast({ title: "Relatório Criado", description: "Um 'Relatório Padrão' foi criado para seu primeiro registro.", variant: "info" });
+      } else {
+         toast({ title: "Nenhum relatório ativo", description: "Por favor, selecione um relatório na aba Histórico ou crie um novo.", variant: "warning" });
+        return;
+      }
+    }
+
+    const reportToUpdate = reports.find(r => r.id === targetReportId); // Usar targetReportId
+     if (!reportToUpdate) {
+        toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar lucro/perda.", variant: "destructive" });
+        return;
     }
 
     // Criar novo registro de lucro usando formatDateToUTC
@@ -445,7 +549,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     };
 
     // Verificar possíveis duplicações (mesma data, mesmo valor e mesmo tipo lucro/perda)
-    const possibleDuplicates = profits.filter(p => 
+    const possibleDuplicates = reportToUpdate.profits.filter(p => 
       p.date === newProfit.date && 
       p.amount === newProfit.amount && 
       p.unit === newProfit.unit &&
@@ -470,15 +574,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   
   // Função para confirmar adição do lucro/perda após possível duplicação
   const confirmAddProfitRecord = (profit: ProfitRecord) => {
-    setProfits([...profits, profit]);
+    setReports(prevReports => prevReports.map(r =>
+      r.id === activeReportId // Garante que está atualizando o relatório ativo
+        ? { ...r, profits: [...r.profits, profit] }
+        : r
+    ));
     setProfitAmount("");
     
     // Evitar múltiplos toasts
     if (!toastDebounce) {
       setToastDebounce(true);
       toast({
-        title: isProfit ? "Lucro registrado com sucesso!" : "Perda registrada com sucesso!",
-        description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(profit.amount, profit.unit)} registrado com sucesso.`,
+        title: isProfit ? "Lucro registrado!" : "Perda registrada!",
+        description: `${isProfit ? "Lucro" : "Perda"} de ${formatCryptoAmount(profit.amount, profit.unit)} adicionado ao relatório "${reports.find(r => r.id === activeReportId)?.name || ''}".`,
         variant: "success",
       });
       setTimeout(() => setToastDebounce(false), 500);
@@ -491,53 +599,69 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   const deleteInvestment = (id: string) => {
-    setInvestments(investments.filter((investment) => investment.id !== id));
-    
-    // Evitar múltiplos toasts
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      return;
+    }
+    setReports(prevReports => prevReports.map(r => 
+      r.id === activeReportId
+        ? { ...r, investments: r.investments.filter(inv => inv.id !== id) }
+        : r
+    ));
     if (!toastDebounce) {
       setToastDebounce(true);
-      toast({
-        title: "Aporte removido",
-        description: "O aporte foi removido com sucesso.",
-      });
+      toast({ title: "Aporte removido", description: "O aporte foi removido do relatório atual." });
       setTimeout(() => setToastDebounce(false), 1000);
     }
   };
 
   const deleteProfit = (id: string) => {
-    setProfits(profits.filter((profit) => profit.id !== id));
-    
-    // Evitar múltiplos toasts
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      return;
+    }
+    setReports(prevReports => prevReports.map(r =>
+      r.id === activeReportId
+        ? { ...r, profits: r.profits.filter(p => p.id !== id) }
+        : r
+    ));
     if (!toastDebounce) {
       setToastDebounce(true);
-      toast({
-        title: "Registro removido",
-        description: "O registro de lucro/perda foi removido com sucesso.",
-      });
+      toast({ title: "Registro removido", description: "O registro de lucro/perda foi removido do relatório atual." });
       setTimeout(() => setToastDebounce(false), 1000);
     }
   };
   
-  // Função para excluir todos os aportes
   const deleteAllInvestments = () => {
-    setInvestments([]);
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      setShowDeleteInvestmentsDialog(false);
+      return;
+    }
+    setReports(prevReports => prevReports.map(r =>
+      r.id === activeReportId ? { ...r, investments: [] } : r
+    ));
     setShowDeleteInvestmentsDialog(false);
-    
     toast({
       title: "Todos os aportes removidos",
-      description: "Todos os registros de aporte foram removidos com sucesso.",
+      description: `Todos os aportes do relatório "${activeReport?.name || ''}" foram removidos.`,
       variant: "success",
     });
   };
   
-  // Função para excluir todos os lucros/perdas
   const deleteAllProfits = () => {
-    setProfits([]);
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      setShowDeleteProfitsDialog(false);
+      return;
+    }
+    setReports(prevReports => prevReports.map(r =>
+      r.id === activeReportId ? { ...r, profits: [] } : r
+    ));
     setShowDeleteProfitsDialog(false);
-    
     toast({
       title: "Todos os lucros/perdas removidos",
-      description: "Todos os registros de lucro/perda foram removidos com sucesso.",
+      description: `Todos os registros de lucro/perda do relatório "${activeReport?.name || ''}" foram removidos.`,
       variant: "success",
     });
   };
@@ -1415,100 +1539,75 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const calculateTotalInvestmentsInMonth = (month: Date): number => {
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
-    
-    return investments
-      .filter(investment => {
-        // Adiciona verificação de validade do objeto e da data
-        if (!investment || !investment.date) {
-          console.warn("Ignorando investimento inválido ou sem data:", investment);
-          return false;
-        }
+    if (!activeReport) return 0;
+    return activeReport.investments
+      .filter(investment => { 
+        if (!investment || !investment.date) return false;
         try {
-          const investmentDate = parseISODate(investment.date); // Usar parseISODate
-          // Verificar se a data é válida antes de usar isWithinInterval
-          if (isNaN(investmentDate.getTime())) {
-            console.warn("Ignorando investimento com data inválida:", investment);
-            return false; 
-          }
+          const investmentDate = parseISODate(investment.date);
+          if (isNaN(investmentDate.getTime())) return false; 
           return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
-        } catch (e) {
-          console.error("Erro ao processar data do investimento:", investment, e);
-          return false; // Ignorar entradas com data inválida
-        }
+        } catch (e) { console.error("Erro data investimento calc:", investment.date, e); return false; }
       })
       .reduce((total, investment) => {
-        // Adiciona verificações de validade do valor e unidade
         if (investment && typeof investment.amount === 'number' && investment.unit) {
           const btcValue = convertToBtc(investment.amount, investment.unit);
-          // Garante que btcValue é um número válido antes de somar
           return total + (isNaN(btcValue) ? 0 : btcValue); 
         }
-        console.warn("Ignorando objeto de investimento inválido no reduce:", investment);
-        return total; // Retorna total atual se o investimento for inválido
+        return total;
       }, 0);
   };
 
   const calculateTotalProfitsInMonth = (month: Date): number => {
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
-    
-    return profits
-      .filter(profit => {
-        // Adiciona verificação de validade do objeto e da data
-        if (!profit || !profit.date) {
-          console.warn("Ignorando lucro/perda inválido ou sem data:", profit);
-          return false;
-        }
+    if (!activeReport) return 0;
+    return activeReport.profits
+      .filter(profit => { 
+        if (!profit || !profit.date) return false;
         try {
-          const profitDate = parseISODate(profit.date); // Usar parseISODate
-          // Verificar se a data é válida antes de usar isWithinInterval
-          if (isNaN(profitDate.getTime())) {
-            console.warn("Ignorando lucro/perda com data inválida:", profit);
-            return false; 
-          }
+          const profitDate = parseISODate(profit.date);
+          if (isNaN(profitDate.getTime())) return false; 
           return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-        } catch (e) {
-          console.error("Erro ao processar data do lucro/perda:", profit, e);
-          return false; // Ignorar entradas com data inválida
-        }
+        } catch (e) { console.error("Erro data lucro calc:", profit.date, e); return false; }
       })
       .reduce((total, profit) => {
-        // Adiciona verificações de validade do valor e unidade
         if (profit && typeof profit.amount === 'number' && profit.unit) {
           const btcAmount = convertToBtc(profit.amount, profit.unit);
-          // Garante que btcAmount é um número válido
-          if (isNaN(btcAmount)) {
-             console.warn("Ignorando lucro/perda com valor inválido (NaN):", profit);
-             return total;
-          }
+          if (isNaN(btcAmount)) return total;
           return profit.isProfit ? total + btcAmount : total - btcAmount;
         }
-         console.warn("Ignorando objeto de lucro/perda inválido no reduce:", profit);
-        return total; // Retorna total atual se o lucro/perda for inválido
+        return total;
       }, 0);
   };
 
   const getFilteredInvestments = (): Investment[] => {
-    if (!showFilterOptions) return investments;
-    
+    if (!activeReport) return [];
+    const baseInvestments = activeReport.investments;
+    if (!showFilterOptions) return baseInvestments;
     const monthStart = startOfMonth(filterMonth);
     const monthEnd = endOfMonth(filterMonth);
-    
-    return investments.filter(investment => {
-      const investmentDate = new Date(investment.date);
-      return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+    return baseInvestments.filter(investment => {
+      try {
+        const investmentDate = parseISODate(investment.date);
+        if (isNaN(investmentDate.getTime())) return false;
+        return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+      } catch (e) { console.error("Erro data inv filtro:", investment.date, e); return false; }
     });
   };
 
   const getFilteredProfits = (): ProfitRecord[] => {
-    if (!showFilterOptions) return profits;
-    
+    if (!activeReport) return [];
+    const baseProfits = activeReport.profits;
+    if (!showFilterOptions) return baseProfits;
     const monthStart = startOfMonth(filterMonth);
     const monthEnd = endOfMonth(filterMonth);
-    
-    return profits.filter(profit => {
-      const profitDate = new Date(profit.date);
-      return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+    return baseProfits.filter(profit => {
+      try {
+        const profitDate = parseISODate(profit.date);
+        if (isNaN(profitDate.getTime())) return false;
+        return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+      } catch (e) { console.error("Erro data lucro filtro:", profit.date, e); return false; }
     });
   };
 
@@ -2670,6 +2769,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     return format(date, formatStr, { locale: ptBR });
   };
 
+  const handleCreateReport = () => {
+    if (!reportNameInput.trim()) {
+      toast({ title: "Nome inválido", description: "Por favor, insira um nome para o relatório.", variant: "destructive" });
+      return;
+    }
+    const newReport: Report = {
+      id: `report-${Date.now()}`,
+      name: reportNameInput.trim(),
+      investments: [],
+      profits: [],
+      createdAt: new Date().toISOString(),
+      color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
+    };
+    setReports(prev => [...prev, newReport]);
+    setActiveReportId(newReport.id); // Ativa o relatório recém-criado
+    setReportNameInput("");
+    setShowCreateReportDialog(false);
+    toast({ title: "Relatório Criado", description: `"${newReport.name}" foi criado e ativado.`, variant: "success" });
+  };
+
   return (
     <div className="flex flex-col space-y-4">
       <Tabs
@@ -2693,6 +2812,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsList>
 
         <TabsContent value="register">
+          <div className="mb-4 p-3 bg-black/20 border border-purple-700/30 rounded-md">
+            <div className="flex justify-between items-center mb-1">
+              <Label className="text-sm text-purple-400">Relatório Ativo para Novos Registros:</Label>
+              <Button onClick={() => setShowCreateReportDialog(true)} size="sm" variant="link" className="px-0 text-purple-400 hover:text-purple-300 text-xs">
+                <Plus className="mr-1 h-3 w-3" /> Criar Novo
+              </Button>
+            </div>
+            {reports.length > 0 ? (
+                <Select value={activeReportId || ""} onValueChange={(value) => setActiveReportId(value || null)}>
+                    <SelectTrigger className="w-full bg-black/40 border-purple-600/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 text-white">
+                        <SelectValue placeholder="Selecione um relatório" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-purple-700/60 text-white">
+                        {reports.map(report => (
+                            <SelectItem key={report.id} value={report.id} style={{ color: report.color || '#E0E0E0' }}>
+                                {report.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            ) : (
+                <p className="text-xs text-muted-foreground mt-1">Nenhum relatório. O primeiro registro criará um "Relatório Padrão".</p>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Card de Registrar Investimento atualizado com estilo padrão */}
             <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
@@ -3211,6 +3354,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         </TabsContent>
       </Tabs>
 
+      <Dialog open={showCreateReportDialog} onOpenChange={setShowCreateReportDialog}>
+        <DialogContent className="bg-black/95 border-purple-800/60 text-white">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Relatório</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Insira um nome para o seu novo relatório.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="report-name" className="text-gray-300">Nome do Relatório</Label>
+              <Input 
+                id="report-name" 
+                value={reportNameInput} 
+                onChange={(e) => setReportNameInput(e.target.value)} 
+                placeholder="Ex: Minha Estratégia Principal"
+                className="bg-black/30 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 text-white"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateReportDialog(false)} className="bg-black/30 border-purple-700/50 text-white hover:bg-black/50">Cancelar</Button>
+            <Button onClick={handleCreateReport} className="bg-purple-700 hover:bg-purple-600 text-white">Criar Relatório</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       {/* Dialog para exportação em telas pequenas */}
       {useExportDialog && (
         <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
