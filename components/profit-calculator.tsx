@@ -59,6 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox"; // ADICIONAR IMPORT
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -127,6 +128,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // Estados MODIFICADOS
   const [reports, setReports] = useState<Report[]>([]);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  // NOVO ESTADO PARA SELEÇÃO DE RELATÓRIOS NA ABA HISTÓRICO
+  const [selectedReportIdsForHistoryView, setSelectedReportIdsForHistoryView] = useState<string[]>([]);
   
   // REINTRODUZIR activeReport
   const activeReport = useMemo(() => {
@@ -289,10 +292,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
     
     setReports(loadedReports);
-    if (loadedReports.length > 0 && !activeReportId) {
-      setActiveReportId(loadedReports[0].id);
-    } else if (loadedReports.length === 0) {
+    if (loadedReports.length > 0) {
+      if (!activeReportId) {
+        setActiveReportId(loadedReports[0].id);
+      }
+      if (selectedReportIdsForHistoryView.length === 0) {
+        // Inicializa selectedReportIdsForHistoryView com o ID do activeReportId se existir, ou o primeiro relatório
+        const initialHistorySelection = activeReportId ? [activeReportId] : (loadedReports.length > 0 ? [loadedReports[0].id] : []);
+        setSelectedReportIdsForHistoryView(initialHistorySelection);
+      } else {
+        // Garante que os relatórios selecionados para histórico ainda existam
+        setSelectedReportIdsForHistoryView(prev => prev.filter(id => loadedReports.some(r => r.id === id)));
+      }
+    } else {
         setActiveReportId(null);
+        setSelectedReportIdsForHistoryView([]);
     }
 
     if (savedDisplayCurrency) {
@@ -630,7 +644,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   const deleteProfit = (id: string) => {
     if (!activeReportId) {
-      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       return;
     }
     setReports(prevReports => prevReports.map(report => {
@@ -647,7 +661,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   
   const deleteAllInvestments = () => {
     if (!activeReportId) {
-      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       setShowDeleteInvestmentsDialog(false);
       return;
     }
@@ -663,7 +677,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   
   const deleteAllProfits = () => {
     if (!activeReportId) {
-      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       setShowDeleteProfitsDialog(false);
       return;
     }
@@ -1008,57 +1022,77 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const calculateTotalInvestmentsInMonth = (month: Date): number => {
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
-    if (!activeReport) return 0;
-    return activeReport.investments
-      .filter(investment => { 
-        if (!investment || !investment.date) return false;
-        try {
-          const investmentDate = parseISODate(investment.date);
-          if (isNaN(investmentDate.getTime())) return false; 
-          return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
-        } catch (e) { console.error("Erro data investimento calc:", investment.date, e); return false; }
-      })
-      .reduce((total: number, investment: Investment) => { // TIPOS ADICIONADOS
-        if (investment && typeof investment.amount === 'number' && investment.unit) {
-          const btcValue = convertToBtc(investment.amount, investment.unit);
-          return total + (isNaN(btcValue) ? 0 : btcValue); 
-        }
-        return total;
-      }, 0);
+    // MODIFICADO: Usar selectedReportIdsForHistoryView
+    if (selectedReportIdsForHistoryView.length === 0) return 0;
+
+    let total = 0;
+    reports.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => {
+      total += (report.investments || [])
+        .filter(investment => { 
+          if (!investment || !investment.date) return false;
+          try {
+            const investmentDate = parseISODate(investment.date);
+            if (isNaN(investmentDate.getTime())) return false; 
+            return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
+          } catch (e) { console.error("Erro data investimento calc:", investment.date, e); return false; }
+        })
+        .reduce((subTotal: number, investment: Investment) => {
+          if (investment && typeof investment.amount === 'number' && investment.unit) {
+            const btcValue = convertToBtc(investment.amount, investment.unit);
+            return subTotal + (isNaN(btcValue) ? 0 : btcValue); 
+          }
+          return subTotal;
+        }, 0);
+    });
+    return total;
   };
 
   const calculateTotalProfitsInMonth = (month: Date): number => {
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
-    if (!activeReport) return 0;
-    return activeReport.profits
-      .filter(profit => { 
-        if (!profit || !profit.date) return false;
-        try {
-          const profitDate = parseISODate(profit.date);
-          if (isNaN(profitDate.getTime())) return false; 
-          return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-        } catch (e) { console.error("Erro data lucro calc:", profit.date, e); return false; }
-      })
-      .reduce((total: number, profit: ProfitRecord) => { // TIPOS ADICIONADOS
-        if (profit && typeof profit.amount === 'number' && profit.unit) {
-          const btcAmount = convertToBtc(profit.amount, profit.unit);
-          if (isNaN(btcAmount)) return total;
-          return profit.isProfit ? total + btcAmount : total - btcAmount;
-        }
-        return total;
-      }, 0);
+    // MODIFICADO: Usar selectedReportIdsForHistoryView
+    if (selectedReportIdsForHistoryView.length === 0) return 0;
+    
+    let total = 0;
+    reports.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => {
+      total += (report.profits || [])
+        .filter(profit => { 
+          if (!profit || !profit.date) return false;
+          try {
+            const profitDate = parseISODate(profit.date);
+            if (isNaN(profitDate.getTime())) return false; 
+            return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
+          } catch (e) { console.error("Erro data lucro calc:", profit.date, e); return false; }
+        })
+        .reduce((subTotal: number, profit: ProfitRecord) => {
+          if (profit && typeof profit.amount === 'number' && profit.unit) {
+            const btcAmount = convertToBtc(profit.amount, profit.unit);
+            if (isNaN(btcAmount)) return subTotal;
+            return profit.isProfit ? subTotal + btcAmount : subTotal - btcAmount;
+          }
+          return subTotal;
+        }, 0);
+    });
+    return total;
   };
 
-  const getFilteredInvestments = (): Investment[] => {
-    if (!activeReport) return [];
-    const baseInvestments = activeReport.investments;
-    if (!showFilterOptions) return baseInvestments;
+  const getFilteredInvestments = (): (Investment & { reportName?: string, reportColor?: string })[] => {
+    // MODIFICADO: Usar selectedReportIdsForHistoryView
+    if (selectedReportIdsForHistoryView.length === 0) return [];
+
+    let allInvestments: (Investment & { reportName?: string, reportColor?: string })[] = [];
+    reports.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => {
+      (report.investments || []).forEach(inv => {
+        allInvestments.push({ ...inv, reportName: report.name, reportColor: report.color });
+      });
+    });
+
+    if (!showFilterOptions) return allInvestments;
 
     if (historyFilterType === 'month') {
       const monthStart = startOfMonth(filterMonth);
       const monthEnd = endOfMonth(filterMonth);
-      return baseInvestments.filter(investment => {
+      return allInvestments.filter(investment => {
         try {
           const investmentDate = parseISODate(investment.date);
           if (isNaN(investmentDate.getTime())) return false;
@@ -1072,7 +1106,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // console.warn("Data final anterior à data inicial no filtro personalizado.");
         return []; // Ou mostrar um aviso
       }
-      return baseInvestments.filter(investment => {
+      return allInvestments.filter(investment => {
         try {
           const investmentDate = parseISODate(investment.date);
           if (isNaN(investmentDate.getTime())) return false;
@@ -1084,18 +1118,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       // Poderia também retornar baseInvestments se a intenção for mostrar tudo até que o filtro esteja pronto.
       return []; 
     }
-    return baseInvestments; // Fallback se nenhum filtro específico se aplicar
+    return allInvestments; // Fallback se nenhum filtro específico se aplicar
   };
 
-  const getFilteredProfits = (): ProfitRecord[] => {
-    if (!activeReport) return [];
-    const baseProfits = activeReport.profits;
-    if (!showFilterOptions) return baseProfits;
+  const getFilteredProfits = (): (ProfitRecord & { reportName?: string, reportColor?: string })[] => {
+    // MODIFICADO: Usar selectedReportIdsForHistoryView
+    if (selectedReportIdsForHistoryView.length === 0) return [];
+
+    let allProfits: (ProfitRecord & { reportName?: string, reportColor?: string })[] = [];
+    reports.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => {
+      (report.profits || []).forEach(prof => {
+        allProfits.push({ ...prof, reportName: report.name, reportColor: report.color });
+      });
+    });
+    
+    if (!showFilterOptions) return allProfits;
 
     if (historyFilterType === 'month') {
       const monthStart = startOfMonth(filterMonth);
       const monthEnd = endOfMonth(filterMonth);
-      return baseProfits.filter(profit => {
+      return allProfits.filter(profit => {
         try {
           const profitDate = parseISODate(profit.date);
           if (isNaN(profitDate.getTime())) return false;
@@ -1109,7 +1151,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         // console.warn("Data final anterior à data inicial no filtro personalizado.");
         return [];
       }
-      return baseProfits.filter(profit => {
+      return allProfits.filter(profit => {
         try {
           const profitDate = parseISODate(profit.date);
           if (isNaN(profitDate.getTime())) return false;
@@ -1119,7 +1161,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     } else if (historyFilterType === 'custom') {
       return [];
     }
-    return baseProfits;
+    return allProfits;
   };
 
   // Função para formatar valor baseado na moeda selecionada
@@ -2400,6 +2442,34 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     toast({ title: "Relatório Criado", description: `"${newReport.name}" foi criado e ativado.`, variant: "success" });
   };
 
+  const handleHistoryReportSelection = (reportId: string) => {
+    setSelectedReportIdsForHistoryView(prev => {
+      const isSelected = prev.includes(reportId);
+      if (isSelected) {
+        // Se estiver desmarcando e for o último selecionado, não permitir (manter pelo menos um)
+        // Ou permitir desmarcar todos se essa for a UX desejada (getFiltered... já lida com array vazio)
+        // Vamos manter pelo menos um selecionado se houver relatórios.
+        if (prev.length === 1 && reports.length > 0) return prev; 
+        return prev.filter(id => id !== reportId);
+      } else {
+        return [...prev, reportId];
+      }
+    });
+  };
+  
+  const selectAllHistoryReports = () => {
+    setSelectedReportIdsForHistoryView(reports.map(r => r.id));
+  };
+
+  const clearHistoryReportSelection = () => {
+    // Mantém o primeiro relatório selecionado se houver relatórios
+    if (reports.length > 0) {
+        setSelectedReportIdsForHistoryView([reports[0].id]); 
+    } else {
+        setSelectedReportIdsForHistoryView([]);
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-4">
       <Tabs
@@ -2647,26 +2717,49 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 Visualize seus aportes e lucros/perdas registrados por relatório e período.
               </CardDescription>
 
-              {/* SELETOR DE RELATÓRIO PARA HISTÓRICO */}
-              <div className="mt-4 mb-2">
-                <Label className="text-sm text-purple-400 block mb-1">Selecionar Relatório para Visualização:</Label>
-                {reports.length > 0 ? (
-                  <Select value={activeReportId || ""} onValueChange={(value) => setActiveReportId(value || null)}>
-                    <SelectTrigger className="w-full bg-black/40 border-purple-600/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 text-white">
-                      <SelectValue placeholder="Selecione um relatório" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-purple-700/60 text-white">
-                      {reports.map(report => (
-                        <SelectItem key={report.id} value={report.id} style={{ color: report.color || '#E0E0E0' }}>
-                          {report.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Nenhum relatório criado. Crie um na aba "Registrar".</p>
-                )}
+              {/* SELETOR DE RELATÓRIO PARA HISTÓRICO - MODIFICADO PARA CHECKBOXES */}
+              <div className="mt-4 mb-2 space-y-3">
+                <div>
+                  <Label className="text-sm text-purple-400 block mb-2">Selecionar Relatórios para Visualização no Histórico:</Label>
+                  {reports.length > 0 ? (
+                    <>
+                      <div className="flex space-x-2 mb-2">
+                        {/* MODIFICADO: size="sm" e classes para parecer menor */}
+                        <Button size="sm" variant="outline" onClick={selectAllHistoryReports} className="bg-black/30 border-purple-700/50 text-xs px-2 py-1 h-7">Selecionar Todos</Button>
+                        <Button size="sm" variant="outline" onClick={clearHistoryReportSelection} className="bg-black/30 border-purple-700/50 text-xs px-2 py-1 h-7">Limpar (Manter 1º)</Button>
+                      </div>
+                      <ScrollArea className="h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
+                        <div className="space-y-1.5">
+                        {reports.map(report => (
+                          <div key={`hist-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
+                            <Checkbox
+                              id={`hist-report-${report.id}`}
+                              checked={selectedReportIdsForHistoryView.includes(report.id)}
+                              onCheckedChange={() => handleHistoryReportSelection(report.id)}
+                              style={{borderColor: report.color || '#A855F7'}}
+                            />
+                            <Label htmlFor={`hist-report-${report.id}`} className="text-xs font-normal cursor-pointer" style={{color: report.color || '#E0E0E0'}}>
+                              {report.name}
+                            </Label>
+                          </div>
+                        ))}
+                        </div>
+                      </ScrollArea>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">Nenhum relatório criado. Crie um na aba "Registrar".</p>
+                  )}
+                </div>
               </div>
+              
+              {/* Aviso sobre exclusão e exportação estarem ligados ao relatório ativo da aba Registrar */}
+              {activeReportId && reports.length > 0 && (
+                <div className="mt-1 mb-3 p-2 text-xs bg-yellow-900/30 border border-yellow-700/40 text-yellow-300 rounded-md">
+                  <HelpCircle className="inline h-3 w-3 mr-1 mb-0.5" /> {/* Usar HelpCircle diretamente */}
+                  Lembrete: A exportação e exclusão de dados em massa (botões "Remover todos") afetam apenas o relatório <span className="font-semibold">"{reports.find(r=>r.id === activeReportId)?.name || 'selecionado na aba Registrar'}"</span>.
+                </div>
+              )}
+
 
               <div className="flex flex-col sm:flex-row justify-between space-y-2 sm:space-y-0 sm:space-x-2 pt-3">
                 {/* Controles de Filtro (Tipo e Datas) */}
@@ -2909,7 +3002,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               )}
 
               {/* Resumo dos dados filtrados */}
-              {showFilterOptions && activeReport && (
+              {showFilterOptions && selectedReportIdsForHistoryView.length > 0 && ( // MODIFICADO: verificar selectedReportIdsForHistoryView
                 <div className="px-6 pb-2">
                   {(() => {
                     // Cálculos para o resumo com base nos filtros atuais
@@ -2979,9 +3072,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               
               {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  {showFilterOptions ? 
-                    `Nenhum registro encontrado para ${format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })}.` : 
-                    "Nenhum registro encontrado. Adicione investimentos ou lucros na aba 'Registrar'."}
+                  {selectedReportIdsForHistoryView.length === 0 ? "Selecione um ou mais relatórios para visualizar." :
+                    showFilterOptions ? 
+                    `Nenhum registro encontrado para ${format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR })} nos relatórios selecionados.` : 
+                    "Nenhum registro encontrado nos relatórios selecionados. Adicione investimentos ou lucros na aba 'Registrar'."}
                 </p>
               ) : (
                 <div className="space-y-6">
@@ -2989,33 +3083,42 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     <div className="space-y-1">
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="text-lg font-semibold text-blue-400">Investimentos</h3>
-                        {!showFilterOptions && (
+                        {!showFilterOptions && activeReportId && ( // Botão de exclusão ainda ligado ao activeReportId
                           <Button 
                             variant="destructive" 
                             size="sm"
                             className="bg-red-900/70 hover:bg-red-900"
                             onClick={() => setShowDeleteInvestmentsDialog(true)}
+                            disabled={!activeReportId} // Desabilitar se nenhum relatório ativo para registro
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Remover todos
+                            Remover todos (do relatório "{reports.find(r=>r.id === activeReportId)?.name || ''}")
                           </Button>
                         )}
                       </div>
                       <Table>
                         <TableHeader className="bg-black/40">
                           <TableRow>
-                            <TableHead className="w-1/4">Data</TableHead>
-                            <TableHead className="w-1/4">Valor em BTC</TableHead>
-                            <TableHead className="w-1/4">Valor em {displayCurrency}</TableHead>
-                            <TableHead className="w-1/4 text-right">Ações</TableHead>
+                            <TableHead className="w-[20%]">Data</TableHead>
+                            {selectedReportIdsForHistoryView.length > 1 && <TableHead className="w-[20%]">Relatório</TableHead>}
+                            <TableHead className="w-[25%]">Valor em BTC</TableHead>
+                            <TableHead className="w-[25%]">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-[10%] text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {getFilteredInvestments().map((investment) => {
                             const btcValue = convertToBtc(investment.amount, investment.unit);
                             return (
-                              <TableRow key={investment.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                              <TableRow key={`${investment.reportName}-${investment.id}`} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                                 <TableCell>{formatDisplayDate(investment.date, "d MMM yyyy")}</TableCell>
+                                {selectedReportIdsForHistoryView.length > 1 && 
+                                  <TableCell>
+                                    <span className="text-xs px-1.5 py-0.5 rounded-sm whitespace-nowrap" style={{backgroundColor: `${investment.reportColor}33`, color: investment.reportColor}}>
+                                      {investment.reportName}
+                                    </span>
+                                  </TableCell>
+                                }
                                 <TableCell>{formatCryptoAmount(btcValue, "BTC")}</TableCell>
                                 <TableCell>{formatBtcValueInCurrency(btcValue)}</TableCell>
                                 <TableCell className="text-right">
@@ -3040,34 +3143,43 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     <div className="space-y-1">
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="text-lg font-semibold text-green-500">Lucros/Perdas</h3>
-                        {!showFilterOptions && (
+                        {!showFilterOptions && activeReportId && ( // Botão de exclusão ainda ligado ao activeReportId
                           <Button 
                             variant="destructive" 
                             size="sm"
                             className="bg-red-900/70 hover:bg-red-900"
                             onClick={() => setShowDeleteProfitsDialog(true)}
+                            disabled={!activeReportId} // Desabilitar se nenhum relatório ativo para registro
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Remover todos
+                             Remover todos (do relatório "{reports.find(r=>r.id === activeReportId)?.name || ''}")
                           </Button>
                         )}
                       </div>
                       <Table>
                         <TableHeader className="bg-black/40">
                           <TableRow>
-                            <TableHead className="w-1/5">Data</TableHead>
-                            <TableHead className="w-1/5">Tipo</TableHead>
-                            <TableHead className="w-1/5">Valor em BTC</TableHead>
-                            <TableHead className="w-1/5">Valor em {displayCurrency}</TableHead>
-                            <TableHead className="w-1/5 text-right">Ações</TableHead>
+                            <TableHead className="w-[15%]">Data</TableHead>
+                            {selectedReportIdsForHistoryView.length > 1 && <TableHead className="w-[15%]">Relatório</TableHead>}
+                            <TableHead className="w-[15%]">Tipo</TableHead>
+                            <TableHead className="w-[20%]">Valor em BTC</TableHead>
+                            <TableHead className="w-[20%]">Valor em {displayCurrency}</TableHead>
+                            <TableHead className="w-[15%] text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {getFilteredProfits().map((profit) => {
                             const btcValue = convertToBtc(profit.amount, profit.unit);
                             return (
-                              <TableRow key={profit.id} className="hover:bg-purple-900/10 border-b border-purple-900/10">
+                              <TableRow key={`${profit.reportName}-${profit.id}`} className="hover:bg-purple-900/10 border-b border-purple-900/10">
                                 <TableCell>{formatDisplayDate(profit.date, "d MMM yyyy")}</TableCell>
+                                {selectedReportIdsForHistoryView.length > 1 && 
+                                  <TableCell>
+                                     <span className="text-xs px-1.5 py-0.5 rounded-sm whitespace-nowrap" style={{backgroundColor: `${profit.reportColor}33`, color: profit.reportColor}}>
+                                      {profit.reportName}
+                                    </span>
+                                  </TableCell>
+                                }
                                 <TableCell>
                                   <span className={`px-2 py-1 rounded-full text-xs ${
                                     profit.isProfit ? "bg-green-900/30 text-green-500" : "bg-red-900/30 text-red-500"

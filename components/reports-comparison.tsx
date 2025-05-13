@@ -157,10 +157,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     selectedReports.forEach(report => {
       // Combinar investimentos e lucros para encontrar o range de datas
       const allDates = [
-        ...report.investments.map(i => new Date(i.date)),
-        ...report.profits.map(p => new Date(p.date))
+        ...(report.investments?.map(i => new Date(i.date)) || []),
+        ...(report.profits?.map(p => new Date(p.date)) || [])
       ];
       
+      if (allDates.length === 0) return;
+
       const reportMinDate = new Date(Math.min(...allDates.map(d => d.getTime())));
       const reportMaxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
       
@@ -170,9 +172,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     
     // Garantir que temos pelo menos um mês
     if (minDate > maxDate) {
-      minDate = new Date();
-      minDate.setMonth(minDate.getMonth() - 1);
-      maxDate = new Date();
+      const today = new Date();
+      minDate = new Date(today.getFullYear(), today.getMonth() -1, 1);
+      maxDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
     
     // Criar lista de meses no período
@@ -190,56 +192,59 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       const monthLabel = format(month, 'MMM yyyy', { locale: ptBR });
       const dataPoint: Record<string, any> = { month: monthLabel };
       
-      // Para cada relatório, calcular investimentos e lucros acumulados até este mês
+      // Para cada relatório, calcular investimentos e lucros
       selectedReports.forEach(report => {
         const reportId = report.id;
+        const currentReport = reports.find(r => r.id === reportId);
+        if (!currentReport) return;
+
+        const reportInvestments = currentReport.investments || [];
+        const reportProfits = currentReport.profits || [];
         
-        // Filtrar investimentos e lucros até o mês atual
-        const investmentsUntilMonth = report.investments.filter(inv => {
-          const invDate = new Date(inv.date);
-          return invDate <= month;
-        });
-        
-        const profitsUntilMonth = report.profits.filter(prof => {
-          const profitDate = new Date(prof.date);
-          return profitDate <= month;
-        });
-        
-        // Calcular total de investimentos em BTC
-        const totalInvestmentsBtc = investmentsUntilMonth.reduce((sum, inv) => {
-          // Converter para BTC se necessário
-          return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
-        }, 0);
-        
-        // Calcular total de lucros em BTC
-        const totalProfitsBtc = profitsUntilMonth.reduce((sum, prof) => {
-          const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
-          return sum + (prof.isProfit ? amount : -amount);
-        }, 0);
-        
-        // Adicionar ao ponto de dados
         if (comparisonMode === "accumulated") {
+          const monthEndForAccumulation = new Date(month); // month é o primeiro dia
+          monthEndForAccumulation.setMonth(monthEndForAccumulation.getMonth() + 1);
+          monthEndForAccumulation.setDate(0); // Agora é o último dia do mês 'month'
+
+          const investmentsUntilMonth = reportInvestments.filter(inv => {
+            const invDate = new Date(inv.date);
+            return invDate <= monthEndForAccumulation;
+          });
+          
+          const profitsUntilMonth = reportProfits.filter(prof => {
+            const profitDate = new Date(prof.date);
+            return profitDate <= monthEndForAccumulation;
+          });
+
+          const totalInvestmentsBtc = investmentsUntilMonth.reduce((sum, inv) => {
+            return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+          }, 0);
+          
+          const totalProfitsBtc = profitsUntilMonth.reduce((sum, prof) => {
+            const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
+            return sum + (prof.isProfit ? amount : -amount);
+          }, 0);
+          
           dataPoint[`investments_${reportId}`] = totalInvestmentsBtc;
           dataPoint[`profits_${reportId}`] = totalProfitsBtc;
           dataPoint[`balance_${reportId}`] = totalInvestmentsBtc + totalProfitsBtc;
-        } else {
-          // Para o modo mensal, calcular apenas os valores deste mês
+
+        } else { // Monthly mode
           const monthStart = new Date(month);
           const monthEnd = new Date(month);
           monthEnd.setMonth(monthEnd.getMonth() + 1);
           monthEnd.setDate(0); // Último dia do mês
           
-          const investmentsInMonth = report.investments.filter(inv => {
+          const investmentsInMonth = reportInvestments.filter(inv => {
             const invDate = new Date(inv.date);
             return invDate >= monthStart && invDate <= monthEnd;
           });
           
-          const profitsInMonth = report.profits.filter(prof => {
+          const profitsInMonth = reportProfits.filter(prof => {
             const profitDate = new Date(prof.date);
             return profitDate >= monthStart && profitDate <= monthEnd;
           });
           
-          // Calcular totais do mês
           const monthInvestmentsBtc = investmentsInMonth.reduce((sum, inv) => {
             return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
           }, 0);
@@ -258,25 +263,26 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       return dataPoint;
     });
     
-    // Calcular estatísticas gerais
+    // Calcular estatísticas gerais para cada relatório selecionado
     const statsData: Record<string, Record<string, number>> = {};
-    
     selectedReports.forEach(report => {
       const reportId = report.id;
+      const currentReport = reports.find(r => r.id === reportId);
+      if (!currentReport) return;
+
+      const reportInvestments = currentReport.investments || [];
+      const reportProfits = currentReport.profits || [];
       
-      // Calcular totais em BTC
-      const totalInvestmentsBtc = report.investments.reduce((sum, inv) => {
+      const totalInvestmentsBtc = reportInvestments.reduce((sum, inv) => {
         return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
       }, 0);
       
-      const totalProfitsBtc = report.profits.reduce((sum, prof) => {
+      const totalProfitsBtc = reportProfits.reduce((sum, prof) => {
         const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
         return sum + (prof.isProfit ? amount : -amount);
       }, 0);
       
       const finalBalanceBtc = totalInvestmentsBtc + totalProfitsBtc;
-      
-      // Calcular ROI
       const roi = totalInvestmentsBtc > 0 
         ? (totalProfitsBtc / totalInvestmentsBtc) * 100 
         : 0;
@@ -289,11 +295,21 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       };
     });
     
-    // Calcular totais gerais
-    const totalInvestmentsBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].totalInvestments : 0;
-    const totalProfitsBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].totalProfits : 0;
-    const totalBalanceBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].finalBalance : 0;
-    const totalRoi = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].roi : 0;
+    // Calcular totais gerais agregados de todos os relatórios selecionados
+    let aggregatedTotalInvestmentsBtc = 0;
+    let aggregatedTotalProfitsBtc = 0;
+
+    selectedReportIds.forEach(id => {
+      if (statsData[id]) {
+        aggregatedTotalInvestmentsBtc += statsData[id].totalInvestments || 0;
+        aggregatedTotalProfitsBtc += statsData[id].totalProfits || 0;
+      }
+    });
+
+    const aggregatedTotalBalanceBtc = aggregatedTotalInvestmentsBtc + aggregatedTotalProfitsBtc;
+    const aggregatedTotalRoi = aggregatedTotalInvestmentsBtc > 0
+      ? (aggregatedTotalProfitsBtc / aggregatedTotalInvestmentsBtc) * 100
+      : 0;
     
     return {
       chartData,
@@ -302,10 +318,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         start: minDate,
         end: maxDate
       },
-      totalInvestmentsBtc,
-      totalProfitsBtc,
-      totalBalanceBtc,
-      totalRoi
+      totalInvestmentsBtc: aggregatedTotalInvestmentsBtc,
+      totalProfitsBtc: aggregatedTotalProfitsBtc,
+      totalBalanceBtc: aggregatedTotalBalanceBtc,
+      totalRoi: aggregatedTotalRoi
     };
   }, [reports, selectedReportIds, comparisonMode]);
 
