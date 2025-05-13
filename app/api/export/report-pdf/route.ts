@@ -9,8 +9,8 @@ import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/repor
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
 import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
 import React from 'react';
-import { renderComponentToStaticMarkup } from '@/lib/server-render-utils'; // Adicionado
-// import { Report } from '@/lib/calculator-types'; // Descomente e defina quando o tipo Report estiver claro
+// Removida a importação estática de renderComponentToStaticMarkup
+// import { renderComponentToStaticMarkup } from '@/lib/server-render-utils';
 
 // TODO: Substituir z.any() por um schema Zod detalhado para o objeto Report 
 // quando a estrutura de lib/calculator-types.ts -> Report estiver totalmente definida.
@@ -58,6 +58,9 @@ export async function POST(request: NextRequest) {
     };
 
     const calculatedReportData: CalculatedReportData = calculateReportMetrics(calculatedMetricsInput);
+
+    // Carregar dinamicamente a função de renderização
+    const { renderComponentToStaticMarkup } = await import('@/lib/server-render-utils');
 
     // Gerar SVG do Gráfico de P/L Mensal
     let monthlyPLChartSvg: string | undefined = undefined;
