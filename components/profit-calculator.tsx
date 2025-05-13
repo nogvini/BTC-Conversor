@@ -1776,6 +1776,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
+    // ADICIONADO: Obter o relatório ativo atual para passar seus lucros
+    const currentActiveReportForCsv = reports.find(r => r.id === activeReportId);
+    if (!currentActiveReportForCsv) {
+      toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
+      if (csvFileInputRef.current) csvFileInputRef.current.value = '';
+      return;
+    }
+
     const file = event.target.files[0];
     setIsImporting(true);
     setImportStats(null);
@@ -1807,8 +1815,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           console.log("CSV processado:", records[0]); // Debug
           
           // Processar registros usando a função comum modificada
+          // MODIFICADO: Passar currentActiveReportForCsv.profits
           const { newProfits, successCount, errorCount, duplicatedCount } = 
-            processTradeRecords(headers, records);
+            processTradeRecords(headers, records, currentActiveReportForCsv.profits);
           
           // Adicionar os novos registros de lucro
           if (newProfits.length > 0) {
@@ -1935,6 +1944,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const processTradeRecords = (
     headers: string[], 
     records: Array<Record<string, any>>, 
+    existingReportProfits: ProfitRecord[], // MODIFICADO: Adicionado parâmetro
     headerIndexMap?: Record<string, number>
   ): { newProfits: ProfitRecord[], successCount: number, errorCount: number, duplicatedCount: number } => {
     // Lista de cabeçalhos requeridos
@@ -1960,7 +1970,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     let duplicatedCount = 0;
     
     // Obter conjunto de IDs existentes para verificar duplicações
-    const existingProfitIds = new Set(profits.map(profit => profit.originalId || profit.id));
+    // MODIFICADO: Usar o parâmetro existingReportProfits
+    const existingProfitIds = new Set(existingReportProfits.map(profit => profit.originalId || profit.id));
     
     // Processar cada registro
     records.forEach((record, index) => {
@@ -2251,6 +2262,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
       }
       
+      // ADICIONADO: Obter o relatório ativo atual para passar seus lucros
+      const currentActiveReportForExcel = reports.find(r => r.id === activeReportId);
+      if (!currentActiveReportForExcel) {
+        toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      
       setIsImporting(true);
       setImportType("excel");
       
@@ -2307,7 +2326,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           });
           
           // Processar os registros
-          const { newProfits, successCount: sCount, errorCount: eCount, duplicatedCount: dCount } = processTradeRecords(headers, records);
+          const { newProfits, successCount: sCount, errorCount: eCount, duplicatedCount: dCount } = processTradeRecords(headers, records, currentActiveReportForExcel.profits);
           
           successCount = sCount;
           errorCount = eCount;
@@ -2644,6 +2663,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
+    // ADICIONADO: Verificar relatório ativo
+    if (!activeReportId) {
+      toast({
+        title: "Importação de Aportes Falhou",
+        description: "Nenhum relatório ativo. Selecione ou crie um relatório.",
+        variant: "destructive",
+      });
+      if (investmentCsvFileInputRef.current) investmentCsvFileInputRef.current.value = '';
+      return;
+    }
+
+    const currentActiveReportForInvestCsv = reports.find(r => r.id === activeReportId);
+    if (!currentActiveReportForInvestCsv) {
+      toast({ title: "Erro na Importação", description: "Relatório ativo não encontrado.", variant: "destructive" });
+      if (investmentCsvFileInputRef.current) investmentCsvFileInputRef.current.value = '';
+      return;
+    }
+
     const file = event.target.files[0];
     setIsImporting(true);
     setImportStats(null);
@@ -2683,7 +2720,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           const newInvestments: Investment[] = [];
           
           // Obter conjunto de IDs existentes para verificar duplicações
-          const existingIds = new Set(investments.map(inv => inv.originalId || inv.id));
+          // MODIFICADO: Usar currentActiveReportForInvestCsv.investments
+          const existingIds = new Set(currentActiveReportForInvestCsv.investments.map(inv => inv.originalId || inv.id));
           
           // Processar cada registro
           records.forEach((record, index) => {
@@ -2759,7 +2797,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Adicionar os novos investimentos ou mostrar diálogo de duplicados
           if (newInvestments.length > 0) {
-            setInvestments(prev => [...prev, ...newInvestments]);
+            // MODIFICADO: Usar setReports para adicionar ao relatório ativo
+            setReports(prevReports => prevReports.map(r => 
+              r.id === activeReportId
+                ? { ...r, investments: [...r.investments, ...newInvestments] }
+                : r
+            ));
             
             toast({
               title: "Importação de aportes concluída",
