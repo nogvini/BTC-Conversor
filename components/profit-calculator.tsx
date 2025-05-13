@@ -1514,7 +1514,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         const newProfit: ProfitRecord = {
           id: Date.now().toString() + index, // ID único local
           originalId: originalId, // Salvar ID original da operação
-          date: profitDate.toISOString().slice(0,10), // Alteração para diagnóstico
+          date: "2024-01-01", // TESTE: Data Hardcoded para diagnóstico
           amount: Math.abs(netProfitSats), // Valor absoluto
           unit: "SATS", // Em satoshis
           isProfit: netProfitSats >= 0, // Lucro se positivo
@@ -2190,7 +2190,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               const newInvestment: Investment = {
                 id: Date.now().toString() + index, // Usar ID único
                 originalId: originalId, // Preservar ID original para evitar duplicações futuras
-                date: investmentDate.toISOString().slice(0,10), // Alteração para diagnóstico
+                date: "2024-01-01", // TESTE: Data Hardcoded para diagnóstico
                 amount: amount,
                 unit: unit
               };
