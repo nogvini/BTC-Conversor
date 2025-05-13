@@ -128,19 +128,20 @@ interface Report {
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
   const {
-    reports: allReportsFromHook,      // Lista de todos os relatórios
-    activeReportId: activeReportIdFromHook, // ID do relatório ativo
-    activeReport: currentActiveReportObjectFromHook, // Objeto do relatório ativo
+    reports: allReportsFromHook,
+    activeReportId: activeReportIdFromHook,
+    activeReport: currentActiveReportObjectFromHook,
     isLoaded: reportsDataLoaded,
     addReport,
-    selectReport,                     // Esta é a função para definir o relatório ativo
-    addInvestmentToReport,
-    addProfitToReport,
-    deleteInvestmentFromReport,
-    deleteProfitFromReport,
-    deleteAllInvestmentsFromReport,
-    deleteAllProfitsFromReport,
-    // Outras funções que o hook possa prover, ex: updateReport, deleteReport
+    selectReport,
+    addInvestment,
+    addProfitRecord,
+    deleteInvestment,
+    deleteProfitRecord,
+    updateReportData,
+    importData,
+    deleteAllInvestmentsFromReport, // Adicionar esta função
+    deleteAllProfitsFromReport,    // Adicionar esta função
   } = useReports();
 
   // Manter estados locais que não são gerenciados por useReports ou que são específicos da UI deste componente
@@ -380,7 +381,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   // Funções de adição e remoção
-  const addInvestment = () => {
+  const handleAddInvestmentButtonClick = () => { // RENOMEADO para evitar conflito
     if (!investmentAmount || isNaN(Number(investmentAmount)) || Number(investmentAmount) <= 0) {
       toast({
         title: "Valor inválido",
@@ -399,14 +400,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
     }
 
-    let targetReportId = activeReportIdFromHook; // USAR activeReportIdFromHook
+    let targetReportId = activeReportIdFromHook;
     if (!targetReportId) {
-      if (!allReportsFromHook || allReportsFromHook.length === 0) { // USAR allReportsFromHook
+      if (!allReportsFromHook || allReportsFromHook.length === 0) {
          addReport("Relatório Padrão");
          toast({ title: "Relatório Criado", description: "Um 'Relatório Padrão' foi criado. Tente adicionar o aporte novamente.", variant: "default" });
          return;
       } else if (allReportsFromHook.length > 0 && !activeReportIdFromHook) {
-        selectReport(allReportsFromHook[0].id); // USAR selectReport
+        selectReport(allReportsFromHook[0].id);
         targetReportId = allReportsFromHook[0].id;
         toast({ title: "Relatório Ativado", description: `Relatório "${allReportsFromHook[0].name}" ativado. Tente adicionar o aporte novamente.`, variant: "default" });
         return;
@@ -416,14 +417,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
     
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId); // USAR allReportsFromHook
+    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
     if (!reportToUpdate) {
         toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar aporte.", variant: "destructive" });
         return;
     }
 
-    const newInvestment: Investment = {
-      id: Date.now().toString(), date: formatDateToUTC(investmentDate), // REVERTER PARA formatDateToUTC
+    const newInvestment: Investment = { // ID será gerado pelo hook addInvestment
+      id: Date.now().toString(), // Este ID é temporário para a lógica de duplicados local
+      date: formatDateToUTC(investmentDate),
       amount: Number(investmentAmount), unit: investmentUnit,
     };
 
@@ -436,28 +438,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       setDuplicateConfirmInfo({ type: 'investment', date: newInvestment.date, amount: newInvestment.amount, unit: newInvestment.unit });
       setShowConfirmDuplicateDialog(true);
     } else {
-      confirmAddInvestment(newInvestment);
+      // Passar Omit<Investment, "id"> para confirmAddInvestment
+      const { id, ...investmentData } = newInvestment;
+      confirmAddInvestment(investmentData);
     }
   };
   
   // Função para confirmar adição do investimento após possível duplicação
-  const confirmAddInvestment = (investment: Investment) => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+  const confirmAddInvestment = (investmentData: Omit<Investment, "id">) => { // Recebe Omit<Investment, "id">
+    if (!activeReportIdFromHook) {
       toast({ title: "Erro", description: "Nenhum relatório ativo para adicionar o aporte.", variant: "destructive" });
       return;
     }
-    const success = addInvestmentToReport(activeReportIdFromHook, investment); // USAR FUNÇÃO DO HOOK
+    // A função addInvestment do hook já lida com a adição ao relatório ativo
+    const success = addInvestment(investmentData); 
     
     if (success) {
       setInvestmentAmount("");
     }
-    // Limpar estados de confirmação
     setPendingInvestment(null);
     setDuplicateConfirmInfo(null);
     setShowConfirmDuplicateDialog(false);
   };
 
-  const addProfitRecord = () => {
+  const handleAddProfitRecordButtonClick = () => { // RENOMEADO para evitar conflito
     if (!profitAmount || isNaN(Number(profitAmount)) || Number(profitAmount) <= 0) {
       toast({
         title: "Valor inválido",
@@ -476,14 +480,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
     }
 
-    let targetReportId = activeReportIdFromHook; // USAR activeReportIdFromHook
+    let targetReportId = activeReportIdFromHook;
     if (!targetReportId) {
-      if (!allReportsFromHook || allReportsFromHook.length === 0) { // USAR allReportsFromHook
+      if (!allReportsFromHook || allReportsFromHook.length === 0) {
          addReport("Relatório Padrão");
          toast({ title: "Relatório Criado", description: "Um 'Relatório Padrão' foi criado. Tente adicionar o registro novamente.", variant: "default" });
          return;
       } else if (allReportsFromHook.length > 0 && !activeReportIdFromHook) {
-        selectReport(allReportsFromHook[0].id); // USAR selectReport
+        selectReport(allReportsFromHook[0].id);
         targetReportId = allReportsFromHook[0].id;
         toast({ title: "Relatório Ativado", description: `Relatório "${allReportsFromHook[0].name}" ativado. Tente adicionar o registro novamente.`, variant: "default" });
         return;
@@ -493,16 +497,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
 
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId); // USAR allReportsFromHook
+    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
      if (!reportToUpdate) {
         toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar lucro/perda.", variant: "destructive" });
         return;
     }
 
-    const newProfit: ProfitRecord = {
-      id: Date.now().toString(),
-      date: formatDateToUTC(profitDate), // REVERTER PARA formatDateToUTC
-      amount: Number(profitAmount),    // REVERTER PARA Number(profitAmount)
+    const newProfit: ProfitRecord = { // ID será gerado pelo hook addProfitRecord
+      id: Date.now().toString(), // Este ID é temporário para a lógica de duplicados local
+      date: formatDateToUTC(profitDate),
+      amount: Number(profitAmount),
       unit: profitUnit,
       isProfit,
     };
@@ -524,65 +528,67 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       });
       setShowConfirmDuplicateDialog(true);
     } else {
-      confirmAddProfitRecord(newProfit);
+      // Passar Omit<ProfitRecord, "id"> para confirmAddProfitRecord
+      const { id, ...profitData } = newProfit;
+      confirmAddProfitRecord(profitData);
     }
   };
   
   // Função para confirmar adição do lucro/perda após possível duplicação
-  const confirmAddProfitRecord = (profit: ProfitRecord) => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+  const confirmAddProfitRecord = (profitData: Omit<ProfitRecord, "id">) => { // Recebe Omit<ProfitRecord, "id">
+    if (!activeReportIdFromHook) {
       toast({ title: "Erro", description: "Nenhum relatório ativo para adicionar o registro.", variant: "destructive" });
       return;
     }
-    const success = addProfitToReport(activeReportIdFromHook, profit); // USAR FUNÇÃO DO HOOK
+    // A função addProfitRecord do hook já lida com a adição ao relatório ativo
+    const success = addProfitRecord(profitData);
 
     if (success) {
       setProfitAmount("");
     }
-    // Limpar estados de confirmação
     setPendingProfit(null);
     setDuplicateConfirmInfo(null);
     setShowConfirmDuplicateDialog(false);
   };
 
-  const deleteInvestment = (id: string) => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+  const deleteInvestmentLocal = (id: string) => {
+    if (!activeReportIdFromHook) { 
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
       return;
     }
-    deleteInvestmentFromReport(activeReportIdFromHook, id); // USAR FUNÇÃO DO HOOK
-    // Toast é tratado por useReports
+    deleteInvestment(activeReportIdFromHook, id);
   };
 
-  const deleteProfit = (id: string) => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+  const deleteProfitLocal = (id: string) => {
+    if (!activeReportIdFromHook) { 
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       return;
     }
-    deleteProfitFromReport(activeReportIdFromHook, id); // USAR FUNÇÃO DO HOOK
-    // Toast é tratado por useReports
+    deleteProfitRecord(activeReportIdFromHook, id);
   };
   
   const deleteAllInvestments = () => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+    if (!activeReportIdFromHook) { 
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       setShowDeleteInvestmentsDialog(false);
       return;
     }
-    deleteAllInvestmentsFromReport(activeReportIdFromHook); // USAR FUNÇÃO DO HOOK
+    // Chamar a função do hook
+    deleteAllInvestmentsFromReport(activeReportIdFromHook);
     setShowDeleteInvestmentsDialog(false);
-    // Toast é tratado por useReports
+    // O toast de sucesso já é tratado dentro da função do hook
   };
   
   const deleteAllProfits = () => {
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+    if (!activeReportIdFromHook) { 
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       setShowDeleteProfitsDialog(false);
       return;
     }
-    deleteAllProfitsFromReport(activeReportIdFromHook); // USAR FUNÇÃO DO HOOK
+    // Chamar a função do hook
+    deleteAllProfitsFromReport(activeReportIdFromHook);
     setShowDeleteProfitsDialog(false);
-    // Toast é tratado por useReports
+    // O toast de sucesso já é tratado dentro da função do hook
   };
 
   // Funções de navegação
@@ -1256,7 +1262,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           // Adicionar os novos registros de lucro
           if (newProfits.length > 0) {
             // MODIFICADO: Adicionar lucros ao activeReport
-            newProfits.forEach(profit => addProfitToReport(activeReportIdFromHook, profit)); // USAR activeReportIdFromHook
+            newProfits.forEach(profit => {
+              const {id, ...profitData} = profit; // Remover ID temporário se houver
+              addProfitRecord(profitData); // USAR hook addProfitRecord
+            });
             
             if (!toastDebounce) {
               setToastDebounce(true);
@@ -1763,7 +1772,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           // Adicionar os novos registros
           if (newProfits.length > 0) {
             // MODIFICADO: Adicionar lucros ao activeReport e remover localStorage antigo
-            newProfits.forEach(profit => addProfitToReport(activeReportIdFromHook, profit)); // USAR activeReportIdFromHook
+            newProfits.forEach(profit => {
+              const {id, ...profitData} = profit; // Remover ID temporário se houver
+              addProfitRecord(profitData); // USAR hook addProfitRecord
+            });
             // localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits)); // REMOVIDO
             
             toast({
@@ -1878,7 +1890,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           // Verificar o formato
           let isValidFormat = false;
-          let rowWithVersion = recordsSheet.getRow(recordsSheet.rowCount);
+          // let rowWithVersion = recordsSheet.getRow(recordsSheet.rowCount); // Removido, não usado
           
           // Verificar as últimas 3 linhas para encontrar a versão do formato
           for (let i = 0; i < 3; i++) {
@@ -1902,10 +1914,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let errorCount = 0;
           let duplicatedCount = 0;
           
-          // Obter conjunto de IDs existentes para verificar duplicações
-          // MODIFICADO: Usar activeReport para pegar IDs existentes
           const currentActiveReport = allReportsFromHook?.find(r => r.id === activeReportIdFromHook);
-          if (!currentActiveReport) { // Segurança adicional, embora já verificado activeReportId
+          if (!currentActiveReport) {
             throw new Error("Relatório ativo não encontrado durante a importação.");
           }
 
@@ -1919,44 +1929,35 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               .map(p => p.originalId || p.id)
           );
           
-          // Começar da linha 2 (após o cabeçalho)
           for (let i = 2; i <= recordsSheet.rowCount; i++) {
             const row = recordsSheet.getRow(i);
             const type = row.getCell(1).value?.toString();
             
-            // Pular metadados
             if (type === 'META') continue;
             
             try {
               if (type === 'INVESTMENT') {
-                const id = row.getCell(2).value?.toString() || Date.now().toString();
+                const id = row.getCell(2).value?.toString() || Date.now().toString() + Math.random();
                 const originalId = row.getCell(3).value?.toString() || id;
                 const date = row.getCell(4).value?.toString() || format(new Date(), "yyyy-MM-dd");
                 const amount = Number(row.getCell(5).value) || 0;
                 const unit = (row.getCell(6).value?.toString() as CurrencyUnit) || "SATS";
                 
                 if (amount > 0) {
-                  // Verificar se o ID já existe para evitar duplicatas
                   if (existingInvestmentIds.has(id) || existingInvestmentIds.has(originalId)) {
                     duplicatedCount++;
                     continue;
                   }
                   
-                  const investment: Investment = {
-                    id,
-                    originalId,
-                    date,
-                    amount,
-                    unit
-                  };
-                  
+                  const investment: Investment = { id, originalId, date, amount, unit };
                   newInvestments.push(investment);
+                  existingInvestmentIds.add(id); // Adicionar ao set para evitar duplicações dentro do mesmo arquivo
+                  if (originalId) existingInvestmentIds.add(originalId);
                   investmentCount++;
                 }
-                
                 totalCount++;
               } else if (type === 'PROFIT') {
-                const id = row.getCell(2).value?.toString() || Date.now().toString();
+                const id = row.getCell(2).value?.toString() || Date.now().toString() + Math.random();
                 const originalId = row.getCell(3).value?.toString() || id;
                 const date = row.getCell(4).value?.toString() || format(new Date(), "yyyy-MM-dd");
                 const amount = Number(row.getCell(5).value) || 0;
@@ -1965,25 +1966,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 const isProfit = isProfitValue === 'TRUE';
                 
                 if (amount > 0) {
-                  // Verificar se o ID já existe para evitar duplicatas
                   if (existingProfitIds.has(id) || existingProfitIds.has(originalId)) {
                     duplicatedCount++;
                     continue;
                   }
                   
-                  const profit: ProfitRecord = {
-                    id,
-                    originalId,
-                    date,
-                    amount,
-                    unit,
-                    isProfit
-                  };
-                  
+                  const profit: ProfitRecord = { id, originalId, date, amount, unit, isProfit };
                   newProfits.push(profit);
+                  existingProfitIds.add(id); // Adicionar ao set para evitar duplicações dentro do mesmo arquivo
+                  if (originalId) existingProfitIds.add(originalId);
                   profitCount++;
                 }
-                
                 totalCount++;
               }
             } catch (error) {
@@ -1992,7 +1985,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             }
           }
           
-          // Atualizar estatísticas
           setImportStats({
             total: totalCount,
             success: investmentCount + profitCount,
@@ -2000,33 +1992,52 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             duplicated: duplicatedCount
           });
           
-          // Adicionar os novos registros ou mostrar diálogo de duplicados
           if (newInvestments.length > 0 || newProfits.length > 0) {
-            // MODIFICADO: Atualizar investments e profits do activeReport via setReports
-            allReportsFromHook.forEach(report => {
-              if (report.id === activeReportIdFromHook) {
-                report.investments = [...report.investments, ...newInvestments];
-                report.profits = [...report.profits, ...newProfits];
-              }
+            // Usar a função importData do hook useReports
+            // O terceiro argumento (options) é opcional. Por padrão, ele mescla os dados (não substitui).
+            // A função importData espera que os IDs já estejam corretos e únicos se não for para substituir.
+            // Como newInvestments e newProfits podem ter IDs temporários da leitura do arquivo,
+            // é melhor usar addInvestment e addProfitRecord individualmente se importData não gerar IDs.
+            // Ou, garantir que importData possa receber Omit<Investment, "id">[] e Omit<ProfitRecord, "id">[]
+            // e gere os IDs internamente.
+            // Dado que importData no hook parece ser para combinar dados já estruturados (com IDs),
+            // e as funções addInvestment/addProfitRecord do hook geram IDs,
+            // vamos usar addInvestment e addProfitRecord individualmente.
+            
+            let importedInvCount = 0;
+            newInvestments.forEach(inv => {
+              const { id, ...invData } = inv;
+              if (addInvestment(invData)) importedInvCount++;
+            });
+
+            let importedProfitCount = 0;
+            newProfits.forEach(prof => {
+              const { id, ...profData } = prof;
+              if (addProfitRecord(profData)) importedProfitCount++;
             });
             
             toast({
               title: "Importação concluída",
-              description: `Foram importados ${investmentCount} aportes e ${profitCount} registros de lucro/perda com sucesso.`,
+              description: `Foram importados ${importedInvCount} aportes e ${importedProfitCount} registros de lucro/perda com sucesso para o relatório "${currentActiveReport.name}".`,
               variant: "success",
             });
-          } else if (duplicatedCount > 0) {
-            // Mostrar diálogo de duplicações em vez de toast
+          } else if (duplicatedCount > 0 && investmentCount === 0 && profitCount === 0) {
             setDuplicateInfo({
               count: duplicatedCount,
               type: 'registros'
             });
             setShowDuplicateDialog(true);
-          } else {
+          } else if (investmentCount === 0 && profitCount === 0 && errorCount === 0 && duplicatedCount === 0) {
             toast({
-              title: "Nenhum registro importado",
-              description: "Não foram encontrados novos registros para importar.",
-              variant: "destructive",
+              title: "Nenhum novo registro encontrado",
+              description: "O arquivo não continha novos registros para importar.",
+              variant: "default",
+            });
+          } else {
+             toast({
+              title: "Nenhum registro novo importado",
+              description: "Não foram encontrados novos registros válidos para importar.",
+              variant: "warning",
             });
           }
           
@@ -2082,7 +2093,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+    if (!activeReportIdFromHook) {
       toast({
         title: "Importação de Aportes Falhou",
         description: "Nenhum relatório ativo. Selecione ou crie um relatório.",
@@ -2092,7 +2103,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const currentActiveReportForInvestCsv = allReportsFromHook?.find(r => r.id === activeReportIdFromHook); // USAR allReportsFromHook e activeReportIdFromHook
+    const currentActiveReportForInvestCsv = allReportsFromHook?.find(r => r.id === activeReportIdFromHook);
     if (!currentActiveReportForInvestCsv) {
       toast({ title: "Erro na Importação", description: "Relatório ativo não encontrado.", variant: "destructive" });
       if (investmentCsvFileInputRef.current) investmentCsvFileInputRef.current.value = '';
@@ -2114,15 +2125,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
           const csvText = e.target.result as string;
-          
-          // Usar o parser CSV robusto
           const records = parseCSV(csvText);
           
           if (records.length === 0) {
             throw new Error("O arquivo CSV não contém dados válidos");
           }
           
-          // Verificar cabeçalhos necessários
           const requiredHeaders = ["id", "ts", "amount", "transactionIdOrHash", "comment", "success", "type"];
           const headers = Object.keys(records[0]);
           
@@ -2135,77 +2143,48 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let importedCount = 0;
           let errorCount = 0;
           let duplicatedCount = 0;
-          const newInvestments: Investment[] = [];
+          const newInvestmentsFromCsv: Omit<Investment, "id">[] = []; // Coleção de dados sem ID para o hook
           
-          // Obter conjunto de IDs existentes para verificar duplicações
-          // MODIFICADO: Usar currentActiveReportForInvestCsv.investments
           const existingIds = new Set(currentActiveReportForInvestCsv.investments.map(inv => inv.originalId || inv.id));
           
-          // Processar cada registro
           records.forEach((record, index) => {
             try {
-              // Verificar se o aporte foi bem-sucedido
               const successValue = String(record.success).toLowerCase();
               const isSuccess = successValue === "true" || successValue === "1";
+              if (!isSuccess) return;
               
-              if (!isSuccess) {
-                // Ignorar registros não bem-sucedidos
-                return;
-              }
-              
-              // Processar o timestamp
-              let investmentDate: Date;
-              
-              // Tentar interpretar o timestamp como número (milissegundos)
+              let investmentDateFromFile: Date;
               const tsNum = Number(record.ts);
               if (!isNaN(tsNum)) {
-                investmentDate = new Date(tsNum);
+                investmentDateFromFile = new Date(tsNum);
               } else {
-                // Tentar interpretar como string de data
-                investmentDate = new Date(record.ts);
+                investmentDateFromFile = new Date(record.ts);
               }
+              if (isNaN(investmentDateFromFile.getTime())) throw new Error(`Data inválida: ${record.ts}`);
               
-              // Verificar se a data é válida
-              if (isNaN(investmentDate.getTime())) {
-                throw new Error(`Data inválida: ${record.ts}`);
-              }
-              
-              // Processar o valor
               const amount = parseFloat(record.amount.toString());
-              if (isNaN(amount) || amount <= 0) {
-                throw new Error(`Valor inválido: ${record.amount}`);
-              }
+              if (isNaN(amount) || amount <= 0) throw new Error(`Valor inválido: ${record.amount}`);
               
-              // Definir a unidade sempre como SATS
               const unit: CurrencyUnit = "SATS";
-              
-              // Verificar se este registro já existe (usando o ID original)
               const originalId = record.id.toString();
               if (existingIds.has(originalId)) {
                 duplicatedCount++;
                 return;
               }
               
-              // Criar novo investimento
-              const newInvestment: Investment = {
-                id: Date.now().toString() + index, // Usar ID único
-                originalId: originalId, // Preservar ID original para evitar duplicações futuras
-                date: "2024-01-01", // TESTE: Data Hardcoded para diagnóstico
+              newInvestmentsFromCsv.push({
+                originalId: originalId, 
+                date: formatDateToUTC(investmentDateFromFile), // Usar formatDateToUTC
                 amount: amount,
                 unit: unit
-              };
-              
-              // Adicionar ao array de novos investimentos
-              newInvestments.push(newInvestment);
+              });
               importedCount++;
-              
             } catch (error) {
-              console.error(`Erro ao processar linha ${index + 1}:`, error);
+              console.error(`Erro ao processar linha ${index + 1} do CSV de aportes:`, error);
               errorCount++;
             }
           });
           
-          // Atualizar estatísticas
           setImportStats({
             total: totalRecords,
             success: importedCount,
@@ -2213,10 +2192,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             duplicated: duplicatedCount
           });
           
-          // Adicionar os novos investimentos ou mostrar diálogo de duplicados
-          if (newInvestments.length > 0) {
-            // MODIFICADO: Usar setReports para adicionar ao relatório ativo
-            newInvestments.forEach(inv => addInvestmentToReport(activeReportIdFromHook, inv)); // USAR HOOK
+          if (newInvestmentsFromCsv.length > 0) {
+            newInvestmentsFromCsv.forEach(invData => addInvestment(invData)); // Chamar o hook addInvestment
             
             toast({
               title: "Importação de aportes concluída",
@@ -2224,11 +2201,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               variant: "success",
             });
           } else if (duplicatedCount > 0) {
-            // Mostrar diálogo de duplicações em vez de toast
-            setDuplicateInfo({
-              count: duplicatedCount,
-              type: 'aportes'
-            });
+            setDuplicateInfo({ count: duplicatedCount, type: 'aportes' });
             setShowDuplicateDialog(true);
           } else {
             toast({
@@ -2262,9 +2235,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           description: "Não foi possível ler o arquivo CSV selecionado.",
           variant: "destructive",
         });
-        if (event.target) {
-          event.target.value = '';
-        }
+        if (event.target) event.target.value = '';
       };
       
       reader.readAsText(file);
@@ -2278,9 +2249,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
         variant: "destructive",
       });
-      if (event.target) {
-        event.target.value = '';
-      }
+      if (event.target) event.target.value = '';
     }
   };
 
@@ -2482,7 +2451,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </div>
                     </RadioGroup>
                   </div>
-                  <Button onClick={addInvestment} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
+                  <Button onClick={handleAddInvestmentButtonClick} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
                     Adicionar Aporte
                   </Button>
                 </div>
@@ -2581,7 +2550,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     </div>
                   </div>
                   
-                  <Button onClick={addProfitRecord} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
+                  <Button onClick={handleAddProfitRecordButtonClick} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
                     Adicionar {isProfit ? "Lucro" : "Perda"}
                   </Button>
                 </div>
@@ -3020,7 +2989,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => deleteInvestment(investment.id)}
+                                    onClick={() => deleteInvestmentLocal(investment.id)} // Corrigido para deleteInvestmentLocal
                                     className="hover:bg-red-900/20 hover:text-red-400"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -3094,7 +3063,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => deleteProfit(profit.id)}
+                                    onClick={() => deleteProfitLocal(profit.id)} // Corrigido para deleteProfitLocal
                                     className="hover:bg-red-900/20 hover:text-red-400"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -3317,9 +3286,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 variant="default"
                 onClick={() => {
                   if (duplicateConfirmInfo.type === 'investment' && pendingInvestment) {
-                    confirmAddInvestment(pendingInvestment);
+                    const {id, ...investmentData} = pendingInvestment;
+                    confirmAddInvestment(investmentData);
                   } else if (duplicateConfirmInfo.type === 'profit' && pendingProfit) {
-                    confirmAddProfitRecord(pendingProfit);
+                    const {id, ...profitData} = pendingProfit;
+                    confirmAddProfitRecord(profitData);
                   }
                 }}
                 className="bg-purple-800 hover:bg-purple-700"

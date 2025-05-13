@@ -503,6 +503,80 @@ export function useReports() {
     return true;
   }, []);
   
+  // NOVA FUNÇÃO: Excluir todos os investimentos de um relatório
+  const deleteAllInvestmentsFromReport = useCallback((reportId: string) => {
+    setCollection(prevCollection => {
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
+
+      if (reportIndex === -1) {
+        toast({
+          title: "Relatório não encontrado",
+          description: "Não foi possível encontrar o relatório para excluir os aportes.",
+          variant: "destructive",
+          duration: 3000,
+        });
+        return prevCollection;
+      }
+
+      const updatedReports = [...prevCollection.reports];
+      const currentReport = { ...updatedReports[reportIndex] };
+
+      currentReport.investments = [];
+      currentReport.updatedAt = new Date().toISOString();
+      updatedReports[reportIndex] = currentReport;
+
+      toast({
+        title: "Aportes excluídos",
+        description: `Todos os aportes do relatório "${currentReport.name}" foram excluídos.`,
+        duration: 3000,
+      });
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+    return true;
+  }, []);
+
+  // NOVA FUNÇÃO: Excluir todos os lucros/perdas de um relatório
+  const deleteAllProfitsFromReport = useCallback((reportId: string) => {
+    setCollection(prevCollection => {
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
+
+      if (reportIndex === -1) {
+        toast({
+          title: "Relatório não encontrado",
+          description: "Não foi possível encontrar o relatório para excluir os registros de lucro/perda.",
+          variant: "destructive",
+          duration: 3000,
+        });
+        return prevCollection;
+      }
+
+      const updatedReports = [...prevCollection.reports];
+      const currentReport = { ...updatedReports[reportIndex] };
+
+      currentReport.profits = [];
+      currentReport.updatedAt = new Date().toISOString();
+      updatedReports[reportIndex] = currentReport;
+
+      toast({
+        title: "Registros de Lucro/Perda excluídos",
+        description: `Todos os registros de lucro/perda do relatório "${currentReport.name}" foram excluídos.`,
+        duration: 3000,
+      });
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+    return true;
+  }, []);
+  
   // Retornar as funções e dados necessários
   return {
     reports: collection.reports,
@@ -523,6 +597,8 @@ export function useReports() {
     deleteInvestment,
     deleteProfitRecord,
     updateReportData,
-    importData
+    importData,
+    deleteAllInvestmentsFromReport,
+    deleteAllProfitsFromReport,
   };
 } 
