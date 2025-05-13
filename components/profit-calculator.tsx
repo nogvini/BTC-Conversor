@@ -628,28 +628,48 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
       return;
     }
-    setReports(prevReports => prevReports.map(r =>
-      r.id === activeReportId
-        ? { ...r, profits: r.profits.filter(p => p.id !== id) }
-        : r
-    ));
-    if (!toastDebounce) {
-      setToastDebounce(true);
-      toast({ title: "Registro removido", description: "O registro de lucro/perda foi removido do relatório atual." });
-      setTimeout(() => setToastDebounce(false), 1000);
-    }
+    setReports(prevReports => prevReports.map(report => {
+      if (report.id === activeReportId) {
+        return {
+          ...report,
+          profits: report.profits.filter(p => p.id !== id)
+        };
+      }
+      return report;
+    }));
+    toast({ title: "Sucesso", description: "Registro de lucro/prejuízo excluído.", variant: "default" });
   };
   
   const deleteAllInvestments = () => {
-    console.log("deleteAllInvestments comentado para depuração");
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      setShowDeleteInvestmentsDialog(false);
+      return;
+    }
+    setReports(prevReports => prevReports.map(report => {
+      if (report.id === activeReportId) {
+        return { ...report, investments: [] };
+      }
+      return report;
+    }));
+    toast({ title: "Sucesso", description: "Todos os investimentos foram excluídos do relatório ativo.", variant: "default" });
     setShowDeleteInvestmentsDialog(false);
-    toast({ title: "Função desabilitada", description: "deleteAllInvestments está comentada para depuração."});
   };
   
   const deleteAllProfits = () => {
-    console.log("deleteAllProfits comentado para depuração");
+    if (!activeReportId) {
+      toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
+      setShowDeleteProfitsDialog(false);
+      return;
+    }
+    setReports(prevReports => prevReports.map(report => {
+      if (report.id === activeReportId) {
+        return { ...report, profits: [] };
+      }
+      return report;
+    }));
+    toast({ title: "Sucesso", description: "Todos os registros de lucro/prejuízo foram excluídos do relatório ativo.", variant: "default" });
     setShowDeleteProfitsDialog(false);
-    toast({ title: "Função desabilitada", description: "deleteAllProfits está comentada para depuração."});
   };
 
   // Funções de navegação
@@ -673,29 +693,310 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   const toggleDisplayCurrency = () => {
-    setDisplayCurrency(displayCurrency === "USD" ? "BRL" : "USD");
+    setDisplayCurrency(prev => (prev === "USD" ? "BRL" : "USD"));
   };
 
   // Função para exportação com opções
   const exportData = async (exportAll: boolean = false) => {
-    console.log("exportData comentado para depuração");
-    setIsExporting(false);
-    toast({ title: "Função desabilitada", description: "exportData está comentada para depuração."});
-  };
-
-  const handleExportButtonClick = () => {
-    if (isExporting) {
+    if (!activeReport) {
       toast({
-        title: "Exportação em andamento",
-        description: "Aguarde a conclusão da exportação atual.",
-        variant: "destructive"
+        title: "Nenhum Relatório Ativo",
+        description: "Por favor, selecione ou crie um relatório para exportar os dados.",
+        variant: "destructive",
       });
       return;
     }
-    
-    console.log("Verificação de activeReport em handleExportButtonClick comentada para depuração");
-    
-    setShowExportOptions(true);
+
+    setIsExporting(true);
+    toast({
+      title: "Exportando Dados",
+      description: "Aguarde enquanto preparamos seus dados para download...",
+      variant: "default",
+    });
+
+    try {
+      // Filtrar dados se exportAll for false
+      const investmentsToExport = exportAll ? activeReport.investments : getFilteredInvestments();
+      const profitsToExport = exportAll ? activeReport.profits : getFilteredProfits();
+
+      if (investmentsToExport.length === 0 && profitsToExport.length === 0) {
+        toast({
+          title: "Nenhum Dado para Exportar",
+          description: exportAll ? "O relatório ativo não contém dados." : "Não há dados para o filtro atual.",
+          variant: "destructive",
+        });
+        setIsExporting(false);
+        return;
+      }
+      
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "BTC Profit Calculator";
+      workbook.lastModifiedBy = "BTC Profit Calculator";
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      // Estilo para cabeçalhos
+      const headerStyle: Partial<ExcelJS.Style> = {
+        font: { bold: true, color: { argb: 'FFFFFFFF' } },
+        fill: {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4F46E5' } // Roxo Tailwind (indigo-600)
+        },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        border: {
+          top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+        }
+      };
+
+      // Estilo para células de dados
+      const dataCellStyle: Partial<ExcelJS.Style> = {
+        alignment: { vertical: 'middle' },
+        border: {
+          top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+        }
+      };
+      
+      const currencyStyle: Partial<ExcelJS.Style> = {
+        ...dataCellStyle,
+        numFmt: '#,##0.00' // Formato para moeda com 2 casas decimais
+      };
+      
+      const cryptoStyle: Partial<ExcelJS.Style> = {
+        ...dataCellStyle,
+        numFmt: '#,##0.00000000' // Formato para cripto com 8 casas decimais
+      };
+      
+      const dateStyle: Partial<ExcelJS.Style> = {
+        ...dataCellStyle,
+        numFmt: 'dd/mm/yyyy hh:mm:ss' // Formato para data e hora
+      };
+
+
+      // Resumo do Relatório
+      const summarySheet = workbook.addWorksheet('Resumo do Relatório');
+      summarySheet.columns = [
+        { header: 'Métrica', key: 'metric', width: 30 },
+        { header: 'Valor', key: 'value', width: 30 }
+      ];
+      summarySheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
+
+      const totalInvestmentsBtc = activeReport.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0);
+      const totalProfitsBtc = activeReport.profits.filter(p => p.isProfit).reduce((sum, prof) => sum + convertToBtc(prof.amount, prof.unit), 0);
+      const totalLossesBtc = activeReport.profits.filter(p => !p.isProfit).reduce((sum, loss) => sum + convertToBtc(loss.amount, loss.unit), 0);
+      const netProfitBtc = totalProfitsBtc - totalLossesBtc;
+      const balanceBtc = totalInvestmentsBtc + netProfitBtc;
+
+      summarySheet.addRow({ metric: 'Nome do Relatório', value: activeReport.name });
+      summarySheet.addRow({ metric: 'Data de Criação', value: format(new Date(activeReport.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) });
+      summarySheet.addRow({ metric: 'Total de Investimentos (BTC)', value: totalInvestmentsBtc });
+      summarySheet.addRow({ metric: 'Total de Lucros (BTC)', value: totalProfitsBtc });
+      summarySheet.addRow({ metric: 'Total de Prejuízos (BTC)', value: totalLossesBtc });
+      summarySheet.addRow({ metric: 'Lucro Líquido (BTC)', value: netProfitBtc });
+      summarySheet.addRow({ metric: 'Saldo Atual Estimado (BTC)', value: balanceBtc });
+      
+      if (appData?.currentPrice) {
+        summarySheet.addRow({ metric: `Saldo Atual Estimado (${displayCurrency})`, value: formatCurrency(balanceBtc * (displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd), displayCurrency) });
+        summarySheet.addRow({ metric: `Preço BTC (${displayCurrency}) Usado`, value: formatCurrency(displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd, displayCurrency) });
+      }
+      
+      summarySheet.getColumn('value').numFmt = '#,##0.00########'; // Formato geral para valores
+
+      // Planilha de Investimentos
+      const investmentSheet = workbook.addWorksheet('Investimentos');
+      investmentSheet.columns = [
+        { header: 'ID', key: 'id', width: 30 },
+        { header: 'Data (UTC)', key: 'date', width: 20, style: dateStyle },
+        { header: 'Quantidade', key: 'amount', width: 20, style: cryptoStyle }, // cryptoStyle é um base, ajustaremos por SATS/BTC depois
+        { header: 'Unidade', key: 'unit', width: 10 },
+        { header: 'Equivalente BTC', key: 'btcEquivalent', width: 20, style: cryptoStyle },
+        { header: `Valor (${displayCurrency}) no Momento da Compra`, key: 'valueAtPurchase', width: 30, style: currencyStyle },
+      ];
+      investmentSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
+
+      investmentsToExport.forEach(inv => {
+        const btcEquivalent = convertToBtc(inv.amount, inv.unit);
+        // TODO: Precisaríamos de dados históricos para calcular o valor exato no momento da compra.
+        // Por enquanto, deixaremos este campo como "N/A" ou usaremos o preço atual como uma aproximação,
+        // o que não é ideal mas é uma limitação sem dados históricos de preço por data.
+        investmentSheet.addRow({
+          id: inv.id,
+          date: new Date(inv.date), // ExcelJS lida bem com objetos Date
+          amount: inv.amount,
+          unit: inv.unit,
+          btcEquivalent: btcEquivalent,
+          valueAtPurchase: 'N/A' // Placeholder
+        });
+      });
+      
+      // Removida a atribuição de função a investmentSheet.getColumn('amount').numFmt daqui
+
+      // Planilha de Lucros/Prejuízos
+      const profitSheet = workbook.addWorksheet('Lucros e Prejuízos');
+      profitSheet.columns = [
+        { header: 'ID', key: 'id', width: 30 },
+        { header: 'Data (UTC)', key: 'date', width: 20, style: dateStyle },
+        { header: 'Quantidade', key: 'amount', width: 20, style: cryptoStyle }, // cryptoStyle é um base, ajustaremos por SATS/BTC depois
+        { header: 'Unidade', key: 'unit', width: 10 },
+        { header: 'Tipo', key: 'type', width: 10 },
+        { header: 'Equivalente BTC', key: 'btcEquivalent', width: 20, style: cryptoStyle },
+        { header: `Valor (${displayCurrency}) no Momento do Registro`, key: 'valueAtRecord', width: 30, style: currencyStyle },
+      ];
+      profitSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
+
+      profitsToExport.forEach(prof => {
+        const btcEquivalent = convertToBtc(prof.amount, prof.unit);
+        // Similar ao investimento, o valor exato no momento do registro precisaria de dados históricos.
+        profitSheet.addRow({
+          id: prof.id,
+          date: new Date(prof.date),
+          amount: prof.amount,
+          unit: prof.unit,
+          type: prof.isProfit ? 'Lucro' : 'Prejuízo',
+          btcEquivalent: btcEquivalent,
+          valueAtRecord: 'N/A' // Placeholder
+        });
+      });
+      
+      // Removida a atribuição de função a profitSheet.getColumn('amount').numFmt daqui
+
+      // Adicionando Metadados ao Arquivo
+      const metadataSheet = workbook.addWorksheet('Metadados');
+      metadataSheet.columns = [
+        { header: 'Chave', key: 'key', width: 30 },
+        { header: 'Valor', key: 'value', width: 50 }
+      ];
+      metadataSheet.getRow(1).eachCell({ includeEmpty: true }, cell => { cell.style = headerStyle; });
+
+      metadataSheet.addRow({ key: 'Nome do Relatório', value: activeReport.name });
+      metadataSheet.addRow({ key: 'ID do Relatório', value: activeReport.id });
+      metadataSheet.addRow({ key: 'Data de Exportação', value: format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }) });
+      metadataSheet.addRow({ key: 'Moeda de Exibição', value: displayCurrency });
+      metadataSheet.addRow({ key: 'Preço BTC/USD na Exportação', value: currentRates.btcToUsd });
+      metadataSheet.addRow({ key: 'Preço BRL/USD na Exportação', value: currentRates.brlToUsd });
+      metadataSheet.addRow({ key: 'Dados Completos Exportados', value: exportAll ? 'Sim' : 'Não (Filtrado)' });
+      if (!exportAll) {
+        metadataSheet.addRow({ key: 'Mês do Filtro (se aplicável)', value: format(filterMonth, "MMMM yyyy", { locale: ptBR }) });
+      }
+      metadataSheet.addRow({ key: 'Total de Investimentos Exportados', value: investmentsToExport.length });
+      metadataSheet.addRow({ key: 'Total de Lucros/Prejuízos Exportados', value: profitsToExport.length });
+
+      // Aplicar formatação às colunas
+      [summarySheet, investmentSheet, profitSheet, metadataSheet].forEach(sheet => {
+        sheet.columns.forEach(column => {
+          if (column.key) { // Certifique-se de que a chave existe
+            const cells = sheet.getColumn(column.key).values;
+            if (cells && cells.length > 1) { // Ignora o cabeçalho
+              // Aplica o estilo de dados às células de dados
+              sheet.getColumn(column.key).eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+                if (rowNumber > 1) { // Ignora a linha do cabeçalho
+                  cell.style = { ...cell.style, ...dataCellStyle }; // Aplica estilo de dados base
+                  
+                  let formatString: string | undefined = undefined;
+
+                  if (column.key === 'amount' && (sheet.name === 'Investimentos' || sheet.name === 'Lucros e Prejuízos')) {
+                    const unitCell = cell.row.getCell('unit'); // A chave 'unit' deve existir nas colunas dessas planilhas
+                    const unitRawValue = unitCell?.value; // value pode ser null, string, number, etc.
+                    
+                    if (unitRawValue === 'SATS') {
+                      formatString = '#,##0';
+                    } else if (unitRawValue === 'BTC') { // Assumindo que a unidade será explicitamente 'BTC' ou 'SATS'
+                      formatString = '#,##0.00000000';
+                    } else if (column.style?.numFmt) { 
+                      // Fallback para o numFmt do estilo da coluna 'amount' (que é cryptoStyle) se a unidade não for reconhecida
+                      formatString = column.style.numFmt;
+                    } else {
+                      // Fallback final se column.style.numFmt também não existir (improvável para 'amount')
+                       formatString = '#,##0.00000000'; // Formato BTC padrão como último recurso
+                    }
+                  } else if (column.style?.numFmt) { // Usar o numFmt definido no estilo da coluna para outros casos
+                    formatString = column.style.numFmt;
+                  }
+                  // Adicional: Para a coluna 'value' na 'Resumo do Relatório' e 'Metadados',
+                  // o numFmt global summarySheet.getColumn('value').numFmt = '#,##0.00########'; já foi aplicado.
+                  // Se uma formatação mais específica for necessária por linha (ex: BTC vs USD), 
+                  // seria melhor tratá-la ao adicionar as linhas ou com lógica mais detalhada aqui.
+
+                  if (formatString !== undefined) { // Garante que string vazia também seja aplicada se for intencional
+                    cell.numFmt = formatString;
+                  }
+                }
+              });
+            }
+          }
+        });
+         // Autoajuste da largura das colunas com base no conteúdo, limitado a um máximo
+        sheet.columns.forEach(column => {
+            let maxLength = 0;
+            column.eachCell!({ includeEmpty: true }, function(cell) {
+                var columnLength = cell.value ? cell.value.toString().length : 10;
+                if (columnLength > maxLength) {
+                    maxLength = columnLength;
+                }
+            });
+            column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2); // min 10, max 50
+        });
+      });
+      
+      // Estilo especial para a primeira coluna (chave) na aba de Metadados e Resumo
+      summarySheet.getColumn('metric').font = { bold: true };
+      metadataSheet.getColumn('key').font = { bold: true };
+
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const reportNameSanitized = activeReport.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const dateSuffix = format(new Date(), "yyyyMMdd_HHmmss");
+      const fileName = `btc_calculator_report_${reportNameSanitized}_${dateSuffix}.xlsx`;
+      
+      saveAs(new Blob([buffer]), fileName);
+
+      toast({
+        title: "Exportação Concluída",
+        description: `Seus dados foram exportados com sucesso para ${fileName}`,
+        variant: "default",
+      });
+
+    } catch (error) {
+      console.error("Erro ao exportar dados:", error);
+      toast({
+        title: "Erro na Exportação",
+        description: "Ocorreu um erro ao tentar exportar seus dados. Verifique o console para mais detalhes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setUseExportDialog(false); // Fecha o diálogo após a exportação
+      setShowExportOptions(false); // Fecha o popover/dropdown de opções
+    }
+  };
+
+
+  const handleExportButtonClick = () => {
+    if (!activeReport || activeReport.investments.length === 0 && activeReport.profits.length === 0) {
+       toast({
+         title: "Nenhum dado para exportar",
+         description: "Adicione investimentos ou lucros/prejuízos antes de exportar.",
+         variant: "destructive"
+       });
+       return;
+    }
+    // Se houver dados, decide se mostra o diálogo ou o popover
+    if (isMobile || isSmallScreen) {
+      setUseExportDialog(true);
+    } else {
+      // Para desktop, pode-se usar um Popover, que é controlado por showExportOptions
+      // Se showExportOptions já estiver controlando um popover, não precisa fazer nada aqui
+      // ou pode-se abrir um diálogo também por consistência, se preferir.
+      // Por ora, vamos assumir que o popover é acionado pelo PopoverTrigger
+      // e esta função é mais para o caso mobile/dialog
+       setUseExportDialog(true); // Para consistência, usar diálogo em ambos por enquanto
+    }
   };
 
   // Funções de filtro e cálculo para o histórico
