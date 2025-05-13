@@ -423,7 +423,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     const newInvestment: Investment = {
-      id: Date.now().toString(), date: formatDateToUTC(investmentDate),
+      id: Date.now().toString(), date: formatDateToUTC(investmentDate), // REVERTER PARA formatDateToUTC
       amount: Number(investmentAmount), unit: investmentUnit,
     };
 
@@ -2190,7 +2190,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               const newInvestment: Investment = {
                 id: Date.now().toString() + index, // Usar ID único
                 originalId: originalId, // Preservar ID original para evitar duplicações futuras
-                date: format(investmentDate, "yyyy-MM-dd"),
+                date: investmentDate.toISOString().slice(0,10), // Alteração para diagnóstico
                 amount: amount,
                 unit: unit
               };
