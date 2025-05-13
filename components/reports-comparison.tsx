@@ -280,10 +280,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     });
     
     // Calcular totais gerais
-    const totalInvestmentsBtc = statsData[selectedReportIds[0]]?.totalInvestments || 0;
-    const totalProfitsBtc = statsData[selectedReportIds[0]]?.totalProfits || 0;
-    const totalBalanceBtc = statsData[selectedReportIds[0]]?.finalBalance || 0;
-    const totalRoi = statsData[selectedReportIds[0]]?.roi || 0;
+    const totalInvestmentsBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].totalInvestments : 0;
+    const totalProfitsBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].totalProfits : 0;
+    const totalBalanceBtc = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].finalBalance : 0;
+    const totalRoi = selectedReportIds.length > 0 && statsData[selectedReportIds[0]] ? statsData[selectedReportIds[0]].roi : 0;
     
     return {
       chartData,
@@ -349,7 +349,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           <div className="space-y-1">
             {payload.map((entry: any, index: number) => (
               <div key={`item-${index}`} className="flex items-center gap-2">
-                <div 
+                <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: entry.color }}
                 />
@@ -369,18 +369,25 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
 
   // Preparar dados para os gráficos e tabelas
   const comparisonDataForTabs = useMemo(() => {
+    if (!reports || reports.length === 0) {
+      return {
+        summaries: [],
+        barChartData: [],
+        pieData: [],
+      };
+    }
     // Calcular totais para cada relatório
     const reportSummaries = reports.map(report => {
-      const totalInvestmentsBtc = report.investments.reduce(
-        (total, inv) => total + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount), 
+      const totalInvestmentsBtc = report.investments?.reduce(
+        (total, inv) => total + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount),
         0
-      );
-      
-      const totalProfitsBtc = report.profits.reduce((total, profit) => {
-        const btcAmount = (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+      ) || 0;
+
+      const totalProfitsBtc = report.profits?.reduce((total, profit) => {
+        const btcAmount = (profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount); // Corrected: profit.unit, profit.amount
         return profit.isProfit ? total + btcAmount : total - btcAmount;
-      }, 0);
-      
+      }, 0) || 0;
+
       // Calcular valores em USD e BRL
       const totalInvestmentsUsd = totalInvestmentsBtc * btcToUsd;
       const totalInvestmentsBrl = totalInvestmentsUsd * brlToUsd;
@@ -825,8 +832,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           >
             Detalhes
           </TabsTrigger>
-              </TabsList>
-              
+        </TabsList>
+        
         <TabsContent value="summary" className="pt-2">
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
@@ -836,11 +843,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalInvestmentsBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-                                </div>
+              </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalInvestmentsBtc * btcToUsd, "USD")}
-                                      </div>
-                                  </div>
+              </div>
+            </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
               <div className={`text-xl font-bold ${comparisonData.totalProfitsBtc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -848,10 +855,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalProfitsBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-                  </div>
+              </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalProfitsBtc * btcToUsd, "USD")}
-                </div>
+              </div>
             </div>
           </div>
           
@@ -863,11 +870,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   value={comparisonData.totalBalanceBtc} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
-                                </div>
+              </div>
               <div className="text-xs text-muted-foreground">
                 {formatCurrencyAmount(comparisonData.totalBalanceBtc * btcToUsd, "USD")}
-                                </div>
-                                </div>
+              </div>
+            </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
               <div className={`text-xl font-bold ${comparisonData.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -879,9 +886,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground">
                 Retorno sobre investimento
               </div>
-                                </div>
-                              </div>
-                              
+            </div>
+          </div>
+          
           <ScrollArea className="h-[180px] mt-4 rounded-lg border border-purple-800/30">
             <Table className="min-w-[640px]">
               <TableHeader>
@@ -954,9 +961,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
                   </BarChart>
                 </ResponsiveContainer>
-                                </div>
-                              </div>
-                              
+              </div>
+            </div>
+            
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <h4 className="text-sm font-medium mb-3">Distribuição de Saldo</h4>
               <div className="h-[250px]">
@@ -982,11 +989,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
-                                </div>
-                  </div>
-                </div>
-              </TabsContent>
-              
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        
         <TabsContent value="details" className="pt-2">
           <ScrollArea className="h-[400px] rounded-lg border border-purple-800/30">
             <Table className="min-w-[700px]">
@@ -1012,7 +1019,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                           style={{ backgroundColor: summary.color }}
                         ></div>
                         {summary.name}
-                                </div>
+                      </div>
                     </TableCell>
                     <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
                     <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
@@ -1030,8 +1037,81 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               </TableBody>
             </Table>
           </ScrollArea>
-              </TabsContent>
-            </Tabs>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-} 
+}
+
+// Componente StatCard auxiliar
+interface StatCardProps {
+  title: string;
+  value: number;
+  unit?: "btc" | "usd" | "brl" | "%";
+  isProfit?: boolean;
+  btcToUsd?: number; // Necessário se unit for btc e precisarmos de conversão implícita para tooltip
+  brlToUsd?: number; // Necessário se unit for btc e precisarmos de conversão implícita para tooltip
+}
+
+function StatCard({ title, value, unit, isProfit, btcToUsd, brlToUsd }: StatCardProps) {
+  const formatStatValue = (val: number, u?: string) => {
+    if (typeof val !== 'number' || isNaN(val)) {
+      return u === "%" ? "0.00%" : (u === "btc" ? "₿0.00000000" : (u === "usd" ? "$0.00" : (u === "brl" ? "R$0.00" : "0")));
+    }
+
+    switch (u) {
+      case "btc":
+        return val >= 0.01 || val <= -0.01
+        ? `₿${val.toLocaleString('pt-BR', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}`
+        : `丰${(val * 100000000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+      case "usd":
+        return `$${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case "brl":
+        return `R$${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case "%":
+        return `${val.toFixed(2)}%`;
+      default:
+        return val.toLocaleString('pt-BR');
+    }
+  };
+  
+  const getValueColor = () => {
+    if (isProfit === undefined) return "text-primary";
+    if (value > 0) return "text-green-500";
+    if (value < 0) return "text-red-500";
+    return "text-muted-foreground";
+  }
+
+  // Tooltip com valor em outras moedas se for BTC
+  const renderTooltipContent = () => {
+    if (unit === "btc" && btcToUsd && brlToUsd && typeof value === 'number' && !isNaN(value)) {
+      const valueUsd = value * btcToUsd;
+      const valueBrl = valueUsd * brlToUsd;
+      return (
+        <TooltipContent>
+          <p>{formatStatValue(valueUsd, "usd")}</p>
+          <p>{formatStatValue(valueBrl, "brl")}</p>
+        </TooltipContent>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <TooltipProvider>
+      <UITooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <div className="p-4 bg-background/30 rounded-lg shadow hover:shadow-md transition-shadow">
+            <h3 className="text-xs text-muted-foreground truncate" title={title}>{title}</h3>
+            <p className={`text-lg font-bold ${getValueColor()}`}>
+              {formatStatValue(value, unit)}
+            </p>
+          </div>
+        </TooltipTrigger>
+        {renderTooltipContent()}
+      </UITooltip>
+    </TooltipProvider>
+  );
+}
+
+export default ReportsComparison; 
