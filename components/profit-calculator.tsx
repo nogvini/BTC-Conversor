@@ -3291,53 +3291,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </div>
             </CardHeader>
             <CardContent>
-              {showFilterOptions && (
-                <div className="px-6 pb-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Mês selecionado</div>
-                      <div className="text-lg font-semibold text-white">
-                        {format(filterMonth, "MMMM yyyy", { locale: ptBR })}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Aporte total</div>
-                      <div className="text-lg font-semibold text-blue-400">
-                        {formatCryptoAmount(calculateTotalInvestmentsInMonth(filterMonth), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {formatBtcValueInCurrency(calculateTotalInvestmentsInMonth(filterMonth))}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Lucro/Perda do mês</div>
-                      <div className={`text-lg font-semibold ${calculateTotalProfitsInMonth(filterMonth) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                        {formatCryptoAmount(calculateTotalProfitsInMonth(filterMonth), "BTC")}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {calculateTotalProfitsInMonth(filterMonth) >= 0 ? "+" : ""}
-                        {formatBtcValueInCurrency(calculateTotalProfitsInMonth(filterMonth))}
-                      </div>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                      <div className="text-xs text-gray-400">Rendimento</div>
-                      <div className={`text-lg font-semibold ${
-                        calculateTotalInvestmentsInMonth(filterMonth) > 0 && 
-                        (calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100) >= 0 ? 
-                        "text-green-500" : "text-red-500"}`}>
-                        {calculateTotalInvestmentsInMonth(filterMonth) > 0 ? 
-                          `${(calculateTotalProfitsInMonth(filterMonth) / calculateTotalInvestmentsInMonth(filterMonth) * 100).toFixed(2)}%` : 
-                          "N/A"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {getFilteredInvestments().length === 0 && getFilteredProfits().length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
                   {showFilterOptions ? 
