@@ -235,6 +235,36 @@
   - [x] Migração de dados legados
   - [x] Comparação visual entre relatórios
 - [ ] **A3**: Adicionar funcionalidade de compartilhamento de relatórios
+- [ ] **A4: Correção de Persistência e Sincronização de Dados da Calculadora**
+  - [ ] **A4.1: Corrigir Mutação Direta na Importação de Dados Internos**
+    -   **Arquivo Alvo:** `components/profit-calculator.tsx`
+    -   **Descrição:** Refatorar a função `handleImportInternalData` para utilizar o método `updateReportData` (ou similar, que garanta imutabilidade) do hook `useReports` em vez de modificar diretamente o array `allReportsFromHook`. Isso garante que o React detecte a mudança e o `useEffect` de persistência no hook `useReports` seja acionado.
+    -   **Critério de Sucesso:** Dados importados através da funcionalidade "Importar Backup (Excel)" persistem corretamente após recarregar a página e são refletidos no estado global.
+  - [ ] **A4.2: Implementar `deleteAllInvestmentsFromReport` no Hook `useReports`**
+    -   **Arquivo Alvo:** `hooks/use-reports.ts`
+    -   **Descrição:** Criar uma nova função `deleteAllInvestmentsFromReport(reportId: string)` que receba o ID do relatório. Esta função deve atualizar a `collection` de forma imutável, definindo o array `investments` do relatório especificado como `[]` e atualizando `report.updatedAt` e `collection.lastUpdated`.
+    -   **Critério de Sucesso:** A função é exportada pelo hook e remove todos os investimentos do relatório especificado, persistindo a alteração.
+  - [ ] **A4.3: Implementar `deleteAllProfitsFromReport` no Hook `useReports`**
+    -   **Arquivo Alvo:** `hooks/use-reports.ts`
+    -   **Descrição:** Similar à A4.2, criar uma função `deleteAllProfitsFromReport(reportId: string)` para remover todos os registros de `profits` de um relatório específico, atualizando o estado de forma imutável.
+    -   **Critério de Sucesso:** A função é exportada pelo hook e remove todos os lucros/perdas do relatório especificado, persistindo a alteração.
+  - [ ] **A4.4: Integrar Funções de Exclusão em Massa no `ProfitCalculator`**
+    -   **Arquivo Alvo:** `components/profit-calculator.tsx`
+    -   **Descrição:** Modificar as funções `deleteAllInvestments` e `deleteAllProfits` para desestruturar e chamar as novas funções `deleteAllInvestmentsFromReport` e `deleteAllProfitsFromReport` do hook `useReports`, passando o `activeReportIdFromHook` como argumento.
+    -   **Critério de Sucesso:** Os botões "Remover todos" na aba de Histórico funcionam corretamente, removendo os dados apenas do relatório ativo e persistindo as mudanças.
+  - [ ] **A4.5: Garantir Persistência em Todas Operações CRUD de Relatórios e Registros**
+    -   **Arquivos Alvo:** `hooks/use-reports.ts`, `components/profit-calculator.tsx`
+    -   **Descrição:** Realizar uma revisão completa de todas as funções em `useReports` (add/delete/update de relatórios, add/delete de investimentos/lucros) para garantir que `setCollection` sempre receba uma nova referência da `collection` e que `lastUpdated` seja consistentemente atualizado. Verificar se `profit-calculator.tsx` utiliza corretamente as funções do hook para todas as modificações.
+    -   **Critério de Sucesso:** Todas as operações de criação, leitura, atualização e exclusão de relatórios e seus respectivos registros (investimentos, lucros/perdas) são corretamente persistidas no `localStorage` e refletidas na UI após recarregar a página.
+  - [ ] **A4.6: Testes Abrangentes de Persistência e Sincronização**
+    -   **Descrição:** Executar testes manuais cobrindo todos os cenários de CRUD para relatórios e registros, incluindo:
+        -   Adição e exclusão de registros individuais.
+        -   Exclusão em massa de registros.
+        -   Criação, seleção e exclusão de relatórios.
+        -   Importação de dados (todos os formatos suportados).
+        -   Verificar a persistência após recarregar a página em cada etapa.
+        -   Confirmar que a UI é atualizada corretamente sem recarregar.
+    -   **Critério de Sucesso:** O sistema demonstra comportamento estável e previsível em relação à persistência de dados da calculadora em todos os cenários testados.
 
 ### B. Sistema de Autenticação - Otimizações
 - [ ] **B1**: Melhorar desempenho do processo de login
