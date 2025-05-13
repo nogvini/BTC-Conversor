@@ -1,3 +1,25 @@
+# Tarefas Principais (Épicos)
+
+## 🚀 Épico Atual: Integração da API LNMarkets
+
+- **Objetivo:** Permitir que os usuários conectem suas contas LNMarkets para importar automaticamente depósitos e trades para a calculadora de lucros.
+- **Foco:** Implementar a configuração segura de API no perfil do usuário, buscar dados da LNMarkets e integrá-los ao `profit-calculator.tsx`.
+- **Detalhes:** Veja o plano completo em [detailed-tasks.md](detailed-tasks.md).
+- **Status Geral:** 🟡 Em Andamento (Fase 1 - Frontend concluído, Backend pendente)
+
+---
+
+## ✅ Épicos Concluídos / Arquivados
+
+*(Tarefas anteriores podem ser movidas para cá ou para um arquivo de arquivo separado se necessário manter o histórico)*
+
+- Refatoração Visual e UX (Considerado concluído com as últimas alterações)
+- Otimização de Performance Inicial (Considerado concluído)
+
+---
+
+*Este arquivo fornece uma visão de alto nível. Para tarefas específicas do sprint atual, veja [sprint-planning.md](sprint-planning.md). Para o plano detalhado do épico atual, veja [detailed-tasks.md](detailed-tasks.md).*
+
 # Tarefas: Raid Bitcoin Toolkit
 
 ## Prioridade Alta

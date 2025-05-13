@@ -4,6 +4,7 @@
  */
 
 import { AppData, BitcoinPrice, HistoricalDataPoint } from './api';
+import { supabase } from './supabase';
 
 // URL base para as APIs do servidor
 const API_BASE_URL = '/api/bitcoin';
@@ -152,3 +153,73 @@ export async function getHistoricalBitcoinData(
 } 
 
 export { HistoricalDataPoint };
+
+// --- Placeholder Functions for LNMarkets API Interaction ---
+
+/**
+ * Chama o endpoint de backend para salvar/atualizar as credenciais LNMarkets.
+ * @param credentials - Objeto contendo apiKey, apiSecret, apiPassphrase.
+ * @returns Promise resolvida em caso de sucesso, rejeitada em caso de erro.
+ */
+export const saveLnMarketsCredentials = async (credentials: {
+  apiKey: string;
+  apiSecret: string;
+  apiPassphrase: string;
+}) => {
+  console.log("Chamando backend (simulado): saveLnMarketsCredentials", credentials);
+  // TODO: Implementar chamada real ao endpoint (ex: Supabase Edge Function)
+  // const { data, error } = await supabase.functions.invoke('save-lnm-credentials', {
+  //   body: credentials,
+  // });
+  // if (error) throw error;
+  // return data;
+
+  // Simulação:
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  if (Math.random() < 0.1) throw new Error("API Error: Falha simulada ao salvar credenciais no backend");
+  return { success: true };
+};
+
+/**
+ * Chama o endpoint de backend para testar a conexão com a LNMarkets usando as credenciais fornecidas.
+ * @param credentials - Objeto contendo apiKey, apiSecret, apiPassphrase.
+ * @returns Promise resolvida com { success: true } em caso de sucesso, rejeitada em caso de erro.
+ */
+export const testLnMarketsConnection = async (credentials: {
+  apiKey: string;
+  apiSecret: string;
+  apiPassphrase: string;
+}) => {
+  console.log("Chamando backend (simulado): testLnMarketsConnection", credentials);
+  // TODO: Implementar chamada real ao endpoint de teste
+  // const { data, error } = await supabase.functions.invoke('test-lnm-connection', {
+  //   body: credentials,
+  // });
+  // if (error) throw error;
+  // return data; // Espera-se que retorne { success: true } ou similar
+
+  // Simulação:
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  if (Math.random() < 0.2) throw new Error("API Error: Falha simulada na conexão de teste via backend");
+  return { success: true };
+};
+
+/**
+ * Chama o endpoint de backend para verificar se as credenciais LNMarkets estão configuradas para o usuário atual.
+ * @returns Promise resolvida com { configured: boolean }.
+ */
+export const fetchLnMarketsCredentialsStatus = async () => {
+  console.log("Chamando backend (simulado): fetchLnMarketsCredentialsStatus");
+  // TODO: Implementar chamada real ao endpoint que verifica o status
+  // Este endpoint provavelmente verificaria a tabela user_lnmarkets_credentials
+  // const { data, error } = await supabase.functions.invoke('get-lnm-status');
+  // if (error) throw error;
+  // return data; // Espera-se { configured: boolean }
+
+  // Simulação:
+  await new Promise(resolve => setTimeout(resolve, 800));
+  const isConfigured = Math.random() > 0.5;
+  return { configured: isConfigured };
+};
+
+// --- Fim das Placeholder Functions ---

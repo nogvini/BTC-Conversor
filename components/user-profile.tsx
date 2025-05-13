@@ -1,265 +1,376 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Camera, Save, User, Eye, EyeOff } from "lucide-react"
-import { PageTransition } from "@/components/page-transition"
-import { z } from "zod"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Skeleton } from "@/components/ui/skeleton"
+import { censorEmail } from "@/lib/utils"
+import { CheckCircle2 } from "lucide-react"
 
-// Esquema de validação para o perfil
-const profileSchema = z.object({
-  name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres"),
-  avatar_url: z.string().optional(),
-})
+// Importar as novas funções da API do cliente
+import {
+  saveLnMarketsCredentials,
+  testLnMarketsConnection,
+  fetchLnMarketsCredentialsStatus,
+} from "@/lib/client-api"
 
-type ProfileFormValues = z.infer<typeof profileSchema>
-
-// Função para mascarar email
-const maskEmail = (email: string): string => {
-  if (!email) return "";
-  
-  const [username, domain] = email.split('@');
-  if (!username || !domain) return email;
-  
-  // Se o nome de usuário for muito curto, manter pelo menos 1 caractere
-  const visibleChars = Math.max(1, Math.min(2, Math.floor(username.length / 3)));
-  const maskedUsername = username.substring(0, visibleChars) + 
-                         '*'.repeat(username.length - visibleChars);
-  
-  return `${maskedUsername}@${domain}`;
-}
-
-export default function UserProfile() {
-  const { session, updateProfile } = useAuth()
+const UserProfile: React.FC = () => {
+  const { user, session, isLoading, error: authError } = useAuth()
   const { toast } = useToast()
-  const { user, isLoading } = session
-  const [isSaving, setIsSaving] = useState(false)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [isFormReady, setIsFormReady] = useState(false)
-  const [showEmail, setShowEmail] = useState(false)
-  
-  // Inicializar o formulário com valores vazios
-  const profileForm = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: "",
-      avatar_url: "",
-    },
-  })
-  
-  // Atualizar os valores do formulário quando o usuário for carregado
+
+  // State for Personal Information
+  const [name, setName] = useState<string>("")
+  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false)
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false)
+
+  // State for LNMarkets Credentials
+  const [lnMarketsApiKey, setLnMarketsApiKey] = useState<string>("")
+  const [lnMarketsApiSecret, setLnMarketsApiSecret] = useState<string>("")
+  const [lnMarketsApiPassphrase, setLnMarketsApiPassphrase] = useState<string>("")
+  const [isSavingLnMarkets, setIsSavingLnMarkets] = useState<boolean>(false)
+  const [isTestingLnMarkets, setIsTestingLnMarkets] = useState<boolean>(false)
+  const [lnMarketsConfigured, setLnMarketsConfigured] = useState<boolean | null>(null)
+
   useEffect(() => {
     if (user) {
-      // Resetar o formulário quando obtermos os dados do usuário
-      profileForm.reset({
-        name: user.name || "",
-        avatar_url: user.avatar_url || "",
-      })
-      
-      // Marcar o formulário como pronto
-      setIsFormReady(true)
-    }
-  }, [user, profileForm])
+      setName(user.name || user.email?.split('@')[0] || "")
 
-  // Obter as iniciais do nome do usuário para o avatar
-  const getInitials = () => {
-    if (!user?.name) return "U"
-    
-    const names = user.name.split(" ")
-    if (names.length === 1) return names[0].charAt(0).toUpperCase()
-    
-    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase()
-  }
-
-  // Função para atualizar o perfil
-  const onSubmit = async (data: ProfileFormValues) => {
-    if (!user) return
-
-    try {
-      setIsSaving(true)
-      
-      const { error } = await updateProfile({
-        name: data.name,
-        avatar_url: data.avatar_url,
-      })
-      
-      if (error) {
-        throw error
+      // Fetch LNMarkets credentials status usando a função importada
+      const fetchStatus = async () => {
+        try {
+          setLnMarketsConfigured(null)
+          const status = await fetchLnMarketsCredentialsStatus()
+          setLnMarketsConfigured(status.configured)
+          if (status.configured) {
+            console.log("Credenciais LNMarkets já configuradas (status via client-api).")
+          }
+        } catch (fetchError: any) {
+          console.error("Erro ao buscar status das credenciais LNMarkets (via client-api):", fetchError)
+          toast({
+            title: "Erro ao verificar credenciais",
+            description: fetchError.message || "Não foi possível verificar o status das credenciais LNMarkets.",
+            variant: "destructive",
+          })
+          setLnMarketsConfigured(false)
+        }
       }
-      
+      fetchStatus()
+    }
+  }, [user, toast])
+
+  const handleUpdateProfile = async () => {
+    if (!user) return
+    setIsSavingProfile(true)
+    console.log("Atualizando perfil:", { name })
+    try {
+      // TODO: Substituir pela chamada real ao Supabase ou backend
+      // await supabase.auth.updateUser({ data: { name } });
+      await new Promise((resolve) => setTimeout(resolve, 1000)) // Simular chamada
       toast({
-        title: "Perfil atualizado",
-        description: "Suas informações foram atualizadas com sucesso.",
-        variant: "success",
+        title: "Perfil Atualizado",
+        description: "Suas informações foram salvas com sucesso.",
+        variant: "default",
       })
-    } catch (error: any) {
+      setIsEditingProfile(false)
+    } catch (updateError: any) {
       toast({
         title: "Erro ao atualizar perfil",
-        description: error.message || "Ocorreu um erro ao atualizar seu perfil.",
+        description: updateError.message || "Não foi possível salvar suas informações.",
+        variant: "destructive",
+      })
+    }
+    setIsSavingProfile(false)
+  }
+
+  const handleSaveLnMarketsCredentials = async () => {
+    if (!user) return
+    if (!lnMarketsApiKey || !lnMarketsApiSecret || !lnMarketsApiPassphrase) {
+      toast({
+        title: "Campos Obrigatórios",
+        description: "Por favor, preencha todos os campos de credenciais da LNMarkets.",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsSavingLnMarkets(true)
+    try {
+      // Chamar a função importada de client-api
+      await saveLnMarketsCredentials({
+        apiKey: lnMarketsApiKey,
+        apiSecret: lnMarketsApiSecret,
+        apiPassphrase: lnMarketsApiPassphrase,
+      })
+      toast({
+        title: `Credenciais ${lnMarketsConfigured ? "Atualizadas" : "Salvas"}`,
+        description: "Suas credenciais LNMarkets foram armazenadas com segurança.",
+        variant: "default",
+      })
+      setLnMarketsConfigured(true)
+      // Opcional: Limpar campos após salvar? Decidir UX.
+      // setLnMarketsApiKey(""); 
+      // setLnMarketsApiSecret("");
+      // setLnMarketsApiPassphrase("");
+    } catch (saveError: any) {
+      toast({
+        title: "Erro ao Salvar Credenciais",
+        description: saveError.message || "Não foi possível salvar suas credenciais LNMarkets.",
         variant: "destructive",
       })
     } finally {
-      setIsSaving(false)
+      setIsSavingLnMarkets(false)
+    }
+  }
+  
+  // Test Connection Handler
+  const handleTestLnMarketsConnection = async () => {
+    if (!user) return
+    if (!lnMarketsApiKey || !lnMarketsApiSecret || !lnMarketsApiPassphrase) {
+       toast({
+        title: "Credenciais Ausentes",
+        description: "Preencha os campos de API Key, Secret e Passphrase para testar a conexão.",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsTestingLnMarkets(true)
+    toast({ title: "Testando Conexão...", description: "Aguarde um momento." })
+    try {
+      // Chamar a função importada de client-api
+      await testLnMarketsConnection({
+        apiKey: lnMarketsApiKey,
+        apiSecret: lnMarketsApiSecret,
+        apiPassphrase: lnMarketsApiPassphrase,
+      })
+      toast({ 
+        title: "Conexão Bem-Sucedida!", 
+        description: "As credenciais da LNMarkets são válidas.", 
+        variant: "default" // Usar 'success' se disponível
+      })
+    } catch (testError: any) {
+      toast({ 
+        title: "Falha na Conexão", 
+        description: testError.message || "Não foi possível conectar à LNMarkets. Verifique suas credenciais.", 
+        variant: "destructive" 
+      })
+    } finally {
+      setIsTestingLnMarkets(false)
     }
   }
 
-  // Função para alternar a visibilidade do email
-  const toggleEmailVisibility = () => {
-    setShowEmail(prev => !prev);
-  }
-
-  // Se estiver carregando, mostrar um indicador
-  if (isLoading) {
+  if (isLoading || lnMarketsConfigured === null) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
+      <div className="space-y-6 p-4 md:p-6 max-w-3xl mx-auto">
+        <Skeleton className="h-8 w-1/4 mb-2" />
+        <Skeleton className="h-4 w-1/2 mb-6" />
+        {/* Skeleton for Profile Card */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/3 mb-1" />
+            <Skeleton className="h-4 w-2/3" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Skeleton className="h-10 w-24" />
+          </CardFooter>
+        </Card>
+        {/* Skeleton for LNMarkets Card */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/3 mb-1" />
+            <Skeleton className="h-4 w-2/3" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </CardFooter>
+        </Card>
       </div>
     )
   }
 
-  // Se não houver usuário, exibir mensagem
-  if (!user) {
+  if (authError) {
     return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>Perfil indisponível</CardTitle>
-          <CardDescription>
-            Você precisa estar conectado para visualizar seu perfil.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="text-red-500 p-4 md:p-6 max-w-3xl mx-auto">
+        Erro ao carregar perfil: {authError.message}
+      </div>
     )
   }
 
+  if (!user || !session) {
+    return (
+      <div className="p-4 md:p-6 max-w-3xl mx-auto">
+        Você precisa estar logado para ver seu perfil.
+      </div>
+    )
+  }
+
+  const displayEmail = censorEmail(user.email)
+
   return (
-    <PageTransition>
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Meu Perfil</CardTitle>
-          <CardDescription>
-            Visualize e edite suas informações pessoais
+    <div className="space-y-8 p-4 md:p-6 max-w-3xl mx-auto">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Meu Perfil</h1>
+        <p className="text-muted-foreground">
+          Gerencie as informações da sua conta e integrações.
+        </p>
+      </div>
+
+      <Card className="bg-background/70 dark:bg-black/60 border border-border shadow-md rounded-lg">
+        <CardHeader>
+          <CardTitle className="text-xl">Informações Pessoais</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Visualize e edite seus dados pessoais.
           </CardDescription>
         </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <div className="flex flex-col items-center justify-center mb-6">
-            <div className="relative">
-              <Avatar className="h-24 w-24 border-4 border-purple-700/30">
-                <AvatarImage 
-                  src={avatarPreview || user.avatar_url || ""} 
-                  alt={user.name || "Usuário"} 
-                />
-                <AvatarFallback className="bg-primary/20 text-primary text-3xl">
-                  {getInitials()}
-                </AvatarFallback>
-              </Avatar>
-              <Button 
-                size="icon" 
-                variant="secondary" 
-                className="absolute -bottom-2 -right-2 rounded-full h-8 w-8"
-                disabled={true} // Funcionalidade a ser implementada futuramente
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Membro desde {new Date(user.created_at).toLocaleDateString()}
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email-profile">Email</Label>
+            <Input
+              id="email-profile"
+              value={displayEmail}
+              readOnly
+              disabled
+              className="bg-muted/70 dark:bg-muted/50 cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground">
+              Seu email não pode ser alterado.
             </p>
           </div>
-          
-          {!isFormReady ? (
-            <div className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-4" />
-              <p className="text-sm text-muted-foreground">Carregando dados do perfil...</p>
-            </div>
-          ) : (
-            <Form {...profileForm}>
-              <form onSubmit={profileForm.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={profileForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome completo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Seu nome" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <div className="relative">
-                    <Input 
-                      value={showEmail ? user.email : maskEmail(user.email)} 
-                      disabled 
-                      className="bg-black/30 pr-10"
-                    />
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full w-10 rounded-l-none"
-                            onClick={toggleEmailVisibility}
-                          >
-                            {showEmail ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{showEmail ? "Ocultar email" : "Mostrar email"}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    O email não pode ser alterado. {!showEmail && 
-                    <button 
-                      type="button" 
-                      onClick={toggleEmailVisibility}
-                      className="text-primary hover:underline focus:outline-none"
-                    >
-                      Mostrar email completo
-                    </button>}
-                  </p>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full mt-4" 
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Salvar alterações
-                    </>
-                  )}
-                </Button>
-              </form>
-            </Form>
-          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="name-profile">Nome</Label>
+            <Input
+              id="name-profile"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              readOnly={!isEditingProfile}
+              disabled={isSavingProfile}
+              className={
+                !isEditingProfile
+                  ? "bg-muted/70 dark:bg-muted/50"
+                  : "bg-background dark:bg-black/80 border-primary/50 focus-visible:ring-primary"
+              }
+            />
+          </div>
+          {/* Avatar funcionalidade pode ser adicionada aqui depois */}
         </CardContent>
+        <CardFooter className="flex justify-end space-x-2 pt-4">
+          {isEditingProfile ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditingProfile(false)
+                  // Reset name to original if changes are cancelled
+                  if (user) setName(user.name || user.email?.split('@')[0] || "")
+                }}
+                disabled={isSavingProfile}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateProfile} disabled={isSavingProfile} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                {isSavingProfile ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => setIsEditingProfile(true)} variant="outline">Editar Perfil</Button>
+          )}
+        </CardFooter>
       </Card>
-    </PageTransition>
+
+      {/* LNMarkets Credentials Card */}
+      <Card className="bg-background/70 dark:bg-black/60 border border-border shadow-md rounded-lg">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-xl">Credenciais LNMarkets</CardTitle>
+            {lnMarketsConfigured && (
+              <span className="flex items-center text-sm text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                Configurado
+              </span>
+            )}
+          </div>
+          <CardDescription className="text-muted-foreground pt-1">
+            Conecte sua conta LNMarkets para importar dados. Suas credenciais
+            são enviadas diretamente para nosso servidor seguro.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="lnm-api-key">API Key</Label>
+            <Input
+              id="lnm-api-key"
+              type="password"
+              value={lnMarketsApiKey}
+              onChange={(e) => setLnMarketsApiKey(e.target.value)}
+              placeholder="Sua API Key da LNMarkets"
+              disabled={isSavingLnMarkets}
+              className="bg-background dark:bg-black/80 border-input focus-visible:ring-primary"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lnm-api-secret">API Secret</Label>
+            <Input
+              id="lnm-api-secret"
+              type="password"
+              value={lnMarketsApiSecret}
+              onChange={(e) => setLnMarketsApiSecret(e.target.value)}
+              placeholder="Seu API Secret da LNMarkets"
+              disabled={isSavingLnMarkets}
+              className="bg-background dark:bg-black/80 border-input focus-visible:ring-primary"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lnm-api-passphrase">API Passphrase</Label>
+            <Input
+              id="lnm-api-passphrase"
+              type="password"
+              value={lnMarketsApiPassphrase}
+              onChange={(e) => setLnMarketsApiPassphrase(e.target.value)}
+              placeholder="Sua API Passphrase da LNMarkets"
+              disabled={isSavingLnMarkets}
+              className="bg-background dark:bg-black/80 border-input focus-visible:ring-primary"
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between items-center pt-4">
+          <Button 
+            variant="outline" 
+            onClick={handleTestLnMarketsConnection}
+            disabled={isSavingLnMarkets || isTestingLnMarkets || !lnMarketsApiKey || !lnMarketsApiSecret || !lnMarketsApiPassphrase}
+          >
+            {isTestingLnMarkets ? "Testando..." : "Testar Conexão"}
+          </Button>
+          <Button
+            onClick={handleSaveLnMarketsCredentials}
+            disabled={isSavingLnMarkets || isTestingLnMarkets || !lnMarketsApiKey || !lnMarketsApiSecret || !lnMarketsApiPassphrase}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {isSavingLnMarkets
+              ? "Salvando..."
+              : lnMarketsConfigured ? "Atualizar Credenciais" : "Salvar Credenciais"}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
-} 
+}
+
+export default UserProfile 

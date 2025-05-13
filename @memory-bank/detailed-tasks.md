@@ -335,3 +335,94 @@ useEffect(() => {
 - Não há menus duplicados
 - Transições entre abas são suaves e previsíveis
 - Dados são preservados ao navegar entre abas 
+
+# Plano de Integração da API LNMarkets
+
+Este plano detalha os passos para integrar a API da LNMarkets ao Raid Bitcoin Toolkit, permitindo aos usuários importar seus depósitos e transações (trades) para o sistema de relatórios.
+
+## Fase 1: Configuração da API LNMarkets no Perfil do Usuário (`user-profile.tsx`)
+
+### 1.1. Identificação dos Campos de API Necessários
+- **Tarefa:** Pesquisar e confirmar as credenciais exatas exigidas pela LNMarkets para autenticação de API (API Key, API Secret, Passphrase, etc.).
+- **Status:** ✅ Concluído.
+
+### 1.2. Desenvolvimento da Interface do Usuário (UI) e Backend para Credenciais
+- **Tarefa:** Adicionar campos no formulário de `user-profile.tsx` para:
+    - API Key da LNMarkets
+    - API Secret da LNMarkets (ou equivalente)
+    - API Passphrase da LNMarkets
+- **Tarefa:** Adicionar um botão "Salvar Credenciais LNMarkets".
+- **Status Frontend:** ✅ Concluído (Campos e botão adicionados em `user-profile.tsx`).
+- **Consideração de Segurança (Backend):**
+    - **Preferencial:** As credenciais serão armazenadas de forma segura no backend (Supabase), criptografadas e associadas ao ID do usuário.
+    - **Ação Backend:** Criar um novo endpoint/tabela no Supabase para armazenar estas credenciais.
+    - **Status Backend:** ⚪️ Pendente (Tabela `user_lnmarkets_credentials` criada. Lógica de endpoint e criptografia pendente).
+
+### 1.3. Validação e Feedback da Configuração
+- **Tarefa:** Implementar um botão "Testar Conexão" em `user-profile.tsx`.
+    - Esta função fará uma chamada básica à API da LNMarkets (ex: buscar informações do usuário ou saldo) para validar as credenciais, via backend.
+- **Status Frontend:** ✅ Concluído (Botão e estrutura da chamada simulada no frontend).
+- **Status Backend:** ⚪️ Pendente (Lógica do endpoint de teste pendente).
+- **Tarefa:** Fornecer feedback visual (toast/mensagem) ao usuário sobre o sucesso/falha ao salvar ou testar as credenciais.
+- **Status:** ✅ Concluído (Toasts implementados no frontend).
+
+## Fase 2: Lógica de Fetch e Transformação de Dados da LNMarkets
+
+### 2.1. Criação de Funções de Serviço da API
+- **Tarefa:** No diretório `lib/` (ex: `lib/lnmarkets-api.ts` ou `lib/client-api.ts`), criar as seguintes funções:
+    - `fetchLnMarketsDeposits(apiKey, apiSecret)`:
+        - Fará a requisição ao endpoint `getDeposits` da LNMarkets.
+        - Lida com a autenticação conforme especificado pela LNMarkets.
+        - Realiza o tratamento de erros da API.
+    - `fetchLnMarketsTrades(apiKey, apiSecret)`:
+        - Fará a requisição ao endpoint `getTrades` da LNMarkets.
+        - Lida com a autenticação.
+        - Realiza o tratamento de erros da API.
+    - **Consideração:** Verificar se a API LNMarkets requer paginação para os endpoints `getDeposits` e `getTrades`. Se sim, implementar lógica de paginação.
+- **Status:** Pendente.
+
+### 2.2. Transformação de Dados
+- **Tarefa:** Implementar lógica para mapear os dados recebidos da LNMarkets para os formatos internos da aplicação:
+    - **Depósitos LNMarkets** -> Interface `Investment` (usada em `profit-calculator.tsx`):
+        - Mapear campos como data, valor, e possivelmente um ID original.
+        - Definir a `unit` (BTC/SATS) com base nos dados da LNMarkets.
+    - **Trades LNMarkets** -> Interface `ProfitRecord` (usada em `profit-calculator.tsx`):
+        - Mapear campos como data de fechamento (`closed_ts`), ID original.
+        - Calcular o valor líquido do trade: `pl - opening_fee - closing_fee - sum_carry_fees`.
+        - Determinar `isProfit` com base no valor líquido.
+        - Definir a `unit` (BTC/SATS).
+- **Status:** Pendente.
+
+## Fase 3: Integração com o Calculador de Lucros (`profit-calculator.tsx`)
+
+### 3.1. Interface do Usuário para Importação LNMarkets
+- **Tarefa:** Em `profit-calculator.tsx`, na aba "Registrar" ou em uma nova seção de importação:
+    - Adicionar um botão "Importar Dados da LNMarkets".
+    - **Consideração:** Se as credenciais não estiverem configuradas, o botão deve estar desabilitado ou levar o usuário à página de perfil para configurá-las.
+- **Status:** Pendente.
+
+### 3.2. Lógica de Importação de Dados
+- **Tarefa:** Implementar a funcionalidade do botão "Importar Dados da LNMarkets":
+    1.  Recuperar credenciais da LNMarkets do usuário (via Supabase/backend).
+    2.  Se não configuradas, notificar o usuário.
+    3.  Chamar `fetchLnMarketsDeposits` e `fetchLnMarketsTrades`.
+    4.  Chamar as funções de transformação de dados.
+    5.  **Gerenciamento de Relatórios:**
+        - **MVP (Opção 1 - Mais Simples):**
+            - Perguntar ao usuário se deseja adicionar os dados importados aos registros atuais.
+            - Exibir um resumo dos dados a serem importados (X depósitos, Y trades).
+            - Implementar prevenção de duplicatas usando o ID original da LNMarkets (se disponível e mapeado para `originalId` em `Investment`/`ProfitRecord`).
+        - **Completo (Opção 2 - Requer Refatoração):**
+            - Permitir ao usuário selecionar um relatório existente (se `profit-calculator.tsx` for refatorado para suportar múltiplos relatórios nomeados).
+            - Permitir ao usuário criar um novo relatório nomeado para esses dados.
+    6.  Adicionar os dados transformados (`Investment[]`, `ProfitRecord[]`) aos arrays de estado (`investments`, `profits`) do relatório selecionado/atual.
+    7.  Fornecer feedback (toast) sobre o resultado da importação (sucesso, número de itens, falhas).
+- **Status:** Pendente.
+
+## Considerações Gerais e Melhorias Futuras
+
+- **Gerenciamento de Estado das Credenciais:** Definir como as credenciais salvas serão acessadas de forma segura pelo frontend para as chamadas de API.
+- **Tratamento de Erros Abrangente:** Em todas as etapas de chamada de API, transformação e importação.
+- **Testes:** Testar a integração com dados reais (sandbox da LNMarkets, se disponível) ou mockados.
+- **Refatoração para Múltiplos Relatórios (Opcional):** Avaliar a necessidade e o esforço para modificar `profit-calculator.tsx` para suportar múltiplos relatórios nomeados, o que melhoraria a usabilidade da importação de fontes externas.
+- **Segurança:** Reforçar que chaves de API NUNCA devem ser expostas no código frontend ou em URLs. O backend é crucial para o armazenamento seguro. 

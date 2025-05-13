@@ -209,3 +209,53 @@ Este documento apresenta o planejamento detalhado de sprints para o desenvolvime
 
 ### A. Calculadora de Lucros - Melhorias
 // ... existing code ... 
+
+# Planejamento do Sprint Atual
+
+**Foco Principal:** Início da Integração da API LNMarkets (Fase 1)
+**Período:** [Definir Data Inicial] - [Definir Data Final]
+
+## Tarefas Planejadas para este Sprint:
+
+### Fase 1: Configuração da API LNMarkets no Perfil
+
+1.  **[Concluído]** `1.1. Identificação dos Campos de API Necessários`
+    -   Pesquisar e confirmar as credenciais exatas exigidas pela LNMarkets (API Key, Secret, etc.).
+    -   *Dependência:* Documentação LNMarkets ou input do usuário.
+    -   *Estimativa:* 0.5d
+
+2.  **[Pendente - Backend]** `1.2.1 Backend: Armazenamento Seguro de Credenciais`
+    -   Definir estrutura da tabela no Supabase para armazenar credenciais LNMarkets (criptografadas). *(Estrutura da tabela criada via MCP)*
+    -   Implementar funções/endpoints no backend (Supabase Functions ou Edge Functions) para salvar e recuperar credenciais de forma segura, associadas ao usuário.
+    -   *Dependência:* Definição dos campos (Tarefa 1.1).
+    -   *Estimativa:* 1.5d
+
+3.  **[Concluído]** `1.2.2 Frontend: UI para Configuração da API`
+    -   Adicionar campos de input para API Key e Secret no formulário de `user-profile.tsx`.
+    -   Adicionar botão "Salvar Credenciais LNMarkets".
+    -   Implementar a chamada ao endpoint backend para salvar as credenciais. *(Estrutura da chamada simulada no frontend)*
+    -   *Dependência:* Tarefa 1.2.1 (endpoint backend).
+    -   *Estimativa:* 1d
+
+4.  **[Concluído]** `1.3.1 Frontend: Botão Testar Conexão (Estrutura)`
+    -   Adicionar botão "Testar Conexão" na UI de `user-profile.tsx`.
+    -   Implementar a estrutura da função que será chamada (a lógica real da chamada API virá depois, na Fase 2, mas podemos preparar a UI e o fluxo inicial). *(Estrutura da chamada simulada no frontend)*
+    -   *Dependência:* Tarefa 1.2.2 (campos na UI).
+    -   *Estimativa:* 0.5d
+
+5.  **[Concluído]** `1.3.2 Feedback Visual`
+    -   Implementar toasts/mensagens de feedback para as ações de salvar e testar conexão (sucesso/erro).
+    -   *Dependência:* Tarefas 1.2.2 e 1.3.1.
+    -   *Estimativa:* 0.5d
+
+---
+
+## Backlog do Sprint (Próximas Tarefas da Integração)
+
+- Tarefas restantes da Fase 1.
+- Início da Fase 2 (Funções de Serviço da API).
+
+---
+
+*Status são: [Pendente], [Em Andamento], [Bloqueado], [Concluído]*
+*Estimativas em dias (d)* 

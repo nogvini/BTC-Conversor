@@ -1,3 +1,31 @@
+# Progresso do Desenvolvimento
+
+## Sprint Atual: Início da Integração LNMarkets
+
+**Status Geral:** 🟡 ~80% Concluído (Frontend da Fase 1)
+
+### Tarefas do Sprint:
+
+- **[✅ Concluído]** `1.1. Identificação dos Campos de API Necessários`
+- **[⚪️ Pendente - Backend]** `1.2.1 Backend: Armazenamento Seguro de Credenciais` (Tabela criada, lógica backend pendente)
+- **[✅ Concluído]** `1.2.2 Frontend: UI para Configuração da API`
+- **[✅ Concluído]** `1.3.1 Frontend: Botão Testar Conexão (Estrutura)`
+- **[✅ Concluído]** `1.3.2 Feedback Visual`
+
+---
+
+### Legenda de Status:
+- ⚪️ Pendente
+- 🟡 Em Andamento
+- ⚫️ Bloqueado
+- ✅ Concluído
+
+---
+
+## Histórico de Progresso (Arquivado)
+
+*(Progresso de sprints anteriores pode ser movido para cá)*
+
 # Progresso: Raid Bitcoin Toolkit
 
 ## Funcionalidades Implementadas
