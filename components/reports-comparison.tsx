@@ -840,24 +840,24 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
               <div className="text-xl font-bold">
                 <AnimatedCounter 
-                  value={comparisonData.totalInvestmentsBtc} 
+                  value={comparisonData?.totalInvestmentsBtc || 0} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount(comparisonData.totalInvestmentsBtc * btcToUsd, "USD")}
+                {formatCurrencyAmount((comparisonData?.totalInvestmentsBtc || 0) * btcToUsd, "USD")}
               </div>
             </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
-              <div className={`text-xl font-bold ${comparisonData.totalProfitsBtc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <div className={`text-xl font-bold ${(comparisonData?.totalProfitsBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <AnimatedCounter 
-                  value={comparisonData.totalProfitsBtc} 
+                  value={comparisonData?.totalProfitsBtc || 0} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount(comparisonData.totalProfitsBtc * btcToUsd, "USD")}
+                {formatCurrencyAmount((comparisonData?.totalProfitsBtc || 0) * btcToUsd, "USD")}
               </div>
             </div>
           </div>
@@ -867,19 +867,19 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
               <div className="text-xl font-bold">
                 <AnimatedCounter 
-                  value={comparisonData.totalBalanceBtc} 
+                  value={comparisonData?.totalBalanceBtc || 0} 
                   formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount(comparisonData.totalBalanceBtc * btcToUsd, "USD")}
+                {formatCurrencyAmount((comparisonData?.totalBalanceBtc || 0) * btcToUsd, "USD")}
               </div>
             </div>
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
-              <div className={`text-xl font-bold ${comparisonData.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <div className={`text-xl font-bold ${(comparisonData?.totalRoi || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <AnimatedCounter 
-                  value={comparisonData.totalRoi} 
+                  value={comparisonData?.totalRoi || 0} 
                   formatFn={(val) => `${val.toFixed(2)}%`}
                 />
               </div>
