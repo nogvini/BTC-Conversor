@@ -647,6 +647,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resendVerificationEmail
   ])
 
+  // LOGS PARA DEBUG
+  useEffect(() => {
+    console.log("[AuthContext Debug] Context Value:", {
+      sessionExists: !!contextValue.session,
+      isSessionLoading: contextValue.session.isLoading,
+      signInType: typeof contextValue.signIn,
+      signUpType: typeof contextValue.signUp,
+      signOutType: typeof contextValue.signOut,
+      updateProfileType: typeof contextValue.updateProfile,
+      retryConnectionType: typeof contextValue.retryConnection,
+      isConnectingValue: contextValue.isConnecting,
+      resendVerificationEmailType: typeof contextValue.resendVerificationEmail,
+    });
+    console.log("[AuthContext Debug] Supabase Client Status:", {
+      supabaseClientExists: !!supabaseClient,
+      isConnectedValue: isConnected,
+      isAttemptingConnectionValue: isAttemptingConnection
+    });
+  }, [contextValue, supabaseClient, isConnected, isAttemptingConnection]);
+
   return (
     <AuthContext.Provider value={contextValue}>
       {children}

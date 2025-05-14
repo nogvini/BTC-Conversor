@@ -203,6 +203,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const csvFileInputRef = useRef<HTMLInputElement>(null);
   const internalFileInputRef = useRef<HTMLInputElement>(null);
   const investmentCsvFileInputRef = useRef<HTMLInputElement>(null);
+  const backupExcelFileInputRef = useRef<HTMLInputElement>(null); // NOVO REF
 
   const isMobile = useIsMobile();
   const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false;
@@ -1770,15 +1771,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
   
   const triggerInternalFileInput = () => {
-    if (internalFileInputRef.current) {
-      internalFileInputRef.current.click();
-    }
+    internalFileInputRef.current?.click();
   };
   
   const triggerInvestmentCsvFileInput = () => {
-    if (investmentCsvFileInputRef.current) {
-      investmentCsvFileInputRef.current.click();
-    }
+    investmentCsvFileInputRef.current?.click();
+  };
+
+  // NOVA FUNÇÃO PARA DISPARAR INPUT DE BACKUP EXCEL
+  const triggerBackupExcelFileInput = () => {
+    backupExcelFileInputRef.current?.click();
   };
 
   // Função para processar os registros (comum a Excel e CSV)
@@ -2489,7 +2491,317 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
-  // Função para importar aportes via CSV
+  // NOVA FUNÇÃO PARA IMPORTAR BACKUP EXCEL GERADO PELA APLICAÇÃO
+  const handleImportBackupExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      toast({ title: "Nenhum arquivo selecionado", variant: "destructive" });
+      return;
+    }
+
+    setIsImporting(true);
+    setImportStats(null);
+    // Modificado: Toast inicial mais genérico, será atualizado no final.
+    toast({ title: "Iniciando importação do backup Excel...", description: "Processando arquivo...", variant: "default" });
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        let determinedTargetReportId: string | null = null;
+        let investmentsSuccessfullyAdded = 0;
+        let investmentsDuplicatesSkipped = 0;
+        let investmentsFailed = 0;
+        let profitsSuccessfullyAdded = 0;
+        let profitsDuplicatesSkipped = 0;
+        let profitsFailed = 0;
+
+        try {
+          const buffer = e.target?.result;
+          if (!buffer) {
+            throw new Error("Falha ao ler o buffer do arquivo.");
+          }
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer as ArrayBuffer);
+
+          const metadataSheet = workbook.getWorksheet('Metadados');
+          let reportNameFromMetadata: string | null = null;
+
+          if (metadataSheet) {
+            metadataSheet.eachRow((row, rowNumber) => {
+              if (rowNumber > 1) { // Pular cabeçalho
+                const key = row.getCell(1).value?.toString().trim();
+                const value = row.getCell(2).value?.toString().trim();
+
+                if (key === 'ID do Relatório Exportado' && value) {
+                  determinedTargetReportId = value;
+                } else if (key === 'IDs dos Relatórios Exportados (Manual)' && value && !determinedTargetReportId) {
+                  determinedTargetReportId = value.split(',')[0]?.trim();
+                } else if (key === 'IDs dos Relatórios Exportados (Histórico)' && value && !determinedTargetReportId) {
+                  determinedTargetReportId = value.split(',')[0]?.trim();
+                }
+                if (key === 'Relatório(s) Exportado(s)' && value) {
+                  reportNameFromMetadata = value;
+                }
+              }
+            });
+          } else {
+            toast({ title: "Aba 'Metadados' não encontrada", description: "O arquivo de backup pode estar corrompido ou não é um formato válido.", variant: "destructive", duration: 7000 });
+            setIsImporting(false);
+            if (event.target) event.target.value = '';
+            return;
+          }
+
+          if (!determinedTargetReportId && reportNameFromMetadata) {
+            const foundReport = allReportsFromHook.find(r => r.name === reportNameFromMetadata);
+            if (foundReport) determinedTargetReportId = foundReport.id;
+          }
+
+          if (!determinedTargetReportId) {
+            if (activeReportIdFromHook) { // Usar activeReportIdFromHook se nenhum for encontrado
+                determinedTargetReportId = activeReportIdFromHook;
+                toast({
+                    title: "ID do Relatório não encontrado nos metadados",
+                    description: `Usando o relatório ativo "${allReportsFromHook.find(r => r.id === activeReportIdFromHook)?.name || 'desconhecido'}" como destino.`, // Adicionado fallback
+                    variant: "default",
+                    duration: 7000
+                });
+            } else {
+                toast({ title: "Relatório de Destino Não Encontrado", description: "Não foi possível determinar o relatório de destino. Por favor, selecione ou crie um relatório e tente novamente.", variant: "destructive", duration: 7000 });
+                setIsImporting(false);
+                if (event.target) event.target.value = '';
+                return;
+            }
+          }
+          
+          // Certificar que o determinedTargetReportId é o ativo no hook para as chamadas addInvestment/addProfitRecord
+          // ou que as funções do hook possam aceitar um targetReportId.
+          // Por simplicidade, vamos garantir que o relatório alvo esteja ativo.
+          if (determinedTargetReportId && determinedTargetReportId !== activeReportIdFromHook) {
+            const reportExists = allReportsFromHook.some(r => r.id === determinedTargetReportId);
+            if (reportExists) {
+                selectReport(determinedTargetReportId); // Ativa o relatório alvo
+                toast({ title: "Relatório Alvo Ativado", description: `O relatório "${allReportsFromHook.find(r => r.id === determinedTargetReportId)?.name || 'destino'}" foi ativado para a importação.`, variant: "default", duration: 4000});
+            } else {
+                toast({ title: "Relatório Alvo Inválido", description: "O relatório de destino especificado no backup não existe mais.", variant: "destructive", duration: 7000 });
+                setIsImporting(false);
+                if (event.target) event.target.value = '';
+                return;
+            }
+          } else if (!activeReportIdFromHook && determinedTargetReportId) {
+            // Se activeReportIdFromHook era null, mas determinedTargetReportId não é, ativa-o.
+            const reportExists = allReportsFromHook.some(r => r.id === determinedTargetReportId);
+            if (reportExists) {
+                selectReport(determinedTargetReportId);
+            } else {
+                 toast({ title: "Relatório Alvo Inválido", description: "O relatório de destino especificado no backup não existe mais.", variant: "destructive", duration: 7000 });
+                setIsImporting(false);
+                if (event.target) event.target.value = '';
+                return;
+            }
+          } else if (!activeReportIdFromHook && !determinedTargetReportId) {
+            // Caso extremo: nenhum relatório ativo e nenhum ID no backup.
+             toast({ title: "Nenhum Relatório de Destino", description: "Por favor, crie ou selecione um relatório antes de importar.", variant: "destructive", duration: 7000 });
+             setIsImporting(false);
+             if (event.target) event.target.value = '';
+             return;
+          }
+
+          const tempImportedInvestments: Omit<Investment, 'id'>[] = [];
+          const tempImportedProfits: Omit<ProfitRecord, 'id'>[] = [];
+          let fileInvestmentsProcessed = 0;
+          let fileInvestmentsErrored = 0;
+          let fileProfitsProcessed = 0;
+          let fileProfitsErrored = 0;
+
+          const investmentsSheet = workbook.getWorksheet('Investimentos');
+          if (investmentsSheet) {
+            investmentsSheet.eachRow((row, rowNumber) => {
+              if (rowNumber > 1) { 
+                try {
+                  const originalId = row.getCell(1).value?.toString();
+                  const dateValue = row.getCell(2).value;
+                  const amountStr = row.getCell(3).value?.toString();
+                  const unitStr = row.getCell(4).value?.toString() as CurrencyUnit;
+
+                  if (originalId && dateValue && amountStr && unitStr && (unitStr === 'BTC' || unitStr === 'SATS')) {
+                    let date: string;
+                    if (dateValue instanceof Date) {
+                        date = formatDateToUTC(dateValue);
+                    } else if (typeof dateValue === 'string') {
+                        date = formatDateToUTC(parseISODate(dateValue));                     
+                    } else if (typeof dateValue === 'number') { // Para datas do Excel como números
+                        // Removendo a linha problemática com ExcelJS.SSF.parse_date_code
+                        // Se dateValue for um número de série do Excel, precisaremos de outra forma de conversão
+                        // ou confiar que o ExcelJS já converteu para Date.
+                        // Por agora, se for um número e não Date, consideraremos um erro de formato por simplicidade.
+                        throw new Error(`Formato de data de investimento numérico não suportado diretamente: ${dateValue}. Esperava-se Date ou string.`);
+                    } else {
+                        throw new Error(`Formato de data de investimento inválido: ${dateValue}`);
+                    }
+                    const amount = parseFloat(amountStr);
+                    if (isNaN(amount) || amount <= 0) throw new Error(`Valor de investimento inválido: ${amountStr}`);
+
+                    tempImportedInvestments.push({ originalId, date, amount, unit: unitStr });
+                    fileInvestmentsProcessed++;
+                  } else {
+                    fileInvestmentsErrored++;
+                  }
+                } catch (err) {
+                  console.warn("Erro ao processar linha de investimento do Excel:", err, row.values);
+                  fileInvestmentsErrored++;
+                }
+              }
+            });
+          }
+
+          const profitsSheet = workbook.getWorksheet('Lucros e Prejuízos');
+          if (profitsSheet) {
+            profitsSheet.eachRow((row, rowNumber) => {
+              if (rowNumber > 1) { 
+                try {
+                  const originalId = row.getCell(1).value?.toString();
+                  const dateValue = row.getCell(2).value;
+                  const amountStr = row.getCell(3).value?.toString();
+                  const unitStr = row.getCell(4).value?.toString() as CurrencyUnit;
+                  const typeStr = row.getCell(5).value?.toString();
+
+                  if (originalId && dateValue && amountStr && unitStr && typeStr && (unitStr === 'BTC' || unitStr === 'SATS') && (typeStr === 'Lucro' || typeStr === 'Prejuízo')) {
+                    let date: string;
+                    if (dateValue instanceof Date) {
+                        date = formatDateToUTC(dateValue);
+                    } else if (typeof dateValue === 'string') {
+                        date = formatDateToUTC(parseISODate(dateValue)); 
+                    } else if (typeof dateValue === 'number') { 
+                        // Removendo a linha problemática com ExcelJS.SSF.parse_date_code
+                        throw new Error(`Formato de data de lucro/prejuízo numérico não suportado diretamente: ${dateValue}. Esperava-se Date ou string.`);
+                    } else {
+                        throw new Error(`Formato de data de lucro/prejuízo inválido: ${dateValue}`);
+                    }
+                    const amount = parseFloat(amountStr);
+                    if (isNaN(amount) || amount <= 0) throw new Error(`Valor de lucro/prejuízo inválido: ${amountStr}`);
+                    const isProfit = typeStr === 'Lucro';
+
+                    tempImportedProfits.push({ originalId, date, amount, unit: unitStr, isProfit });
+                    fileProfitsProcessed++;
+                  } else {
+                    fileProfitsErrored++;
+                  }
+                } catch (err) {
+                  console.warn("Erro ao processar linha de lucro/prejuízo do Excel:", err, row.values);
+                  fileProfitsErrored++;
+                }
+              }
+            });
+          }
+          
+          // Adicionar investimentos ao relatório ativo
+          for (const invData of tempImportedInvestments) {
+            // A função addInvestment do hook agora aceita originalId e lida com a lógica de duplicidade.
+            // Ela também usa o activeReportIdFromHook internamente.
+            const result = addInvestment(invData); // Passa todo o objeto, incluindo originalId
+            switch (result.status) {
+              case 'added':
+                investmentsSuccessfullyAdded++;
+                break;
+              case 'duplicate':
+                investmentsDuplicatesSkipped++;
+                break;
+              case 'error':
+                investmentsFailed++;
+                console.error(`Falha ao adicionar aporte (ID original: ${invData.originalId}): ${result.message}`);
+                break;
+            }
+          }
+
+          // Adicionar lucros/perdas ao relatório ativo
+          for (const profitData of tempImportedProfits) {
+            const result = addProfitRecord(profitData); // Passa todo o objeto, incluindo originalId
+            switch (result.status) {
+              case 'added':
+                profitsSuccessfullyAdded++;
+                break;
+              case 'duplicate':
+                profitsDuplicatesSkipped++;
+                break;
+              case 'error':
+                profitsFailed++;
+                console.error(`Falha ao adicionar lucro/perda (ID original: ${profitData.originalId}): ${result.message}`);
+                break;
+            }
+          }
+          
+          const totalProcessed = fileInvestmentsProcessed + fileProfitsProcessed; // Total lido do arquivo
+          const totalSuccessfullyAdded = investmentsSuccessfullyAdded + profitsSuccessfullyAdded;
+          const totalDuplicatesSkipped = investmentsDuplicatesSkipped + profitsDuplicatesSkipped;
+          const totalErroredInFile = fileInvestmentsErrored + fileProfitsErrored;
+          const totalFailedToAdd = investmentsFailed + profitsFailed; // Falhas na lógica do hook
+
+          setImportStats({
+             total: totalProcessed, 
+             success: totalSuccessfullyAdded, 
+             error: totalErroredInFile + totalFailedToAdd, // totalFailedToAdd agora é a soma de investmentsFailed e profitsFailed
+             duplicated: totalDuplicatesSkipped 
+          });
+
+          // Toast de resumo final
+          let toastTitle = "Importação de Backup";
+          let toastDescription = "";
+          let toastVariant: "default" | "success" | "destructive" = "default";
+
+          if (totalSuccessfullyAdded > 0 && totalErroredInFile === 0 && totalFailedToAdd === 0 && totalDuplicatesSkipped === 0) {
+            toastTitle = "Importação Concluída com Sucesso";
+            toastDescription = `Todos os ${totalSuccessfullyAdded} registros do arquivo foram adicionados.`;
+            toastVariant = "success";
+          } else if (totalSuccessfullyAdded > 0 || totalDuplicatesSkipped > 0) {
+            toastTitle = "Importação Concluída com Observações";
+            toastDescription = `Adicionados: ${totalSuccessfullyAdded}. Duplicatas Ignoradas: ${totalDuplicatesSkipped}. Erros no arquivo: ${totalErroredInFile}. Falhas ao adicionar: ${totalFailedToAdd}.`;
+            toastVariant = "default";
+          } else if (totalErroredInFile > 0 || totalFailedToAdd > 0) {
+            toastTitle = "Falha na Importação de Backup";
+            toastDescription = `Nenhum registro novo adicionado. Duplicatas: ${totalDuplicatesSkipped}. Erros no arquivo: ${totalErroredInFile}. Falhas ao adicionar: ${totalFailedToAdd}.`;
+            toastVariant = "destructive";
+          } else if (totalDuplicatesSkipped > 0 && totalSuccessfullyAdded === 0 && totalErroredInFile === 0 && totalFailedToAdd === 0){
+            toastTitle = "Nenhum Novo Registro Adicionado";
+            toastDescription = `Todos os ${totalDuplicatesSkipped} registros encontrados no arquivo já existiam e foram ignorados.`;
+            toastVariant = "default";
+          } else { // Caso de nenhum registro no arquivo ou outro estado inesperado
+            toastTitle = "Importação Finalizada";
+            toastDescription = "Nenhum registro processado ou encontrado no arquivo.";
+            toastVariant = "default";
+          }
+          
+          toast({
+            title: toastTitle,
+            description: toastDescription,
+            variant: toastVariant,
+            duration: 7000
+          });
+
+        } catch (error: any) {
+          console.error("Erro ao processar o arquivo Excel de backup:", error);
+          toast({ title: "Erro Crítico na Importação", description: error.message || "Ocorreu um erro desconhecido ao processar o arquivo.", variant: "destructive" });
+          setImportStats({ total: 0, success: 0, error: 1, duplicated: 0 }); // Indica uma falha geral
+        } finally {
+          setIsImporting(false);
+          if (event.target) event.target.value = ''; // Limpa o input
+        }
+      };
+      reader.onerror = (error) => {
+        console.error("Erro ao ler o arquivo de backup:", error);
+        toast({ title: "Erro de Leitura do Arquivo", description: "Não foi possível ler o arquivo selecionado.", variant: "destructive" });
+        setIsImporting(false);
+        if (event.target) event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+
+    } catch (error: any) {
+      console.error("Erro ao iniciar a importação de backup:", error);
+      toast({ title: "Erro Inesperado na Importação", description: error.message || "Ocorreu um erro ao tentar importar.", variant: "destructive" });
+      setIsImporting(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
   const handleImportInvestmentCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
       return;

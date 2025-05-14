@@ -79,6 +79,41 @@ type ChartType = "line" | "bar";
 type ComparisonMode = "accumulated" | "monthly";
 type DisplayUnit = "btc" | "usd" | "brl";
 
+// Definindo interfaces para melhor tipagem
+interface ReportStatDetails {
+  totalInvestments: number;
+  totalProfits: number;
+  finalBalance: number;
+  roi: number;
+  primeiroAporteDate: string | null; // ISO string
+  diasDeInvestimento: number;
+  tempoTotalInvestimento: string;
+  roiAnualizadoPercent: number;
+  mediaDiariaLucroBtc: number;
+  mediaDiariaRoiPercent: number;
+}
+
+interface ChartDataPoint {
+  month: string;
+  [key: string]: any; // Para as chaves dinâmicas dos relatórios
+}
+
+interface ComparisonDataResult {
+  chartData: ChartDataPoint[]; 
+  statsData: Record<string, ReportStatDetails>;
+  dateRange: { start: Date; end: Date };
+  totalInvestmentsBtc: number;
+  totalProfitsBtc: number;
+  totalBalanceBtc: number;
+  totalRoi: number;
+  aggregatedPrimeiroAporteDate: string | null; // ISO string
+  aggregatedDiasDeInvestimento: number;
+  aggregatedTempoTotalInvestimento: string;
+  aggregatedRoiAnualizadoPercent: number;
+  aggregatedMediaDiariaLucroBtc: number;
+  aggregatedMediaDiariaRoiPercent: number;
+}
+
 // NOVA FUNÇÃO AUXILIAR
 const parseReportDateStringToUTCDate = (dateString: string): Date => {
   if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
@@ -177,66 +212,60 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
   };
 
   // Calcular dados de comparação
-  const comparisonData = useMemo(() => {
+  const comparisonData = useMemo((): ComparisonDataResult | null => {
     if (selectedReportIds.length === 0) return null;
 
     const selectedReports = reports.filter(r => selectedReportIds.includes(r.id));
     
-    // Encontrar as datas mínima e máxima
-    let minDate = new Date();
-    let maxDate = new Date(0);
+    let minDateOverall = new Date(); // Renomeado para evitar conflito com minDate/maxDate no retorno
+    let maxDateOverall = new Date(0); // Renomeado
     
     selectedReports.forEach(report => {
-      // Combinar investimentos e lucros para encontrar o range de datas
       const allDates = [
-        ...(report.investments?.map(i => new Date(i.date)) || []),
-        ...(report.profits?.map(p => new Date(p.date)) || [])
-      ];
+        ...(report.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
+        ...(report.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
+      ].filter(date => !isNaN(date.getTime()));
       
       if (allDates.length === 0) return;
 
       const reportMinDate = new Date(Math.min(...allDates.map(d => d.getTime())));
       const reportMaxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
       
-      if (reportMinDate < minDate) minDate = reportMinDate;
-      if (reportMaxDate > maxDate) maxDate = reportMaxDate;
+      if (reportMinDate < minDateOverall) minDateOverall = reportMinDate;
+      if (reportMaxDate > maxDateOverall) maxDateOverall = reportMaxDate;
     });
     
-    // Garantir que temos pelo menos um mês
-    if (minDate > maxDate) {
+    if (minDateOverall > maxDateOverall) { // Corrigido para usar Overall
       const today = new Date();
-      minDate = new Date(today.getFullYear(), today.getMonth() -1, 1);
-      maxDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      minDateOverall = new Date(today.getFullYear(), today.getMonth() -1, 1);
+      maxDateOverall = new Date(today.getFullYear(), today.getMonth(), 1);
     }
     
-    // Criar lista de meses no período
     const months: Date[] = [];
-    const currentDate = new Date(minDate);
-    currentDate.setDate(1); // Primeiro dia do mês
+    const currentDate = new Date(minDateOverall); // Corrigido para usar Overall
+    currentDate.setDate(1); 
     
-    while (currentDate <= maxDate) {
+    while (currentDate <= maxDateOverall) { // Corrigido para usar Overall
       months.push(new Date(currentDate));
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
     
-    // Preparar dados para o gráfico
-    const chartData = months.map(month => {
+    const chartData: ChartDataPoint[] = months.map(month => {
       const monthLabel = format(month, 'MMM yyyy', { locale: ptBR });
-      const dataPoint: Record<string, any> = { month: monthLabel };
+      const dataPoint: ChartDataPoint = { month: monthLabel };
       
-      // Para cada relatório, calcular investimentos e lucros
       selectedReports.forEach(report => {
         const reportId = report.id;
-        const currentReport = reports.find(r => r.id === reportId);
-        if (!currentReport) return;
+        const currentReportData = reports.find(r => r.id === reportId); // Renomeado para evitar conflito
+        if (!currentReportData) return;
 
-        const reportInvestments = currentReport.investments || [];
-        const reportProfits = currentReport.profits || [];
+        const reportInvestments = currentReportData.investments || [];
+        const reportProfits = currentReportData.profits || [];
         
         if (comparisonMode === "accumulated") {
-          const monthEndForAccumulation = new Date(month); // month é o primeiro dia
+          const monthEndForAccumulation = new Date(month); 
           monthEndForAccumulation.setMonth(monthEndForAccumulation.getMonth() + 1);
-          monthEndForAccumulation.setDate(0); // Agora é o último dia do mês 'month'
+          monthEndForAccumulation.setDate(0); 
 
           const investmentsUntilMonth = reportInvestments.filter(inv => {
             const invDate = parseReportDateStringToUTCDate(inv.date);
@@ -265,7 +294,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           const monthStart = new Date(month);
           const monthEnd = new Date(month);
           monthEnd.setMonth(monthEnd.getMonth() + 1);
-          monthEnd.setDate(0); // Último dia do mês
+          monthEnd.setDate(0); 
           
           const investmentsInMonth = reportInvestments.filter(inv => {
             const invDate = parseReportDateStringToUTCDate(inv.date);
@@ -295,83 +324,80 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       return dataPoint;
     });
     
-    // Calcular estatísticas gerais para cada relatório selecionado
-    const statsData: Record<string, any> = {}; // MODIFICADO: Alterar tipo para any temporariamente ou criar interface mais completa
+    const statsData: Record<string, ReportStatDetails> = {};
 
     selectedReports.forEach(report => {
       const reportId = report.id;
-      const currentReport = reports.find(r => r.id === reportId);
-      if (!currentReport) return;
+      const currentReportData = reports.find(r => r.id === reportId); // Renomeado
+      if (!currentReportData) return;
 
-      const reportInvestments = currentReport.investments || [];
-      const reportProfits = currentReport.profits || [];
+      const reportInvestments = currentReportData.investments || [];
+      const reportProfitsData = currentReportData.profits || []; // Renomeado
       
       const totalInvestmentsBtc = reportInvestments.reduce((sum, inv) => {
         return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
       }, 0);
       
-      const totalProfitsBtc = reportProfits.reduce((sum, prof) => {
+      const totalProfitsBtc = reportProfitsData.reduce((sum, prof) => {
         const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
         return sum + (prof.isProfit ? amount : -amount);
       }, 0);
       
       const finalBalanceBtc = totalInvestmentsBtc + totalProfitsBtc;
-      const roi = totalInvestmentsBtc > 0 
+      const roiSimple = totalInvestmentsBtc > 0 
         ? (totalProfitsBtc / totalInvestmentsBtc) * 100 
         : 0;
       
-      // NOVOS CÁLCULOS PARA MÉTRICAS DETALHADAS POR RELATÓRIO
       const reportAllEntriesDates = [
-        ...(currentReport.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
-        ...(currentReport.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
+        ...(reportInvestments.map(i => parseReportDateStringToUTCDate(i.date))),
+        ...(reportProfitsData.map(p => parseReportDateStringToUTCDate(p.date)))
       ].filter(date => !isNaN(date.getTime()));
 
-      let primeiroAporteDate: Date | null = null;
-      const reportInvestmentsDates = currentReport.investments
-          ?.map(inv => parseReportDateStringToUTCDate(inv.date))
-          .filter(date => !isNaN(date.getTime())) || [];
+      let primeiroAporteDateObj: Date | null = null;
+      const reportValidInvestmentsDates = reportInvestments
+          .map(inv => parseReportDateStringToUTCDate(inv.date))
+          .filter(date => !isNaN(date.getTime()));
 
-      if (reportInvestmentsDates.length > 0) {
-          primeiroAporteDate = new Date(Math.min(...reportInvestmentsDates.map(d => d.getTime())));
+      if (reportValidInvestmentsDates.length > 0) {
+          primeiroAporteDateObj = new Date(Math.min(...reportValidInvestmentsDates.map(d => d.getTime())));
       }
       
-      let ultimoRegistroDate: Date | null = null;
+      let ultimoRegistroDateObj: Date | null = null;
       if (reportAllEntriesDates.length > 0) {
-          ultimoRegistroDate = new Date(Math.max(...reportAllEntriesDates.map(d => d.getTime())));
+          ultimoRegistroDateObj = new Date(Math.max(...reportAllEntriesDates.map(d => d.getTime())));
       }
 
       let diasDeInvestimento = 0;
-      if (primeiroAporteDate && ultimoRegistroDate && ultimoRegistroDate >= primeiroAporteDate) {
-          diasDeInvestimento = differenceInDays(startOfDay(ultimoRegistroDate), startOfDay(primeiroAporteDate));
-          // Se o primeiro aporte e o último registro são no MESMO dia, diasDeInvestimento será 0.
-          // Para fins de cálculo de média *diária*, pode fazer sentido considerar 1 dia se houve atividade.
-          if (diasDeInvestimento === 0 && reportInvestmentsDates.length > 0) {
-             // Se quisermos forçar 1 dia para cálculo de média quando há atividade no mesmo dia.
-             // diasDeInvestimento = 1; 
-          } 
+      if (primeiroAporteDateObj && ultimoRegistroDateObj && ultimoRegistroDateObj >= primeiroAporteDateObj) {
+          diasDeInvestimento = differenceInDays(startOfDay(ultimoRegistroDateObj), startOfDay(primeiroAporteDateObj));
       }
 
       let roiAnualizadoPercent = 0;
       if (totalInvestmentsBtc > 0 && diasDeInvestimento > 0 && totalProfitsBtc !== -totalInvestmentsBtc) {
           const roiDecimal = totalProfitsBtc / totalInvestmentsBtc;
-          if (1 + roiDecimal > 0) {
+          if (1 + roiDecimal > 0) { // Evitar log de NaN ou raiz de negativo
               roiAnualizadoPercent = (Math.pow(1 + roiDecimal, 365 / diasDeInvestimento) - 1) * 100;
-          } else {
-              roiAnualizadoPercent = -100; // Perda total
+          } else if (roiDecimal === -1) { // Perda total
+             roiAnualizadoPercent = -100;
+          } else { // Casos onde 1 + roiDecimal é <= 0 mas não é perda total (ex: grande perda inicial)
+             roiAnualizadoPercent = 0; // Ou alguma outra representação para ROI anualizado não calculável/significativo
           }
+      } else if (totalInvestmentsBtc > 0 && diasDeInvestimento === 0 && totalProfitsBtc !== 0) {
+          // Se houver lucro/perda no mesmo dia do investimento, ROI anualizado não é bem definido
+          // Pode-se optar por mostrar N/A ou o ROI simples se o período for muito curto
+          roiAnualizadoPercent = 0; // Ou roiSimple, ou NaN para indicar N/A na UI
       }
 
+
       const mediaDiariaLucroBtc = diasDeInvestimento > 0 ? totalProfitsBtc / diasDeInvestimento : 0;
-      // roi (simples) já está calculado acima
-      const mediaDiariaRoiPercent = diasDeInvestimento > 0 && totalInvestmentsBtc > 0 ? roi / diasDeInvestimento : 0;
+      const mediaDiariaRoiPercent = diasDeInvestimento > 0 && totalInvestmentsBtc > 0 ? roiSimple / diasDeInvestimento : 0;
       
       statsData[reportId] = {
         totalInvestments: totalInvestmentsBtc,
         totalProfits: totalProfitsBtc,
         finalBalance: finalBalanceBtc,
-        roi,
-        // Novas métricas
-        primeiroAporteDate: primeiroAporteDate ? primeiroAporteDate.toISOString() : null,
+        roi: roiSimple,
+        primeiroAporteDate: primeiroAporteDateObj ? primeiroAporteDateObj.toISOString() : null,
         diasDeInvestimento,
         tempoTotalInvestimento: formatTempoInvestimento(diasDeInvestimento),
         roiAnualizadoPercent,
@@ -380,14 +406,14 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       };
     });
     
-    // Calcular totais gerais agregados de todos os relatórios selecionados
     let aggregatedTotalInvestmentsBtc = 0;
     let aggregatedTotalProfitsBtc = 0;
 
     selectedReportIds.forEach(id => {
-      if (statsData[id]) {
-        aggregatedTotalInvestmentsBtc += statsData[id].totalInvestments || 0;
-        aggregatedTotalProfitsBtc += statsData[id].totalProfits || 0;
+      const reportStats = statsData[id]; 
+      if (reportStats) { 
+        aggregatedTotalInvestmentsBtc += reportStats.totalInvestments; // Removido || 0 pois totalInvestments é number
+        aggregatedTotalProfitsBtc += reportStats.totalProfits;   // Removido || 0 pois totalProfits é number
       }
     });
 
@@ -395,8 +421,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     const aggregatedTotalRoi = aggregatedTotalInvestmentsBtc > 0
       ? (aggregatedTotalProfitsBtc / aggregatedTotalInvestmentsBtc) * 100
       : 0;
-    
-    // NOVOS CÁLCULOS PARA MÉTRICAS AGREGADAS DETALHADAS
+
     let aggregatedPrimeiroAporteDateObj: Date | null = null;
     let aggregatedUltimoRegistroDateObj: Date | null = null;
 
@@ -409,12 +434,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         }
       }
 
-      // Para encontrar o último registro agregado, precisamos olhar as datas de cada relatório
-      const report = reports.find(r => r.id === id);
-      if (report) {
+      const currentReportData = reports.find(r => r.id === id); // Renomeado
+      if (currentReportData) {
         const allReportEntriesDates = [
-          ...(report.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
-          ...(report.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
+          ...(currentReportData.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
+          ...(currentReportData.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
         ].filter(date => !isNaN(date.getTime()));
 
         if (allReportEntriesDates.length > 0) {
@@ -429,10 +453,6 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     let aggregatedDiasDeInvestimento = 0;
     if (aggregatedPrimeiroAporteDateObj && aggregatedUltimoRegistroDateObj && aggregatedUltimoRegistroDateObj >= aggregatedPrimeiroAporteDateObj) {
       aggregatedDiasDeInvestimento = differenceInDays(startOfDay(aggregatedUltimoRegistroDateObj), startOfDay(aggregatedPrimeiroAporteDateObj));
-      // Similar ao individual, se for 0 mas houve aportes agregados, pode-se considerar 1.
-      // if (aggregatedDiasDeInvestimento === 0 && aggregatedTotalInvestmentsBtc > 0) {
-      //    aggregatedDiasDeInvestimento = 1;
-      // }
     }
 
     let aggregatedRoiAnualizadoPercent = 0;
@@ -440,35 +460,38 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       const aggregatedRoiDecimal = aggregatedTotalProfitsBtc / aggregatedTotalInvestmentsBtc;
       if (1 + aggregatedRoiDecimal > 0) {
         aggregatedRoiAnualizadoPercent = (Math.pow(1 + aggregatedRoiDecimal, 365 / aggregatedDiasDeInvestimento) - 1) * 100;
+      } else if (aggregatedRoiDecimal === -1) {
+         aggregatedRoiAnualizadoPercent = -100;
       } else {
-        aggregatedRoiAnualizadoPercent = -100; // Perda total
+         aggregatedRoiAnualizadoPercent = 0; 
       }
+    } else if (aggregatedTotalInvestmentsBtc > 0 && aggregatedDiasDeInvestimento === 0 && aggregatedTotalProfitsBtc !== 0){
+        aggregatedRoiAnualizadoPercent = 0; 
     }
 
+
     const aggregatedMediaDiariaLucroBtc = aggregatedDiasDeInvestimento > 0 ? aggregatedTotalProfitsBtc / aggregatedDiasDeInvestimento : 0;
-    // aggregatedTotalRoi (ROI simples) já está calculado acima
     const aggregatedMediaDiariaRoiPercent = aggregatedDiasDeInvestimento > 0 && aggregatedTotalInvestmentsBtc > 0 ? aggregatedTotalRoi / aggregatedDiasDeInvestimento : 0;
     
     return {
       chartData,
       statsData,
-      dateRange: {
-        start: minDate,
-        end: maxDate
+      dateRange: { // Usar os Overall aqui
+        start: minDateOverall,
+        end: maxDateOverall
       },
       totalInvestmentsBtc: aggregatedTotalInvestmentsBtc,
       totalProfitsBtc: aggregatedTotalProfitsBtc,
       totalBalanceBtc: aggregatedTotalBalanceBtc,
       totalRoi: aggregatedTotalRoi,
-      // Novas métricas agregadas para o resumo
       aggregatedPrimeiroAporteDate: aggregatedPrimeiroAporteDateObj ? aggregatedPrimeiroAporteDateObj.toISOString() : null,
-      aggregatedDiasDeInvestimento, // Raw dias
+      aggregatedDiasDeInvestimento, 
       aggregatedTempoTotalInvestimento: formatTempoInvestimento(aggregatedDiasDeInvestimento),
       aggregatedRoiAnualizadoPercent,
       aggregatedMediaDiariaLucroBtc,
       aggregatedMediaDiariaRoiPercent
     };
-  }, [reports, selectedReportIds, comparisonMode]);
+  }, [reports, selectedReportIds, comparisonMode]); // CORRIGIDO: Removido minDate e maxDate das dependências
 
   // Função para gerar linhas do gráfico
   const generateChartLines = () => {
@@ -1034,8 +1057,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
               <div className="text-xl font-bold">
                 <AnimatedCounter 
-                  value={comparisonData?.totalInvestmentsBtc || 0} 
-                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                  value={(() => {
+                    const val = comparisonData?.totalInvestmentsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                  })()}
+                  prefix={(() => {
+                    const val = comparisonData?.totalInvestmentsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                  })()}
+                  decimals={(() => {
+                    const val = comparisonData?.totalInvestmentsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                  })()}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1046,8 +1079,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
               <div className={`text-xl font-bold ${(comparisonData?.totalProfitsBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <AnimatedCounter 
-                  value={comparisonData?.totalProfitsBtc || 0} 
-                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                  value={(() => {
+                    const val = comparisonData?.totalProfitsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                  })()}
+                  prefix={(() => {
+                    const val = comparisonData?.totalProfitsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                  })()}
+                  decimals={(() => {
+                    const val = comparisonData?.totalProfitsBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                  })()}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1061,8 +1104,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
               <div className="text-xl font-bold">
                 <AnimatedCounter 
-                  value={comparisonData?.totalBalanceBtc || 0} 
-                  formatFn={(val) => `₿ ${formatCryptoAmount(val)}`}
+                  value={(() => {
+                    const val = comparisonData?.totalBalanceBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                  })()}
+                  prefix={(() => {
+                    const val = comparisonData?.totalBalanceBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                  })()}
+                  decimals={(() => {
+                    const val = comparisonData?.totalBalanceBtc || 0;
+                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                  })()}
                 />
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1074,7 +1127,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <div className={`text-xl font-bold ${(comparisonData?.totalRoi || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <AnimatedCounter 
                   value={comparisonData?.totalRoi || 0} 
-                  formatFn={(val) => `${val.toFixed(2)}%`}
+                  suffix="%"
+                  decimals={2}
                 />
               </div>
               <div className="text-xs text-muted-foreground">

@@ -11,6 +11,18 @@
 
 ## FOCO ATUAL / URGENTE
 
+### [CRITICAL] Correção de Erro TypeError em AuthForm - ID: AUTH_FORM_FIX_001
+- **Status:** Pendente
+- **Descrição:** Investigar e corrigir o erro `TypeError: d is not a function` (referência `173-42b94c44a2d68f4a.js:1`) que ocorre ao acessar o formulário de login em `components/auth-form.tsx`.
+- **Requisitos Chave:**
+    - [ ] Analisar o stack trace do erro para identificar a origem da função `d`.
+    - [x] Verificar as dependências e o código do componente `AuthForm` em busca de chamadas de função incorretas ou `props` mal utilizadas (verificações de `typeof function` adicionadas em `AuthForm`).
+    - [x] Considerar interações com o hook `useAuth` (logs adicionados em `useAuth` para inspecionar o `contextValue` e o estado do `supabaseClient`).
+    - [ ] Implementar a correção necessária para que o formulário de login funcione sem erros.
+    - [ ] Testar exaustivamente o formulário de login e cadastro após a correção.
+- **Componentes Afetados Principais:** `components/auth-form.tsx`, possivelmente `hooks/use-auth.tsx` e `app/auth/page.tsx`.
+---
+
 ### [MEDIUM] Correções e Melhorias no Sistema de Exportação da Calculadora de Lucros - ID: EXPORT_FIX_001
 - **Status:** Concluído
 - **Descrição:** Resolver problemas identificados na funcionalidade de exportação avançada do `profit-calculator.tsx`, incluindo a sincronização da seleção de relatório, a navegação por mês e um erro que impede a exportação de dados existentes.
@@ -38,6 +50,25 @@
         - [x] Verificar sincronização, navegação por mês e correção de erro.
 ---
 
+### [HIGH] Refatoração da Lógica de Importação de Backup - ID: IMPORT_REFACTOR_001
+- **Status:** Concluído
+- **Descrição:** Melhorar a robustez da importação de backups (Excel) no `profit-calculator.tsx`, garantindo a correta adição de dados ao relatório selecionado através do hook `useReports` e implementando uma verificação de duplicatas baseada em `originalId`.
+- **Requisitos Chave:**
+    - [x] **Ajuste em `handleImportBackupExcel` (`profit-calculator.tsx`):**
+        - [x] Iterar sobre `importedInvestments` e chamar `addInvestment` (do hook `useReports`) passando `targetReportId` e dados do investimento incluindo `originalId`.
+        - [x] Iterar sobre `importedProfits` e chamar `addProfitRecord` (do hook `useReports`) passando `targetReportId` e dados do lucro/perda incluindo `originalId`.
+        - [x] Atualizar `importStats` e toasts para refletir sucesso, falha ou duplicata ignorada com base no retorno das funções do hook.
+    - [x] **Modificação de `addInvestment` (`hooks/use-reports.tsx`):**
+        - [x] Adicionar parâmetro opcional `originalId?: string`.
+        - [x] Se `originalId` presente, verificar duplicatas no relatório alvo. Se duplicado, retornar `false` (ou indicador) e notificar.
+        - [x] Se não duplicado, gerar novo `id`, salvar `originalId` no objeto, adicionar ao estado e retornar `true`.
+    - [x] **Modificação de `addProfitRecord` (`hooks/use-reports.tsx`):**
+        - [x] Adicionar parâmetro opcional `originalId?: string`.
+        - [x] Se `originalId` presente, verificar duplicatas no relatório alvo. Se duplicado, retornar `false` (ou indicador) e notificar.
+        - [x] Se não duplicado, gerar novo `id`, salvar `originalId` no objeto, adicionar ao estado e retornar `true`.
+- **Componentes Afetados Principais:** `components/profit-calculator.tsx`, `hooks/use-reports.tsx`.
+---
+
 ## Sprint 2: Múltiplos Relatórios - Fundação & Correções Calculadora (Sprint Atual)
 **Objetivo Principal do Sprint:** Estabelecer a base para o sistema de múltiplos relatórios, iniciar otimizações de performance e **resolver issues críticas da calculadora (Exportação)**.
 
@@ -50,6 +81,7 @@
 | A3.1.1 | Code Splitting (Geral)                       | Alta       | [ ]    |                                               |
 | A1.4.1 | Refatoração do Singleton (Parte 1)           | Alta       | [ ]    |                                               |
 | -      | EXPORT_FIX_001 (detalhado acima)             | Crítica    | Concluído | **Foco Principal da Sessão Atual**          |
+| -      | IMPORT_REFACTOR_001 (detalhado acima)        | Alta       | [ ]    | Refatoração da importação de backup Excel.    |
 
 ---
 
@@ -65,6 +97,12 @@
 | A1.2.2 | Correção da Hierarquia de Componentes         | Crítica    | [ ]    |
 | A1.2.3 | Implementação de Fallbacks (Autenticação)    | Alta       | [ ]    |
 | A1.3.1 | Indicadores de Carregamento (Autenticação)   | Alta       | [x]    |
+| A2.1.3 | Gerenciamento de Relatórios (Edição/Exclusão) | Alta       | [x]    |
+| A2.3.1 | Gráficos Comparativos (Relatórios)           | Média      | [x]    |
+| A2.3.2 | Tabela de Resumo Consolidado (Relatórios)    | Média      | [x]    |
+| A2.4.1 | Exportação por Relatório                     | Alta       | [ ]    |
+| A2.4.2 | Importação com Suporte a Relatórios          | Alta       | [ ]    | Ver IMPORT_REFACTOR_001                       |
+| A1.5.2 | Implementação "Lembrar-me" no Backend      | Média      | [ ]    |
 
 ---
 
@@ -100,11 +138,11 @@
 ## Sprint 5: Polimento e Finalização
 **Objetivo:** Polir a experiência do usuário, resolver bugs pendentes e finalizar documentação.
 
-| ID     | Tarefa                               | Prioridade | Status |
-|--------|--------------------------------------|------------|--------|
-| A1.4.3 | Testes e Validação do Singleton      | Alta       | [ ]    |
-| A2.4.3 | Melhorias no Sistema de Importação   | Alta       | [ ]    |
-| A3.1.3 | Preload de Dados Críticos            | Alta       | [ ]    |
+| ID     | Tarefa                               | Prioridade | Status | Observações                                   |
+|--------|--------------------------------------|------------|--------|-----------------------------------------------|
+| A1.4.3 | Testes e Validação do Singleton      | Alta       | [ ]    |                                               |
+| A2.4.3 | Melhorias no Sistema de Importação   | Alta       | [ ]    | Ver IMPORT_REFACTOR_001                       |
+| A3.1.3 | Preload de Dados Críticos            | Alta       | [ ]    |                                               |
 | A3.2.3 | Otimização de Re-renderizações     | Média      | [ ]    |
 | A3.3.1 | Cache de Cotações                    | Média      | [ ]    |
 | A2.3.3 | Dashboard Customizável (Inicial)     | Baixa      | [ ]    |
@@ -172,7 +210,7 @@
 - [x] **A2.1.** Implementar interface para criação e seleção de relatórios.
 - [x] **A2.2.** Desenvolver sistema de armazenamento para múltiplos relatórios.
 - [x] **A2.3.** Criar visualização comparativa entre relatórios.
-- [x] **A2.4.** Adaptar funcionalidades de importação/exportação. (Parcialmente, EXPORT_FIX_001 é sobre isso) => (Concluído com EXPORT_FIX_001)
+- [ ] **A2.4.** Adaptar funcionalidades de importação/exportação. (Parcialmente, EXPORT_FIX_001 concluído, IMPORT_REFACTOR_001 pendente)
 
 ### A3. Otimizações de Performance (Referência `tasks.md` original)
 - [ ] **A3.1.** Reduzir tempo de carregamento inicial.

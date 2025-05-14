@@ -221,7 +221,7 @@ export function useReports() {
     });
     
     return true;
-  }, []);
+  }, [collection.activeReportId]);
   
   // Função para atualizar um relatório
   const updateReport = useCallback((reportId: string, updates: Partial<Report>) => {
@@ -261,85 +261,117 @@ export function useReports() {
     return true;
   }, []);
   
-  // Função para adicionar um investimento ao relatório ativo
-  const addInvestment = useCallback((investment: Omit<Investment, "id">) => {
-    if (!activeReport) {
-      toast({
-        title: "Nenhum relatório ativo",
-        description: "Não há relatório ativo para adicionar o investimento",
-        variant: "destructive",
-        duration: 3000,
-      });
-      return false;
-    }
-    
-    const newInvestment: Investment = {
-      ...investment,
-      id: generateId()
-    };
+  // Função para adicionar um investimento ao relatório ativo (ou especificado)
+  const addInvestment = useCallback((investmentData: Omit<Investment, "id"> & { originalId?: string }, targetReportId?: string): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
+    let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
     
     setCollection(prevCollection => {
-      const updatedReports = prevCollection.reports.map(report => {
-        if (report.id === prevCollection.activeReportId) {
-          return {
-            ...report,
-            investments: [...report.investments, newInvestment],
-            updatedAt: new Date().toISOString()
-          };
+      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      if (!reportIdToUpdate) {
+        result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return prevCollection;
+      }
+
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
+      if (reportIndex === -1) {
+        result = { status: 'error', message: "Relatório não encontrado." };
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return prevCollection;
+      }
+
+      const reportToUpdate = prevCollection.reports[reportIndex];
+
+      if (investmentData.originalId) {
+        const isDuplicate = reportToUpdate.investments.some(inv => inv.originalId === investmentData.originalId);
+        if (isDuplicate) {
+          result = { status: 'duplicate', originalId: investmentData.originalId };
+          toast({ title: "Aporte Duplicado", description: `Aporte com ID original ${investmentData.originalId} já existe e foi ignorado.`, variant: "default", duration: 4000 });
+          return prevCollection; 
         }
-        return report;
-      });
+      }
+
+      const newInvestmentId = generateId();
+      const newInvestment: Investment = {
+        ...investmentData,
+        id: newInvestmentId,
+      };
+
+      const updatedReport = {
+        ...reportToUpdate,
+        investments: [...reportToUpdate.investments, newInvestment],
+      };
+
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
       
+      result = { status: 'added', id: newInvestmentId };
+      toast({ title: "Aporte Adicionado", description: "Novo aporte registrado com sucesso.", variant: "success" });
       return {
         ...prevCollection,
         reports: updatedReports,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
     });
-    
-    return true;
-  }, [activeReport]);
+    return result;
+  }, []);
   
-  // Função para adicionar um registro de lucro/perda ao relatório ativo
-  const addProfitRecord = useCallback((profit: Omit<ProfitRecord, "id">) => {
-    if (!activeReport) {
-      toast({
-        title: "Nenhum relatório ativo",
-        description: "Não há relatório ativo para adicionar o registro",
-        variant: "destructive",
-        duration: 3000,
-      });
-      return false;
-    }
-    
-    const newProfit: ProfitRecord = {
-      ...profit,
-      id: generateId()
-    };
-    
+  // Função para adicionar um registro de lucro/perda ao relatório ativo (ou especificado)
+  const addProfitRecord = useCallback((profitData: Omit<ProfitRecord, "id"> & { originalId?: string }, targetReportId?: string): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
+    let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
+
     setCollection(prevCollection => {
-      const updatedReports = prevCollection.reports.map(report => {
-        if (report.id === prevCollection.activeReportId) {
-          return {
-            ...report,
-            profits: [...report.profits, newProfit],
-            updatedAt: new Date().toISOString()
-          };
+      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      if (!reportIdToUpdate) {
+        result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return prevCollection;
+      }
+
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
+      if (reportIndex === -1) {
+        result = { status: 'error', message: "Relatório não encontrado." };
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return prevCollection;
+      }
+
+      const reportToUpdate = prevCollection.reports[reportIndex];
+
+      if (profitData.originalId) {
+        const isDuplicate = reportToUpdate.profits.some(p => p.originalId === profitData.originalId);
+        if (isDuplicate) {
+          result = { status: 'duplicate', originalId: profitData.originalId };
+          toast({ title: "Registro Duplicado", description: `Registro de lucro/perda com ID original ${profitData.originalId} já existe e foi ignorado.`, variant: "default", duration: 4000 });
+          return prevCollection; 
         }
-        return report;
-      });
-      
+      }
+
+      const newProfitRecordId = generateId();
+      const newProfitRecord: ProfitRecord = {
+        ...profitData,
+        id: newProfitRecordId,
+      };
+
+      const updatedReport = {
+        ...reportToUpdate,
+        profits: [...reportToUpdate.profits, newProfitRecord],
+      };
+
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
+
+      result = { status: 'added', id: newProfitRecordId };
+      toast({ title: "Registro Adicionado", description: "Novo registro de lucro/perda salvo com sucesso.", variant: "success" });
       return {
         ...prevCollection,
         reports: updatedReports,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
     });
-    
-    return true;
-  }, [activeReport]);
+    return result;
+  }, []);
   
-  // Função para excluir um investimento
+  // Função para excluir um investimento de um relatório específico
   const deleteInvestment = useCallback((reportId: string, investmentId: string) => {
     setCollection(prevCollection => {
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);

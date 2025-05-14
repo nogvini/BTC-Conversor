@@ -217,6 +217,18 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       return
     }
 
+    // ADICIONAR VERIFICAÇÃO DE SEGURANÇA
+    if (typeof signIn !== 'function') {
+      console.error("AuthForm: signIn function is not available or not a function.", { signInFunction: signIn });
+      toast({
+        title: "Erro Interno",
+        description: "A funcionalidade de login está temporariamente indisponível. Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true)
       setLoginEmail(data.email)
@@ -325,6 +337,18 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       return
     }
 
+    // ADICIONAR VERIFICAÇÃO DE SEGURANÇA
+    if (typeof signUp !== 'function') {
+      console.error("AuthForm: signUp function is not available or not a function.", { signUpFunction: signUp });
+      toast({
+        title: "Erro Interno",
+        description: "A funcionalidade de cadastro está temporariamente indisponível. Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true)
       const { error } = await signUp(data.email, data.password, data.name)
@@ -374,6 +398,18 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       description: "Aguarde enquanto nos reconectamos ao serviço...",
       variant: "default",
     })
+
+    // ADICIONAR VERIFICAÇÃO DE SEGURANÇA
+    if (typeof retryConnection !== 'function') {
+      console.error("AuthForm: retryConnection function is not available or not a function.", { retryConnectionFunction: retryConnection });
+      toast({
+        title: "Erro Interno",
+        description: "A funcionalidade de reconexão está temporariamente indisponível.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
     
     // Chamar a função de reconexão
     retryConnection()
