@@ -138,6 +138,7 @@ interface ExportOptions {
   includeSummarySection?: boolean; // Novo
   includeInvestmentsTableSection?: boolean; // Novo
   includeProfitsTableSection?: boolean; // Novo
+  pdfDarkMode?: boolean; // NOVO para modo escuro PDF
 }
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
@@ -243,6 +244,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [exportIncludeSummarySection, setExportIncludeSummarySection] = useState<boolean>(true); // Novo
   const [exportIncludeInvestmentsTableSection, setExportIncludeInvestmentsTableSection] = useState<boolean>(true); // Novo
   const [exportIncludeProfitsTableSection, setExportIncludeProfitsTableSection] = useState<boolean>(true); // Novo
+  const [exportPdfDarkMode, setExportPdfDarkMode] = useState<boolean>(false); // NOVO estado
 
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
@@ -1023,91 +1025,131 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         const metadataSheetRef = workbook.getWorksheet('Metadados');
         if (metadataSheetRef) metadataSheetRef.getColumn('key').font = { bold: true }; // Metadados sempre tem 'key'
 
-        // LÓGICA DE GRÁFICOS PARA EXCEL (Temporariamente simplificada/comentada)
+        // LÓGICA DE GRÁFICOS PARA EXCEL
         if (options.exportFormat === 'excel' && options.includeCharts) {
-          const chartData = getChartMonthlyData(finalInvestmentsToExport, finalProfitsToExport);
-          if (chartData.length > 0) {
+          const monthlyChartDataForExcel = getChartMonthlyData(finalInvestmentsToExport, finalProfitsToExport);
+          if (monthlyChartDataForExcel.length > 0) {
             const chartsSheet = workbook.addWorksheet("Gráficos");
-            activeSheets.push(chartsSheet); // Adicionar também à lista para formatação genérica, se aplicável
+            activeSheets.push(chartsSheet); 
 
-            chartsSheet.addRow(["Mês/Ano", "Total Investimentos (BTC)", "Lucro Líquido (BTC)", "Total Lucros (BTC)", "Total Perdas (BTC)"]);
-            chartData.forEach(data => {
-              const displayMonthYear = format(parseISODate(data.monthYear + '-01'), "MMM/yyyy", { locale: ptBR });
-              chartsSheet.addRow([
-                displayMonthYear,
-                data.totalInvestments,
-                data.netProfits,
-                data.totalProfits,
-                data.totalLosses
-              ]);
-            });
+            // Função auxiliar para obter a string de formatação de moeda para Excel
+            const getExcelCurrencyFormat = (currency: 'USD' | 'BRL' | 'BTC' | 'SATS'): string => {
+              if (currency === 'USD') return '"$"#,##0.00';
+              if (currency === 'BRL') return '"R$"#,##0.00';
+              if (currency === 'BTC') return '#,##0.00000000 "BTC"';
+              if (currency === 'SATS') return '#,##0 "SATS"';
+              return '#,##0.00';
+            };
 
+            // Definir cabeçalhos para a planilha de gráficos
+            const excelChartHeaders = [
+              { header: 'Mês/Ano', key: 'monthYear', width: 15 }, // Coluna A
+              { header: 'Total Investimentos (BTC)', key: 'totalInvestmentsBtc', width: 25, style: { numFmt: getExcelCurrencyFormat('BTC') } }, // B
+              { header: 'Lucro Líquido (BTC)', key: 'netProfitsBtc', width: 25, style: { numFmt: getExcelCurrencyFormat('BTC') } }, // C
+              { header: `Total Investimentos (${displayCurrency})`, key: 'totalInvestmentsDisplay', width: 25, style: { numFmt: getExcelCurrencyFormat(displayCurrency) } }, // D
+              { header: `Lucro Líquido (${displayCurrency})`, key: 'netProfitsDisplay', width: 25, style: { numFmt: getExcelCurrencyFormat(displayCurrency) } }, // E
+              { header: `Saldo Acumulado (BTC)`, key: 'balanceBtc', width: 25, style: { numFmt: getExcelCurrencyFormat('BTC') } }, // F
+              { header: `Saldo Acumulado (${displayCurrency})`, key: 'balanceDisplay', width: 25, style: { numFmt: getExcelCurrencyFormat(displayCurrency) } }, // G
+            ];
+            chartsSheet.columns = excelChartHeaders;
+            chartsSheet.getRow(1).font = { bold: true };
             chartsSheet.getRow(1).eachCell({ includeEmpty: true }, (cell: ExcelJS.Cell) => { cell.style = headerStyle; });
-            ['B', 'C', 'D', 'E'].forEach(colLetter => {
-              chartsSheet.getColumn(colLetter).numFmt = '#,##0.00000000';
+
+            let cumulativeBalanceBtc = 0;
+            let cumulativeBalanceDisplay = 0;
+            const btcToDisplayRate = displayCurrency === 'USD' ? currentRates.btcToUsd : (currentRates.btcToUsd * currentRates.brlToUsd);
+
+            monthlyChartDataForExcel.forEach(data => {
+              cumulativeBalanceBtc += data.totalInvestments + data.netProfits;
+              cumulativeBalanceDisplay += (data.totalInvestments + data.netProfits) * btcToDisplayRate;
+              
+              chartsSheet.addRow({
+                monthYear: format(parseISODate(data.monthYear + '-01'), "MMM/yyyy", { locale: ptBR }), // Usar format da date-fns
+                totalInvestmentsBtc: data.totalInvestments,
+                netProfitsBtc: data.netProfits,
+                totalInvestmentsDisplay: data.totalInvestments * btcToDisplayRate,
+                netProfitsDisplay: data.netProfits * btcToDisplayRate,
+                balanceBtc: cumulativeBalanceBtc,
+                balanceDisplay: cumulativeBalanceDisplay
+              });
+            });
+            
+            // Aplicar estilos de dados às células numéricas na aba Gráficos
+            ['B', 'C', 'D', 'E', 'F', 'G'].forEach(colLetter => {
               chartsSheet.getColumn(colLetter).eachCell({ includeEmpty: true }, (cell: ExcelJS.Cell, rowNumber: number) => {
-                if (rowNumber > 1) cell.style = { ...cell.style, ...dataCellStyle };
+                if (rowNumber > 1) cell.style = { ...cell.style, ...dataCellStyle }; // Aplica estilo de dados base
               });
             });
             chartsSheet.getColumn('A').eachCell({ includeEmpty: true }, (cell: ExcelJS.Cell, rowNumber: number) => {
                if (rowNumber > 1) cell.style = { ...cell.style, ...dataCellStyle };
             });
 
-            const lastDataRow = chartData.length + 1;
+            const lastDataRowCharts = chartsSheet.rowCount;
 
-            // console.log("Tentando adicionar gráficos..."); // Log para depuração
-            // GRÁFICOS TEMPORARIAMENTE COMENTADOS DEVIDO A POSSÍVEIS PROBLEMAS COM addChart
-            /*
-            try {
-              // Gráfico de Investimentos Mensais
-              chartsSheet.addChart({
-                title: 'Investimentos Mensais (BTC)',
-                type: 'bar',
-                style: 'standard',
-                series: [
-                  {
-                    name: 'Total Investimentos (BTC)',
-                    values: `Gráficos!$B$2:$B$${lastDataRow}`,
-                    categories: `Gráficos!$A$2:$A$${lastDataRow}`,
+            // GRÁFICOS DIRETOS NO EXCEL - DESCOMENTADOS PARA TESTE
+            if (lastDataRowCharts > 1) { // Só tentar se houver dados
+              try {
+                // Gráfico de Investimentos Mensais vs Lucro Líquido (Barras)
+                chartsSheet.addChart({
+                  title: `Investimentos vs Lucro Líquido (${displayCurrency})`,
+                  type: 'bar',
+                  style: 'style10',
+                  series: [
+                    {
+                      name: `Gráficos!$D$1`, // Total Investimentos (Display Currency)
+                      values: `Gráficos!$D$2:$D$${lastDataRowCharts}`,
+                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
+                    },
+                    {
+                      name: `Gráficos!$E$1`, // Lucro Líquido (Display Currency)
+                      values: `Gráficos!$E$2:$E$${lastDataRowCharts}`,
+                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
+                    },
+                  ],
+                  anchor: {
+                    type: 'twoCell',
+                    from: { col: 1, row: lastDataRowCharts + 2 },
+                    to: { col: 9, row: lastDataRowCharts + 2 + 15 },
                   },
-                ],
-                anchor: {
-                  type: 'twoCell',
-                  from: { col: 1, row: lastDataRow + 2 }, 
-                  to: { col: 9, row: lastDataRow + 2 + 15 }, 
-                },
-              });
+                });
 
-              // Gráfico de Lucro Líquido Mensal
-              chartsSheet.addChart({
-                title: 'Lucro Líquido Mensal (BTC)',
-                type: 'line',
-                style: 'standard',
-                series: [
-                  {
-                    name: 'Lucro Líquido (BTC)',
-                    values: `Gráficos!$C$2:$C$${lastDataRow}`,
-                    categories: `Gráficos!$A$2:$A$${lastDataRow}`,
+                // Gráfico de Evolução do Saldo Acumulado (Linha)
+                chartsSheet.addChart({
+                  title: `Evolução do Saldo Acumulado (${displayCurrency})`,
+                  type: 'line',
+                  style: 'style12',
+                  series: [
+                    {
+                      name: `Gráficos!$G$1`, // Saldo Acumulado (Display Currency)
+                      values: `Gráficos!$G$2:$G$${lastDataRowCharts}`,
+                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
+                    },
+                  ],
+                  anchor: {
+                    type: 'twoCell',
+                    from: { col: 10, row: lastDataRowCharts + 2 },
+                    to: { col: 18, row: lastDataRowCharts + 2 + 15 },
                   },
-                ],
-                anchor: {
-                  type: 'twoCell',
-                  from: { col: 10, row: lastDataRow + 2 },
-                  to: { col: 18, row: lastDataRow + 2 + 15 },
-                },
-              });
-              console.log("Comandos addChart executados.");
-            } catch (chartError) {
-              console.error("Erro ao adicionar gráficos no Excel:", chartError);
-              toast({
-                title: "Erro ao Gerar Gráficos",
-                description: "Houve um problema ao tentar adicionar gráficos à planilha Excel. Os dados foram exportados sem gráficos.",
-                variant: "warning",
-              });
+                });
+
+                console.log("EXCEL_CHART_LOG: Tentativa de adicionar gráficos ao Excel concluída.");
+                toast({
+                  title: "Gráficos no Excel (Experimental)",
+                  description: "Tentativa de adicionar gráficos à planilha Excel foi executada. Verifique o arquivo e o console para EXCEL_CHART_ERROR em caso de falha.",
+                  variant: "default",
+                  duration: 7000,
+                });
+
+              } catch (chartError: any) {
+                console.error("EXCEL_CHART_ERROR: Erro ao adicionar gráficos no Excel:", chartError);
+                toast({
+                  title: "Erro ao Gerar Gráficos no Excel",
+                  description: `Não foi possível adicionar os gráficos: ${chartError?.message || 'Erro desconhecido'}. Verifique o console (EXCEL_CHART_ERROR). Os dados estão na aba 'Gráficos'.`,
+                  variant: "destructive",
+                  duration: 10000,
+                });
+              }
             }
-            */
-          } else {
-            console.log("Nenhum dado mensal para gerar gráficos Excel.");
           }
         }
       } // Fim do if (options.exportFormat === 'excel')
@@ -3858,7 +3900,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   <Checkbox id="include-profits-table" checked={exportIncludeProfitsTableSection} onCheckedChange={(checked) => setExportIncludeProfitsTableSection(Boolean(checked))} />
                   <Label htmlFor="include-profits-table" className="font-normal text-sm cursor-pointer flex-grow">Tabela de Lucros/Prejuízos</Label>
                 </div>
-                {/* Adicionar mais checkboxes para outras seções conforme necessário */}
+                {/* NOVO CHECKBOX MODO ESCURO PDF */}
+                {exportFormat === 'pdf' && (
+                  <div className="flex items-center space-x-2 p-2 rounded hover:bg-purple-900/20 border border-transparent hover:border-purple-700/30 mt-3 pt-3 border-t border-purple-700/20">
+                    <Checkbox id="pdf-dark-mode" checked={exportPdfDarkMode} onCheckedChange={(checked) => setExportPdfDarkMode(Boolean(checked))} />
+                    <Label htmlFor="pdf-dark-mode" className="font-normal text-sm cursor-pointer flex-grow">Modo Escuro para PDF</Label>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -3896,11 +3944,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   specificMonthDate: exportPeriodSelectionType === 'specificMonth' ? exportSpecificMonthDate : null,
                   customStartDate: exportPeriodSelectionType === 'customRange' ? exportCustomStartDateForRange : null,
                   customEndDate: exportPeriodSelectionType === 'customRange' ? exportCustomEndDateForRange : null,
-                  // historyFilterUsed: exportPeriodSelectionType === 'historyFilter' ? {type: historyFilterType, month: filterMonth, start: customStartDate, end: customEndDate} : null, // Removido ou ajustado se necessário
                   includeCharts: exportIncludeCharts,
-                  includeSummarySection: exportIncludeSummarySection, // Adicionado
-                  includeInvestmentsTableSection: exportIncludeInvestmentsTableSection, // Adicionado
-                  includeProfitsTableSection: exportIncludeProfitsTableSection, // Adicionado
+                  includeSummarySection: exportIncludeSummarySection, 
+                  includeInvestmentsTableSection: exportIncludeInvestmentsTableSection, 
+                  includeProfitsTableSection: exportIncludeProfitsTableSection,
+                  pdfDarkMode: exportFormat === 'pdf' ? exportPdfDarkMode : undefined, // NOVO - adicionar ao payload
                 };
                 console.log("Opções Avançadas de Exportação Selecionadas:", optionsToLog);
                 

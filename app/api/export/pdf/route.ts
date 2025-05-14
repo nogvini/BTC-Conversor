@@ -16,6 +16,7 @@ interface ExportOptions {
   includeSummarySection?: boolean;
   includeInvestmentsTableSection?: boolean;
   includeProfitsTableSection?: boolean;
+  pdfDarkMode?: boolean; // NOVO
 }
 
 interface Investment {
@@ -56,6 +57,11 @@ interface Payload {
     balanceBtc: number;
     currentRates: { btcToUsd: number; brlToUsd: number };
     displayCurrency: "USD" | "BRL";
+    totalInvestmentsDisplay: number;
+    totalProfitsDisplay: number;
+    totalLossesDisplay: number;
+    netProfitDisplay: number;
+    averageRoi: number;
   };
   chartData: ChartDataPoint[];
 }
@@ -63,7 +69,8 @@ interface Payload {
 // Função para gerar o HTML do relatório
 const generateReportHTML = (data: Payload): string => {
   const { reportName, options, investments, profits, summaryData, chartData } = data;
-  const { displayCurrency, currentRates } = summaryData;
+  const { displayCurrency, currentRates, totalInvestmentsBtc, totalInvestmentsDisplay, totalProfitsBtc, totalProfitsDisplay, totalLossesBtc, totalLossesDisplay, netProfitBtc, netProfitDisplay, averageRoi } = summaryData;
+  const { pdfDarkMode } = options; // NOVO - obter a opção de modo escuro
 
   const formatCurrencyValue = (value: number, currency: "USD" | "BRL" | "BTC" | "SATS") => {
     if (currency === "USD") return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -73,12 +80,12 @@ const generateReportHTML = (data: Payload): string => {
     return value.toString();
   };
 
-  const formatDate = (dateString: string | Date | null | undefined): string => {
+  const formatDate = (dateString: string | null | undefined, includeTime: boolean = false): string => {
     if (!dateString) return 'N/A';
     try {
       // Tentar normalizar para objeto Date primeiro, se for string
       const dateObj = typeof dateString === 'string' ? new Date(dateString) : dateString;
-      return dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      return dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: includeTime ? '2-digit' : undefined, minute: includeTime ? '2-digit' : undefined });
     } catch (e) {
       return typeof dateString === 'string' ? dateString : 'Data Inválida';
     }
@@ -106,11 +113,77 @@ const generateReportHTML = (data: Payload): string => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Relatório: ${reportName}</title>
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <title>${reportName}</title>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 0; background-color: #f9fafb; color: #1f2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .container { max-width: 800px; margin: 20px auto; background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background-color: #f4f4f9;
+          color: #333;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .dark-mode {
+          background-color: #0d1117; /* GitHub Dark Background */
+          color: #c9d1d9; /* GitHub Dark Text */
+        }
+        .dark-mode .container {
+          background-color: #161b22; /* GitHub Dark Paper Background */
+          border-color: #30363d; /* GitHub Dark Border */
+        }
+        .dark-mode h1, .dark-mode h2, .dark-mode h3 {
+          color: #58a6ff; /* GitHub Dark Primary Link/Header */
+        }
+        .dark-mode h1 { border-bottom-color: #30363d; }
+        .dark-mode h2 { border-bottom-color: #21262d; }
+        .dark-mode table th {
+          background-color: #1f2937; /* Azul escuro/cinza para cabeçalhos de tabela */
+          color: #e5e7eb;
+        }
+        .dark-mode table td, .dark-mode table th {
+          border-color: #30363d;
+        }
+        .dark-mode table tr:nth-child(even) {
+          background-color: #1a202c; /* Um pouco mais claro que o container para contraste */
+        }
+        .dark-mode .section {
+          background-color: #161b22;
+          border-color: #30363d;
+        }
+        .dark-mode .summary-item {
+          background-color: #21262c;
+          border-left-color: #58a6ff;
+        }
+        .dark-mode .summary-item .label {
+          color: #8b949e; /* GitHub Dark Secondary Text */
+        }
+        .dark-mode .summary-item .value {
+          color: #c9d1d9;
+        }
+        .dark-mode .profit {
+          color: #56d364 !important; /* GitHub Dark Green */
+        }
+        .dark-mode .loss {
+          color: #f85149 !important; /* GitHub Dark Red */
+        }
+        .dark-mode .chart-container {
+          border-color: #30363d;
+          background-color: transparent; /* Gráficos geralmente têm seu próprio fundo */
+        }
+        .dark-mode .no-data {
+          color: #8b949e;
+        }
+
+        .container {
+          max-width: 800px;
+          margin: 20px auto;
+          background-color: #ffffff;
+          padding: 25px;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
         h1 { color: #4f46e5; text-align: center; border-bottom: 2px solid #6366f1; padding-bottom: 15px; margin-top:0; margin-bottom: 25px; font-size: 24px; }
         h2 { color: #6d28d9; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-top: 30px; margin-bottom: 15px; font-size: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
@@ -136,7 +209,7 @@ const generateReportHTML = (data: Payload): string => {
         }
       </style>
     </head>
-    <body>
+    <body class="${pdfDarkMode ? 'dark-mode' : ''}">
       <div class="container">
         <h1>Relatório de Performance: ${reportName}</h1>
   `;
@@ -149,10 +222,10 @@ const generateReportHTML = (data: Payload): string => {
         <div class="summary-grid">
           <div class="summary-item"><span class="label">Relatório(s):</span> <span class="value">${reportName}</span></div>
           <div class="summary-item"><span class="label">Período:</span> <span class="value">${getPeriodDescription()}</span></div>
-          <div class="summary-item"><span class="label">Total Investido (BTC):</span> <span class="value">${summaryData.totalInvestmentsBtc.toFixed(8)}</span></div>
-          <div class="summary-item"><span class="label">Lucro Bruto (BTC):</span> <span class="value profit">${summaryData.totalProfitsBtc.toFixed(8)}</span></div>
-          <div class="summary-item"><span class="label">Prejuízo Bruto (BTC):</span> <span class="value loss">${summaryData.totalLossesBtc.toFixed(8)}</span></div>
-          <div class="summary-item"><span class="label">Lucro Líquido (BTC):</span> <span class="value ${summaryData.netProfitBtc >= 0 ? 'profit' : 'loss'}">${summaryData.netProfitBtc.toFixed(8)}</span></div>
+          <div class="summary-item"><span class="label">Total Investido (BTC):</span> <span class="value">${totalInvestmentsBtc.toFixed(8)}</span></div>
+          <div class="summary-item"><span class="label">Lucro Bruto (BTC):</span> <span class="value profit">${totalProfitsBtc.toFixed(8)}</span></div>
+          <div class="summary-item"><span class="label">Prejuízo Bruto (BTC):</span> <span class="value loss">${totalLossesBtc.toFixed(8)}</span></div>
+          <div class="summary-item"><span class="label">Lucro Líquido (BTC):</span> <span class="value ${netProfitBtc >= 0 ? 'profit' : 'loss'}">${netProfitBtc.toFixed(8)}</span></div>
           <div class="summary-item"><span class="label">Saldo Estimado (BTC):</span> <span class="value">${summaryData.balanceBtc.toFixed(8)}</span></div>
           <div class="summary-item"><span class="label">Saldo em ${displayCurrency}:</span> <span class="value">${formatCurrencyValue(summaryData.balanceBtc * (displayCurrency === 'USD' ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd), displayCurrency)}</span></div>
         </div>
@@ -233,9 +306,28 @@ const generateReportHTML = (data: Payload): string => {
     });
 
     // Dados para o Gráfico de Pizza (Distribuição de Lucros vs Perdas)
-    const profitDistributionData = [summaryData.totalProfitsBtc, summaryData.totalLossesBtc];
+    const profitDistributionData = [totalProfitsBtc, totalLossesBtc];
     const profitDistributionLabels = ['Lucros Totais (BTC)', 'Perdas Totais (BTC)'];
     const profitDistributionColors = ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)']; // Verde para lucros, Vermelho para perdas
+
+    const chartLabelColor = pdfDarkMode ? '#c9d1d9' : '#333';
+    const chartGridColor = pdfDarkMode ? 'rgba(139, 148, 158, 0.2)' : 'rgba(0, 0, 0, 0.05)';
+    const chartLegendColor = pdfDarkMode ? '#c9d1d9' : '#333';
+
+    // Cores para as séries (Modo Claro)
+    let investmentColor = 'rgba(75, 192, 192, 0.7)';
+    let netProfitColor = 'rgba(54, 162, 235, 0.7)';
+    let balanceEvolutionBorderColor = 'rgba(255, 159, 64, 1)';
+    let balanceEvolutionBgColor = 'rgba(255, 159, 64, 0.1)';
+    let profitDistributionColors = ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(255, 205, 86, 0.7)'];
+
+    if (pdfDarkMode) {
+      investmentColor = 'rgba(107, 114, 128, 0.7)'; // Cinza mais escuro para investimentos no modo escuro
+      netProfitColor = 'rgba(96, 165, 250, 0.7)'; // Azul mais claro
+      balanceEvolutionBorderColor = 'rgba(251, 191, 36, 1)'; // Amarelo/Laranja
+      balanceEvolutionBgColor = 'rgba(251, 191, 36, 0.2)';
+      profitDistributionColors = ['rgba(52, 211, 153, 0.7)', 'rgba(248, 113, 113, 0.7)', 'rgba(253, 224, 71, 0.7)']; // Verde, Vermelho, Amarelo (mais claros)
+    }
 
     html += `
       <div class="section charts-section">
@@ -263,8 +355,8 @@ const generateReportHTML = (data: Payload): string => {
               datasets: [{
                 label: 'Total Investimentos (BTC)',
                 data: ${JSON.stringify(investmentValues)},
-                backgroundColor: 'rgba(79, 70, 229, 0.7)',
-                borderColor: 'rgba(79, 70, 229, 1)',
+                backgroundColor: ${JSON.stringify(investmentColor)},
+                borderColor: ${JSON.stringify(investmentColor.replace('0.7', '1'))},
                 borderWidth: 1
               }]
             },
@@ -282,8 +374,8 @@ const generateReportHTML = (data: Payload): string => {
               datasets: [{
                 label: 'Lucro Líquido (BTC)',
                 data: ${JSON.stringify(netProfitValues)},
-                borderColor: 'rgba(34, 197, 94, 1)',
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                borderColor: ${JSON.stringify(netProfitColor)},
+                backgroundColor: ${JSON.stringify(netProfitColor.replace('0.7', '0.1'))},
                 fill: true,
                 tension: 0.1
               }]
@@ -302,8 +394,8 @@ const generateReportHTML = (data: Payload): string => {
               datasets: [{
                 label: 'Saldo Acumulado (BTC)',
                 data: ${JSON.stringify(balanceEvolutionValues)},
-                borderColor: 'rgba(217, 119, 6, 1)', // Laranja
-                backgroundColor: 'rgba(217, 119, 6, 0.1)',
+                borderColor: ${JSON.stringify(balanceEvolutionBorderColor)},
+                backgroundColor: ${JSON.stringify(balanceEvolutionBgColor)},
                 fill: true,
                 tension: 0.1
               }]
@@ -319,36 +411,20 @@ const generateReportHTML = (data: Payload): string => {
             new Chart(document.getElementById('profitDistributionChart'), {
               type: 'pie',
               data: {
-                labels: ${JSON.stringify(profitDistributionLabels)},
+                labels: ${JSON.stringify(profitDistributionLabels.map(l => l.replace('(BTC)', '(${displayCurrency})')))},
                 datasets: [{
-                  label: 'Distribuição Lucros/Perdas',
+                  label: 'Distribuição de Lucros/Perdas (${displayCurrency})',
                   data: ${JSON.stringify(profitDistributionData)},
                   backgroundColor: ${JSON.stringify(profitDistributionColors)},
-                  borderColor: ['rgba(34, 197, 94, 1)', 'rgba(239, 68, 68, 1)'],
-                  borderWidth: 1
+                  hoverOffset: 4
                 }]
               },
               options: {
                 responsive: true,
-                maintainAspectRatio: false, // Permitir que o gráfico de pizza se ajuste
+                maintainAspectRatio: false,
                 plugins: {
-                  legend: {
-                    position: 'top',
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: function(context) {
-                        let label = context.label || '';
-                        if (label) {
-                          label += ': ';
-                        }
-                        if (context.parsed !== null) {
-                          label += context.parsed.toFixed(8) + ' BTC';
-                        }
-                        return label;
-                      }
-                    }
-                  }
+                  legend: { display: true, position: 'top', labels: { color: chartLegendColor } },
+                  tooltip: { enabled: true }
                 }
               }
             });
