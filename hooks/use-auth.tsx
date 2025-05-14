@@ -322,13 +322,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Otimizando a função signIn para reduzir tempo de resposta
   const signIn = useCallback(async (email: string, password: string) => {
-    console.log('[signIn] Iniciando - Email:', email);
     try {
       if (!supabaseClient) {
         console.error('[signIn] ERRO CRÍTICO: Cliente Supabase não disponível.');
         throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
       }
-      console.log('[signIn] Cliente Supabase disponível.');
       
       // Verificar se as variáveis de ambiente estão definidas
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -338,13 +336,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[signIn] ERRO CRÍTICO: Variáveis de ambiente do Supabase não definidas.');
         throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
       }
-      console.log('[signIn] Variáveis de ambiente verificadas.');
-      
-      console.log('[signIn] Autenticando usuário:', email);
-      
-      // Indicar início do carregamento 
-      setSession(prev => ({ ...prev, isLoading: true }))
-      console.log('[signIn] Estado isLoading definido como true.');
       
       // Verificar se temos uma sessão em cache que podemos usar
       let cachedSession = null;
@@ -415,15 +406,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
-      });
-      console.log('[signIn] Resultado de supabaseClient.auth.signInWithPassword:', { data, error });
-
-      // Diagnóstico detalhado da resposta do Supabase
-      console.log('[signIn] Resposta de autenticação:', {
-        sucesso: !error,
-        temDados: !!data,
-        temUsuario: !!data?.user,
-        emailConfirmado: data?.user?.email_confirmed_at ? 'Sim' : 'Não',
       });
 
       // Se houver erro, analisar causas comuns
