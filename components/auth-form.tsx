@@ -204,9 +204,82 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   })
 
   // Função para realizar login
-  const onLoginSubmit = (data: LoginFormValues) => {
-    console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - SIMPLES !!!!', data);
-    alert('Formulário de login submetido! Verifique o console.');
+  const onLoginSubmit = async (data: LoginFormValues) => {
+    // console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - DADOS FORM !!!!', data); // REMOVIDO: Log de dados sensíveis
+    setLoginError(null); // Limpar erros anteriores
+    setIsLoading(true);
+
+    if (!supabaseAvailable) {
+      toast({
+        title: "Serviço indisponível",
+        description: "Não foi possível conectar ao serviço de autenticação. Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (typeof signIn !== 'function') {
+      console.error("AuthForm: signIn function is not available or not a function.");
+      toast({
+        title: "Erro Interno",
+        description: "A funcionalidade de login está temporariamente indisponível.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      console.log(`[AuthForm] Tentando login para: ${data.email}`); // Log não sensível
+      const { error, profileNotFound } = await signIn(data.email, data.password);
+
+      if (error) {
+        console.error('[AuthForm] Erro ao fazer login:', error.message);
+        const friendlyMessage = handleSupabaseError(error);
+        setLoginError(friendlyMessage);
+        toast({
+          title: "Erro ao fazer login",
+          description: friendlyMessage,
+          variant: "destructive",
+        });
+
+        if (error.message.toLowerCase().includes("email not confirmed")) {
+          setEmailForVerification(data.email);
+          setShowEmailVerification(true);
+        }
+        
+        if (profileNotFound) {
+          console.warn("[AuthForm] Login bem-sucedido, mas perfil não encontrado. Exibindo diálogo.");
+          setLoginEmail(data.email); // Guardar o email para o diálogo
+          setShowNoProfileDialog(true); 
+        }
+
+      } else {
+        // Login bem-sucedido - O AuthProvider deve cuidar do redirecionamento
+        // com base na mudança do estado da sessão.
+        console.log('[AuthForm] Login bem-sucedido, aguardando redirecionamento pelo AuthProvider.');
+        toast({
+          title: "Login bem-sucedido!",
+          description: "Redirecionando...",
+          variant: "default",
+        });
+        // Não é mais necessário redirecionar manualmente daqui se o AuthProvider faz isso.
+        // router.push('/'); // Removido, AuthProvider deve lidar com isso
+      }
+    } catch (e: any) {
+      // Catch para erros inesperados na lógica do onLoginSubmit
+      console.error('[AuthForm] Exceção inesperada em onLoginSubmit:', e);
+      const friendlyMessage = handleSupabaseError(e);
+      setLoginError(friendlyMessage);
+      toast({
+        title: "Erro inesperado",
+        description: friendlyMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Wrapper para o submit manual, sem react-hook-form no onSubmit do form
