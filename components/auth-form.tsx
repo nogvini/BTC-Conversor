@@ -205,6 +205,8 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
 
   // Função para realizar login
   const onLoginSubmit = async (data: LoginFormValues) => {
+    console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - PRIMEIRO LOG !!!!', data); // <--- LOG MAIS ALTO POSSÍVEL
+
     console.log('[AuthForm] onLoginSubmit INICIADO. Dados do formulário:', data); // LOG 1
 
     // Resetar mensagem de erro ao tentar novamente
