@@ -91,16 +91,6 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData }: MultiRepo
               btcToUsd={btcToUsd}
               brlToUsd={brlToUsd}
               appData={appData}
-              // Passar dados do relatório ativo
-              initialInvestments={activeReport.investments}
-              initialProfits={activeReport.profits}
-              // Funções adaptadas
-              onAddInvestment={handleAddInvestment}
-              onAddProfitRecord={handleAddProfitRecord}
-              onDeleteInvestment={handleDeleteInvestment}
-              onDeleteProfit={handleDeleteProfit}
-              onUpdateAllInvestments={handleUpdateAllInvestments}
-              onUpdateAllProfits={handleUpdateAllProfits}
             />
           ) : (
             <div className="flex items-center justify-center h-40">

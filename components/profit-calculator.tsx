@@ -2633,23 +2633,52 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
           const investmentsSheet = workbook.getWorksheet('Investimentos');
           if (investmentsSheet) {
-            totalInvestmentsInFile = investmentsSheet.rowCount -1; // -1 para o cabeçalho
+            totalInvestmentsInFile = investmentsSheet.rowCount > 0 ? investmentsSheet.rowCount - 1 : 0; // -1 para o cabeçalho
+            
+            // Ler cabeçalhos da planilha de Investimentos
+            const investmentHeaders: { [key: string]: number } = {};
+            const investmentHeaderRow = investmentsSheet.getRow(1);
+            investmentHeaderRow.eachCell((cell, colNumber) => {
+              if (cell.value) {
+                investmentHeaders[cell.value.toString().trim()] = colNumber;
+              }
+            });
+
+            const expectedInvestmentHeaders = ['ID', 'Data (UTC)', 'Quantidade', 'Unidade'];
+            for (const header of expectedInvestmentHeaders) {
+              if (!(header in investmentHeaders)) {
+                throw new Error(`Cabeçalho esperado "${header}" não encontrado na planilha 'Investimentos'. O arquivo pode estar corrompido ou não é um formato de backup válido.`);
+              }
+            }
+
             investmentsSheet.eachRow((row, rowNumber) => {
               if (rowNumber > 1) { 
                 try {
-                  const originalId = row.getCell(1).value?.toString(); // Coluna "ID"
-                  const dateValue = row.getCell(2).value; // Coluna "Data (UTC)"
-                  const amountStr = row.getCell(3).value?.toString(); // Coluna "Quantidade"
-                  const unitStr = row.getCell(4).value?.toString() as CurrencyUnit; // Coluna "Unidade"
+                  const originalId = row.getCell(investmentHeaders['ID']).value?.toString();
+                  const dateValue = row.getCell(investmentHeaders['Data (UTC)']).value;
+                  const amountStr = row.getCell(investmentHeaders['Quantidade']).value?.toString();
+                  const unitStr = row.getCell(investmentHeaders['Unidade']).value?.toString() as CurrencyUnit;
 
                   if (originalId && dateValue && amountStr && unitStr && (unitStr === 'BTC' || unitStr === 'SATS')) {
                     let date: string;
                     if (dateValue instanceof Date) {
                         date = formatDateToUTC(dateValue);
                     } else if (typeof dateValue === 'string') {
-                        date = formatDateToUTC(parseISODate(dateValue));                     
-                    } else {
-                        throw new Error(`Formato de data de investimento inválido: ${dateValue}`);
+                        // Tentar parsear datas que podem vir como string (ex: YYYY-MM-DD ou DD/MM/YYYY)
+                        // A função parseISODate já tenta lidar com isso e retorna Date object
+                        const parsedDate = parseISODate(dateValue);
+                        if (isNaN(parsedDate.getTime())) {
+                            throw new Error(`Formato de data de investimento inválido: ${dateValue}`);
+                        }
+                        date = formatDateToUTC(parsedDate);                     
+                    } else if (typeof dateValue === 'number') { 
+                        // Se dateValue for um número, e não uma string ou Date, consideramos um formato não suportado diretamente.
+                        // A conversão de datas seriais do Excel é complexa e não está implementada aqui.
+                        // O ideal é que a célula no Excel esteja formatada como data.
+                        throw new Error(`Formato de data numérico não suportado diretamente (${dateValue}) para investimento. Verifique a formatação da célula no Excel.`);
+                    }
+                    else {
+                        throw new Error(`Formato de data de investimento não suportado: ${typeof dateValue}`);
                     }
                     const amount = parseFloat(amountStr);
                     if (isNaN(amount) || amount <= 0) throw new Error(`Valor de investimento inválido: ${amountStr}`);
@@ -2668,24 +2697,49 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
           const profitsSheet = workbook.getWorksheet('Lucros e Prejuízos');
           if (profitsSheet) {
-            totalProfitsInFile = profitsSheet.rowCount - 1; // -1 para o cabeçalho
+            totalProfitsInFile = profitsSheet.rowCount > 0 ? profitsSheet.rowCount - 1 : 0; // -1 para o cabeçalho
+
+            // Ler cabeçalhos da planilha de Lucros e Prejuízos
+            const profitHeaders: { [key: string]: number } = {};
+            const profitHeaderRow = profitsSheet.getRow(1);
+            profitHeaderRow.eachCell((cell, colNumber) => {
+              if (cell.value) {
+                profitHeaders[cell.value.toString().trim()] = colNumber;
+              }
+            });
+
+            const expectedProfitHeaders = ['ID', 'Data (UTC)', 'Quantidade', 'Unidade', 'Tipo'];
+            for (const header of expectedProfitHeaders) {
+              if (!(header in profitHeaders)) {
+                throw new Error(`Cabeçalho esperado "${header}" não encontrado na planilha 'Lucros e Prejuízos'. O arquivo pode estar corrompido ou não é um formato de backup válido.`);
+              }
+            }
+
             profitsSheet.eachRow((row, rowNumber) => {
               if (rowNumber > 1) { 
                 try {
-                  const originalId = row.getCell(1).value?.toString(); // Coluna "ID"
-                  const dateValue = row.getCell(2).value; // Coluna "Data (UTC)"
-                  const amountStr = row.getCell(3).value?.toString(); // Coluna "Quantidade"
-                  const unitStr = row.getCell(4).value?.toString() as CurrencyUnit; // Coluna "Unidade"
-                  const typeStr = row.getCell(5).value?.toString(); // Coluna "Tipo"
+                  const originalId = row.getCell(profitHeaders['ID']).value?.toString();
+                  const dateValue = row.getCell(profitHeaders['Data (UTC)']).value;
+                  const amountStr = row.getCell(profitHeaders['Quantidade']).value?.toString();
+                  const unitStr = row.getCell(profitHeaders['Unidade']).value?.toString() as CurrencyUnit;
+                  const typeStr = row.getCell(profitHeaders['Tipo']).value?.toString();
 
                   if (originalId && dateValue && amountStr && unitStr && typeStr && (unitStr === 'BTC' || unitStr === 'SATS') && (typeStr === 'Lucro' || typeStr === 'Prejuízo')) {
                     let date: string;
                     if (dateValue instanceof Date) {
                         date = formatDateToUTC(dateValue);
                     } else if (typeof dateValue === 'string') {
-                        date = formatDateToUTC(parseISODate(dateValue)); 
-                    } else {
-                        throw new Error(`Formato de data de lucro/prejuízo inválido: ${dateValue}`);
+                        const parsedDate = parseISODate(dateValue);
+                        if (isNaN(parsedDate.getTime())) {
+                           throw new Error(`Formato de data de lucro/prejuízo inválido: ${dateValue}`);
+                        }
+                        date = formatDateToUTC(parsedDate); 
+                    } else if (typeof dateValue === 'number') { 
+                        // Se dateValue for um número, e não uma string ou Date, consideramos um formato não suportado diretamente.
+                        throw new Error(`Formato de data numérico não suportado diretamente (${dateValue}) para lucro/prejuízo. Verifique a formatação da célula no Excel.`);
+                    }
+                    else {
+                        throw new Error(`Formato de data de lucro/prejuízo não suportado: ${typeof dateValue}`);
                     }
                     const amount = parseFloat(amountStr);
                     if (isNaN(amount) || amount <= 0) throw new Error(`Valor de lucro/prejuízo inválido: ${amountStr}`);
