@@ -449,7 +449,7 @@ const generateReportHTML = (data: Payload): string => {
                 datasets: [{
                   label: 'Distribuição de Lucros/Perdas (${displayCurrency})',
                   data: ${JSON.stringify(profitDistributionData)},
-                  backgroundColor: ${JSON.stringify(profitDistributionColors)},
+                  backgroundColor: ${JSON.stringify(dynamicProfitDistributionColors)},
                   hoverOffset: 4
                 }]
               },

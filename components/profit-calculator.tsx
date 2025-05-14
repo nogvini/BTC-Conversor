@@ -3839,17 +3839,36 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     <Label htmlFor="period-month" className="font-normal text-sm cursor-pointer flex-grow">
                       Mês específico:
                       {exportPeriodSelectionType === 'specificMonth' && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-start text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70 mt-1.5">
-                              {exportSpecificMonthDate ? format(exportSpecificMonthDate, "MMMM yyyy", { locale: ptBR }) : "Selecione o mês"}
-                              <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                             <CalendarComponent mode="single" selected={exportSpecificMonthDate || undefined} onSelect={(date) => setExportSpecificMonthDate(date || null)} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
-                          </PopoverContent>
-                        </Popover>
+                        <div className="flex items-center space-x-2 mt-1.5">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                            onClick={() => setExportSpecificMonthDate(prev => prev ? subMonths(prev, 1) : subMonths(new Date(), 1))}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="flex-grow justify-center text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70">
+                                {exportSpecificMonthDate ? format(exportSpecificMonthDate, "MMMM yyyy", { locale: ptBR }) : "Selecione o mês"}
+                                <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
+                               <CalendarComponent mode="single" selected={exportSpecificMonthDate || undefined} onSelect={(date) => setExportSpecificMonthDate(date || null)} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                            onClick={() => setExportSpecificMonthDate(prev => prev ? addMonths(prev, 1) : new Date())}
+                            disabled={exportSpecificMonthDate ? !isBefore(addMonths(exportSpecificMonthDate, 1), addMonths(new Date(),1)) : false}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </Label>
                   </div>
