@@ -1610,7 +1610,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    if (!activeReportIdFromHook) { // USAR activeReportIdFromHook
+    const activeReportId = activeReportIdFromHook; // Usar a variável já desestruturada
+
+    if (!activeReportId) {
       toast({
         title: "Importação CSV Falhou",
         description: "Nenhum relatório ativo. Por favor, selecione ou crie um relatório antes de importar.",
@@ -1620,7 +1622,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const currentActiveReportForCsv = allReportsFromHook?.find(r => r.id === activeReportIdFromHook); // USAR allReportsFromHook e activeReportIdFromHook
+    const currentActiveReportForCsv = allReportsFromHook?.find(r => r.id === activeReportId);
     if (!currentActiveReportForCsv) {
       toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
       if (csvFileInputRef.current) csvFileInputRef.current.value = '';
@@ -1629,8 +1631,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     const file = event.target.files[0];
     setIsImporting(true);
-    setImportStats(null);
-    setImportType("csv");
+    setImportStats(null); // Limpar estatísticas antigas
+    // Removido: setImportType("csv"); // Será definido pelas estatísticas no final
+
+    // INICIALIZAR CONTADORES PARA O RESUMO
+    let addedCount = 0;
+    let duplicateCountInternal = 0; // Renomeado para evitar conflito com duplicatedCount do processTradeRecords
+    let errorCountInternal = 0;
+    const errorMessages: string[] = [];
+
 
     try {
       const reader = new FileReader();
@@ -1642,74 +1651,90 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
           const csvText = e.target.result as string;
-          
-          // Usar o parser CSV robusto
           const records = parseCSV(csvText);
           
           if (records.length === 0) {
             throw new Error("O arquivo CSV não contém dados válidos");
           }
           
-          // Extrair cabeçalhos do primeiro registro
           const headers = Object.keys(records[0]);
-          
-          const totalRows = records.length;
-          
-          console.log("CSV processado:", records[0]); // Debug
+          const totalRowsInFile = records.length; // Total de linhas no arquivo para referência
           
           // Processar registros usando a função comum modificada
-          // MODIFICADO: Passar currentActiveReportForCsv.profits
-          const { newProfits, successCount, errorCount, duplicatedCount } = 
-            processTradeRecords(headers, records, currentActiveReportForCsv.profits);
+          // Esta função processTradeRecords já retorna stats, vamos focar nos resultados de addProfitRecord
+          const { newProfits, successCount: processedSuccess, errorCount: processedError, duplicatedCount: processedDuplicated } = 
+            processTradeRecords(headers, records, currentActiveReportForCsv.profits || []);
           
-          // Adicionar os novos registros de lucro
           if (newProfits.length > 0) {
-            // MODIFICADO: Adicionar lucros ao activeReport
-            newProfits.forEach(profit => {
+            for (const profit of newProfits) {
               const {id, ...profitData} = profit; // Remover ID temporário se houver
-              addProfitRecord(profitData); // USAR hook addProfitRecord
-            });
-            
-            if (!toastDebounce) {
-              setToastDebounce(true);
-              toast({
-                title: "Importação CSV concluída",
-                description: `Foram importados ${successCount} registros de lucro/perda com sucesso.`,
-                variant: "success",
-              });
-              setTimeout(() => setToastDebounce(false), 500);
+              // CHAMAR COM suppressToast: true
+              const result = addProfitRecord(profitData, activeReportId, { suppressToast: true }); 
+              
+              if (result.status === 'added') {
+                addedCount++;
+              } else if (result.status === 'duplicate') {
+                duplicateCountInternal++;
+                if (result.message) errorMessages.push(`Duplicado: ${result.message}`);
+              } else { // status === 'error'
+                errorCountInternal++;
+                if (result.message) errorMessages.push(`Erro: ${result.message}`);
+              }
             }
-          } else if (duplicatedCount > 0) {
-            // Não mostrar toast quando só houve duplicações
-            setDuplicateInfo({
-              count: duplicatedCount,
-              type: 'lucros/perdas'
-            });
-            setShowDuplicateDialog(true);
+          } else if (processedDuplicated > 0 && newProfits.length === 0) {
+            // Se processTradeRecords encontrou duplicados e não retornou novos lucros para adicionar
+            duplicateCountInternal = processedDuplicated;
+          }
+
+
+          // LÓGICA PARA TOAST DE RESUMO
+          let toastTitle = "Importação CSV";
+          let toastDescription = "";
+          let toastVariant: "default" | "success" | "destructive" | "warning" = "default";
+
+          if (addedCount > 0) {
+            toastTitle = "Importação CSV Concluída";
+            toastVariant = "success";
+            toastDescription = `${addedCount} registro(s) importado(s) com sucesso.`;
+            if (duplicateCountInternal > 0) toastDescription += ` ${duplicateCountInternal} duplicado(s) ignorado(s).`;
+            if (errorCountInternal > 0) toastDescription += ` ${errorCountInternal} falha(s).`;
+          } else if (duplicateCountInternal > 0 && addedCount === 0 && errorCountInternal === 0) {
+            toastTitle = "Registros Duplicados";
+            toastVariant = "default";
+            toastDescription = `Todos os ${duplicateCountInternal} registros válidos do arquivo já existiam e foram ignorados.`;
+          } else if (errorCountInternal > 0 && addedCount === 0 && duplicateCountInternal === 0) {
+            toastTitle = "Falha na Importação CSV";
+            toastVariant = "destructive";
+            toastDescription = `Não foi possível importar registros. ${errorCountInternal > 0 ? `${errorCountInternal} erro(s) encontrado(s).` : ''}`;
+            if (errorMessages.length > 0) toastDescription += ` Detalhes: ${errorMessages.slice(0,2).join(', ')}${errorMessages.length > 2 ? '...' : ''}`;
+          } else if (totalRowsInFile === 0 || newProfits.length === 0 && processedSuccess === 0 && processedDuplicated === 0) {
+             toastTitle = "Nenhum Registro Importado";
+             toastVariant = "warning";
+             toastDescription = "Não foram encontrados registros válidos ou novos no arquivo CSV para importar.";
           } else {
-            toast({
-              title: "Nenhum registro importado",
-              description: "Não foi possível encontrar registros válidos no arquivo CSV.",
-              variant: "destructive",
-            });
+            // Caso misto ou outros cenários
+            toastTitle = "Resultado da Importação CSV";
+            toastDescription = `${addedCount} adicionado(s), ${duplicateCountInternal} duplicado(s), ${errorCountInternal} erro(s).`;
+            if (addedCount > 0) toastVariant = "success";
+            else if (duplicateCountInternal > 0) toastVariant = "default";
+            else toastVariant = "warning";
           }
           
-          // Atualizar estatísticas
-          setImportStats({
-            total: totalRows,
-            success: successCount,
-            error: errorCount,
-            duplicated: duplicatedCount
+          toast({
+            title: toastTitle,
+            description: toastDescription,
+            variant: toastVariant as "default" | "success" | "destructive" | undefined, // Cast para tipo esperado
+            duration: (addedCount > 0 || errorCountInternal > 0 || duplicateCountInternal > 0) ? 5000 : 3000,
           });
           
-          // Mostrar diálogo de duplicações apenas se houver duplicações
-          if (duplicatedCount > 0) {
-            setDuplicateInfo({
-              count: duplicatedCount,
-              type: 'lucros/perdas'
-            });
-            setShowDuplicateDialog(true);
-          }
+          // Atualizar estatísticas para exibição na UI (opcional, mas pode ser útil)
+          setImportStats({
+            total: totalRowsInFile, // Total de linhas lidas do arquivo
+            success: addedCount,     // Adicionados com sucesso pelo addProfitRecord
+            error: errorCountInternal,   // Erros retornados pelo addProfitRecord
+            duplicated: duplicateCountInternal // Duplicados retornados pelo addProfitRecord
+          });
+          setImportType("csv"); // Definir o tipo para UI de stats
           
         } catch (error) {
           console.error("Erro ao processar o arquivo CSV:", error);
@@ -1718,9 +1743,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
             variant: "destructive",
           });
+           setImportStats({ total: 0, success: 0, error: 1, duplicated: 0 });
+           setImportType("csv");
         } finally {
           setIsImporting(false);
-          setImportType(null);
+          // Removido: setImportType(null); // O tipo é mantido para exibir os stats
           if (csvFileInputRef.current) {
             csvFileInputRef.current.value = '';
           }
@@ -1729,12 +1756,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
       reader.onerror = () => {
         setIsImporting(false);
-        setImportType(null);
+        // Removido: setImportType(null);
         toast({
           title: "Erro na leitura",
           description: "Não foi possível ler o arquivo CSV selecionado.",
           variant: "destructive",
         });
+        setImportStats({ total: 0, success: 0, error: 1, duplicated: 0 });
+        setImportType("csv");
         if (csvFileInputRef.current) {
           csvFileInputRef.current.value = '';
         }
@@ -1744,13 +1773,15 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       
     } catch (error) {
       setIsImporting(false);
-      setImportType(null);
+      // Removido: setImportType(null);
       console.error("Erro ao importar CSV:", error);
       toast({
         title: "Erro na importação CSV",
         description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
         variant: "destructive",
       });
+      setImportStats({ total: 0, success: 0, error: 1, duplicated: 0 });
+      setImportType("csv");
       if (csvFileInputRef.current) {
         csvFileInputRef.current.value = '';
       }
