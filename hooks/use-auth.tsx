@@ -688,19 +688,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             router.push('/');
         }
       }
-      // A lógica para redirecionar usuários NÃO logados de rotas protegidas para /auth continua COMENTADA POR ENQUANTO.
-      /*
       // Se o usuário NÃO está logado E está tentando acessar uma rota que NÃO é pública
       else if (!session.user && !publicRoutes.includes(pathname)) {
         // Então redireciona para a página de autenticação
-        console.log(`[AuthGuard] TESTE: Acesso não autenticado a '${pathname}'. Redirecionamento para '/auth' ESTARIA ATIVO.`);
-        // if (pathname !== '/auth') { 
-        //   router.push('/auth');
-        // }
+        console.log(`[AuthGuard] Acesso não autenticado a '${pathname}'. Redirecionando para '/auth'.`);
+        if (pathname !== '/auth') { // Evitar redirecionamento para si mesmo se já estiver em /auth
+          router.push('/auth');
+        }
       }
-      */
     }
-    // console.log("[AuthGuard] Lógica de redirecionamento para usuários não logados TEMPORARIAMENTE DESATIVADA para teste.");
   }, [session.user, session.isLoading, pathname, router]);
 
   return (
