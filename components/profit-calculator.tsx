@@ -962,8 +962,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             finalInvestmentsToExport.forEach(inv => {
               const btcEquivalent = convertToBtc(inv.amount, inv.unit);
               investmentSheet.addRow({
-                id: inv.id,
-                date: new Date(inv.date),
+                id: inv.originalId || inv.id, // Alinhado para importação de backup
+                date: new Date(parseISODate(inv.date)), // Garantir que seja um objeto Date para o ExcelJS
                 amount: inv.amount,
                 unit: inv.unit,
                 btcEquivalent: btcEquivalent,
@@ -990,8 +990,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             finalProfitsToExport.forEach(prof => {
               const btcEquivalent = convertToBtc(prof.amount, prof.unit);
               profitSheet.addRow({
-                id: prof.id,
-                date: new Date(prof.date),
+                id: prof.originalId || prof.id, // Alinhado para importação de backup
+                date: new Date(parseISODate(prof.date)), // Garantir que seja um objeto Date para o ExcelJS
                 amount: prof.amount,
                 unit: prof.unit,
                 type: prof.isProfit ? 'Lucro' : 'Prejuízo',
@@ -2628,12 +2628,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     if (dateValue instanceof Date) {
                         date = formatDateToUTC(dateValue);
                     } else if (typeof dateValue === 'string') {
+                        // Tentar parsear a string, pode ser ISO ou outro formato que parseISODate entenda
                         date = formatDateToUTC(parseISODate(dateValue));                     
                     } else if (typeof dateValue === 'number') { // Para datas do Excel como números
-                        // Removendo a linha problemática com ExcelJS.SSF.parse_date_code
-                        // Se dateValue for um número de série do Excel, precisaremos de outra forma de conversão
-                        // ou confiar que o ExcelJS já converteu para Date.
-                        // Por agora, se for um número e não Date, consideraremos um erro de formato por simplicidade.
+                        // O ExcelJS geralmente converte números de data para objetos Date.
+                        // Se ainda for um número aqui, é um caso inesperado ou formato não tratado por parseISODate.
+                        // Para robustez, poderíamos tentar converter o número de série do Excel para data se tivéssemos uma lib para isso,
+                        // ou logar um erro. Por simplicidade, vamos assumir que ExcelJS converte para Date ou string ISO.
+                        // Se dateValue é um número que representa um timestamp, new Date(dateValue) funcionaria.
+                        // Se for um número de série do Excel, é mais complexo.
+                        // Vamos tratar como erro por enquanto se não for Date nem String reconhecível por parseISODate.
                         throw new Error(`Formato de data de investimento numérico não suportado diretamente: ${dateValue}. Esperava-se Date ou string.`);
                     } else {
                         throw new Error(`Formato de data de investimento inválido: ${dateValue}`);
@@ -2672,7 +2676,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     } else if (typeof dateValue === 'string') {
                         date = formatDateToUTC(parseISODate(dateValue)); 
                     } else if (typeof dateValue === 'number') { 
-                        // Removendo a linha problemática com ExcelJS.SSF.parse_date_code
+                        // Mesma consideração que para investimentos sobre datas numéricas do Excel.
                         throw new Error(`Formato de data de lucro/prejuízo numérico não suportado diretamente: ${dateValue}. Esperava-se Date ou string.`);
                     } else {
                         throw new Error(`Formato de data de lucro/prejuízo inválido: ${dateValue}`);

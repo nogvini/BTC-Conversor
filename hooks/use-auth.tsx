@@ -331,55 +331,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Otimizando a função signIn para reduzir tempo de resposta
   const signIn = useCallback(async (email: string, password: string) => {
+    console.log('[signIn] Iniciando - Email:', email);
     try {
       if (!supabaseClient) {
-        console.error('ERRO CRÍTICO: Cliente Supabase não disponível. Verifique as variáveis de ambiente.');
+        console.error('[signIn] ERRO CRÍTICO: Cliente Supabase não disponível.');
         throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
       }
+      console.log('[signIn] Cliente Supabase disponível.');
       
       // Verificar se as variáveis de ambiente estão definidas
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       
       if (!supabaseUrl || !supabaseKey) {
-        console.error('ERRO CRÍTICO: Variáveis de ambiente do Supabase não definidas:', {
-          url: supabaseUrl ? 'definido' : 'indefinido',
-          key: supabaseKey ? 'definido' : 'indefinido'
-        });
+        console.error('[signIn] ERRO CRÍTICO: Variáveis de ambiente do Supabase não definidas.');
         throw new Error('Erro de configuração do sistema. Entre em contato com o administrador.')
       }
+      console.log('[signIn] Variáveis de ambiente verificadas.');
       
-      console.log('Autenticando usuário:', email);
+      console.log('[signIn] Autenticando usuário:', email);
       
       // Indicar início do carregamento 
       setSession(prev => ({ ...prev, isLoading: true }))
+      console.log('[signIn] Estado isLoading definido como true.');
       
-      // Verificar primeiro se temos uma sessão em cache que podemos usar
+      // Verificar se temos uma sessão em cache que podemos usar
       let cachedSession = null;
       try {
+        console.log('[signIn] Verificando sessão no localStorage...');
         const persistedSession = localStorage.getItem('supabase_session');
         if (persistedSession) {
           const parsed = JSON.parse(persistedSession);
-          // Verificar se a sessão em cache pertence ao email que está tentando logar
           if (parsed.user?.email === email && parsed.expires_at && parsed.expires_at * 1000 > Date.now()) {
-            console.log('Usando sessão em cache para acelerar login');
+            console.log('[signIn] Usando sessão em cache para acelerar login.');
             cachedSession = parsed;
             
-            // Tentar restaurar sessão do cache
+            console.log('[signIn] Tentando restaurar sessão do cache via supabaseClient.auth.setSession...');
             const { error: sessionError } = await supabaseClient.auth.setSession({
               access_token: cachedSession.access_token,
               refresh_token: cachedSession.refresh_token
             });
+            console.log('[signIn] Resultado de supabaseClient.auth.setSession:', { sessionError });
             
             if (!sessionError) {
-              // Sessão restaurada com sucesso, podemos pular o fluxo normal de login
-              console.log('Sessão restaurada do cache com sucesso');
+              console.log('[signIn] Sessão restaurada do cache com sucesso.');
               
-              // Buscar perfil separadamente, mas já permitir o login
+              console.log('[signIn] Chamando fetchProfileData em background após restaurar sessão do cache...');
               fetchProfileData(cachedSession.user.id)
-                .catch(err => console.error('Erro ao buscar perfil após restaurar sessão:', err));
+                .catch(err => console.error('[signIn] Erro ao buscar perfil (cache):', err));
               
-              // Atualizar estado de sessão com dados básicos
               setSession({
                 user: {
                   id: cachedSession.user.id,
@@ -391,34 +391,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 error: null,
                 isLoading: false,
               });
+              console.log('[signIn] Estado da sessão atualizado com dados do cache.');
               
-              // Mostrar toast de boas-vindas
               toast({
                 title: "Bem-vindo de volta!",
                 description: "Login realizado com sucesso.",
                 duration: 3000,
               });
               
+              console.log('[signIn] Login via cache bem-sucedido. Retornando...');
               return { error: null };
             } else {
-              console.log('Sessão em cache inválida, prosseguindo com login normal');
-              // Continuar com o fluxo normal de login
+              console.log('[signIn] Sessão em cache inválida, prosseguindo com login normal.');
             }
           }
         }
       } catch (cacheError) {
-        console.error('Erro ao tentar restaurar sessão do cache:', cacheError);
-        // Ignorar erro e continuar com login normal
+        console.error('[signIn] Erro ao tentar restaurar sessão do cache:', cacheError);
       }
       
-      // Tentativa de login normal
+      console.log('[signIn] Tentativa de login normal via supabaseClient.auth.signInWithPassword...');
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
       });
+      console.log('[signIn] Resultado de supabaseClient.auth.signInWithPassword:', { data, error });
 
       // Diagnóstico detalhado da resposta do Supabase
-      console.log('Resposta de autenticação:', {
+      console.log('[signIn] Resposta de autenticação:', {
         sucesso: !error,
         temDados: !!data,
         temUsuario: !!data?.user,
@@ -483,10 +483,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Iniciar busca de perfil em background, sem bloquear o login
+      console.log('[signIn] Iniciando busca de perfil em background...');
       fetchProfileData(data.user.id)
         .then(profileData => {
+          console.log('[signIn] Retorno de fetchProfileData (background):', profileData);
           if (profileData) {
-            // Atualizar o estado com dados completos do perfil, se disponíveis
             setSession(prev => ({
               ...prev,
               user: {
@@ -495,13 +496,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 avatar_url: profileData.avatar_url
               }
             }));
+            console.log('[signIn] Estado da sessão atualizado com dados completos do perfil (background).');
           }
         })
-        .catch(err => console.error('Erro ao buscar perfil em background:', err));
+        .catch(err => console.error('[signIn] Erro ao buscar perfil em background:', err));
       
+      console.log('[signIn] Login normal bem-sucedido. Retornando...');
       return { error: null };
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('[signIn] Erro no bloco catch principal:', error);
       
       setSession(prev => ({ 
         ...prev, 
@@ -522,23 +525,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Função auxiliar para buscar dados de perfil de forma assíncrona
   const fetchProfileData = useCallback(async (userId: string) => {
-    if (!supabaseClient || !userId) return null;
+    console.log('[fetchProfileData] Iniciando para userId:', userId);
+    if (!supabaseClient || !userId) {
+      console.log('[fetchProfileData] Cliente Supabase ou userId ausente. Retornando null.', { supabaseClientExists: !!supabaseClient, userId });
+      return null;
+    }
     
     try {
-      console.log('Buscando dados de perfil em background para:', userId);
-      
-      // Primeiro verificar se o perfil existe
+      console.log('[fetchProfileData] Buscando dados de perfil via supabaseClient.from(\'profiles\').select...');
       const { data: userData, error: profileError } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
+      console.log('[fetchProfileData] Resultado de supabaseClient.from(\'profiles\').select:', { userData, profileError });
       
       if (profileError) {
-        console.log('Perfil não encontrado, tentando criar automaticamente');
+        console.log('[fetchProfileData] Perfil não encontrado ou erro na busca. Tentando criar automaticamente...', profileError.message);
         
         if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-          // Tentar criar perfil automaticamente
+          console.log('[fetchProfileData] Tentando criar perfil via supabaseClient.from(\'profiles\').insert...');
           const { error: insertError } = await supabaseClient
             .from('profiles')
             .insert([{
@@ -546,26 +552,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               name: session.user?.name || '',
               email: session.user?.email || ''
             }]);
+          console.log('[fetchProfileData] Resultado de supabaseClient.from(\'profiles\').insert:', { insertError });
           
           if (insertError) {
-            console.error('Erro ao criar perfil automaticamente:', insertError);
+            console.error('[fetchProfileData] Erro ao criar perfil automaticamente:', insertError);
             return null;
           }
           
-          // Buscar perfil criado
+          console.log('[fetchProfileData] Perfil criado. Buscando perfil recém-criado...');
           const { data: newProfileData } = await supabaseClient
             .from('profiles')
             .select('*')
             .eq('id', userId)
             .single();
+          console.log('[fetchProfileData] Resultado da busca do novo perfil:', { newProfileData });
           
           return newProfileData;
         }
       }
       
+      console.log('[fetchProfileData] Perfil encontrado. Retornando userData.', userData);
       return userData;
     } catch (error) {
-      console.error('Erro ao buscar dados de perfil:', error);
+      console.error('[fetchProfileData] Erro no bloco catch:', error);
       return null;
     }
   }, [supabaseClient, session.user]);
