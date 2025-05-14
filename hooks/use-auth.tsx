@@ -69,17 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(prev => ({ ...prev, isLoading: true }))
         console.log('Iniciando busca de sessão')
         
-        // Criar timer de timeout para interromper carregamento se demorar muito
-        const timeoutId = setTimeout(() => {
-          console.warn('Timeout atingido durante carregamento de sessão')
-          setSession(prev => ({
-            ...prev,
-            isLoading: false,
-            error: new Error('Tempo limite excedido ao carregar seu perfil. Tente novamente mais tarde.')
-          }))
-          setLastAuthEvent('timeout durante carregamento')
-        }, PROFILE_LOADING_TIMEOUT)
-        
         // Verificar se já existe uma sessão persistida no localStorage
         const persistedSession = typeof window !== 'undefined' ? localStorage.getItem('supabase_session') : null
         
@@ -120,7 +109,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabaseClient.auth.getSession()
         
         if (error) {
-          clearTimeout(timeoutId) // Limpar o timeout em caso de erro
           throw error
         }
         
@@ -143,9 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .select('*')
               .eq('id', data.session.user.id)
               .single()
-            
-            // Limpar o timeout após receber resposta
-            clearTimeout(timeoutId)
             
             console.log('Busca de perfil:', {
               sucesso: !profileError,
@@ -230,9 +215,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setLastAuthEvent('perfil carregado com sucesso')
             }
           } catch (profileError) {
-            // Limpar o timeout em caso de erro
-            clearTimeout(timeoutId)
-            
             console.error('Erro ao buscar perfil:', profileError)
             
             // Continuar mesmo sem os dados do perfil
@@ -251,8 +233,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           // Limpar o timeout se não houver sessão
-          clearTimeout(timeoutId)
-          
           setSession({
             user: null,
             session: null,

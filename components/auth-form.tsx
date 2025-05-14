@@ -234,23 +234,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       setLoginEmail(data.email)
       console.log('Iniciando login para:', data.email)
       
-      // Definir um timeout para evitar carregamento infinito
-      const loginTimeout = setTimeout(() => {
-        if (isLoading) {
-          setIsLoading(false)
-          setLoginError("O login está demorando muito. Tente novamente ou contate o suporte.")
-          toast({
-            title: "Tempo esgotado",
-            description: "A operação demorou muito para responder. Verifique sua conexão e tente novamente.",
-            variant: "destructive",
-          })
-        }
-      }, 10000) // 10 segundos de timeout
-      
       const { error, profileNotFound } = await signIn(data.email, data.password)
-      
-      // Limpar o timeout se a resposta chegar antes
-      clearTimeout(loginTimeout)
       
       console.log('Resultado do login:', { 
         sucesso: !error, 

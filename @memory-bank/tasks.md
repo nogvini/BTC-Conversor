@@ -13,14 +13,29 @@
 
 ### [CRITICAL] Correção de Erro TypeError em AuthForm - ID: AUTH_FORM_FIX_001
 - **Status:** Pendente
-- **Descrição:** Investigar e corrigir o erro `TypeError: d is not a function` (referência `173-42b94c44a2d68f4a.js:1`) que ocorre ao acessar o formulário de login em `components/auth-form.tsx`.
+- **Descrição:** Investigar e corrigir o erro `TypeError: d is not a function` (referência `page-b2b673d5a66b11ad.js:1:257`, `173-42b94c44a2d68f4a.js:1` e módulo `15588`) que ocorre ao acessar o formulário de login em `components/auth-form.tsx`. O erro ocorre em uma Promise.
 - **Requisitos Chave:**
+    - [ ] **Análise do Código Minificado (Source Maps):**
+        - [ ] Verificar se os source maps estão configurados corretamente para o build de produção.
+        - [ ] Utilizar as ferramentas de desenvolvedor do navegador para mapear o erro no código minificado (módulo `15588`, função `d`) de volta ao código-fonte original para identificar a função problemática.
+    - [ ] **Revisão de Dependências e Importações:**
+        - [ ] Após identificar a função original, revisar suas importações e as importações dos módulos que a utilizam (principalmente `components/auth-form.tsx` e `hooks/use-auth.tsx`).
+        - [ ] Verificar atualizações recentes de bibliotecas (Next.js, Supabase, etc.) que possam ter introduzido alterações na forma como as funções são exportadas/chamadas.
+        - [ ] Garantir que todas as funções de bibliotecas de terceiros estejam sendo importadas e usadas conforme a documentação mais recente.
+    - [ ] **Verificação de Chamadas Assíncronas e Contexto:**
+        - [ ] Revisar todas as `Promise`s e chamadas `async/await` no fluxo de autenticação.
+        - [ ] Confirmar se o contexto do Supabase (`supabaseClient`) está consistentemente disponível e inicializado quando a função problemática é invocada.
+    - [ ] **Isolamento do Problema:**
+        - [ ] Se a identificação direta for complexa, comentar seletivamente seções de código em `AuthForm` e `useAuth` para isolar a origem do erro.
+        - [ ] Testar os fluxos de login e cadastro separadamente.
+    - [ ] **Teste com Build de Desenvolvimento:**
+        - [ ] Tentar reproduzir o problema em um ambiente de desenvolvimento (build não minificado) para obter stack traces mais claros, se o erro for específico de produção.
     - [ ] Analisar o stack trace do erro para identificar a origem da função `d`.
     - [x] Verificar as dependências e o código do componente `AuthForm` em busca de chamadas de função incorretas ou `props` mal utilizadas (verificações de `typeof function` adicionadas em `AuthForm`).
     - [x] Considerar interações com o hook `useAuth` (logs adicionados em `useAuth` para inspecionar o `contextValue` e o estado do `supabaseClient`).
     - [ ] Implementar a correção necessária para que o formulário de login funcione sem erros.
     - [ ] Testar exaustivamente o formulário de login e cadastro após a correção.
-- **Componentes Afetados Principais:** `components/auth-form.tsx`, possivelmente `hooks/use-auth.tsx` e `app/auth/page.tsx`.
+- **Componentes Afetados Principais:** `components/auth-form.tsx`, `hooks/use-auth.tsx`, `app/auth/page.tsx`.
 ---
 
 ### [MEDIUM] Correções e Melhorias no Sistema de Exportação da Calculadora de Lucros - ID: EXPORT_FIX_001
