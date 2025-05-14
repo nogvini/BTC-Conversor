@@ -189,6 +189,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
     },
     mode: "onChange"
   })
+  console.log('[AuthForm] Componente AuthForm RENDERIZADO.'); // Log de renderização
 
   // Formulário de cadastro
   const registerForm = useForm<RegisterFormValues>({
@@ -204,6 +205,8 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
 
   // Função para realizar login
   const onLoginSubmit = async (data: LoginFormValues) => {
+    console.log('[AuthForm] onLoginSubmit INICIADO. Dados do formulário:', data); // LOG 1
+
     // Resetar mensagem de erro ao tentar novamente
     setLoginError(null)
     
@@ -218,11 +221,24 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
     }
 
     // ADICIONAR VERIFICAÇÃO DE SEGURANÇA
-    if (typeof signIn !== 'function') {
-      console.error("AuthForm: signIn function is not available or not a function.", { signInFunction: signIn });
+    if (!session) { // session aqui é o objeto completo do useAuth()
+      console.error('[AuthForm] onLoginSubmit: ERRO CRÍTICO - AuthContext (session do useAuth) é NULO OU INDEFINIDO!');
       toast({
         title: "Erro Interno",
-        description: "A funcionalidade de login está temporariamente indisponível. Tente novamente mais tarde.",
+        description: "Contexto de autenticação não disponível.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+    console.log('[AuthForm] onLoginSubmit: AuthContext (session do useAuth) obtido:', session); // LOG 2
+    console.log('[AuthForm] onLoginSubmit: Verificando session.signIn - typeof:', typeof signIn); // LOG 3 (signIn já está desestruturado)
+
+    if (typeof signIn !== 'function') {
+      console.error('[AuthForm] onLoginSubmit: ERRO CRÍTICO - signIn (desestruturado de useAuth) NÃO é uma função!');
+      toast({
+        title: "Erro Interno",
+        description: "Funcionalidade de login indisponível (signIn inválido).",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -232,15 +248,11 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
     try {
       setIsLoading(true)
       setLoginEmail(data.email)
-      console.log('Iniciando login para:', data.email)
+      console.log('[AuthForm] onLoginSubmit: TENTANDO CHAMAR signIn com email:', data.email); // LOG 4
       
       const { error, profileNotFound } = await signIn(data.email, data.password)
       
-      console.log('Resultado do login:', { 
-        sucesso: !error, 
-        perfilEncontrado: !profileNotFound,
-        temErro: !!error
-      })
+      console.log('[AuthForm] onLoginSubmit: Resultado de signIn:', { error, profileNotFound }); // LOG 5
       
       if (error) {
         throw error
@@ -304,6 +316,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
     } finally {
       setIsLoading(false)
     }
+    console.log('[AuthForm] onLoginSubmit FINALIZADO.'); // LOG 7
   }
 
   // Função para realizar cadastro
