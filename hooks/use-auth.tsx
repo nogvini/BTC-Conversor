@@ -74,32 +74,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (persistedSession) {
           try {
-            const savedSession = JSON.parse(persistedSession)
-            const expiresAt = savedSession.expires_at * 1000 // Converter para milissegundos
-            
-            // Verificar se a sessão ainda não expirou
-            if (expiresAt > Date.now()) {
-              console.log('Usando sessão persistida do localStorage')
+            // Adicionar verificação para garantir que persistedSession não é "null" ou "undefined" como string literal
+            if (persistedSession && persistedSession !== "null" && persistedSession !== "undefined") {
+              const savedSession = JSON.parse(persistedSession)
+              const expiresAt = savedSession.expires_at * 1000 // Converter para milissegundos
               
-              // Usar a sessão persistida para evitar nova autenticação
-              const sessionResult = await supabaseClient.auth.setSession({
-                access_token: savedSession.access_token,
-                refresh_token: savedSession.refresh_token
-              })
-              
-              if (sessionResult.error) {
-                console.error('Erro ao restaurar sessão:', sessionResult.error)
-                localStorage.removeItem('supabase_session')
+              // Verificar se a sessão ainda não expirou
+              if (expiresAt > Date.now()) {
+                console.log('Usando sessão persistida do localStorage')
+                
+                // Usar a sessão persistida para evitar nova autenticação
+                const sessionResult = await supabaseClient.auth.setSession({
+                  access_token: savedSession.access_token,
+                  refresh_token: savedSession.refresh_token
+                })
+                
+                if (sessionResult.error) {
+                  console.error('Erro ao restaurar sessão:', sessionResult.error)
+                  if (typeof window !== 'undefined') localStorage.removeItem('supabase_session')
+                } else {
+                  console.log('Sessão restaurada com sucesso do localStorage')
+                }
               } else {
-                console.log('Sessão restaurada com sucesso do localStorage')
+                console.log('Sessão persistida expirada, removendo do localStorage')
+                if (typeof window !== 'undefined') localStorage.removeItem('supabase_session')
               }
             } else {
-              console.log('Sessão persistida expirada, removendo do localStorage')
-              localStorage.removeItem('supabase_session')
+              console.log('Sessão persistida encontrada, mas era uma string "null" ou "undefined", removendo.');
+              if (typeof window !== 'undefined') localStorage.removeItem('supabase_session');
             }
           } catch (e) {
-            console.error('Erro ao processar sessão persistida:', e)
-            localStorage.removeItem('supabase_session')
+            console.error('Erro crítico ao processar sessão persistida (JSON.parse falhou ou estrutura inesperada):', e)
+            if (typeof window !== 'undefined') localStorage.removeItem('supabase_session')
+            // Considerar não prosseguir com a lógica de sessão aqui e talvez
+            // forçar um estado de "nenhuma sessão" para evitar mais erros.
           }
         } else {
           console.log('Nenhuma sessão encontrada no localStorage')
