@@ -204,122 +204,20 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   })
 
   // Função para realizar login
-  const onLoginSubmit = async (data: LoginFormValues) => {
-    console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - PRIMEIRO LOG !!!!', data); // <--- LOG MAIS ALTO POSSÍVEL
-
-    console.log('[AuthForm] onLoginSubmit INICIADO. Dados do formulário:', data); // LOG 1
-
-    // Resetar mensagem de erro ao tentar novamente
-    setLoginError(null)
-    
-    // Verificar primeiro se o Supabase está disponível
-    if (!supabaseAvailable) {
-      toast({
-        title: "Serviço indisponível",
-        description: "Não foi possível conectar ao serviço de autenticação. Tente novamente mais tarde.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // ADICIONAR VERIFICAÇÃO DE SEGURANÇA
-    if (!session) { // session aqui é o objeto completo do useAuth()
-      console.error('[AuthForm] onLoginSubmit: ERRO CRÍTICO - AuthContext (session do useAuth) é NULO OU INDEFINIDO!');
-      toast({
-        title: "Erro Interno",
-        description: "Contexto de autenticação não disponível.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-    console.log('[AuthForm] onLoginSubmit: AuthContext (session do useAuth) obtido:', session); // LOG 2
-    console.log('[AuthForm] onLoginSubmit: Verificando session.signIn - typeof:', typeof signIn); // LOG 3 (signIn já está desestruturado)
-
-    if (typeof signIn !== 'function') {
-      console.error('[AuthForm] onLoginSubmit: ERRO CRÍTICO - signIn (desestruturado de useAuth) NÃO é uma função!');
-      toast({
-        title: "Erro Interno",
-        description: "Funcionalidade de login indisponível (signIn inválido).",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true)
-      setLoginEmail(data.email)
-      console.log('[AuthForm] onLoginSubmit: TENTANDO CHAMAR signIn com email:', data.email); // LOG 4
-      
-      const { error, profileNotFound } = await signIn(data.email, data.password)
-      
-      console.log('[AuthForm] onLoginSubmit: Resultado de signIn:', { error, profileNotFound }); // LOG 5
-      
-      if (error) {
-        throw error
-      }
-
-      // Verificar se o perfil não foi encontrado
-      if (profileNotFound) {
-        console.log('Perfil não encontrado para o usuário:', data.email)
-        
-        setShowNoProfileDialog(true)
-        return
-      }
-      
-      // Verificação bem-sucedida, esconder alerta de verificação de email
-      setShowEmailVerification(false)
-      
-      // Exibir toast de sucesso
-      toast({
-        title: "Login realizado com sucesso",
-        description: "Bem-vindo de volta! Redirecionando...",
-        variant: "success",
-      })
-      
-      // Simplificar o processo de redirecionamento
-      console.log('REDIRECIONAMENTO DIRETO: Indo para a página inicial...')
-      
-      // Desativar o estado de loading
-      setIsLoading(false)
-      
-      // Redirecionamento direto sem atrasos ou complicações
-      window.location.href = '/'
-      
-    } catch (error: any) {
-      // Usar a função auxiliar para tratar o erro
-      const message = handleSupabaseError(error)
-      console.error('Erro durante login:', error)
-      
-      // Definir a mensagem de erro para exibição no formulário
-      setLoginError(message)
-      
-      // Verificar se o erro é relacionado a email não confirmado
-      if (error?.message?.includes("Email not confirmed") || 
-          error?.message?.includes("not verified") ||
-          error?.message?.includes("não confirmado")) {
-        
-        // Mostrar mensagem específica e ativar alerta de verificação
-        setShowEmailVerification(true)
-        
-        toast({
-          title: "Email não verificado",
-          description: "Por favor, verifique seu email para ativar sua conta.",
-          variant: "warning",
-        })
-      } else {
-        toast({
-          title: "Erro ao fazer login",
-          description: message,
-          variant: "destructive",
-        })
-      }
-    } finally {
-      setIsLoading(false)
-    }
-    console.log('[AuthForm] onLoginSubmit FINALIZADO.'); // LOG 7
-  }
+  const onLoginSubmit = (data: LoginFormValues) => {
+    console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - SIMPLES !!!!', data);
+    alert('Formulário de login submetido! Verifique o console.');
+    // TODA A LÓGICA DE LOGIN ASSÍNCRONA FOI COMENTADA/REMOVIDA PARA ESTE TESTE
+    // console.log('[AuthForm] onLoginSubmit INICIADO. Dados do formulário:', data); // LOG 1
+    // setLoginError(null)
+    // if (!supabaseAvailable) { ... }
+    // if (!session) { ... }
+    // console.log('[AuthForm] onLoginSubmit: AuthContext (session do useAuth) obtido:', session); // LOG 2
+    // console.log('[AuthForm] onLoginSubmit: Verificando session.signIn - typeof:', typeof signIn); // LOG 3
+    // if (typeof signIn !== 'function') { ... }
+    // try { ... } catch (error: any) { ... } finally { ... }
+    // console.log('[AuthForm] onLoginSubmit FINALIZADO.'); // LOG 7
+  };
 
   // Função para realizar cadastro
   const onRegisterSubmit = async (data: RegisterFormValues) => {
