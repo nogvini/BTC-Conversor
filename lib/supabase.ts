@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // Verificar se estamos no navegador
 const isBrowser = typeof window !== 'undefined'
@@ -16,14 +16,13 @@ console.log('Ambiente Supabase:', {
   envSupabaseKeyDefined: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 });
 
-/**
- * Cria um cliente Supabase para uso no lado do cliente.
- * Prioriza variáveis de ambiente. Em desenvolvimento, pode usar fallbacks se as vars não estiverem definidas.
- * @returns Cliente Supabase ou null em caso de falha na obtenção das credenciais.
- */
-export const createSupabaseClient = () => {
+let supabaseInstance: SupabaseClient | null = null;
+
+console.log('[Supabase Singleton] Módulo lib/supabase.ts carregado.');
+
+function initializeSupabaseClient(): SupabaseClient | null {
   if (!isBrowser) {
-    // console.warn('[Supabase] Tentando criar cliente Supabase fora do navegador. Retornando null.');
+    console.log('[Supabase Singleton] Fora do navegador, retornando null para instância.');
     return null;
   }
   
@@ -32,21 +31,20 @@ export const createSupabaseClient = () => {
   
   if (!supabaseUrl || !supabaseKey) {
     if (process.env.NODE_ENV === 'development') {
-      console.warn('[Supabase] Variáveis de ambiente não definidas. Usando fallbacks de DESENVOLVIMENTO.');
+      console.warn('[Supabase Singleton] Vars de ambiente não definidas. Usando fallbacks de DESENVOLVIMENTO.');
       supabaseUrl = fallbackUrl;
       supabaseKey = fallbackKey;
     } else {
-      console.error('[Supabase] ERRO CRÍTICO: Variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e/ou NEXT_PUBLIC_SUPABASE_ANON_KEY não estão definidas em produção.');
-      // Alerta no navegador, mas apenas uma vez por sessão para não poluir
+      console.error('[Supabase Singleton] ERRO CRÍTICO: Vars de ambiente Supabase não definidas em produção.');
       if (!sessionStorage.getItem('supabase_critical_env_alert')) {
         sessionStorage.setItem('supabase_critical_env_alert', 'true');
-        // alert('Erro crítico: A configuração do Supabase está ausente. Por favor, contate o suporte.');
       }
-      return null; // Falha crítica em produção se as variáveis não estiverem definidas
+      return null;
     }
   }
   
   try {
+    console.log('[Supabase Singleton] Tentando criar nova instância do cliente Supabase...');
     const client = createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: true,
@@ -54,7 +52,7 @@ export const createSupabaseClient = () => {
       }
     });
     
-    console.log('[Supabase] Cliente criado com sucesso.');
+    console.log('[Supabase Singleton] Nova instância do cliente Supabase CRIADA COM SUCESSO.');
     
     // Opcional: verificar rapidamente a conexão (pode ser removido se causar lentidão inicial)
     // client.auth.getSession().then(({ data, error }) => {
@@ -67,8 +65,8 @@ export const createSupabaseClient = () => {
     
     return client;
   } catch (error) {
-    console.error('[Supabase] Erro ao criar cliente Supabase:', error);
-    if (isBrowser && !sessionStorage.getItem('supabase_creation_error_alert')) {
+    console.error('[Supabase Singleton] Erro ao criar nova instância do cliente Supabase:', error);
+    if (!sessionStorage.getItem('supabase_creation_error_alert')) {
       sessionStorage.setItem('supabase_creation_error_alert', 'true');
       // alert('Erro crítico ao inicializar o sistema de dados. Por favor, contate o suporte.');
     }
@@ -76,29 +74,28 @@ export const createSupabaseClient = () => {
   }
 }
 
-// Cliente Supabase para uso no lado do cliente - inicialização na primeira chamada
-// Usamos uma função para garantir que createSupabaseClient() seja chamado apenas quando necessário e no client-side
-let clientInstance: ReturnType<typeof createSupabaseClient> | null = null;
-
-export const supabase = (() => {
-  if (!isBrowser) return null;
-  if (!clientInstance) {
-    clientInstance = createSupabaseClient();
-  }
-  return clientInstance;
-})();
-
 /**
- * Função para obter o cliente Supabase de forma segura.
- * Retorna a instância global ou tenta criar uma nova se necessário.
+ * Retorna a instância singleton do SupabaseClient.
+ * Cria a instância na primeira chamada se ainda não existir (apenas no browser).
  */
-export function getSupabaseClient() {
-  if (!isBrowser) return null;
-  if (!clientInstance) { // Se a instância global for null (ex: falha na primeira tentativa)
-    clientInstance = createSupabaseClient(); // Tenta criar novamente
+export const getSupabaseClient = (): SupabaseClient | null => {
+  if (!isBrowser) {
+    // console.log('[Supabase Singleton] getSupabaseClient: Fora do navegador, retornando null.');
+    return null; 
   }
-  return clientInstance;
-}
+  if (supabaseInstance === null) {
+    console.log('[Supabase Singleton] getSupabaseClient: Instância ainda não existe ou é null. Tentando inicializar...');
+    supabaseInstance = initializeSupabaseClient();
+    if (supabaseInstance) {
+      console.log('[Supabase Singleton] getSupabaseClient: Instância inicializada e atribuída.');
+    } else {
+      console.error('[Supabase Singleton] getSupabaseClient: Falha ao inicializar a instância.');
+    }
+  } else {
+    // console.log('[Supabase Singleton] getSupabaseClient: Retornando instância existente.');
+  }
+  return supabaseInstance;
+};
 
 // Tipos para autenticação
 export type UserData = {
