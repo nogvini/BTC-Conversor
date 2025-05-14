@@ -356,9 +356,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!sessionError) {
               console.log('[signIn] Sessão restaurada do cache com sucesso.');
               
-              console.log('[signIn] Chamando fetchProfileData em background após restaurar sessão do cache...');
-              fetchProfileData(cachedSession.user.id)
-                .catch(err => console.error('[signIn] Erro ao buscar perfil (cache):', err));
+              console.log('[signIn] Chamando fetchProfileData AGORA (await) após restaurar sessão do cache...');
+              await fetchProfileData(cachedSession.user.id);
               
               setSession({
                 user: {
@@ -463,23 +462,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Iniciar busca de perfil em background, sem bloquear o login
-      console.log('[signIn] Iniciando busca de perfil em background...');
-      fetchProfileData(data.user.id)
-        .then(profileData => {
-          console.log('[signIn] Retorno de fetchProfileData (background):', profileData);
-          if (profileData) {
-            setSession(prev => ({
-              ...prev,
-              user: {
-                ...prev.user!,
-                name: profileData.name || prev.user?.name || '',
-                avatar_url: profileData.avatar_url
-              }
-            }));
-            console.log('[signIn] Estado da sessão atualizado com dados completos do perfil (background).');
+      console.log('[signIn] Iniciando busca de perfil AGORA (await)...');
+      const profileData = await fetchProfileData(data.user.id);
+      if (profileData) {
+        setSession(prev => ({
+          ...prev,
+          user: {
+            ...prev.user!,
+            name: profileData.name || prev.user?.name || '',
+            avatar_url: profileData.avatar_url
           }
-        })
-        .catch(err => console.error('[signIn] Erro ao buscar perfil em background:', err));
+        }));
+        console.log('[signIn] Estado da sessão atualizado com dados completos do perfil.');
+      }
       
       console.log('[signIn] Login normal bem-sucedido. Retornando...');
       return { error: null };
