@@ -676,6 +676,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Efeito para redirecionamento baseado no estado da sessão e rota atual
   useEffect(() => {
+    // >>> INÍCIO DO CÓDIGO COMENTADO PARA TESTE <<<
+    /*
     const publicRoutes = ['/auth', '/login', '/register']; // CORRIGIDO: Adicionado '/auth'
 
     // Assegurar que session.isLoading está definido e é booleano antes de usar
@@ -685,24 +687,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Se o usuário NÃO está logado E está tentando acessar uma rota que NÃO é pública
       if (!session.user && !publicRoutes.includes(pathname)) {
         // Então redireciona para a página de autenticação
-        console.log(`[AuthGuard] Acesso não autenticado a '${pathname}'. Redirecionando para '/auth'.`);
-        if (pathname !== '/auth') { // Evitar redirecionamento para si mesmo se já estiver em /auth
-          router.push('/auth');
-        }
+        console.log(`[AuthGuard] TESTE: Acesso não autenticado a '${pathname}'. Redirecionamento para '/auth' ESTARIA ATIVO.`);
+        // if (pathname !== '/auth') { // Evitar redirecionamento para si mesmo se já estiver em /auth
+        //   router.push('/auth');
+        // }
       }
       // Se o usuário ESTÁ logado E está tentando acessar uma rota PÚBLICA (como /auth, /login)
       else if (session.user && publicRoutes.includes(pathname)) {
         // Então redireciona para a página inicial (ou dashboard)
         // Isso evita que um usuário logado veja a página de login/registro novamente
-        console.log(`[AuthGuard] Usuário autenticado acessando rota pública '${pathname}'. Redirecionando para '/'.`);
-        if (pathname !== '/') { // Evitar redirecionamento para si mesmo se já estiver em /
-            router.push('/');
-        }
+        console.log(`[AuthGuard] TESTE: Usuário autenticado acessando rota pública '${pathname}'. Redirecionamento para '/' ESTARIA ATIVO.`);
+        // if (pathname !== '/') { // Evitar redirecionamento para si mesmo se já estiver em /
+        //     router.push('/');
+        // }
       }
     }
+    */
+    // >>> FIM DO CÓDIGO COMENTADO PARA TESTE <<<
+    
     // As dependências devem refletir os valores realmente usados dentro do efeito.
     // supabaseClient e toast não parecem ser usados diretamente nesta lógica de redirecionamento.
     // Manter router e pathname é crucial. session.user e session.isLoading também.
+    console.log("[AuthGuard] Lógica de redirecionamento automático TEMPORARIAMENTE DESATIVADA para teste.");
   }, [session.user, session.isLoading, pathname, router]);
 
   return (
