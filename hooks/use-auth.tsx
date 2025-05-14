@@ -560,14 +560,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabaseClient, session.user]);
 
   const signOut = useCallback(async () => {
+    console.log('[signOut] Iniciando processo de logout...');
     if (supabaseClient) {
       try {
-        await supabaseClient.auth.signOut()
-      } catch (error) {
-        console.error('Erro ao fazer logout:', error)
+        const { error } = await supabaseClient.auth.signOut();
+
+        if (error) {
+          console.error('Erro na API do Supabase ao fazer logout:', error);
+          toast({
+            title: "Erro ao sair",
+            description: error.message || "Não foi possível encerrar a sessão. Tente novamente.",
+            variant: "destructive",
+          });
+          // Mesmo com erro na API, tentar limpar o estado local
+        }
+        
+        console.log('[signOut] Sessão encerrada no Supabase.');
+
+      } catch (error: any) {
+        console.error('Exceção ao tentar supabaseClient.auth.signOut():', error);
+        toast({
+          title: "Erro inesperado ao sair",
+          description: error.message || "Ocorreu um problema ao tentar encerrar a sessão.",
+          variant: "destructive",
+        });
+        // Mesmo com exceção, tentar limpar o estado local
       }
     }
-  }, [supabaseClient])
+
+    // Limpar estado da sessão local independentemente do resultado da API (para garantir que o UI reaja)
+    setSession({
+      user: null,
+      session: null,
+      error: null,
+      isLoading: false, // Parar o loading, pois o usuário está deslogado
+    });
+    setLastAuthEvent('logout efetuado');
+    console.log('[signOut] Estado da sessão local limpo.');
+
+    // Remover sessão do localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('supabase_session');
+      console.log('[signOut] Sessão removida do localStorage.');
+    }
+
+    // Redirecionar para a página de autenticação
+    // Usar um pequeno timeout para dar tempo ao toast de ser exibido antes do redirecionamento
+    toast({
+      title: "Você saiu!",
+      description: "Sessão encerrada com sucesso.",
+      variant: "default", // Usar default ou success
+    });
+    
+    // A lógica de redirecionamento no useEffect principal do AuthProvider
+    // deve pegar a mudança de estado (session.user se tornando null)
+    // e redirecionar para /auth se o usuário estiver em uma página protegida.
+    // Se o usuário já estiver em uma página pública, ele permanecerá lá, o que é aceitável.
+    // Para forçar um redirecionamento para /auth sempre após o logout, podemos adicionar:
+    if (pathname !== '/auth') {
+        router.push('/auth');
+        console.log('[signOut] Redirecionando para /auth após logout.');
+    }
+
+  }, [supabaseClient, toast, router, pathname]); // Adicionado router e pathname às dependências
 
   const updateProfile = useCallback(async (data: Partial<UserData>) => {
     try {
