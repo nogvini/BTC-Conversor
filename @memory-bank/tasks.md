@@ -69,6 +69,26 @@
 - **Componentes Afetados Principais:** `components/profit-calculator.tsx`, `hooks/use-reports.tsx`.
 ---
 
+### [MEDIUM] Alinhamento da Exportação/Importação de Backup Excel - ID: EXCEL_SYNC_001
+- **Status:** Em Andamento
+- **Descrição:** Garantir que os arquivos Excel exportados pelo `profit-calculator.tsx` sejam totalmente compatíveis com a funcionalidade de importação de backup, especificamente no que diz respeito aos identificadores de registros e ao tratamento de datas.
+- **Requisitos Chave:**
+    - [x] **Modificação da Função `exportData` (`components/profit-calculator.tsx`):**
+        - [x] Assegurar que a primeira coluna nas planilhas `Investimentos` e `Lucros e Prejuízos` exporte `item.originalId || item.id`.
+        - [x] Padronizar a exportação de datas usando `parseISODate` antes de `new Date()` para consistência.
+    - [x] **Revisão da Função `handleImportBackupExcel` (`components/profit-calculator.tsx`):**
+        - [x] Confirmar que a importação lê corretamente o `originalId` da primeira coluna.
+        - [x] Verificar o tratamento de datas, assegurando que `formatDateToUTC(parseISODate(dateValue))` funcione conforme esperado com as datas exportadas.
+        - [x] Validar a lógica de detecção de duplicatas usando o `originalId` importado.
+    - [ ] **Teste Completo do Fluxo:**
+        - [ ] Realizar exportações de dados variados (com e sem `originalId` preexistente).
+        - [ ] Importar os arquivos gerados usando a funcionalidade de backup.
+        - [ ] Verificar a integridade dos dados importados e o tratamento correto de duplicatas.
+    - [ ] **Revisão do Hook `useReports` (Funções `addInvestment` e `addProfitRecord`):**
+        - [ ] Confirmar que `addInvestment` e `addProfitRecord` priorizam o `originalId` (se fornecido pela importação) para a lógica de detecção de duplicatas e o armazenam corretamente.
+- **Componentes Afetados Principais:** `components/profit-calculator.tsx`, `hooks/use-reports.tsx`.
+---
+
 ## Sprint 2: Múltiplos Relatórios - Fundação & Correções Calculadora (Sprint Atual)
 **Objetivo Principal do Sprint:** Estabelecer a base para o sistema de múltiplos relatórios, iniciar otimizações de performance e **resolver issues críticas da calculadora (Exportação)**.
 
@@ -82,6 +102,7 @@
 | A1.4.1 | Refatoração do Singleton (Parte 1)           | Alta       | [ ]    |                                               |
 | -      | EXPORT_FIX_001 (detalhado acima)             | Crítica    | Concluído | **Foco Principal da Sessão Atual**          |
 | -      | IMPORT_REFACTOR_001 (detalhado acima)        | Alta       | [ ]    | Refatoração da importação de backup Excel.    |
+| -      | EXCEL_SYNC_001 (detalhado acima)             | Média      | Em Andamento | **Foco Principal da Sessão Atual**          |
 
 ---
 
