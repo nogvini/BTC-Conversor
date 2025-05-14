@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, u
 import { type AuthSession, type UserData } from '@/lib/supabase'
 import { useSupabaseRetry } from './use-supabase-retry'
 import { useToast } from './use-toast'
+import { useRouter } from 'next/navigation'
 
 // Constantes para timeout
 const PROFILE_LOADING_TIMEOUT = 5000 // 5 segundos
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const { client: supabaseClient, isConnected, retryConnection, isAttemptingConnection, retryCount } = useSupabaseRetry()
+  const router = useRouter()
   
   // Estado local de sessão
   const [session, setSession] = useState<AuthSession>({
@@ -670,6 +672,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAttemptingConnectionValue: isAttemptingConnection
     });
   }, [contextValue, supabaseClient, isConnected, isAttemptingConnection]);
+
+  // Efeito para redirecionamento baseado no estado da sessão e rota atual
+  useEffect(() => {
+    const publicRoutes = ['/auth', '/login', '/register']; // CORRIGIDO: Adicionado '/auth'
+
+    // Assegurar que session.isLoading está definido e é booleano antes de usar
+    const isLoading = typeof session.isLoading === 'boolean' ? session.isLoading : true;
+
+    if (!isLoading) {
+      // Se o usuário NÃO está logado E está tentando acessar uma rota que NÃO é pública
+      if (!session.user && !publicRoutes.includes(pathname)) {
+        // Então redireciona para a página de autenticação
+        console.log(`[AuthGuard] Acesso não autenticado a '${pathname}'. Redirecionando para '/auth'.`);
+        if (pathname !== '/auth') { // Evitar redirecionamento para si mesmo se já estiver em /auth
+          router.push('/auth');
+        }
+      }
+      // Se o usuário ESTÁ logado E está tentando acessar uma rota PÚBLICA (como /auth, /login)
+      else if (session.user && publicRoutes.includes(pathname)) {
+        // Então redireciona para a página inicial (ou dashboard)
+        // Isso evita que um usuário logado veja a página de login/registro novamente
+        console.log(`[AuthGuard] Usuário autenticado acessando rota pública '${pathname}'. Redirecionando para '/'.`);
+        if (pathname !== '/') { // Evitar redirecionamento para si mesmo se já estiver em /
+            router.push('/');
+        }
+      }
+    }
+    // As dependências devem refletir os valores realmente usados dentro do efeito.
+    // supabaseClient e toast não parecem ser usados diretamente nesta lógica de redirecionamento.
+    // Manter router e pathname é crucial. session.user e session.isLoading também.
+  }, [session.user, session.isLoading, pathname, router]);
 
   return (
     <AuthContext.Provider value={contextValue}>
