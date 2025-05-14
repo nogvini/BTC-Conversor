@@ -3843,28 +3843,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                            onClick={() => setExportSpecificMonthDate(prev => prev ? subMonths(prev, 1) : subMonths(new Date(), 1))}
+                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20 text-white shrink-0"
+                            onClick={() => setExportSpecificMonthDate(prev => subMonths(prev || new Date(), 1))}
+                            aria-label="Mês anterior"
                           >
                             <ChevronLeft className="h-4 w-4" />
                           </Button>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" size="sm" className="flex-grow justify-center text-left font-normal bg-black/30 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70">
-                                {exportSpecificMonthDate ? format(exportSpecificMonthDate, "MMMM yyyy", { locale: ptBR }) : "Selecione o mês"}
-                                <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                               <CalendarComponent mode="single" selected={exportSpecificMonthDate || undefined} onSelect={(date) => setExportSpecificMonthDate(date || null)} captionLayout="dropdown-buttons" fromYear={2010} toYear={new Date().getFullYear() + 1} className="bg-black/80 p-2" locale={ptBR}/>
-                            </PopoverContent>
-                          </Popover>
+                          <span 
+                            className="flex-grow text-center px-3 py-1.5 text-sm rounded-md border border-purple-700/50 bg-black/30 text-white select-none whitespace-nowrap min-w-[150px]"
+                            aria-live="polite"
+                          >
+                            {exportSpecificMonthDate ? format(exportSpecificMonthDate, "MMMM 'de' yyyy", { locale: ptBR }) : "Selecione o mês"}
+                          </span>
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-                            onClick={() => setExportSpecificMonthDate(prev => prev ? addMonths(prev, 1) : new Date())}
-                            disabled={exportSpecificMonthDate ? !isBefore(addMonths(exportSpecificMonthDate, 1), addMonths(new Date(),1)) : false}
+                            className="h-8 w-8 bg-black/30 border-purple-700/50 hover:bg-purple-900/20 text-white shrink-0"
+                            onClick={() => setExportSpecificMonthDate(prev => addMonths(prev || new Date(), 1))}
+                            aria-label="Próximo mês"
                           >
                             <ChevronRight className="h-4 w-4" />
                           </Button>

@@ -119,19 +119,28 @@ const generateReportHTML = (data: Payload): string => {
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           margin: 0;
-          padding: 20px;
           background-color: #f4f4f9;
           color: #333;
           font-size: 14px;
           line-height: 1.6;
         }
         .dark-mode {
-          background-color: #0d1117; /* GitHub Dark Background */
+          background-color: #0d1117 !important; /* GitHub Dark Background - !important para garantir */
           color: #c9d1d9; /* GitHub Dark Text */
+          margin: 0;
+          padding: 0; /* Adicionado para remover qualquer preenchimento do body no modo escuro */
         }
         .dark-mode .container {
           background-color: #161b22; /* GitHub Dark Paper Background */
           border-color: #30363d; /* GitHub Dark Border */
+          margin: 0 auto; /* Manter centralizado, mas sem margem superior/inferior que cause borda */
+          padding: 25px; /* Padding interno do container */
+          /* Remover box-shadow que pode causar bordas se não for bem ajustado para PDF */
+          box-shadow: none; 
+          /* Garantir que o container ocupe a largura mas sem causar overflow que gere barras de rolagem no PDF */
+          max-width: 100%; 
+          width: 100%;
+          border-radius: 0; /* Sem bordas arredondadas que podem parecer estranhas no PDF fullscreen */
         }
         .dark-mode h1, .dark-mode h2, .dark-mode h3 {
           color: #58a6ff; /* GitHub Dark Primary Link/Header */
@@ -200,8 +209,27 @@ const generateReportHTML = (data: Payload): string => {
         .chart-container { width: 100%; margin: 25px auto; padding: 15px; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #fff; }
         .no-data { text-align: center; color: #6b7280; padding: 20px; font-style: italic; }
         @media print {
-          body { margin: 0; padding:0; background-color: #fff; }
-          .container { box-shadow: none; border-radius: 0; margin: 0 auto; padding: 20px; border: none; max-width: 100%; }
+          body {
+             margin: 0;
+             padding: 0;
+             background-color: #fff; /* Para impressão normal, fundo branco */
+          }
+          .dark-mode {
+             background-color: #0d1117 !important; /* Manter o fundo escuro para impressão PDF em modo escuro */
+          }
+          .container {
+             box-shadow: none;
+             border-radius: 0;
+             margin: 0 auto;
+             padding: 20px; /* Padding para o conteúdo dentro do PDF */
+             border: none;
+             max-width: 100%;
+             width: 100%;
+          }
+          .dark-mode .container {
+             background-color: #161b22; /* Fundo do container no modo escuro para impressão */
+             padding: 20px; /* Ajustar se necessário para impressão */
+          }
           h1, h2 { page-break-after: avoid; }
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }
