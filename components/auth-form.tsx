@@ -207,16 +207,14 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   const onLoginSubmit = (data: LoginFormValues) => {
     console.log('!!!! [AuthForm] onLoginSubmit CHAMADA - SIMPLES !!!!', data);
     alert('Formulário de login submetido! Verifique o console.');
-    // TODA A LÓGICA DE LOGIN ASSÍNCRONA FOI COMENTADA/REMOVIDA PARA ESTE TESTE
-    // console.log('[AuthForm] onLoginSubmit INICIADO. Dados do formulário:', data); // LOG 1
-    // setLoginError(null)
-    // if (!supabaseAvailable) { ... }
-    // if (!session) { ... }
-    // console.log('[AuthForm] onLoginSubmit: AuthContext (session do useAuth) obtido:', session); // LOG 2
-    // console.log('[AuthForm] onLoginSubmit: Verificando session.signIn - typeof:', typeof signIn); // LOG 3
-    // if (typeof signIn !== 'function') { ... }
-    // try { ... } catch (error: any) { ... } finally { ... }
-    // console.log('[AuthForm] onLoginSubmit FINALIZADO.'); // LOG 7
+  };
+
+  // Wrapper para o submit manual, sem react-hook-form no onSubmit do form
+  const handleManualLoginSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); // Prevenir o comportamento padrão do formulário
+    console.log('!!!! [AuthForm] handleManualLoginSubmit CHAMADO !!!!');
+    const formData = loginForm.getValues(); // Obter valores do react-hook-form
+    onLoginSubmit(formData); // Chamar nossa função de submit simplificada
   };
 
   // Função para realizar cadastro
@@ -567,7 +565,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
               )}
               
               <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                <form onSubmit={handleManualLoginSubmit} className="space-y-4">
                   <FormField
                     control={loginForm.control}
                     name="email"
