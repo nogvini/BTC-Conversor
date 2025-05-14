@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle } from "lucide-react"
+import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Minus, Percent } from "lucide-react"
 import { Card, CardTitle, CardHeader, CardContent, CardDescription } from "@/components/ui/card"
 import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/api"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -323,6 +323,30 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     return calculateAnnualizedVolatility(chartData)
   }, [chartData])
 
+  // CALCULAR NOVOS DADOS ESTATÍSTICOS
+  const chartStats = useMemo(() => {
+    if (!chartData || chartData.length === 0) {
+      return {
+        minPrice: 0,
+        maxPrice: 0,
+        avgPrice: 0,
+        priceChangePeriod: priceChange.percentage, // Reutiliza o já calculado
+      };
+    }
+
+    const prices = chartData.map(d => d.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+
+    return {
+      minPrice,
+      maxPrice,
+      avgPrice,
+      priceChangePeriod: priceChange.percentage,
+    };
+  }, [chartData, priceChange.percentage]);
+
   // Render
   return (
     <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
@@ -384,6 +408,37 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           </div>
         </div>
       </CardHeader>
+
+      {/* SEÇÃO DE STATS ADICIONADA ABAIXO DO HEADER E ACIMA DO GRÁFICO */}
+      {!loading && chartData.length > 0 && (
+        <div className="px-6 pb-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <StatDisplayCard 
+            title="Menor Preço" 
+            value={formatCurrency(chartStats.minPrice, true)} 
+            icon={<ArrowDownToLine className="h-4 w-4 text-blue-400" />} 
+            currencyUsed={currency}
+          />
+          <StatDisplayCard 
+            title="Maior Preço" 
+            value={formatCurrency(chartStats.maxPrice, true)} 
+            icon={<ArrowUpFromLine className="h-4 w-4 text-green-400" />} 
+            currencyUsed={currency}
+          />
+          <StatDisplayCard 
+            title="Preço Médio" 
+            value={formatCurrency(chartStats.avgPrice, true)} 
+            icon={<Minus className="h-4 w-4 text-yellow-400" />} 
+            currencyUsed={currency}
+          />
+          <StatDisplayCard 
+            title="Variação Período" 
+            value={`${chartStats.priceChangePeriod.toFixed(2)}%`} 
+            icon={<Percent className="h-4 w-4 text-purple-400" />} 
+            valueColor={chartStats.priceChangePeriod > 0 ? "text-green-400" : chartStats.priceChangePeriod < 0 ? "text-red-400" : "text-gray-400"}
+          />
+        </div>
+      )}
+
       <CardContent className="pt-0 pb-6 px-6">
         {/* Gráfico */}
         <div className="h-[300px] sm:h-[400px]">
@@ -533,4 +588,27 @@ function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
   const annualizedVol = stdDev * Math.sqrt(252) * 100
   
   return annualizedVol
+}
+
+// NOVO COMPONENTE AUXILIAR PARA OS STATS CARDS
+interface StatDisplayCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  valueColor?: string;
+  currencyUsed?: CurrencyType; // Opcional, para tooltip ou formatação futura
+}
+
+function StatDisplayCard({ title, value, icon, valueColor, currencyUsed }: StatDisplayCardProps) {
+  return (
+    <div className="p-3 bg-black/20 border border-purple-700/30 rounded-md flex flex-col justify-between h-full">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-gray-400 truncate" title={title}>{title}</span>
+        {icon}
+      </div>
+      <p className={cn("text-lg md:text-xl font-semibold truncate", valueColor ? valueColor : "text-white")}>
+        {value}
+      </p>
+    </div>
+  );
 }

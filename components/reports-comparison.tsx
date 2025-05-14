@@ -473,6 +473,15 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     const aggregatedMediaDiariaLucroBtc = aggregatedDiasDeInvestimento > 0 ? aggregatedTotalProfitsBtc / aggregatedDiasDeInvestimento : 0;
     const aggregatedMediaDiariaRoiPercent = aggregatedDiasDeInvestimento > 0 && aggregatedTotalInvestmentsBtc > 0 ? aggregatedTotalRoi / aggregatedDiasDeInvestimento : 0;
     
+    // Correção para o erro de linter (tentativa 2)
+    let aggregatedPrimeiroAporteISO: string | null = null;
+    if (aggregatedPrimeiroAporteDateObj) { // Verifica se não é null
+      const dateCandidate = aggregatedPrimeiroAporteDateObj as Date; // Type assertion
+      if (dateCandidate instanceof Date && !isNaN(dateCandidate.getTime())) {
+        aggregatedPrimeiroAporteISO = dateCandidate.toISOString();
+      }
+    }
+
     return {
       chartData,
       statsData,
@@ -484,7 +493,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       totalProfitsBtc: aggregatedTotalProfitsBtc,
       totalBalanceBtc: aggregatedTotalBalanceBtc,
       totalRoi: aggregatedTotalRoi,
-      aggregatedPrimeiroAporteDate: aggregatedPrimeiroAporteDateObj ? aggregatedPrimeiroAporteDateObj.toISOString() : null,
+      aggregatedPrimeiroAporteDate: aggregatedPrimeiroAporteISO, // Usar a variável corrigida
       aggregatedDiasDeInvestimento, 
       aggregatedTempoTotalInvestimento: formatTempoInvestimento(aggregatedDiasDeInvestimento),
       aggregatedRoiAnualizadoPercent,
