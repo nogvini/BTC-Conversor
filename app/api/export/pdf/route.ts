@@ -301,10 +301,11 @@ const generateReportHTML = (data: Payload): string => {
     // Calcular dados para o gráfico de Evolução do Saldo
     let currentBalanceBtc = 0;
     const balanceEvolutionValues = chartData.map(d => {
-      currentBalanceBtc += d.totalInvestments + d.netProfits;
+      // Aqui, o saldo acumula com base no netProfits e nos novos investimentos do mês
+      currentBalanceBtc += d.netProfits + d.totalInvestments; 
       return currentBalanceBtc;
     });
-
+    
     // Dados para o Gráfico de Pizza (Distribuição de Lucros vs Perdas)
     let profitDistributionData: number[];
     let profitDistributionLabels: string[];
@@ -317,139 +318,180 @@ const generateReportHTML = (data: Payload): string => {
     // Cores base para modo claro
     const profitColorClear = 'rgba(34, 197, 94, 0.7)'; // Verde
     const lossColorClear = 'rgba(239, 68, 68, 0.7)';   // Vermelho
+    const neutralColorClear = 'rgba(107, 114, 128, 0.7)'; // Cinza (para casos sem lucro/perda)
 
     // Cores base para modo escuro
     const profitColorDark = 'rgba(52, 211, 153, 0.7)'; // Verde claro
     const lossColorDark = 'rgba(248, 113, 113, 0.7)';   // Vermelho claro
+    const neutralColorDark = 'rgba(156, 163, 175, 0.7)'; // Cinza claro
 
-    const selectedProfitColor = pdfDarkMode ? profitColorDark : profitColorClear;
-    const selectedLossColor = pdfDarkMode ? lossColorDark : lossColorClear;
-
+    const currentProfitColor = pdfDarkMode ? profitColorDark : profitColorClear;
+    const currentLossColor = pdfDarkMode ? lossColorDark : lossColorClear;
+    const currentNeutralColor = pdfDarkMode ? neutralColorDark : neutralColorClear;
 
     if (onlyProfits) {
       profitDistributionData = [totalProfitsBtc];
       profitDistributionLabels = ['Lucros Totais (BTC)'];
-      dynamicProfitDistributionColors = [selectedProfitColor];
+      dynamicProfitDistributionColors = [currentProfitColor];
     } else if (onlyLosses) {
-      profitDistributionData = [totalLossesBtc];
+      profitDistributionData = [Math.abs(totalLossesBtc)]; // Usar valor absoluto para o gráfico
       profitDistributionLabels = ['Perdas Totais (BTC)'];
-      dynamicProfitDistributionColors = [selectedLossColor];
+      dynamicProfitDistributionColors = [currentLossColor];
     } else if (bothProfitAndLoss) {
-      profitDistributionData = [totalProfitsBtc, totalLossesBtc];
+      profitDistributionData = [totalProfitsBtc, Math.abs(totalLossesBtc)];
       profitDistributionLabels = ['Lucros Totais (BTC)', 'Perdas Totais (BTC)'];
-      dynamicProfitDistributionColors = [selectedProfitColor, selectedLossColor];
-    } else {
-      // Caso sem lucros nem perdas (o gráfico não será renderizado de qualquer forma pelo if mais abaixo)
-      profitDistributionData = [];
-      profitDistributionLabels = [];
-      dynamicProfitDistributionColors = [];
+      dynamicProfitDistributionColors = [currentProfitColor, currentLossColor];
+    } else { // Sem lucros nem perdas (ex: apenas investimentos iniciais sem operações de profit/loss)
+      profitDistributionData = [1]; // Valor simbólico para exibir o gráfico
+      profitDistributionLabels = ['Sem Lucros ou Perdas Registrados'];
+      dynamicProfitDistributionColors = [currentNeutralColor];
     }
 
-    const chartLabelColor = pdfDarkMode ? '#c9d1d9' : '#333';
-    const chartGridColor = pdfDarkMode ? 'rgba(139, 148, 158, 0.2)' : 'rgba(0, 0, 0, 0.05)';
-    const chartLegendColor = pdfDarkMode ? '#c9d1d9' : '#333';
-
-    // Cores para as séries (Modo Claro)
-    let investmentColor = 'rgba(75, 192, 192, 0.7)';
-    let netProfitColor = 'rgba(54, 162, 235, 0.7)';
-    let balanceEvolutionBorderColor = 'rgba(255, 159, 64, 1)';
-    let balanceEvolutionBgColor = 'rgba(255, 159, 64, 0.1)';
-
-    if (pdfDarkMode) {
-      investmentColor = 'rgba(107, 114, 128, 0.7)'; // Cinza mais escuro para investimentos no modo escuro
-      netProfitColor = 'rgba(96, 165, 250, 0.7)'; // Azul mais claro
-      balanceEvolutionBorderColor = 'rgba(251, 191, 36, 1)'; // Amarelo/Laranja
-      balanceEvolutionBgColor = 'rgba(251, 191, 36, 0.2)';
-      profitDistributionColors = ['rgba(52, 211, 153, 0.7)', 'rgba(248, 113, 113, 0.7)', 'rgba(253, 224, 71, 0.7)']; // Verde, Vermelho, Amarelo (mais claros)
-    }
-
+    const textColor = pdfDarkMode ? '#c9d1d9' : '#333';
+    const gridColor = pdfDarkMode ? 'rgba(201, 209, 217, 0.2)' : 'rgba(0, 0, 0, 0.1)';
+    const tooltipBackgroundColor = pdfDarkMode ? '#161b22' : '#fff';
+    const tooltipTitleColor = pdfDarkMode ? '#58a6ff' : '#333';
+    const tooltipBodyColor = pdfDarkMode ? '#c9d1d9' : '#333';
+    
     html += `
       <div class="section charts-section">
-        <h2>Visualização Gráfica</h2>
-        <div class="chart-container">
-          <canvas id="investmentsChart"></canvas>
+        <h2>Análise Gráfica</h2>
+        
+        <div class="chart-container" id="chartContainerMonthlyPerformance">
+          <h3>Desempenho Mensal (BTC)</h3>
+          <canvas id="monthlyPerformanceChart"></canvas>
         </div>
-        <div class="chart-container">
-          <canvas id="netProfitsChart"></canvas>
-        </div>
-        <div class="chart-container">
+        
+        <div class="chart-container" id="chartContainerBalanceEvolution">
+          <h3>Evolução do Saldo Acumulado (BTC)</h3>
           <canvas id="balanceEvolutionChart"></canvas>
         </div>
-        <div class="chart-container" style="max-width: 400px; margin-left: auto; margin-right: auto;">
+
+        <div class="chart-container" id="chartContainerProfitDistribution">
+          <h3>Distribuição de Lucros vs. Perdas (BTC)</h3>
           <canvas id="profitDistributionChart"></canvas>
         </div>
-      </div>
-      <script>
-        document.addEventListener('DOMContentLoaded', function() {
-          // Gráfico de Investimentos
-          new Chart(document.getElementById('investmentsChart'), {
-            type: 'bar',
-            data: {
-              labels: ${JSON.stringify(chartLabels)},
-              datasets: [{
-                label: 'Total Investimentos (BTC)',
-                data: ${JSON.stringify(investmentValues)},
-                backgroundColor: ${JSON.stringify(investmentColor)},
-                borderColor: ${JSON.stringify(investmentColor.replace('0.7', '1'))},
-                borderWidth: 1
-              }]
-            },
-            options: { 
-              responsive: true, maintainAspectRatio: false,
-              scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return value.toFixed(8); } } } } 
-            }
-          });
 
-          // Gráfico de Lucro Líquido
-          new Chart(document.getElementById('netProfitsChart'), {
-            type: 'line',
-            data: {
-              labels: ${JSON.stringify(chartLabels)},
-              datasets: [{
-                label: 'Lucro Líquido (BTC)',
-                data: ${JSON.stringify(netProfitValues)},
-                borderColor: ${JSON.stringify(netProfitColor)},
-                backgroundColor: ${JSON.stringify(netProfitColor.replace('0.7', '0.1'))},
-                fill: true,
-                tension: 0.1
-              }]
-            },
-            options: { 
-              responsive: true, maintainAspectRatio: false,
-              scales: { y: { ticks: { callback: function(value) { return value.toFixed(8); } } } } 
-            }
-          });
+        <script>
+          const darkMode = ${pdfDarkMode};
+          const chartTextColor = '${textColor}';
+          const chartGridColor = '${gridColor}';
+          const chartTooltipBackgroundColor = '${tooltipBackgroundColor}';
+          const chartTooltipTitleColor = '${tooltipTitleColor}';
+          const chartTooltipBodyColor = '${tooltipBodyColor}';
 
-          // Novo Gráfico: Evolução do Saldo
-          new Chart(document.getElementById('balanceEvolutionChart'), {
-            type: 'line',
-            data: {
-              labels: ${JSON.stringify(chartLabels)},
-              datasets: [{
-                label: 'Saldo Acumulado (BTC)',
-                data: ${JSON.stringify(balanceEvolutionValues)},
-                borderColor: ${JSON.stringify(balanceEvolutionBorderColor)},
-                backgroundColor: ${JSON.stringify(balanceEvolutionBgColor)},
-                fill: true,
-                tension: 0.1
-              }]
-            },
-            options: {
-              responsive: true, maintainAspectRatio: false,
-              scales: { y: { ticks: { callback: function(value) { return value.toFixed(8); } } } }
-            }
-          });
+          const chartLabels = ${JSON.stringify(chartLabels)};
+          const investmentValues = ${JSON.stringify(investmentValues)};
+          const netProfitValues = ${JSON.stringify(netProfitValues)};
+          const balanceEvolutionValues = ${JSON.stringify(balanceEvolutionValues)};
+          const profitDistributionData = ${JSON.stringify(profitDistributionData)};
+          const profitDistributionLabels = ${JSON.stringify(profitDistributionLabels)};
+          const dynamicPieColors = ${JSON.stringify(dynamicProfitDistributionColors)};
 
-          // Novo Gráfico: Distribuição de Lucros vs Perdas (Pizza)
-          if (${JSON.stringify(profitDistributionData)}.some(val => val > 0)) { // Só renderiza se houver dados
-            new Chart(document.getElementById('profitDistributionChart'), {
+          // Gráfico de Desempenho Mensal (Investimentos vs Lucro Líquido)
+          if (document.getElementById('monthlyPerformanceChart')) {
+            new Chart(document.getElementById('monthlyPerformanceChart').getContext('2d'), {
+              type: 'bar',
+              data: {
+                labels: chartLabels,
+                datasets: [
+                  {
+                    label: 'Total Investimentos (BTC)',
+                    data: investmentValues,
+                    backgroundColor: darkMode ? 'rgba(94, 169, 255, 0.7)' : 'rgba(54, 162, 235, 0.7)', // Azul
+                    borderColor: darkMode ? 'rgba(94, 169, 255, 1)' : 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                  },
+                  {
+                    label: 'Lucro Líquido (BTC)',
+                    data: netProfitValues,
+                    backgroundColor: darkMode ? 'rgba(52, 211, 153, 0.7)' : 'rgba(75, 192, 192, 0.7)', // Verde/Ciano
+                    borderColor: darkMode ? 'rgba(52, 211, 153, 1)' : 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: { color: chartTextColor },
+                    grid: { color: chartGridColor }
+                  },
+                  x: {
+                    ticks: { color: chartTextColor },
+                    grid: { color: chartGridColor }
+                  }
+                },
+                plugins: {
+                  legend: { labels: { color: chartTextColor } },
+                  tooltip: {
+                    backgroundColor: chartTooltipBackgroundColor,
+                    titleColor: chartTooltipTitleColor,
+                    bodyColor: chartTooltipBodyColor,
+                    borderColor: chartGridColor,
+                    borderWidth: 1
+                  }
+                }
+              }
+            });
+          }
+
+          // Gráfico de Evolução do Saldo
+          if (document.getElementById('balanceEvolutionChart')) {
+            new Chart(document.getElementById('balanceEvolutionChart').getContext('2d'), {
+              type: 'line',
+              data: {
+                labels: chartLabels,
+                datasets: [{
+                  label: 'Saldo Acumulado (BTC)',
+                  data: balanceEvolutionValues,
+                  borderColor: darkMode ? 'rgba(247, 147, 26, 1)' : 'rgba(255, 159, 64, 1)', // Laranja (cor do Bitcoin)
+                  backgroundColor: darkMode ? 'rgba(247, 147, 26, 0.5)' : 'rgba(255, 159, 64, 0.5)',
+                  fill: true,
+                  tension: 0.1
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: false, // Saldo pode começar negativo ou variar muito
+                    ticks: { color: chartTextColor },
+                    grid: { color: chartGridColor }
+                  },
+                  x: {
+                    ticks: { color: chartTextColor },
+                    grid: { color: chartGridColor }
+                  }
+                },
+                plugins: {
+                  legend: { labels: { color: chartTextColor } },
+                  tooltip: {
+                    backgroundColor: chartTooltipBackgroundColor,
+                    titleColor: chartTooltipTitleColor,
+                    bodyColor: chartTooltipBodyColor,
+                    borderColor: chartGridColor,
+                    borderWidth: 1
+                  }
+                }
+              }
+            });
+          }
+
+          // Gráfico de Pizza - Distribuição de Lucros vs Perdas
+          if (document.getElementById('profitDistributionChart')) {
+            new Chart(document.getElementById('profitDistributionChart').getContext('2d'), {
               type: 'pie',
               data: {
-                labels: ${JSON.stringify(profitDistributionLabels.map(l => l.replace('(BTC)', '(${displayCurrency})')))},
+                labels: profitDistributionLabels,
                 datasets: [{
-                  label: 'Distribuição de Lucros/Perdas (${displayCurrency})',
-                  data: ${JSON.stringify(profitDistributionData)},
-                  backgroundColor: ${JSON.stringify(dynamicProfitDistributionColors)},
+                  label: 'Distribuição (BTC)', // Label do dataset
+                  data: profitDistributionData,
+                  backgroundColor: dynamicPieColors,
                   hoverOffset: 4
                 }]
               },
@@ -457,14 +499,35 @@ const generateReportHTML = (data: Payload): string => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: { display: true, position: 'top', labels: { color: chartLegendColor } },
-                  tooltip: { enabled: true }
+                  legend: {
+                    position: 'top',
+                    labels: { color: chartTextColor }
+                  },
+                  tooltip: {
+                    backgroundColor: chartTooltipBackgroundColor,
+                    titleColor: chartTooltipTitleColor,
+                    bodyColor: chartTooltipBodyColor,
+                    borderColor: chartGridColor,
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed !== null) {
+                                label += context.parsed.toFixed(8) + ' BTC';
+                            }
+                            return label;
+                        }
+                    }
+                  }
                 }
               }
             });
           }
-        });
-      </script>
+        </script>
+      </div>
     `;
   } else if (options.includeCharts) {
     html += `
