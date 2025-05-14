@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, u
 import { type AuthSession, type UserData } from '@/lib/supabase'
 import { useSupabaseRetry } from './use-supabase-retry'
 import { useToast } from './use-toast'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 // Constantes para timeout
 const PROFILE_LOADING_TIMEOUT = 5000 // 5 segundos
@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const { client: supabaseClient, isConnected, retryConnection, isAttemptingConnection, retryCount } = useSupabaseRetry()
   const router = useRouter()
+  const pathname = usePathname()
   
   // Estado local de sessão
   const [session, setSession] = useState<AuthSession>({
