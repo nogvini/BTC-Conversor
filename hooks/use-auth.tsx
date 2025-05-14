@@ -398,6 +398,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('[signIn] Tentativa de login normal via supabaseClient.auth.signInWithPassword...');
+      
+      // LOG DETALHADO DO CLIENTE SUPABASE
+      console.log('[signIn] Detalhes do supabaseClient ANTES de signInWithPassword:', supabaseClient);
+      if (supabaseClient && supabaseClient.auth) {
+        console.log('[signIn] supabaseClient.auth existe.');
+        console.log('[signIn] typeof supabaseClient.auth.signInWithPassword:', typeof supabaseClient.auth.signInWithPassword);
+      } else {
+        console.error('[signIn] ERRO CRÍTICO: supabaseClient ou supabaseClient.auth não está definido ANTES de signInWithPassword!');
+      }
+      // FIM DO LOG DETALHADO
+
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password
@@ -471,6 +482,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Iniciar busca de perfil em background, sem bloquear o login
       console.log('[signIn] Iniciando busca de perfil AGORA (await)...');
+      
       const profileData = await fetchProfileData(data.user.id);
       if (profileData) {
         setSession(prev => ({
