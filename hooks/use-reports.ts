@@ -262,21 +262,29 @@ export function useReports() {
   }, []);
   
   // Função para adicionar um investimento ao relatório ativo (ou especificado)
-  const addInvestment = useCallback((investmentData: Omit<Investment, "id"> & { originalId?: string }, targetReportId?: string): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
+  const addInvestment = useCallback((
+    investmentData: Omit<Investment, "id"> & { originalId?: string }, 
+    targetReportId?: string,
+    options?: { suppressToast?: boolean }
+  ): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
     
     setCollection(prevCollection => {
       const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
-        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
         return prevCollection;
       }
 
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
       if (reportIndex === -1) {
         result = { status: 'error', message: "Relatório não encontrado." };
-        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
         return prevCollection;
       }
 
@@ -285,8 +293,10 @@ export function useReports() {
       if (investmentData.originalId) {
         const isDuplicate = reportToUpdate.investments.some(inv => inv.originalId === investmentData.originalId);
         if (isDuplicate) {
-          result = { status: 'duplicate', originalId: investmentData.originalId };
-          toast({ title: "Aporte Duplicado", description: `Aporte com ID original ${investmentData.originalId} já existe e foi ignorado.`, variant: "default", duration: 4000 });
+          result = { status: 'duplicate', originalId: investmentData.originalId, message: `Aporte com ID original ${investmentData.originalId} já existe.` };
+          if (!options?.suppressToast) {
+            toast({ title: "Aporte Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
+          }
           return prevCollection; 
         }
       }
@@ -305,8 +315,10 @@ export function useReports() {
       const updatedReports = [...prevCollection.reports];
       updatedReports[reportIndex] = updatedReport;
       
-      result = { status: 'added', id: newInvestmentId };
-      toast({ title: "Aporte Adicionado", description: "Novo aporte registrado com sucesso.", variant: "success" });
+      result = { status: 'added', id: newInvestmentId, message: "Novo aporte registrado com sucesso." };
+      if (!options?.suppressToast) {
+        toast({ title: "Aporte Adicionado", description: result.message, variant: "success" });
+      }
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -317,21 +329,29 @@ export function useReports() {
   }, []);
   
   // Função para adicionar um registro de lucro/perda ao relatório ativo (ou especificado)
-  const addProfitRecord = useCallback((profitData: Omit<ProfitRecord, "id"> & { originalId?: string }, targetReportId?: string): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
+  const addProfitRecord = useCallback((
+    profitData: Omit<ProfitRecord, "id"> & { originalId?: string }, 
+    targetReportId?: string,
+    options?: { suppressToast?: boolean }
+  ): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
 
     setCollection(prevCollection => {
       const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
-        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
         return prevCollection;
       }
 
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
       if (reportIndex === -1) {
         result = { status: 'error', message: "Relatório não encontrado." };
-        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
         return prevCollection;
       }
 
@@ -340,8 +360,10 @@ export function useReports() {
       if (profitData.originalId) {
         const isDuplicate = reportToUpdate.profits.some(p => p.originalId === profitData.originalId);
         if (isDuplicate) {
-          result = { status: 'duplicate', originalId: profitData.originalId };
-          toast({ title: "Registro Duplicado", description: `Registro de lucro/perda com ID original ${profitData.originalId} já existe e foi ignorado.`, variant: "default", duration: 4000 });
+          result = { status: 'duplicate', originalId: profitData.originalId, message: `Registro de lucro/perda com ID original ${profitData.originalId} já existe.` };
+          if (!options?.suppressToast) {
+            toast({ title: "Registro Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
+          }
           return prevCollection; 
         }
       }
@@ -360,8 +382,10 @@ export function useReports() {
       const updatedReports = [...prevCollection.reports];
       updatedReports[reportIndex] = updatedReport;
 
-      result = { status: 'added', id: newProfitRecordId };
-      toast({ title: "Registro Adicionado", description: "Novo registro de lucro/perda salvo com sucesso.", variant: "success" });
+      result = { status: 'added', id: newProfitRecordId, message: "Novo registro de lucro/perda salvo com sucesso." };
+      if (!options?.suppressToast) {
+        toast({ title: "Registro Adicionado", description: result.message, variant: "success" });
+      }
       return {
         ...prevCollection,
         reports: updatedReports,
