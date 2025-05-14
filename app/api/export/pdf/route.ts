@@ -306,9 +306,44 @@ const generateReportHTML = (data: Payload): string => {
     });
 
     // Dados para o Gráfico de Pizza (Distribuição de Lucros vs Perdas)
-    const profitDistributionData = [totalProfitsBtc, totalLossesBtc];
-    const profitDistributionLabels = ['Lucros Totais (BTC)', 'Perdas Totais (BTC)'];
-    const profitDistributionColors = ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)']; // Verde para lucros, Vermelho para perdas
+    let profitDistributionData: number[];
+    let profitDistributionLabels: string[];
+    let dynamicProfitDistributionColors: string[];
+
+    const onlyProfits = totalProfitsBtc > 0 && totalLossesBtc === 0;
+    const onlyLosses = totalLossesBtc > 0 && totalProfitsBtc === 0;
+    const bothProfitAndLoss = totalProfitsBtc > 0 && totalLossesBtc > 0;
+
+    // Cores base para modo claro
+    const profitColorClear = 'rgba(34, 197, 94, 0.7)'; // Verde
+    const lossColorClear = 'rgba(239, 68, 68, 0.7)';   // Vermelho
+
+    // Cores base para modo escuro
+    const profitColorDark = 'rgba(52, 211, 153, 0.7)'; // Verde claro
+    const lossColorDark = 'rgba(248, 113, 113, 0.7)';   // Vermelho claro
+
+    const selectedProfitColor = pdfDarkMode ? profitColorDark : profitColorClear;
+    const selectedLossColor = pdfDarkMode ? lossColorDark : lossColorClear;
+
+
+    if (onlyProfits) {
+      profitDistributionData = [totalProfitsBtc];
+      profitDistributionLabels = ['Lucros Totais (BTC)'];
+      dynamicProfitDistributionColors = [selectedProfitColor];
+    } else if (onlyLosses) {
+      profitDistributionData = [totalLossesBtc];
+      profitDistributionLabels = ['Perdas Totais (BTC)'];
+      dynamicProfitDistributionColors = [selectedLossColor];
+    } else if (bothProfitAndLoss) {
+      profitDistributionData = [totalProfitsBtc, totalLossesBtc];
+      profitDistributionLabels = ['Lucros Totais (BTC)', 'Perdas Totais (BTC)'];
+      dynamicProfitDistributionColors = [selectedProfitColor, selectedLossColor];
+    } else {
+      // Caso sem lucros nem perdas (o gráfico não será renderizado de qualquer forma pelo if mais abaixo)
+      profitDistributionData = [];
+      profitDistributionLabels = [];
+      dynamicProfitDistributionColors = [];
+    }
 
     const chartLabelColor = pdfDarkMode ? '#c9d1d9' : '#333';
     const chartGridColor = pdfDarkMode ? 'rgba(139, 148, 158, 0.2)' : 'rgba(0, 0, 0, 0.05)';
@@ -319,7 +354,6 @@ const generateReportHTML = (data: Payload): string => {
     let netProfitColor = 'rgba(54, 162, 235, 0.7)';
     let balanceEvolutionBorderColor = 'rgba(255, 159, 64, 1)';
     let balanceEvolutionBgColor = 'rgba(255, 159, 64, 0.1)';
-    let profitDistributionColors = ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(255, 205, 86, 0.7)'];
 
     if (pdfDarkMode) {
       investmentColor = 'rgba(107, 114, 128, 0.7)'; // Cinza mais escuro para investimentos no modo escuro
