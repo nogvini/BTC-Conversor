@@ -119,28 +119,28 @@ const generateReportHTML = (data: Payload): string => {
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           margin: 0;
+          padding: 20px; /* REINTRODUZIDO */
           background-color: #f4f4f9;
           color: #333;
           font-size: 14px;
           line-height: 1.6;
         }
         .dark-mode {
-          background-color: #0d1117 !important; /* GitHub Dark Background - !important para garantir */
+          background-color: #0d1117; /* GitHub Dark Background - SEM !important */
           color: #c9d1d9; /* GitHub Dark Text */
-          margin: 0;
-          padding: 0; /* Adicionado para remover qualquer preenchimento do body no modo escuro */
+          /* REMOVIDO margin: 0; padding: 0; */
         }
         .dark-mode .container {
           background-color: #161b22; /* GitHub Dark Paper Background */
           border-color: #30363d; /* GitHub Dark Border */
-          margin: 0 auto; /* Manter centralizado, mas sem margem superior/inferior que cause borda */
-          padding: 25px; /* Padding interno do container */
-          /* Remover box-shadow que pode causar bordas se não for bem ajustado para PDF */
-          box-shadow: none; 
-          /* Garantir que o container ocupe a largura mas sem causar overflow que gere barras de rolagem no PDF */
-          max-width: 100%; 
-          width: 100%;
-          border-radius: 0; /* Sem bordas arredondadas que podem parecer estranhas no PDF fullscreen */
+          /* REMOVIDO: margin: 0 auto; padding: 25px; box-shadow: none; max-width: 100%; width: 100%; border-radius: 0; */
+          /* Mantém a herança ou estilos anteriores do .container, ajustando apenas cores e bordas */
+          /* Se precisar de padding específico para o container no modo escuro, pode ser re-adicionado aqui, 
+             mas diferente do que foi feito para preencher a tela inteira */
+          margin: 20px auto; /* Restaurando margin similar ao modo claro */
+          padding: 25px; /* Restaurando padding similar ao modo claro */
+          border-radius: 8px; /* Restaurando border-radius similar ao modo claro */
+          box-shadow: 0 4px 6px rgba(0,0,0,0.2); /* Sombra mais sutil para modo escuro se desejado, ou remover */
         }
         .dark-mode h1, .dark-mode h2, .dark-mode h3 {
           color: #58a6ff; /* GitHub Dark Primary Link/Header */
@@ -211,25 +211,20 @@ const generateReportHTML = (data: Payload): string => {
         @media print {
           body {
              margin: 0;
-             padding: 0;
+             padding: 0; /* Padding 0 é comum para impressão, para maximizar área */
              background-color: #fff; /* Para impressão normal, fundo branco */
           }
-          .dark-mode {
-             background-color: #0d1117 !important; /* Manter o fundo escuro para impressão PDF em modo escuro */
-          }
+          /* REMOVIDA a regra .dark-mode {} explícita dentro de @media print que forçava fundo escuro */
           .container {
              box-shadow: none;
              border-radius: 0;
              margin: 0 auto;
-             padding: 20px; /* Padding para o conteúdo dentro do PDF */
+             padding: 20px;
              border: none;
              max-width: 100%;
              width: 100%;
           }
-          .dark-mode .container {
-             background-color: #161b22; /* Fundo do container no modo escuro para impressão */
-             padding: 20px; /* Ajustar se necessário para impressão */
-          }
+          /* REMOVIDA a regra .dark-mode .container {} explícita dentro de @media print */
           h1, h2 { page-break-after: avoid; }
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; page-break-after: auto; }

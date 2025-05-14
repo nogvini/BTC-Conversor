@@ -1086,69 +1086,18 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
             const lastDataRowCharts = chartsSheet.rowCount;
 
-            // GRÁFICOS DIRETOS NO EXCEL - DESCOMENTADOS PARA TESTE
-            if (lastDataRowCharts > 1) { // Só tentar se houver dados
-              try {
-                // Gráfico de Investimentos Mensais vs Lucro Líquido (Barras)
-                chartsSheet.addChart({
-                  title: `Investimentos vs Lucro Líquido (${displayCurrency})`,
-                  type: 'bar',
-                  style: 'style10',
-                  series: [
-                    {
-                      name: `Gráficos!$D$1`, // Total Investimentos (Display Currency)
-                      values: `Gráficos!$D$2:$D$${lastDataRowCharts}`,
-                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
-                    },
-                    {
-                      name: `Gráficos!$E$1`, // Lucro Líquido (Display Currency)
-                      values: `Gráficos!$E$2:$E$${lastDataRowCharts}`,
-                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
-                    },
-                  ],
-                  anchor: {
-                    type: 'twoCell',
-                    from: { col: 1, row: lastDataRowCharts + 2 },
-                    to: { col: 9, row: lastDataRowCharts + 2 + 15 },
-                  },
-                });
+            // GRÁFICOS DIRETOS NO EXCEL - Tentativa de adicionar gráficos foi removida devido a incompatibilidade.
+            // Os dados para os gráficos estão presentes na aba "Gráficos".
+            // A funcionalidade de visualização de gráficos no Excel será reimplementada usando imagens em uma futura atualização.
 
-                // Gráfico de Evolução do Saldo Acumulado (Linha)
-                chartsSheet.addChart({
-                  title: `Evolução do Saldo Acumulado (${displayCurrency})`,
-                  type: 'line',
-                  style: 'style12',
-                  series: [
-                    {
-                      name: `Gráficos!$G$1`, // Saldo Acumulado (Display Currency)
-                      values: `Gráficos!$G$2:$G$${lastDataRowCharts}`,
-                      categories: `Gráficos!$A$2:$A$${lastDataRowCharts}`, // Mês/Ano
-                    },
-                  ],
-                  anchor: {
-                    type: 'twoCell',
-                    from: { col: 10, row: lastDataRowCharts + 2 },
-                    to: { col: 18, row: lastDataRowCharts + 2 + 15 },
-                  },
-                });
-
-                console.log("EXCEL_CHART_LOG: Tentativa de adicionar gráficos ao Excel concluída.");
-                toast({
-                  title: "Gráficos no Excel (Experimental)",
-                  description: "Tentativa de adicionar gráficos à planilha Excel foi executada. Verifique o arquivo e o console para EXCEL_CHART_ERROR em caso de falha.",
-                  variant: "default",
-                  duration: 7000,
-                });
-
-              } catch (chartError: any) {
-                console.error("EXCEL_CHART_ERROR: Erro ao adicionar gráficos no Excel:", chartError);
-                toast({
-                  title: "Erro ao Gerar Gráficos no Excel",
-                  description: `Não foi possível adicionar os gráficos: ${chartError?.message || 'Erro desconhecido'}. Verifique o console (EXCEL_CHART_ERROR). Os dados estão na aba 'Gráficos'.`,
-                  variant: "destructive",
-                  duration: 10000,
-                });
-              }
+            if (lastDataRowCharts > 1) {
+              // console.log("EXCEL_CHART_LOG: Dados para gráficos existem, mas a renderização direta foi desabilitada.");
+              toast({
+                title: "Gráficos no Excel (Desabilitado Temporariamente)",
+                description: "A renderização de gráficos diretamente no Excel está desabilitada. Os dados brutos para gráficos estão na aba 'Gráficos'.",
+                variant: "default",
+                duration: 7000,
+              });
             }
           }
         }
