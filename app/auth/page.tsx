@@ -26,15 +26,12 @@ const AuthForm = dynamic(() => import('@/components/auth-form').then(mod => mod.
 });
 
 export default function AuthPage() {
+  console.log('!!!! [AuthPage] Renderizando AuthPage SIMPLES !!!!');
   return (
-    // Container principal para centralizar vertical e horizontalmente,
-    // com altura mínima considerando o header (aprox. 4rem ou 64px)
-    // e adicionando um padding superior para não colar no header.
-    <main className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] pt-8 px-4">
-      {/* Container para limitar a largura máxima do formulário */}
-      <div className="w-full max-w-md">
-        <AuthForm />
-      </div>
-    </main>
+    <div style={{ padding: '20px', textAlign: 'center' }}>
+      <h1>Página de Autenticação (Versão de Teste)</h1>
+      <p>Se você está vendo esta mensagem, a navegação básica para /auth funcionou.</p>
+      <p>O AuthForm NÃO está sendo renderizado nesta versão de teste.</p>
+    </div>
   );
 } 
