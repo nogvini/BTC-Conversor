@@ -35,7 +35,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
-import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore, startOfDay, endOfDay } from "date-fns";
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval, isBefore, startOfDay, endOfDay, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -839,6 +839,69 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             const netProfitBtc = totalProfitsBtc - totalLossesBtc;
             const balanceBtc = totalInvestmentsBtc + netProfitBtc;
 
+            // Cálculo das novas métricas
+            let primeiroAporteDate: Date | null = null;
+            if (finalInvestmentsToExport.length > 0) {
+              primeiroAporteDate = finalInvestmentsToExport.reduce((earliest, current) => {
+                try {
+                  const currentDate = parseISODate(current.date);
+                  return (!earliest || currentDate < earliest) ? currentDate : earliest;
+                } catch {
+                  return earliest; // Ignorar datas inválidas
+                }
+              }, null as Date | null);
+            }
+
+            let diasDeInvestimento = 0;
+            if (primeiroAporteDate) {
+              // Usar a data final do período selecionado, ou a data atual se período for "todos" ou não especificado
+              let dataFinalCalculo = new Date(); 
+              if (options.periodSelectionType === 'specificMonth' && options.specificMonthDate) {
+                dataFinalCalculo = endOfMonth(options.specificMonthDate);
+              } else if (options.periodSelectionType === 'customRange' && options.customEndDate) {
+                dataFinalCalculo = endOfDay(options.customEndDate);
+              } else if (options.periodSelectionType === 'historyFilter') {
+                if (historyFilterType === 'month') {
+                  dataFinalCalculo = endOfMonth(filterMonth);
+                } else if (historyFilterType === 'custom' && customEndDate) {
+                  dataFinalCalculo = endOfDay(customEndDate);
+                }
+              }
+              // Garantir que a data final do cálculo não seja anterior ao primeiro aporte
+              if (dataFinalCalculo < primeiroAporteDate) {
+                dataFinalCalculo = primeiroAporteDate; 
+              }
+              diasDeInvestimento = differenceInDays(dataFinalCalculo, primeiroAporteDate);
+              if (diasDeInvestimento < 0) diasDeInvestimento = 0; // Evitar dias negativos se algo der errado
+            }
+
+            const formatTempoInvestimento = (dias: number): string => {
+              if (dias <= 0) return "N/A";
+              const anos = Math.floor(dias / 365);
+              const meses = Math.floor((dias % 365) / 30);
+              const diasRestantes = Math.floor((dias % 365) % 30);
+              let str = "";
+              if (anos > 0) str += `${anos} ano(s) `;
+              if (meses > 0) str += `${meses} mes(es) `;
+              if (diasRestantes > 0 || (anos === 0 && meses === 0)) str += `${diasRestantes} dia(s)`;
+              return str.trim();
+            };
+
+            const roiObtidoPercent = totalInvestmentsBtc > 0 ? (netProfitBtc / totalInvestmentsBtc) * 100 : 0;
+            
+            let roiAnualizadoPercent = 0;
+            if (totalInvestmentsBtc > 0 && diasDeInvestimento > 0 && netProfitBtc !== -totalInvestmentsBtc) { // Evitar log de 0
+                const roiDecimal = netProfitBtc / totalInvestmentsBtc;
+                if (1 + roiDecimal > 0) { // Evitar raiz de número negativo
+                    roiAnualizadoPercent = (Math.pow(1 + roiDecimal, 365 / diasDeInvestimento) - 1) * 100;
+                } else {
+                    roiAnualizadoPercent = -100; // Perda total
+                }
+            }
+
+            const mediaDiariaLucroBtc = diasDeInvestimento > 0 ? netProfitBtc / diasDeInvestimento : 0;
+            const mediaDiariaRoiPercent = diasDeInvestimento > 0 ? roiObtidoPercent / diasDeInvestimento : 0;
+
             summarySheet.addRow({ metric: 'Relatório(s) Exportado(s)', value: reportNameForExport });
             summarySheet.addRow({ metric: 'Período Exportado', 
               value: options.periodSelectionType === 'all' ? 'Todos os dados' : 
@@ -859,6 +922,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               summarySheet.addRow({ metric: `Saldo Atual Estimado (${displayCurrency})`, value: formatCurrency(balanceBtc * (displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd), displayCurrency) });
               summarySheet.addRow({ metric: `Preço BTC (${displayCurrency}) Usado`, value: formatCurrency(displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd, displayCurrency) });
             }
+
+            // Adicionando novas métricas
+            summarySheet.addRow({ metric: 'Data do Primeiro Aporte', value: primeiroAporteDate ? format(primeiroAporteDate, "dd/MM/yyyy", { locale: ptBR }) : 'N/A' });
+            summarySheet.addRow({ metric: 'Tempo Total de Investimento', value: formatTempoInvestimento(diasDeInvestimento) });
+            summarySheet.addRow({ metric: 'ROI Obtido Total (%)', value: `${roiObtidoPercent.toFixed(2)}%` });
+            summarySheet.addRow({ 
+              metric: 'Expectativa de ROI Anualizado Estimado (%)', 
+              value: (totalInvestmentsBtc > 0 && diasDeInvestimento > 0) ? `${roiAnualizadoPercent.toFixed(2)}%` : 'N/A' 
+            });
+            summarySheet.addRow({ 
+              metric: 'Média Diária de Lucro (BTC)', 
+              value: diasDeInvestimento > 0 ? mediaDiariaLucroBtc.toFixed(8) : 'N/A' 
+            });
+            summarySheet.addRow({ 
+              metric: 'Média Diária de ROI (%)', 
+              value: diasDeInvestimento > 0 ? `${mediaDiariaRoiPercent.toFixed(4)}%` : 'N/A' 
+            });
+
             summarySheet.getColumn('value').numFmt = '#,##0.00########';
             summarySheet.getColumn('metric').font = { bold: true };
         }

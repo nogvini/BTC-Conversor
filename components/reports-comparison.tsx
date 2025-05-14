@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { format } from "date-fns";
+import { format, differenceInDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   LineChart,
@@ -87,6 +87,28 @@ const parseReportDateStringToUTCDate = (dateString: string): Date => {
   }
   const [year, month, day] = dateString.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+};
+
+// ADICIONAR FUNÇÃO formatTempoInvestimento
+const formatTempoInvestimento = (dias: number): string => {
+    if (dias < 0) return "N/A"; // Sanity check para valores negativos
+    if (dias === 0) return "Menos de 1 dia"; 
+
+    const anos = Math.floor(dias / 365);
+    const meses = Math.floor((dias % 365) / 30);
+    const diasRestantes = Math.floor((dias % 365) % 30);
+    
+    let str = "";
+    if (anos > 0) str += `${anos} ano${anos > 1 ? 's' : ''} `;
+    if (meses > 0) str += `${meses} mês${meses > 1 ? 'es' : ''} `; // Corrigido para "mês/meses"
+    if (diasRestantes > 0) str += `${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}`;
+    
+    // Caso especial: se a string estiver vazia mas dias > 0 (ex: 15 dias), mostrar os dias.
+    if (str.trim() === "" && dias > 0) {
+      return `${dias} dia${dias > 1 ? 's' : ''}`;
+    }
+    // Se a string estiver vazia e dias for 0 (já tratado no início), ou se str não estiver vazia
+    return str.trim() || "N/A"; // Fallback para N/A se str estiver vazia por algum motivo inesperado
 };
 
 export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsComparisonProps) {
@@ -274,7 +296,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     });
     
     // Calcular estatísticas gerais para cada relatório selecionado
-    const statsData: Record<string, Record<string, number>> = {};
+    const statsData: Record<string, any> = {}; // MODIFICADO: Alterar tipo para any temporariamente ou criar interface mais completa
+
     selectedReports.forEach(report => {
       const reportId = report.id;
       const currentReport = reports.find(r => r.id === reportId);
@@ -297,11 +320,63 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         ? (totalProfitsBtc / totalInvestmentsBtc) * 100 
         : 0;
       
+      // NOVOS CÁLCULOS PARA MÉTRICAS DETALHADAS POR RELATÓRIO
+      const reportAllEntriesDates = [
+        ...(currentReport.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
+        ...(currentReport.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
+      ].filter(date => !isNaN(date.getTime()));
+
+      let primeiroAporteDate: Date | null = null;
+      const reportInvestmentsDates = currentReport.investments
+          ?.map(inv => parseReportDateStringToUTCDate(inv.date))
+          .filter(date => !isNaN(date.getTime())) || [];
+
+      if (reportInvestmentsDates.length > 0) {
+          primeiroAporteDate = new Date(Math.min(...reportInvestmentsDates.map(d => d.getTime())));
+      }
+      
+      let ultimoRegistroDate: Date | null = null;
+      if (reportAllEntriesDates.length > 0) {
+          ultimoRegistroDate = new Date(Math.max(...reportAllEntriesDates.map(d => d.getTime())));
+      }
+
+      let diasDeInvestimento = 0;
+      if (primeiroAporteDate && ultimoRegistroDate && ultimoRegistroDate >= primeiroAporteDate) {
+          diasDeInvestimento = differenceInDays(startOfDay(ultimoRegistroDate), startOfDay(primeiroAporteDate));
+          // Se o primeiro aporte e o último registro são no MESMO dia, diasDeInvestimento será 0.
+          // Para fins de cálculo de média *diária*, pode fazer sentido considerar 1 dia se houve atividade.
+          if (diasDeInvestimento === 0 && reportInvestmentsDates.length > 0) {
+             // Se quisermos forçar 1 dia para cálculo de média quando há atividade no mesmo dia.
+             // diasDeInvestimento = 1; 
+          } 
+      }
+
+      let roiAnualizadoPercent = 0;
+      if (totalInvestmentsBtc > 0 && diasDeInvestimento > 0 && totalProfitsBtc !== -totalInvestmentsBtc) {
+          const roiDecimal = totalProfitsBtc / totalInvestmentsBtc;
+          if (1 + roiDecimal > 0) {
+              roiAnualizadoPercent = (Math.pow(1 + roiDecimal, 365 / diasDeInvestimento) - 1) * 100;
+          } else {
+              roiAnualizadoPercent = -100; // Perda total
+          }
+      }
+
+      const mediaDiariaLucroBtc = diasDeInvestimento > 0 ? totalProfitsBtc / diasDeInvestimento : 0;
+      // roi (simples) já está calculado acima
+      const mediaDiariaRoiPercent = diasDeInvestimento > 0 && totalInvestmentsBtc > 0 ? roi / diasDeInvestimento : 0;
+      
       statsData[reportId] = {
         totalInvestments: totalInvestmentsBtc,
         totalProfits: totalProfitsBtc,
         finalBalance: finalBalanceBtc,
-        roi
+        roi,
+        // Novas métricas
+        primeiroAporteDate: primeiroAporteDate ? primeiroAporteDate.toISOString() : null,
+        diasDeInvestimento,
+        tempoTotalInvestimento: formatTempoInvestimento(diasDeInvestimento),
+        roiAnualizadoPercent,
+        mediaDiariaLucroBtc,
+        mediaDiariaRoiPercent
       };
     });
     
@@ -321,6 +396,59 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       ? (aggregatedTotalProfitsBtc / aggregatedTotalInvestmentsBtc) * 100
       : 0;
     
+    // NOVOS CÁLCULOS PARA MÉTRICAS AGREGADAS DETALHADAS
+    let aggregatedPrimeiroAporteDateObj: Date | null = null;
+    let aggregatedUltimoRegistroDateObj: Date | null = null;
+
+    selectedReportIds.forEach(id => {
+      const reportStats = statsData[id];
+      if (reportStats?.primeiroAporteDate) {
+        const reportPrimeiroAporte = new Date(reportStats.primeiroAporteDate);
+        if (!aggregatedPrimeiroAporteDateObj || reportPrimeiroAporte < aggregatedPrimeiroAporteDateObj) {
+          aggregatedPrimeiroAporteDateObj = reportPrimeiroAporte;
+        }
+      }
+
+      // Para encontrar o último registro agregado, precisamos olhar as datas de cada relatório
+      const report = reports.find(r => r.id === id);
+      if (report) {
+        const allReportEntriesDates = [
+          ...(report.investments?.map(i => parseReportDateStringToUTCDate(i.date)) || []),
+          ...(report.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
+        ].filter(date => !isNaN(date.getTime()));
+
+        if (allReportEntriesDates.length > 0) {
+          const reportUltimoRegistro = new Date(Math.max(...allReportEntriesDates.map(d => d.getTime())));
+          if (!aggregatedUltimoRegistroDateObj || reportUltimoRegistro > aggregatedUltimoRegistroDateObj) {
+            aggregatedUltimoRegistroDateObj = reportUltimoRegistro;
+          }
+        }
+      }
+    });
+
+    let aggregatedDiasDeInvestimento = 0;
+    if (aggregatedPrimeiroAporteDateObj && aggregatedUltimoRegistroDateObj && aggregatedUltimoRegistroDateObj >= aggregatedPrimeiroAporteDateObj) {
+      aggregatedDiasDeInvestimento = differenceInDays(startOfDay(aggregatedUltimoRegistroDateObj), startOfDay(aggregatedPrimeiroAporteDateObj));
+      // Similar ao individual, se for 0 mas houve aportes agregados, pode-se considerar 1.
+      // if (aggregatedDiasDeInvestimento === 0 && aggregatedTotalInvestmentsBtc > 0) {
+      //    aggregatedDiasDeInvestimento = 1;
+      // }
+    }
+
+    let aggregatedRoiAnualizadoPercent = 0;
+    if (aggregatedTotalInvestmentsBtc > 0 && aggregatedDiasDeInvestimento > 0 && aggregatedTotalProfitsBtc !== -aggregatedTotalInvestmentsBtc) {
+      const aggregatedRoiDecimal = aggregatedTotalProfitsBtc / aggregatedTotalInvestmentsBtc;
+      if (1 + aggregatedRoiDecimal > 0) {
+        aggregatedRoiAnualizadoPercent = (Math.pow(1 + aggregatedRoiDecimal, 365 / aggregatedDiasDeInvestimento) - 1) * 100;
+      } else {
+        aggregatedRoiAnualizadoPercent = -100; // Perda total
+      }
+    }
+
+    const aggregatedMediaDiariaLucroBtc = aggregatedDiasDeInvestimento > 0 ? aggregatedTotalProfitsBtc / aggregatedDiasDeInvestimento : 0;
+    // aggregatedTotalRoi (ROI simples) já está calculado acima
+    const aggregatedMediaDiariaRoiPercent = aggregatedDiasDeInvestimento > 0 && aggregatedTotalInvestmentsBtc > 0 ? aggregatedTotalRoi / aggregatedDiasDeInvestimento : 0;
+    
     return {
       chartData,
       statsData,
@@ -331,7 +459,14 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       totalInvestmentsBtc: aggregatedTotalInvestmentsBtc,
       totalProfitsBtc: aggregatedTotalProfitsBtc,
       totalBalanceBtc: aggregatedTotalBalanceBtc,
-      totalRoi: aggregatedTotalRoi
+      totalRoi: aggregatedTotalRoi,
+      // Novas métricas agregadas para o resumo
+      aggregatedPrimeiroAporteDate: aggregatedPrimeiroAporteDateObj ? aggregatedPrimeiroAporteDateObj.toISOString() : null,
+      aggregatedDiasDeInvestimento, // Raw dias
+      aggregatedTempoTotalInvestimento: formatTempoInvestimento(aggregatedDiasDeInvestimento),
+      aggregatedRoiAnualizadoPercent,
+      aggregatedMediaDiariaLucroBtc,
+      aggregatedMediaDiariaRoiPercent
     };
   }, [reports, selectedReportIds, comparisonMode]);
 
@@ -783,6 +918,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                         </UITooltip>
                       </TooltipProvider>
                     </th>
+                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Data 1º Aporte</th>
+                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Tempo Invest.</th>
+                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Anualizado</th>
+                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro Diário Médio</th>
+                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Diário Médio</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -796,6 +936,19 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     const totalProfits = convertFromBtc(stats.totalProfits);
                     const finalBalance = convertFromBtc(stats.finalBalance);
                     const roi = stats.roi;
+
+                    // NOVAS MÉTRICAS PARA EXIBIÇÃO
+                    const primeiroAporte = stats.primeiroAporteDate ? format(new Date(stats.primeiroAporteDate), 'dd/MM/yy', { locale: ptBR }) : 'N/A';
+                    const tempoInvest = stats.tempoTotalInvestimento; // Já formatado pelo formatTempoInvestimento
+                    const roiAnualizado = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0 && stats.roiAnualizadoPercent !== -100) 
+                                          ? `${stats.roiAnualizadoPercent.toFixed(2)}%` 
+                                          : (stats.roiAnualizadoPercent === -100 ? '-100.00%' : 'N/A');
+                    const mediaLucro = stats.diasDeInvestimento > 0 
+                                       ? formatValue(convertFromBtc(stats.mediaDiariaLucroBtc)) 
+                                       : 'N/A';
+                    const mediaRoi = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0) 
+                                     ? `${stats.mediaDiariaRoiPercent.toFixed(4)}%` 
+                                     : 'N/A';
                     
                     return (
                       <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
@@ -838,6 +991,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             {roi.toFixed(2)}%
                           </Badge>
                         </td>
+                        <td className="py-3 px-3 text-right text-xs">{primeiroAporte}</td>
+                        <td className="py-3 px-3 text-right text-xs">{tempoInvest}</td>
+                        <td className={cn("py-3 px-3 text-right text-xs", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
+                        <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
+                        <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
                       </tr>
                     );
                   })}
@@ -924,6 +1082,57 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               </div>
             </div>
           </div>
+          
+          {/* TABELA DE RESUMO DETALHADO AGREGADO - NOVA SEÇÃO */}
+          {comparisonData && selectedReportIds.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-md font-semibold mb-3 text-gray-200">Resumo Agregado Detalhado</h3>
+              <Card className="bg-black/20 border-purple-700/30">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableBody>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Primeiro Aporte Agregado</TableCell>
+                        <TableCell className="text-right text-xs py-2.5">
+                          {comparisonData.aggregatedPrimeiroAporteDate 
+                            ? format(new Date(comparisonData.aggregatedPrimeiroAporteDate), 'dd MMM yyyy', { locale: ptBR }) 
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Tempo Total de Investimento (Agregado)</TableCell>
+                        <TableCell className="text-right text-xs py-2.5">{comparisonData.aggregatedTempoTotalInvestimento || 'N/A'}</TableCell>
+                      </TableRow>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">ROI Anualizado Estimado (Agregado)</TableCell>
+                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedRoiAnualizadoPercent > 0 ? "text-green-400" : comparisonData.aggregatedRoiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                          {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0 && comparisonData.aggregatedRoiAnualizadoPercent !== -100)
+                            ? `${comparisonData.aggregatedRoiAnualizadoPercent.toFixed(2)}%`
+                            : (comparisonData.aggregatedRoiAnualizadoPercent === -100 ? '-100.00%' : 'N/A')}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de Lucro (BTC Agregado)</TableCell>
+                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaLucroBtc > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>
+                          {comparisonData.aggregatedDiasDeInvestimento > 0
+                            ? formatValue(convertFromBtc(comparisonData.aggregatedMediaDiariaLucroBtc)) // Reusa formatValue para consistência de unidade
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-b-0"> {/* Remover borda da última linha */}
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de ROI (Agregado)</TableCell>
+                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                          {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0)
+                            ? `${comparisonData.aggregatedMediaDiariaRoiPercent.toFixed(4)}%`
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           
           <ScrollArea className="h-[180px] mt-4 rounded-lg border border-purple-800/30">
             <Table className="min-w-[640px]">
