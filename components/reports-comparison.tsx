@@ -100,7 +100,7 @@ const formatTempoInvestimento = (dias: number): string => {
     
     let str = "";
     if (anos > 0) str += `${anos} ano${anos > 1 ? 's' : ''} `;
-    if (meses > 0) str += `${meses} mês${meses > 1 ? 'es' : ''} `; // Corrigido para "mês/meses"
+    if (meses > 0) str += `${meses} ${meses > 1 ? 'meses' : 'mês'} `; // Corrigido para "mês/meses"
     if (diasRestantes > 0) str += `${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}`;
     
     // Caso especial: se a string estiver vazia mas dias > 0 (ex: 15 dias), mostrar os dias.
