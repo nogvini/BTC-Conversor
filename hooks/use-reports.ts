@@ -170,18 +170,6 @@ export function useReports() {
   // Função para excluir um relatório
   const deleteReport = useCallback((reportId: string) => {
     setCollection(prevCollection => {
-      // Não permitir excluir se houver apenas um relatório
-      if (prevCollection.reports.length <= 1) {
-        toast({
-          title: "Operação não permitida",
-          description: "Deve haver pelo menos um relatório",
-          variant: "destructive",
-          duration: 3000,
-        });
-        return prevCollection;
-      }
-      
-      // Verificar se o relatório existe
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
       
       if (reportIndex === -1) {
@@ -194,17 +182,30 @@ export function useReports() {
         return prevCollection;
       }
       
-      // Filtrar a lista de relatórios
-      const updatedReports = prevCollection.reports.filter(r => r.id !== reportId);
+      // Filtrar a lista de relatórios para remover o relatório excluído
+      let updatedReportsArray = prevCollection.reports.filter(r => r.id !== reportId);
       
-      // Se o relatório excluído era o ativo, ativar outro
-      let newActiveId = prevCollection.activeReportId;
-      if (newActiveId === reportId) {
-        newActiveId = updatedReports[0]?.id;
-        // Atualizar estado ativo
-        updatedReports[0] = { ...updatedReports[0], isActive: true };
+      let newActiveReportId = prevCollection.activeReportId;
+
+      // Se o relatório excluído era o ativo, ou se não há mais relatório ativo válido
+      // definir um novo relatório ativo (o primeiro da lista atualizada, se houver)
+      const currentActiveStillExists = updatedReportsArray.some(r => r.id === newActiveReportId);
+
+      if ((newActiveReportId === reportId || !currentActiveStillExists) && updatedReportsArray.length > 0) {
+        newActiveReportId = updatedReportsArray[0].id;
       }
       
+      // Garantir que isActive seja definido corretamente no novo array de relatórios
+      updatedReportsArray = updatedReportsArray.map(report => ({
+        ...report,
+        isActive: report.id === newActiveReportId,
+      }));
+      
+      // Se, após a exclusão, não houver mais relatórios, o activeReportId pode ser undefined
+      if (updatedReportsArray.length === 0) {
+        newActiveReportId = undefined;
+      }
+
       const reportName = prevCollection.reports[reportIndex].name;
       toast({
         title: "Relatório excluído",
@@ -214,14 +215,14 @@ export function useReports() {
       
       return {
         ...prevCollection,
-        reports: updatedReports,
-        activeReportId: newActiveId,
+        reports: updatedReportsArray,
+        activeReportId: newActiveReportId,
         lastUpdated: new Date().toISOString()
       };
     });
     
     return true;
-  }, [collection.activeReportId]);
+  }, []);
   
   // Função para atualizar um relatório
   const updateReport = useCallback((reportId: string, updates: Partial<Report>) => {
