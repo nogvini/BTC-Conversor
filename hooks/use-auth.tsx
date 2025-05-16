@@ -315,19 +315,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Se data.user existe mas data.session é null, significa que o cadastro requer confirmação por email.
-        // Este é o fluxo esperado para novos usuários.
+        // Este é o fluxo esperado para novos usuários, ou para usuários existentes não confirmados.
         if (data.user && !data.session) {
-          console.log('Cadastro bem-sucedido, aguardando confirmação por email para:', email);
-          toast({
-            title: "Cadastro iniciado!",
-            description: "Enviamos um email de confirmação para você. Por favor, verifique sua caixa de entrada.",
-            duration: 7000,
-          });
-          // O trigger handle_new_user no Supabase deve criar o perfil.
-          // Não é necessário upsert manual aqui se o trigger estiver funcionando.
-          // O estado isLoading será setado para false pelo onAuthStateChange ou fetchSession.
-          setSession(prev => ({ ...prev, isLoading: false })); // Indica que o processo de signUp terminou no cliente
-          return { error: null };
+          // Heurística para diferenciar novo usuário de um existente não confirmado
+          // Se updated_at for significativamente diferente de created_at,
+          // ou se email_confirmed_at já estiver preenchido,
+          // consideramos que é um usuário existente para o qual Supabase está reenviando confirmação.
+          const creationTime = new Date(data.user.created_at).getTime();
+          // Se updated_at não existir, usar creationTime para que a diferença seja 0
+          const updateTime = new Date(data.user.updated_at || data.user.created_at).getTime();
+          // Considera existente se houve uma atualização substancial após a criação ou se o email já foi confirmado.
+          const isLikelyExistingUser = (updateTime - creationTime > 1000) || !!data.user.email_confirmed_at; // 1 segundo de tolerância
+
+          if (isLikelyExistingUser) {
+            console.warn(`[Auth] SignUp para e-mail (${email}) que parece já existir e/ou está confirmado, mas Supabase não retornou erro explícito. Tratando como "já cadastrado". User data:`, data.user);
+            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.');
+            setSession(prev => ({ ...prev, error: userExistsError, isLoading: false }));
+            toast({ title: "Erro no Cadastro", description: userExistsError.message, variant: "destructive" });
+            return { error: userExistsError };
+          } else {
+            // Comportamento para novo usuário genuíno que precisa de confirmação
+            console.log(`[Auth] Novo cadastro para ${email}, aguardando confirmação por email.`);
+            toast({
+              title: "Cadastro iniciado!",
+              description: "Enviamos um email de confirmação para você. Por favor, verifique sua caixa de entrada.",
+              duration: 7000,
+            });
+            // O trigger handle_new_user no Supabase deve criar o perfil.
+            setSession(prev => ({ ...prev, isLoading: false })); // Indica que o processo de signUp terminou no cliente
+            return { error: null };
+          }
         }
         
         // Caso inesperado: usuário e sessão existem imediatamente após signUp (ex: auto-confirmação ligada no Supabase)
