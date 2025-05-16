@@ -3161,68 +3161,62 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Função interna que realmente busca o preço
   const fetchPriceForDateInternal = async (date: Date, type: 'investment' | 'profit', currentDisplayCurrency: DisplayCurrency) => {
-    if (isFutureDate(date)) {
-      const errorMsg = "Não é possível buscar preços para datas futuras.";
-      if (type === 'investment') {
-        setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
-      } else {
-        setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
-      }
-      return;
-    }
+    const targetDate = startOfDay(date); // Normalizar para o início do dia
+    const targetDateStr = format(targetDate, "yyyy-MM-dd");
 
-    if (type === 'investment') {
-      setInvestmentDatePriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
-    } else {
-      setProfitDatePriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
-    }
+    const updateStateFunction = type === 'investment' ? setInvestmentDatePriceInfo : setProfitDatePriceInfo;
+    
+    updateStateFunction({
+      price: null,
+      loading: true,
+      currency: currentDisplayCurrency,
+      error: null,
+      source: null
+    });
 
     try {
-      const formattedDate = formatDateToUTC(date);
-      const apiCurrency = currentDisplayCurrency.toLowerCase() as 'usd' | 'brl';
-      const data = await getHistoricalBitcoinDataForRange(apiCurrency, formattedDate, formattedDate);
-      
-      if (data && data.length > 0) {
-        const priceData = data[0];
-        if (type === 'investment') {
-          setInvestmentDatePriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
-        } else {
-          setProfitDatePriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
-        }
+      const data = await getHistoricalBitcoinDataForRange(
+        currentDisplayCurrency.toLowerCase() as 'usd' | 'brl',
+        targetDateStr,
+        targetDateStr, // Para um único dia, from e to são iguais
+        true // Forçar atualização, pois queremos o preço exato do dia, não um cache geral do range
+      );
+
+      if (data && data.length > 0 && data[0].price !== null && data[0].price !== undefined) {
+        updateStateFunction({
+          price: data[0].price,
+          loading: false,
+          currency: currentDisplayCurrency,
+          error: null,
+          source: data[0].source || 'API'
+        });
       } else {
-        const errorMsg = "Nenhum dado de preço retornado para esta data.";
-        if (type === 'investment') {
-          setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
-        } else {
-          setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
-        }
+        throw new Error("Dados de preço não encontrados para a data especificada.");
       }
     } catch (error: any) {
-      console.error(`Erro ao buscar preço para ${type} em ${format(date, 'yyyy-MM-dd')}:`, error);
-      let specificErrorMessage = "Erro ao buscar preço. Tente novamente."; // Mensagem padrão
-
-      if (error.message && typeof error.message === 'string') {
-        if (error.message.includes("429")) {
-          specificErrorMessage = "Limite de requisições da API atingido. Aguarde e tente novamente.";
-          // Opcional: toast específico para 429, mas pode ser melhor mostrar na UI.
-          // toast({ title: "Limite Atingido", description: specificErrorMessage, variant: "warning", duration: 5000 });
-        } else if (error.message.includes("404")) {
-          specificErrorMessage = `Preço não encontrado para ${format(date, 'dd/MM/yyyy')}.`;
+      console.error(`Erro ao buscar preço para ${type} em ${targetDateStr}:`, error);
+      
+      let errorMessage = "Erro ao buscar preço histórico.";
+      if (error.message) {
+        if (error.message.startsWith("RATE_LIMIT:")) {
+          errorMessage = error.message.substring("RATE_LIMIT:".length).trim() || "Limite de requisições atingido. Por favor, tente novamente mais tarde.";
         } else {
-          // Para outros erros, podemos usar a mensagem da API se disponível, ou uma genérica
-          specificErrorMessage = error.message; 
+          // Usar a mensagem de erro da API se não for rate limit, ou o erro original
+          errorMessage = error.message;
         }
       }
-      
-      if (type === 'investment') {
-        setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
-      } else {
-        setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
-      }
+
+      updateStateFunction({
+        price: null,
+        loading: false,
+        currency: currentDisplayCurrency,
+        error: errorMessage,
+        source: null 
+      });
     }
   };
 
-  // Função com debounce que será chamada pelos DatePickers
+  // Debounce para a função de busca de preço
   const fetchPriceForDateWithDebounce = useCallback((date: Date, type: 'investment' | 'profit', currentDisplayCurrency: DisplayCurrency) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);

@@ -37,6 +37,42 @@ type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
 type ChartType = "line" | "area"
 
+// Mover getTimeRangeLabel para fora do componente
+const getTimeRangeLabel = (range: TimeRange): string => {
+  switch (range) {
+    case "1d":
+      return "1 Dia"
+    case "7d":
+      return "1 Semana"
+    case "30d":
+      return "1 Mês"
+    case "90d":
+      return "3 Meses"
+    case "1y":
+      return "1 Ano"
+    default:
+      return "1 Mês" // Fallback, ou poderia ser o valor de 'range'
+  }
+}
+
+// Mover timeRangeToDays para fora do componente
+const timeRangeToDays = (range: TimeRange): number => {
+  switch (range) {
+    case "1d":
+      return 1
+    case "7d":
+      return 7
+    case "30d":
+      return 30
+    case "90d":
+      return 90
+    case "1y":
+      return 365
+    default:
+      return 30 // Fallback
+  }
+}
+
 // Novo tipo para armazenar dados em cache por período
 type ChartDataCache = {
   [key: string]: {
@@ -80,47 +116,29 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   // Usamos useRef para manter o cache entre renderizações
   const chartDataCache = useRef<ChartDataCache>({})
   
+  // Ref para o timer do debounce
+  const debouncedFetchRef = useRef<NodeJS.Timeout | null>(null);
+
   // Função para gerar chave de cache
   const getCacheKey = useCallback((curr: string, range: string) => {
     return `${curr.toLowerCase()}_${range}`
   }, [])
-
-  // Mover esta função para antes do fetchHistoricalData
-  const getTimeRangeLabel = (range: TimeRange): string => {
-    switch (range) {
-      case "1d":
-        return "1 Dia"
-      case "7d":
-        return "1 Semana"
-      case "30d":
-        return "1 Mês"
-      case "90d":
-        return "3 Meses"
-      case "1y":
-        return "1 Ano"
-      default:
-        return "1 Mês"
-    }
-  }
 
   // Modify the fetchHistoricalData function to better handle errors
   const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
     setLoading(true)
     setError(null)
     
-    // Gerar chave de cache
     const cacheKey = getCacheKey(currency, timeRange)
     
     try {
       let data: HistoricalDataPoint[] = []
       const days = timeRangeToDays(timeRange)
       
-      // Verificar se já temos esses dados em cache local e se não estamos forçando atualização
       const cachedData = chartDataCache.current[cacheKey]
       const now = Date.now()
-      const cacheMaxAge = 30 * 60 * 1000 // 30 minutos (cache local)
+      const cacheMaxAge = 30 * 60 * 1000 
       
-      // 1. Verificar se temos dados em cache local e se não estamos forçando atualização
       if (!forceUpdate && cachedData && now - cachedData.timestamp < cacheMaxAge) {
         console.log(`Usando cache local para ${currency} ${timeRange}`)
         setChartData(cachedData.data)
@@ -128,9 +146,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         setDataSource(cachedData.source || "CoinGecko")
         setLoading(false)
         
-        // Se o cache tem mais de 10 minutos, atualizar em segundo plano
         if (now - cachedData.timestamp > 10 * 60 * 1000) {
-          // Iniciar atualização em background após retornar os dados do cache
           setTimeout(() => {
             updateCacheInBackground(currency, timeRange, days)
           }, 500)
@@ -139,37 +155,30 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         return
       }
       
-      // 2. Se forceUpdate for true ou cache expirado, buscar da API
       try {
-        // Usar a nova API com suporte a período
         data = await getHistoricalBitcoinData(
           currency.toLowerCase(), 
           days,
-          timeRange // Passar o período original para melhor cache
+          timeRange 
         );
         
-        // Determinar a fonte dos dados (TradingView ou fallback)
-        const dataSource = data.length > 0 && data[0].source 
+        const dataSourceFromAPI = data.length > 0 && data[0].source 
           ? data[0].source 
           : "tradingview";
         
-        setDataSource(dataSource === "tradingview" ? "TradingView" : "CoinGecko");
+        setDataSource(dataSourceFromAPI === "tradingview" ? "TradingView" : "CoinGecko");
         setIsUsingCachedData(data.some(item => item.isUsingCache));
         
-        // Atualizar o cache local com os novos dados
         chartDataCache.current[cacheKey] = {
           data,
           timestamp: now,
           isUsingCache: data.some(item => item.isUsingCache),
-          source: dataSource
+          source: dataSourceFromAPI
         };
         
-        // Ordenar dados por data (mais antigos primeiro)
         data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setChartData(data);
         
-        // Mostrar feedback ao usuário sobre a atualização APENAS quando for uma atualização forçada
-        // e não apenas uma mudança de período ou moeda
         if (forceUpdate && !data.some(item => item.isUsingCache)) {
           toast({
             title: "Dados atualizados",
@@ -177,27 +186,46 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             duration: 3000,
           });
         }
-      } catch (error) {
-        throw error;
+      } catch (apiError: any) { // Renomeado para apiError para clareza
+        // Tratar erro da API aqui antes de cair no catch externo geral
+        if (apiError.message && apiError.message.startsWith("RATE_LIMIT:")) {
+          console.warn("Rate limit detectado em fetchHistoricalData:", apiError.message);
+          setError(apiError.message.substring("RATE_LIMIT:".length).trim() || "Limite de requisições atingido. Tente mais tarde.");
+          // Tentar usar cache local, mesmo que expirado, em caso de rate limit
+          if (cachedData && cachedData.data.length > 0) {
+            console.log("Usando cache local expirado após erro de rate limit na API")
+            setChartData(cachedData.data)
+            setIsUsingCachedData(true)
+            setDataSource(cachedData.source || "CoinGecko")
+          } else {
+            // Se não há cache, mantém a mensagem de erro e dados vazios.
+            setChartData([]); // Limpar dados antigos se houver
+          }
+        } else {
+          // Se não for rate limit, relança para o catch externo
+          throw apiError;
+        }
       }
-    } catch (error) {
-      console.error("Erro ao buscar dados históricos:", error)
+    } catch (error: any) {
+      // Este catch agora lida com erros não-RATE_LIMIT ou erros do try/catch interno se relançados
+      console.error("Erro ao buscar dados históricos (catch geral):", error)
       
-      // Em caso de erro, tentar usar o cache local mesmo que expirado
       const cachedData = chartDataCache.current[cacheKey]
       if (cachedData && cachedData.data.length > 0) {
-        console.log("Usando cache local expirado após erro na API")
+        console.log("Usando cache local expirado após erro na API (catch geral)")
         setChartData(cachedData.data)
         setIsUsingCachedData(true)
         setDataSource(cachedData.source || "CoinGecko")
-      } else {
-        setError("Não foi possível obter dados em tempo real. Por favor, tente novamente mais tarde.")
+        // Não define setError aqui se estamos usando cache, para não sobrescrever possível erro de rate limit
+      } else if (!error?.message?.startsWith("RATE_LIMIT:")) { // Só define erro genérico se não for um rate limit já tratado
+        setError("Não foi possível obter dados. Por favor, tente novamente mais tarde.")
         setDataSource("Indisponível")
+        setChartData([]); // Limpar dados em caso de erro sem cache
       }
     } finally {
       setLoading(false)
     }
-  }, [timeRange, currency, getCacheKey, getTimeRangeLabel])
+  }, [timeRange, currency, getCacheKey, updateCacheInBackground]) // Adicionado updateCacheInBackground
   
   // Função para atualizar o cache em segundo plano
   const updateCacheInBackground = useCallback(async (currencyType: CurrencyType, range: TimeRange, days: number) => {
@@ -240,58 +268,70 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
   // Forçar atualização - ignora cache
   const forceUpdateData = useCallback(() => {
-    fetchHistoricalData(true)
-  }, [fetchHistoricalData])
+    // Limpar qualquer debounce pendente ao forçar atualização
+    if (debouncedFetchRef.current) {
+      clearTimeout(debouncedFetchRef.current);
+    }
+    // Somente executa se a aba de períodos padrão estiver ativa
+    if (activeTab === 'periods') {
+      fetchHistoricalData(true)
+    }
+    // Se a aba custom estiver ativa, o botão de forçar atualização para ela é outro.
+  }, [fetchHistoricalData, activeTab]) // Adicionado activeTab
 
-  // Atualizar dados quando o intervalo de tempo ou moeda mudar
+  // Atualizar dados quando o intervalo de tempo ou moeda mudar, OU quando a aba de períodos for ativada
   useEffect(() => {
-    fetchHistoricalData()
-    
-    // Pré-carregar períodos adjacentes em segundo plano
-    const preloadAdjacentPeriods = async () => {
-      // Esperar um pequeno tempo para não atrapalhar o carregamento atual
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Determinar períodos adjacentes para pré-carregar
-      const timeRanges: TimeRange[] = ["1d", "7d", "30d", "90d", "1y"]
-      const currentIndex = timeRanges.indexOf(timeRange)
-      
-      // Pré-carregar o período anterior (se houver)
-      if (currentIndex > 0) {
-        const prevRange = timeRanges[currentIndex - 1]
-        const days = timeRangeToDays(prevRange)
-        updateCacheInBackground(currency, prevRange, days)
+    if (activeTab === 'periods') {
+      // Implementar debounce para a chamada de fetchHistoricalData
+      if (debouncedFetchRef.current) {
+        clearTimeout(debouncedFetchRef.current);
       }
-      
-      // Pré-carregar o próximo período (se houver)
-      if (currentIndex < timeRanges.length - 1) {
-        const nextRange = timeRanges[currentIndex + 1]
-        const days = timeRangeToDays(nextRange)
-        updateCacheInBackground(currency, nextRange, days)
-      }
-    }
-    
-    // Iniciar pré-carregamento
-    preloadAdjacentPeriods()
-    
-  }, [fetchHistoricalData, timeRange, currency, updateCacheInBackground])
+      debouncedFetchRef.current = setTimeout(() => {
+        fetchHistoricalData();
+      }, 500); // 500ms de debounce
 
-  const timeRangeToDays = (range: TimeRange): number => {
-    switch (range) {
-      case "1d":
-        return 1
-      case "7d":
-        return 7
-      case "30d":
-        return 30
-      case "90d":
-        return 90
-      case "1y":
-        return 365
-      default:
-        return 30
+      // Pré-carregar períodos adjacentes em segundo plano
+      const preloadAdjacentPeriods = async () => {
+        // Esperar um pequeno tempo para não atrapalhar o carregamento atual
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        const timeRangesArray: TimeRange[] = ["1d", "7d", "30d", "90d", "1y"]
+        const currentIndex = timeRangesArray.indexOf(timeRange)
+        
+        if (currentIndex > 0) {
+          const prevRange = timeRangesArray[currentIndex - 1]
+          const days = timeRangeToDays(prevRange)
+          // Verifica se updateCacheInBackground existe e é uma função antes de chamar
+          if (typeof updateCacheInBackground === 'function') {
+            updateCacheInBackground(currency, prevRange, days)
+          }
+        }
+        
+        if (currentIndex < timeRangesArray.length - 1) {
+          const nextRange = timeRangesArray[currentIndex + 1]
+          const days = timeRangeToDays(nextRange)
+          if (typeof updateCacheInBackground === 'function') {
+            updateCacheInBackground(currency, nextRange, days)
+          }
+        }
+      }
+      
+      preloadAdjacentPeriods()
+    } else {
+      // Se a aba não for 'periods', cancelar qualquer busca debounceada pendente de períodos padrão
+      if (debouncedFetchRef.current) {
+        clearTimeout(debouncedFetchRef.current);
+      }
     }
-  }
+
+    // Limpar o timeout ao desmontar o componente ou quando as dependências mudarem
+    return () => {
+      if (debouncedFetchRef.current) {
+        clearTimeout(debouncedFetchRef.current);
+      }
+    };
+  }, [activeTab, timeRange, currency, fetchHistoricalData, updateCacheInBackground]) // Adicionado activeTab e removido updateCacheInBackground se não for mais usado diretamente aqui, verificar uso em preload
+  // A dependência updateCacheInBackground é necessária por causa do preloadAdjacentPeriods.
 
   // Formatação melhorada para moedas
   const formatCurrency = (value: number, showSymbol: boolean = false): string => {

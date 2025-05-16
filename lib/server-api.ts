@@ -711,19 +711,19 @@ async function fetchHistoricalDataFromCoinGecko(
       {
         headers: { 
           'Accept': 'application/json',
-          // 'Cache-Control': 'no-cache' // Removido, fetch já tem next: { revalidate: 0 }
         },
-        // cache: 'no-store', // Removido, fetch já tem next: { revalidate: 0 }
-        next: { revalidate: 0 } // Força buscar sempre da origem, não do cache do Next.js fetch
+        next: { revalidate: 0 } 
       }
     );
     
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(`[server-api CoinGecko] Erro ao obter dados: ${response.status} - ${response.statusText}. Body: ${errorBody}`);
-      // Aqui chamaremos o fallback para Binance no futuro.
-      // Por agora, apenas logamos e retornamos null.
-      console.warn(`[server-api CoinGecko] Falha na CoinGecko. Futuramente, tentaria Binance aqui.`);
+      if (response.status === 429) {
+        throw new Error(`[CoinGecko API] Limite de requisições atingido (429). Detalhes: ${errorBody}`);
+      }
+      // Para outros erros não-OK, retorna null para permitir fallback ou tratamento genérico.
+      console.warn(`[server-api CoinGecko] Falha na CoinGecko (status ${response.status}).`);
       return null;
     }
     
@@ -735,7 +735,7 @@ async function fetchHistoricalDataFromCoinGecko(
     }
 
     const processedData: HistoricalDataPoint[] = jsonData.prices.map((priceEntry: [number, number]) => ({
-      timestamp: Math.floor(priceEntry[0] / 1000), // Converter ms para s
+      timestamp: Math.floor(priceEntry[0] / 1000), 
       price: priceEntry[1],
     }));
     
@@ -743,9 +743,12 @@ async function fetchHistoricalDataFromCoinGecko(
     return { data: processedData, source: 'coingecko' };
 
   } catch (error: any) {
+    // Se o erro já é o nosso erro de limite de requisições, relança-o.
+    if (error.message && error.message.includes("Limite de requisições")) {
+      throw error;
+    }
+    // Para outras exceções (ex: falha de rede), loga e retorna null.
     console.error(`[server-api CoinGecko] Exceção ao buscar dados históricos da CoinGecko: ${error.message}`, error);
-    // Aqui também chamaremos o fallback para Binance no futuro.
-    console.warn(`[server-api CoinGecko] Exceção na CoinGecko. Futuramente, tentaria Binance aqui.`);
     return null;
   }
 }
@@ -816,23 +819,69 @@ export async function forceUpdateHistoricalData(
 
   console.log(`[server-api forceUpdateHistoricalData] Iniciando atualização para key: ${cacheKey}`);
 
-  // 1. Tentar CoinGecko
-  let fetchedResult = await fetchHistoricalDataFromCoinGecko(currency, daysToFetch);
+  let fetchedResult: { data: HistoricalDataPoint[]; source: 'coingecko' | 'binance' } | null = null;
   let source: 'coingecko' | 'binance' | 'unknown' = 'unknown';
+  let specificErrorMessage: string | null = null;
 
-  if (fetchedResult) {
-    source = 'coingecko';
-    console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da CoinGecko para ${cacheKey}.`);
-  } else {
-    console.warn(`[server-api forceUpdateHistoricalData] Falha ao obter dados da CoinGecko para ${cacheKey}. Tentando fallback para Binance...`);
-    fetchedResult = await fetchHistoricalDataFromBinance(currency, daysToFetch);
+  // 1. Tentar CoinGecko
+  try {
+    fetchedResult = await fetchHistoricalDataFromCoinGecko(currency, daysToFetch);
     if (fetchedResult) {
-      source = 'binance';
-      console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da BINANCE (fallback) para ${cacheKey}.`);
+      source = 'coingecko';
+      console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da CoinGecko para ${cacheKey}.`);
     } else {
-      console.error(`[server-api forceUpdateHistoricalData] FALHA EM TODAS AS FONTES (CoinGecko, Binance) para ${cacheKey}.`);
-      return null; // Nenhuma fonte funcionou
+      // Se fetchHistoricalDataFromCoinGecko retornou null (não por rate limit, mas outro erro)
+      console.warn(`[server-api forceUpdateHistoricalData] Falha (não-específica) ao obter dados da CoinGecko para ${cacheKey}. Tentando fallback para Binance...`);
     }
+  } catch (error: any) {
+    if (error.message && error.message.includes("Limite de requisições")) {
+      specificErrorMessage = error.message; // Captura a mensagem de rate limit da CoinGecko
+      console.warn(`[server-api forceUpdateHistoricalData] CoinGecko reportou: ${specificErrorMessage}`);
+    } else {
+      // Outro erro inesperado da CoinGecko
+      console.error(`[server-api forceUpdateHistoricalData] Erro inesperado da CoinGecko para ${cacheKey}: ${error.message}`, error);
+      // Neste caso, não tentaremos Binance e relançaremos o erro para ser pego pela rota da API
+      // A rota da API já tem um catch-all que pode resultar em 500 ou outra mensagem apropriada.
+      // Ou poderíamos lançar um erro específico aqui se quiséssemos um tratamento diferenciado na rota.
+      throw new Error(`Erro crítico ao buscar dados da CoinGecko: ${error.message}`); 
+    }
+  }
+
+  // 2. Tentar Binance SE CoinGecko falhou (retornou null) E NÃO foi por um erro que já lançamos (como erro crítico)
+  // E SE CoinGecko não forneceu uma mensagem de erro específica (como rate limit) que queremos propagar.
+  if (!fetchedResult && !specificErrorMessage) { 
+    console.log(`[server-api forceUpdateHistoricalData] Tentando Binance como fallback para ${cacheKey}.`);
+    try {
+      fetchedResult = await fetchHistoricalDataFromBinance(currency, daysToFetch);
+      if (fetchedResult) {
+        source = 'binance';
+        console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da BINANCE (fallback) para ${cacheKey}.`);
+      } else {
+         console.warn(`[server-api forceUpdateHistoricalData] Binance também falhou (retornou null) para ${cacheKey}.`);
+      }
+    } catch (error: any) {
+      if (error.message && error.message.includes("Limite de requisições")) {
+        // Se a Binance também deu rate limit, usamos essa mensagem.
+        specificErrorMessage = error.message; 
+        console.warn(`[server-api forceUpdateHistoricalData] Binance reportou: ${specificErrorMessage}`);
+      } else {
+        console.error(`[server-api forceUpdateHistoricalData] Erro inesperado da Binance para ${cacheKey}: ${error.message}`, error);
+        // Não relança aqui para permitir que o fluxo chegue ao 'FALHA EM TODAS AS FONTES' se specificErrorMessage ainda for null
+      }
+    }
+  }
+
+  // Se houve uma mensagem de erro específica (como rate limit) e não conseguimos dados de nenhuma fonte
+  if (specificErrorMessage && !fetchedResult) {
+    throw new Error(specificErrorMessage); // Relança o erro (ex: "Limite de requisições...") para a rota da API.
+  }
+
+  if (!fetchedResult) {
+    console.error(`[server-api forceUpdateHistoricalData] FALHA EM TODAS AS FONTES (CoinGecko, Binance) para ${cacheKey}.`);
+    // Retornar null fará a rota /api/bitcoin/historical retornar 404.
+    // Se specificErrorMessage tivesse sido definido e !fetchedResult, já teríamos lançado o erro acima.
+    // Este caminho é para quando ambas as fontes retornam null sem um erro específico de rate limit capturado.
+    return null; 
   }
   
   const dataToCache: HistoricalDataPoint[] = fetchedResult.data;
@@ -855,18 +904,10 @@ export async function forceUpdateHistoricalData(
       return cacheObject;
     } catch (error) {
       console.error(`[server-api forceUpdateHistoricalData] Erro ao salvar no cache KV para ${cacheKey}:`, error);
-      // Mesmo se o cache falhar, retornamos os dados buscados, mas sem cache para a próxima vez.
-      // Ou podemos optar por retornar null para forçar uma nova tentativa completa.
-      // Por ora, retornamos o objeto que teríamos cacheado.
       return cacheObject; 
     }
   } else {
     console.warn(`[server-api forceUpdateHistoricalData] Nenhum dado para cachear para ${cacheKey} após tentativa de busca.`);
-    // Se não houve dados (ex: CoinGecko retornou array vazio), não limpamos cache existente
-    // A função getHistoricalData vai acabar pegando dados obsoletos (se houver) ou nada.
-    // Poderíamos deletar a chave do cache aqui se quiséssemos forçar um "nada encontrado".
-    // await kv.del(cacheKey);
-    // console.log(`[server-api forceUpdateHistoricalData] Chave ${cacheKey} deletada do cache por não haver dados novos.`);
     return null;
   }
 }
@@ -885,35 +926,29 @@ async function fetchHistoricalDataFromBinance(
   }
 
   let startTime;
-  let endTime = Date.now(); // Padrão para agora, em milissegundos
-  const limit = 1000; // Limite de velas da Binance
+  let endTime = Date.now(); 
+  const limit = 1000; 
   let operationDescription = `Moeda: ${currency} (Símbolo Binance: ${symbol})`;
 
   if (typeof daysOrParams === 'number') {
-    // Se for número de dias, calculamos startTime baseado em 'daysOrParams' dias atrás
-    // A Binance espera timestamps em milissegundos
     startTime = Date.now() - (daysOrParams * 24 * 60 * 60 * 1000);
     operationDescription += `, Dias: ${daysOrParams}`;
     if (daysOrParams > limit) {
-        console.warn(`[server-api Binance] Número de dias (${daysOrParams}) excede o limite de ${limit} velas para uma única chamada. Buscando os ${limit} dias mais recentes.`);
+        console.warn(`[server-api Binance] Número de dias (${daysOrParams}) excede o limite de ${limit} velas. Buscando os ${limit} dias mais recentes.`);
         startTime = Date.now() - (limit * 24 * 60 * 60 * 1000);
     }
   } else {
-    // Se for um range de timestamps (já em segundos, converter para ms)
     startTime = daysOrParams.fromTimestamp * 1000;
     endTime = daysOrParams.toTimestamp * 1000;
     operationDescription += `, De: ${new Date(startTime).toISOString().split('T')[0]}, Até: ${new Date(endTime).toISOString().split('T')[0]}`;
     
-    // Verificar se o range excede o limite de velas
     const roughlyDaysInRange = (endTime - startTime) / (1000 * 60 * 60 * 24);
     if (roughlyDaysInRange > limit) {
-        console.warn(`[server-api Binance] Range solicitado (${roughlyDaysInRange.toFixed(0)} dias) excede o limite de ${limit} velas para uma única chamada. Ajustando startTime para buscar as ${limit} velas mais recentes dentro do range.`);
-        // Ajusta startTime para buscar as últimas 'limit' velas terminando em 'endTime'
+        console.warn(`[server-api Binance] Range solicitado (${roughlyDaysInRange.toFixed(0)} dias) excede o limite de ${limit} velas. Ajustando startTime.`);
         startTime = endTime - (limit * 24 * 60 * 60 * 1000);
     }
   }
   
-  // Garantir que endTime não seja no futuro para a Binance, pois ela não retorna dados futuros
   if (endTime > Date.now()) {
     endTime = Date.now();
   }
@@ -924,11 +959,16 @@ async function fetchHistoricalDataFromBinance(
   // console.log(`[server-api Binance] URL da API: ${apiUrl}`);
 
   try {
-    const response = await fetch(apiUrl, { next: { revalidate: 0 } }); // Sem cache do Next.js
+    const response = await fetch(apiUrl, { next: { revalidate: 0 } }); 
 
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(`[server-api Binance] Erro ao obter dados: ${response.status} - ${response.statusText}. Body: ${errorBody}`);
+      if (response.status === 429 || response.status === 418) { // 418 é usado pela Binance para ban de IP
+        throw new Error(`[Binance API] Limite de requisições/Bloqueio atingido (${response.status}). Detalhes: ${errorBody}`);
+      }
+      // Para outros erros, retorna null.
+      console.warn(`[server-api Binance] Falha na Binance (status ${response.status}).`);
       return null;
     }
 
@@ -941,12 +981,11 @@ async function fetchHistoricalDataFromBinance(
 
     const processedData: HistoricalDataPoint[] = klines.map((kline: any[]) => {
       return {
-        timestamp: Math.floor(kline[0] / 1000), // Open time (ms to s)
-        price: parseFloat(kline[4]), // Close price
+        timestamp: Math.floor(kline[0] / 1000), 
+        price: parseFloat(kline[4]), 
       };
     });
     
-    // Filtrar pontos de dados onde o preço não é um número válido, caso haja alguma anomalia nos dados da Binance
     const validData = processedData.filter(dp => !isNaN(dp.price));
 
     if (validData.length === 0 && klines.length > 0) {
@@ -958,12 +997,17 @@ async function fetchHistoricalDataFromBinance(
     return { data: validData, source: 'binance' };
 
   } catch (error: any) {
+    // Se o erro já é o nosso erro de limite de requisições/bloqueio, relança-o.
+    if (error.message && (error.message.includes("Limite de requisições") || error.message.includes("Bloqueio atingido"))) {
+      throw error;
+    }
+    // Para outras exceções (ex: falha de rede), loga e retorna null.
     console.error(`[server-api Binance] Exceção ao buscar dados históricos da Binance: ${error.message}`, error);
     return null;
   }
 }
 
-// Função de atualização de cache em background (exemplo, pode não ser diretamente usada no fluxo principal)
+// Função de atualização de cache em segundo plano (exemplo, pode não ser diretamente usada no fluxo principal)
 // ... existing code ...
 
 // Função para atualizar cache em segundo plano

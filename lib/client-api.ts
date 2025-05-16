@@ -102,23 +102,18 @@ export async function getHistoricalBitcoinData(
   period?: string
 ): Promise<HistoricalDataPoint[]> {
   try {
-    // Preparar parâmetros incluindo período para melhor cache
     const params = new URLSearchParams();
     params.append('currency', currency);
     params.append('days', days.toString());
     
-    // Se período foi passado, utilizá-lo na requisição
     if (period) {
       params.append('period', period);
     }
     
     const url = `${API_BASE_URL}/historical?${params.toString()}`;
     
-    // Configuração da requisição com suporte a cache
     const fetchOptions: RequestInit = {
-      // Usar cache padrão do navegador para otimizar requisições repetidas
       cache: 'default',
-      // Adicionar headers úteis para debugging
       headers: {
         'Content-Type': 'application/json',
         'X-Client-App': 'BTCRaidToolkit'
@@ -128,10 +123,22 @@ export async function getHistoricalBitcoinData(
     const response = await fetch(url, fetchOptions);
     
     if (!response.ok) {
-      throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
+      let errorData = { message: response.statusText, error: response.statusText }; // Fallback
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        // Corpo não é JSON ou está vazio, usar statusText
+        console.warn('[client-api getHistoricalBitcoinData] Falha ao parsear corpo do erro JSON:', jsonError);
+      }
+
+      if (response.status === 429) {
+        console.warn(`[client-api getHistoricalBitcoinData] Limite de requisições (429) detectado. Mensagem: ${errorData.message || errorData.error}`);
+        throw new Error(`RATE_LIMIT: ${errorData.message || errorData.error || 'Limite de requisições atingido.'}`);
+      }
+      console.error(`[client-api getHistoricalBitcoinData] Erro ao buscar dados históricos (${response.status}):`, errorData);
+      throw new Error(`Erro ${response.status}: ${errorData.message || errorData.error || response.statusText}`);
     }
     
-    // Exibir informações de diagnóstico úteis
     const source = response.headers.get('X-Data-Source');
     const usingCache = response.headers.get('X-Using-Cache');
     const responseTime = response.headers.get('X-Response-Time');
@@ -172,20 +179,31 @@ export async function getHistoricalBitcoinDataForRange(
       cache: forceUpdate ? 'no-store' : 'default',
       headers: {
         'Content-Type': 'application/json',
-        'X-Client-App': 'BTCRaidToolkit', // Mantendo o header customizado
+        'X-Client-App': 'BTCRaidToolkit',
       },
-      next: forceUpdate ? { revalidate: 0 } : { revalidate: 300 } // Consistente com fetchAllAppData
+      next: forceUpdate ? { revalidate: 0 } : { revalidate: 300 }
     };
 
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: response.statusText }));
-      console.error(`Erro ao buscar dados históricos por intervalo (${response.status}):`, errorData);
-      throw new Error(`Erro ${response.status}: ${errorData.error || response.statusText}`);
+      let errorData = { message: response.statusText, error: response.statusText }; // Fallback
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        // Corpo não é JSON ou está vazio, usar statusText
+        console.warn('[client-api getHistoricalBitcoinDataForRange] Falha ao parsear corpo do erro JSON:', jsonError);
+      }
+
+      if (response.status === 429) {
+        console.warn(`[client-api getHistoricalBitcoinDataForRange] Limite de requisições (429) detectado. Mensagem: ${errorData.message || errorData.error}`);
+        throw new Error(`RATE_LIMIT: ${errorData.message || errorData.error || 'Limite de requisições atingido.'}`);
+      }
+      console.error(`[client-api getHistoricalBitcoinDataForRange] Erro ao buscar dados históricos por intervalo (${response.status}):`, errorData);
+      // Usar errorData.message se disponível (do corpo JSON da nossa API), senão errorData.error ou statusText
+      throw new Error(`Erro ${response.status}: ${errorData.message || errorData.error || response.statusText}`);
     }
 
-    // Log dos headers de diagnóstico
     const source = response.headers.get('X-Data-Source');
     const usingCache = response.headers.get('X-Using-Cache');
     const responseTime = response.headers.get('X-Response-Time');
