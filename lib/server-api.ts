@@ -857,4 +857,3 @@ export async function forceUpdateAllData(): Promise<AppData> {
 export async function getCurrentBitcoinPrice(currency = 'usd'): Promise<BitcoinPrice | null > { 
     return updateCurrentPrice(); // Simplificado para usar a mesma lógica de updateCurrentPrice
 }
-}
