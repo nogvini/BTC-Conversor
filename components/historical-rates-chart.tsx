@@ -22,13 +22,16 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Minus, Percent } from "lucide-react"
+import { RefreshCw, TrendingUp, TrendingDown, Info, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Minus, Percent, Search, Calendar as CalendarIcon } from "lucide-react"
 import { Card, CardTitle, CardHeader, CardContent, CardDescription } from "@/components/ui/card"
 import { getHistoricalBitcoinData, type HistoricalDataPoint } from "@/lib/api"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format as formatDateFn, startOfDay, differenceInDays, isValid as isValidDate } from 'date-fns'
 
 type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
@@ -62,6 +65,16 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   const [isUsingCachedData, setIsUsingCachedData] = useState<boolean>(false)
   const [dataSource, setDataSource] = useState<string>("CoinGecko")
   const isMobile = useIsMobile()
+  
+  // NOVOS ESTADOS PARA BUSCA PERSONALIZADA
+  const [activeTab, setActiveTab] = useState<string>("periods")
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
+  const [customChartData, setCustomChartData] = useState<HistoricalDataPoint[]>([])
+  const [customLoading, setCustomLoading] = useState<boolean>(false)
+  const [customError, setCustomError] = useState<string | null>(null)
+  const [customDataSource, setCustomDataSource] = useState<string>("CoinGecko")
+  const [customIsUsingCache, setCustomIsUsingCache] = useState<boolean>(false)
   
   // Cache local para armazenar dados por período e moeda
   // Usamos useRef para manter o cache entre renderizações
@@ -307,7 +320,9 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
   const formatDateForTimeRange = (date: string): string => {
     const dateObj = new Date(date)
-    const days = timeRangeToDays(timeRange)
+    const days = activeTab === 'periods' ? timeRangeToDays(timeRange) : differenceInDays(customEndDate || new Date(), customStartDate || new Date()) +1;
+
+    if (!isValidDate(dateObj)) return "";
 
     if (days <= 1) {
       return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -320,21 +335,22 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
   // Calcular volatilidade anualizada com base nos dados históricos reais
   const annualizedVolatility = useMemo(() => {
-    return calculateAnnualizedVolatility(chartData)
-  }, [chartData])
+    return calculateAnnualizedVolatility(activeTab === 'periods' ? chartData : customChartData)
+  }, [chartData, customChartData, activeTab])
 
   // CALCULAR NOVOS DADOS ESTATÍSTICOS
   const chartStats = useMemo(() => {
-    if (!chartData || chartData.length === 0) {
+    const dataToAnalyze = activeTab === 'periods' ? chartData : customChartData;
+    if (!dataToAnalyze || dataToAnalyze.length === 0) {
       return {
         minPrice: 0,
         maxPrice: 0,
         avgPrice: 0,
-        priceChangePeriod: priceChange.percentage, // Reutiliza o já calculado
+        priceChangePeriod: calculatePriceChangeForData(dataToAnalyze).percentage,
       };
     }
 
-    const prices = chartData.map(d => d.price);
+    const prices = dataToAnalyze.map(d => d.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
@@ -343,9 +359,80 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       minPrice,
       maxPrice,
       avgPrice,
-      priceChangePeriod: priceChange.percentage,
+      priceChangePeriod: calculatePriceChangeForData(dataToAnalyze).percentage,
     };
-  }, [chartData, priceChange.percentage]);
+  }, [chartData, customChartData, activeTab, currency])
+
+  // Função auxiliar para calcular mudança de preço para um conjunto de dados específico
+  const calculatePriceChangeForData = (data: HistoricalDataPoint[]): { change: number; percentage: number } => {
+    if (data.length < 2) return { change: 0, percentage: 0 };
+    const firstPrice = data[0].price;
+    const lastPrice = data[data.length - 1].price;
+    const priceDiff = lastPrice - firstPrice;
+    const priceChangePercentage = (priceDiff / firstPrice) * 100;
+    return { change: priceDiff, percentage: priceChangePercentage };
+  };
+
+  // Função para buscar dados para o gráfico personalizado
+  const fetchCustomHistoricalData = useCallback(async () => {
+    if (!customStartDate || !customEndDate) {
+      toast({ title: "Datas incompletas", description: "Por favor, selecione as datas de início e fim.", variant: "warning" })
+      setCustomError("Por favor, selecione as datas de início e fim.");
+      return;
+    }
+    if (differenceInDays(customEndDate, customStartDate) < 0) {
+      toast({ title: "Intervalo inválido", description: "A data final deve ser posterior à data inicial.", variant: "warning" })
+      setCustomError("A data final deve ser posterior à data inicial.");
+      return;
+    }
+    if (differenceInDays(customEndDate, customStartDate) > 365 * 5) { // Limite de 5 anos por exemplo
+      toast({ title: "Intervalo muito longo", description: "Por favor, selecione um intervalo de no máximo 5 anos.", variant: "warning" });
+      setCustomError("Por favor, selecione um intervalo de no máximo 5 anos.");
+      return;
+    }
+
+    setCustomLoading(true)
+    setCustomError(null)
+    setCustomChartData([]) // Limpa dados antigos antes de buscar
+
+    try {
+      const startDateStr = formatDateFn(customStartDate, "yyyy-MM-dd")
+      const endDateStr = formatDateFn(customEndDate, "yyyy-MM-dd")
+      
+      const data = await getHistoricalBitcoinData(
+        currency.toLowerCase(), 
+        { fromDate: startDateStr, toDate: endDateStr } // Passa o objeto com fromDate e toDate
+      );
+
+      const source = data.length > 0 && data[0].source ? data[0].source : "CoinGecko";
+      setCustomDataSource(source);
+      setCustomIsUsingCache(data.some(item => item.isUsingCache));
+      
+      // Ordenar dados por data (mais antigos primeiro)
+      data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setCustomChartData(data)
+      if (data.length === 0) {
+        setCustomError("Nenhum dado encontrado para o período selecionado.")
+      }
+
+    } catch (err: any) {
+      console.error("Erro ao buscar dados históricos personalizados:", err)
+      let userMessage = "Não foi possível obter dados para o período selecionado. Tente novamente.";
+      if (err.message && err.message.includes("429")) {
+        userMessage = "Limite de requisições atingido. Por favor, tente novamente mais tarde.";
+        toast({ title: "Muitas Requisições", description: userMessage, variant: "destructive", duration: 5000 });
+      } else if (err.message && err.message.includes("404")) {
+        userMessage = "Dados não encontrados para o período ou moeda selecionada.";
+         toast({ title: "Não Encontrado", description: userMessage, variant: "warning", duration: 5000 });
+      } else {
+        toast({ title: "Erro na Busca", description: userMessage, variant: "destructive", duration: 5000 });
+      }
+      setCustomError(userMessage)
+      setCustomChartData([]) // Limpa os dados em caso de erro
+    } finally {
+      setCustomLoading(false)
+    }
+  }, [customStartDate, customEndDate, currency])
 
   // Render
   return (
@@ -355,62 +442,181 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           
           <div className="space-y-1">
             <CardTitle className="mb-1.5">Histórico de Cotações</CardTitle>
-            <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-              Fonte: {dataSource} {isUsingCachedData ? "(cache)" : ""}
-            </CardDescription>
+            {activeTab === 'periods' && (
+              <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                Fonte: {dataSource} {isUsingCachedData ? "(cache)" : ""}
+              </CardDescription>
+            )}
           </div>
+          {/* Controles de Moeda (fora das abas, afeta ambas) */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Controles de Moeda e Período */}
             <div className="flex items-center space-x-2">
-              <Label htmlFor="currency-select" className="text-xs">Moeda:</Label>
-              <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyType)}>
-                <SelectTrigger 
-                  id="currency-select" 
-                  className="h-8 w-[80px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70"
-                >
-                  <SelectValue placeholder="Moeda" />
-                </SelectTrigger>
-                <SelectContent className="bg-black/95 border-purple-800/60">
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="BRL">BRL</SelectItem>
-                </SelectContent>
-              </Select>
+                <Label htmlFor="currency-select-main" className="text-xs">Moeda:</Label>
+                <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyType)}>
+                  <SelectTrigger 
+                    id="currency-select-main" 
+                    className="h-8 w-[80px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70"
+                  >
+                    <SelectValue placeholder="Moeda" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black/95 border-purple-800/60">
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="BRL">BRL</SelectItem>
+                  </SelectContent>
+                </Select>
             </div>
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="time-range-select" className="text-xs">Período:</Label>
-              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-                <SelectTrigger 
-                  id="time-range-select" 
-                  className="h-8 w-[90px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 justify-start pl-3"
-                >
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent className="bg-black/95 border-purple-800/60">
-                  <SelectItem value="1d">1 Dia</SelectItem>
-                  <SelectItem value="7d">1 Semana</SelectItem>
-                  <SelectItem value="30d">1 Mês</SelectItem>
-                  <SelectItem value="90d">3 Meses</SelectItem>
-                  <SelectItem value="1y">1 Ano</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Botão de Atualizar */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 bg-background/30 dark:bg-black/40 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
-              onClick={forceUpdateData}
-              disabled={loading}
-              title="Forçar atualização dos dados"
-            >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            </Button>
           </div>
         </div>
+
+        {/* ABAS PARA SELEÇÃO DE PERÍODO OU BUSCA PERSONALIZADA */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-4">
+          <TabsList className="grid w-full grid-cols-2 bg-black/20 border border-purple-700/30">
+            <TabsTrigger value="periods" className="data-[state=active]:bg-purple-700/40 data-[state=active]:text-white">Períodos Padrão</TabsTrigger>
+            <TabsTrigger value="custom" className="data-[state=active]:bg-purple-700/40 data-[state=active]:text-white">Busca Personalizada</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="periods" className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 w-full justify-start sm:justify-end">
+                <div className="flex items-center space-x-2">
+                <Label htmlFor="time-range-select" className="text-xs">Período:</Label>
+                <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                    <SelectTrigger 
+                    id="time-range-select" 
+                    className="h-8 w-[90px] text-xs bg-background/30 dark:bg-black/40 border-purple-700/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 justify-start pl-3"
+                    >
+                    <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-purple-800/60">
+                    <SelectItem value="1d">1 Dia</SelectItem>
+                    <SelectItem value="7d">1 Semana</SelectItem>
+                    <SelectItem value="30d">1 Mês</SelectItem>
+                    <SelectItem value="90d">3 Meses</SelectItem>
+                    <SelectItem value="1y">1 Ano</SelectItem>
+                    </SelectContent>
+                </Select>
+                </div>
+                <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 bg-background/30 dark:bg-black/40 border-purple-700/50 hover:bg-purple-900/20 hover:border-purple-600/70"
+                onClick={forceUpdateData}
+                disabled={loading}
+                title="Forçar atualização dos dados"
+                >
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="custom" className="mt-4">
+            <CardDescription className="mb-4">
+              Selecione um intervalo de datas para visualizar o histórico de preços do Bitcoin.
+            </CardDescription>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-start-date">Data Inicial</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="custom-start-date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !customStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customStartDate ? formatDateFn(customStartDate, "dd/MM/yyyy") : <span>Escolha uma data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customStartDate}
+                      onSelect={setCustomStartDate}
+                      disabled={(date) => date > new Date() || date < new Date("2009-01-03")} // Bitcoin genesis block
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-end-date">Data Final</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="custom-end-date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !customEndDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customEndDate ? formatDateFn(customEndDate, "dd/MM/yyyy") : <span>Escolha uma data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customEndDate}
+                      onSelect={setCustomEndDate}
+                      disabled={(date) => date > new Date() || date < (customStartDate || new Date("2009-01-03"))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <Button 
+                onClick={fetchCustomHistoricalData} 
+                disabled={customLoading || !customStartDate || !customEndDate}
+                className="w-full lg:w-auto self-end"
+              >
+                {customLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />} 
+                Buscar
+              </Button>
+            </div>
+
+            {customLoading && (
+              <div className="h-80 flex items-center justify-center">
+                <Skeleton className="h-full w-full" />
+              </div>
+            )}
+            {!customLoading && customError && (
+              <div className="h-80 flex flex-col items-center justify-center text-center p-4">
+                <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+                <p className="text-destructive text-lg font-semibold">Erro ao carregar dados</p>
+                <p className="text-muted-foreground">{customError}</p>
+                <Button onClick={fetchCustomHistoricalData} variant="outline" className="mt-4">
+                  Tentar Novamente
+                </Button>
+              </div>
+            )}
+            {!customLoading && !customError && customChartData.length > 0 && (
+              <ResponsiveContainer width="100%" height={isMobile ? 300 : 400}>
+                <ComposedChartComponent data={customChartData} type={chartType} currency={currency} />
+              </ResponsiveContainer>
+            )}
+            {!customLoading && !customError && customChartData.length === 0 && !customStartDate && (
+               <div className="h-80 flex flex-col items-center justify-center text-center p-4">
+                <Search className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-semibold">Realize uma Busca</p>
+                <p className="text-muted-foreground">Selecione as datas de início e fim e clique em "Buscar".</p>
+              </div>
+            )}
+            {/* Adicionar informações de fonte e cache para busca personalizada */}
+            {!customLoading && customChartData.length > 0 && (
+              <div className="text-xs text-muted-foreground mt-2 text-right">
+                Fonte: {customDataSource} {customIsUsingCache ? "(Cache)" : "(Ao Vivo)"}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardHeader>
 
       {/* SEÇÃO DE STATS ADICIONADA ABAIXO DO HEADER E ACIMA DO GRÁFICO */}
-      {!loading && chartData.length > 0 && (
+      {((activeTab === 'periods' && !loading && chartData.length > 0) || 
+        (activeTab === 'custom' && !customLoading && customChartData.length > 0)) && (
         <div className="px-6 pb-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <StatDisplayCard 
             title="Menor Preço" 
@@ -442,21 +648,32 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       <CardContent className="pt-0 pb-6 px-6">
         {/* Gráfico */}
         <div className="h-[300px] sm:h-[400px]">
-          {loading ? (
+          {(activeTab === 'periods' && loading) || (activeTab === 'custom' && customLoading) ? (
             <div className="flex h-full w-full items-center justify-center">
               <Skeleton className="h-full w-full" />
             </div>
-          ) : chartData.length === 0 ? (
+          ) : (activeTab === 'periods' && chartData.length === 0) || (activeTab === 'custom' && customChartData.length === 0 && !customError) ? (
             <div className="flex h-full w-full flex-col items-center justify-center text-center">
               <Info className="h-10 w-10 text-muted-foreground" />
-              <p className="mt-2 text-lg font-medium">Nenhum dado disponível</p>
-              <p className="text-sm text-muted-foreground">
-                Não foi possível carregar dados do Bitcoin. Tente novamente mais tarde.
+              <p className="mt-2 text-lg font-medium">
+                {activeTab === 'custom' && !customStartDate && !customEndDate ? "Selecione um período para buscar" : "Nenhum dado disponível"}
               </p>
+              <p className="text-sm text-muted-foreground">
+                {activeTab === 'custom' && !customStartDate && !customEndDate 
+                  ? "Use os seletores acima para definir um intervalo de datas."
+                  : "Não foi possível carregar dados. Tente novamente ou ajuste o período."
+                }
+              </p>
+            </div>
+          ) : (activeTab === 'custom' && customError) ? (
+            <div className="flex h-full w-full flex-col items-center justify-center text-center">
+              <AlertTriangle className="h-10 w-10 text-red-500" />
+              <p className="mt-2 text-lg font-medium">Erro ao Carregar Dados</p>
+              <p className="text-sm text-red-400">{customError}</p>
             </div>
           ) : chartType === "line" ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
+              <LineChart data={activeTab === 'periods' ? chartData : customChartData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis
                   dataKey="date"
@@ -492,7 +709,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                   activeDot={{ r: 6 }}
                 />
                 <ReferenceLine 
-                  y={chartData[0].price} 
+                  y={(activeTab === 'periods' ? chartData[0]?.price : customChartData[0]?.price) ?? 0} 
                   stroke="hsl(var(--muted-foreground))" 
                   strokeDasharray="3 3"
                 />
@@ -500,7 +717,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
+              <AreaChart data={activeTab === 'periods' ? chartData : customChartData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis
                   dataKey="date"
@@ -543,7 +760,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                   activeDot={{ r: 6 }}
                 />
                 <ReferenceLine 
-                  y={chartData[0].price} 
+                  y={(activeTab === 'periods' ? chartData[0]?.price : customChartData[0]?.price) ?? 0} 
                   stroke="hsl(var(--muted-foreground))" 
                   strokeDasharray="3 3"
                 />
@@ -552,14 +769,15 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           )}
         </div>
 
-        {!loading && chartData.length > 0 && (
+        {((activeTab === 'periods' && !loading && chartData.length > 0) || 
+          (activeTab === 'custom' && !customLoading && customChartData.length > 0)) && (
           <div className="mt-4 flex flex-col items-center gap-1 text-xs text-muted-foreground">
             <div className="text-center">
-              Volatilidade Anualizada: <span className="font-semibold">{annualizedVolatility.toFixed(2)}%</span>
+              Volatilidade Anualizada: <span className="font-semibold">{calculateAnnualizedVolatility(activeTab === 'periods' ? chartData : customChartData).toFixed(2)}%</span>
             </div>
             <div className="text-center text-xs opacity-70">
               Última atualização: {new Date().toLocaleString()}
-              {isUsingCachedData && <span className="ml-1 text-yellow-500">(Usando dados em cache)</span>}
+              {activeTab === 'periods' && isUsingCachedData && <span className="ml-1 text-yellow-500">(Usando dados em cache)</span>}
             </div>
           </div>
         )}
