@@ -1,58 +1,80 @@
-# Tech Context: Raid Bitcoin Toolkit
+# Tech Context: BTC-Conversor (Raid Bitcoin Toolkit)
 
-## 1. Stack Tecnológica Principal
+## 1. Frontend
 
-*   **Frontend Framework:** Next.js (React)
-*   **Linguagem de Programação:** TypeScript
-*   **Estilização:** Tailwind CSS
-*   **Componentes UI:** Shadcn/UI (construído sobre Radix UI e Tailwind CSS)
-*   **Backend (Autenticação e API de Dados):** Supabase (utilizando PostgreSQL, GoTrue para autenticação, e Functions para APIs customizadas, se necessário)
-*   **Gráficos:** Recharts
-*   **Gerenciamento de Estado:** Principalmente Context API do React e hooks customizados. O estado de autenticação é gerenciado com um `AuthProvider` e `useAuth`.
-*   **Armazenamento Local (Client-Side):** `localStorage` para persistir dados de calculadora (aportes, lucros), preferências do usuário (unidade de conversão) e sessão de autenticação (para recuperação rápida).
-*   **Comunicação entre Abas:** `BroadcastChannel` API para sincronizar o estado de autenticação entre múltiplas abas abertas.
-*   **Utilitários e Bibliotecas Adicionais:**
-    *   `date-fns`: Para manipulação e formatação de datas.
-    *   `lucide-react`: Para ícones SVG.
-    *   `exceljs`: Para exportação de dados para formato Excel (.xlsx).
-    *   `file-saver`: Para facilitar o download de arquivos no cliente.
-    *   `uuid`: Para geração de IDs únicos.
+*   **Framework:** Next.js (~15.2.4)
+*   **Linguagem:** TypeScript
+*   **UI Library:** Shadcn/UI (construída sobre Radix UI e Tailwind CSS)
+    *   Componentes utilizados incluem: `Accordion`, `AlertDialog`, `Avatar`, `Button`, `Card`, `Dialog`, `DropdownMenu`, `Input`, `Label`, `Select`, `Sheet`, `Sonner` (para toasts/notificações via `Toaster`), `Tabs`, `Tooltip`, etc.
+*   **Estilização:** Tailwind CSS (~3.4.17)
+    *   Utilitários: `clsx`, `tailwind-merge`, `tailwindcss-animate`.
+*   **Estado Global/Gerenciamento de Estado:**
+    *   React Context API (inferido, comum com Next.js, ex: `AuthProviderClient`, `ThemeProvider`).
+    *   `@supabase/ssr` e `@supabase/supabase-js` para gerenciamento de estado de autenticação e dados do Supabase no cliente e servidor.
+*   **Formulários:** React Hook Form (`react-hook-form` ~7.54.1) com Zod (`zod` ~3.24.1) para validação de schemas (`@hookform/resolvers`).
+*   **Gráficos:** Recharts (`recharts` ~2.15.0)
+*   **Ícones:** Lucide React (`lucide-react` ~0.508.0)
+*   **Temas:** `next-themes` (~0.4.4) para gerenciamento de tema (embora o projeto esteja forçando o tema escuro).
+*   **Animações/Transições:**
+    *   `tailwindcss-animate`
+    *   Componente customizado `PageTransition`.
+    *   `embla-carousel-react` para carrosséis.
+*   **Utilitários React:**
+    *   `react-day-picker` para seleção de datas.
+    *   `react-resizable-panels` para painéis redimensionáveis.
+    *   `cmdk` para interfaces de comando.
+    *   `input-otp` para campos de One-Time Password.
+    *   `vaul` para drawers responsivos.
 
-## 2. Arquitetura Geral
+## 2. Backend (Supabase & Next.js API Routes)
 
-*   **Monorepo (Implícito):** O projeto parece estar estruturado de forma que o frontend e as interações com o backend (Supabase) estão contidos no mesmo codebase Next.js.
-*   **Client-Side Rendering (CSR) e Server-Side Rendering (SSR)/Static Site Generation (SSG):** Next.js permite uma abordagem híbrida. Componentes de UI são primariamente renderizados no cliente (`"use client"`). Páginas podem ser pré-renderizadas (SSG/SSR) ou renderizadas no cliente.
-*   **Estrutura de Diretórios:**
-    *   `app/`: Contém as rotas principais da aplicação (App Router do Next.js).
-        *   `app/api/`: Endpoints de API (Route Handlers do Next.js), utilizados para buscar dados de cotação e interagir com Supabase.
-        *   `app/(rotas)/page.tsx`: Componentes de página.
-    *   `components/`: Componentes React reutilizáveis.
-        *   `components/ui/`: Componentes base do Shadcn/UI.
-    *   `hooks/`: Hooks customizados para lógica reutilizável (ex: `useAuth`, `useSupabaseRetry`, `useIsMobile`).
-    *   `lib/`: Utilitários, configuração de clientes (Supabase), e lógica de API (client-side e server-side).
-    *   `public/`: Arquivos estáticos.
-*   **Gerenciamento de Estado de Autenticação:**
-    *   `AuthProvider` (`@/hooks/use-auth.tsx` e `@/context/auth-context.tsx` - parece haver duas implementações ou uma refatoração em progresso, sendo `@/hooks/use-auth.tsx` a mais recente e robusta com `useSupabaseRetry` e `BroadcastChannel`).
-    *   `RequireAuth` (`@/components/require-auth.tsx`): Componente de ordem superior (HOC) para proteger rotas que exigem autenticação.
-    *   `AuthProviderClient` (`@/components/auth-provider-client.tsx`): Garante que o `AuthProvider` seja inicializado corretamente no lado do cliente, gerenciando a carga das credenciais do Supabase.
-*   **Comunicação com API Externa (Cotação Bitcoin):**
-    *   Uma API externa (provavelmente CoinGecko ou similar, não explicitamente definida mas inferida pela funcionalidade) é consumida para obter os preços atuais do Bitcoin.
-    *   Há um mecanismo de cache no lado do servidor e/ou cliente para evitar chamadas excessivas e fornecer dados de fallback (`@/lib/api.ts`, `fetchAllAppData`).
+*   **Plataforma Backend-as-a-Service (BaaS):** Supabase
+    *   **Autenticação:** Supabase Auth (email/senha, gerenciamento de sessão, JWTs).
+    *   **Banco de Dados:** Supabase (PostgreSQL) para armazenar perfis de usuários e, potencialmente, dados da calculadora de lucros e configurações.
+        *   Tabela `profiles` com RLS (Row Level Security).
+        *   Função SQL `handle_new_user` e trigger `on_auth_user_created` para sincronizar `auth.users` com `public.profiles`.
+    *   **APIs do Supabase:** Utilização do cliente `@supabase/supabase-js` para interagir com os serviços do Supabase.
+*   **Next.js API Routes (`app/api/`)**
+    *   `/api/init-db`: Rota para diagnóstico e inicialização do banco de dados (verifica tabelas, cria se necessário).
+    *   `/api/bitcoin/price`, `/api/bitcoin/historical`: Prováveis rotas para servir como proxy ou cache para as APIs externas de dados do Bitcoin, gerenciando chaves de API e lógica de cache no servidor.
 
-## 3. Principais Decisões Técnicas
+## 3. APIs Externas
 
-*   **Next.js (App Router):** Escolhido pela sua capacidade de renderização híbrida, roteamento baseado em arquivos, e ecossistema robusto para desenvolvimento full-stack com JavaScript/TypeScript.
-*   **Supabase:** Selecionado como backend-as-a-service para simplificar a autenticação, gerenciamento de banco de dados (PostgreSQL) e criação de APIs, permitindo foco no frontend.
-*   **Shadcn/UI:** Adotado para um desenvolvimento rápido de interfaces de usuário modernas e acessíveis, com a flexibilidade do Tailwind CSS.
-*   **TypeScript:** Utilizado para adicionar tipagem estática, melhorando a manutenibilidade e reduzindo erros em tempo de desenvolvimento.
-*   **Armazenamento Local:** `localStorage` é usado extensivamente para persistência de dados da calculadora e preferências do usuário, visando uma experiência offline-first para essas funcionalidades e reduzindo a dependência de um backend para tudo.
-*   **Padrão Singleton para Cliente Supabase:** Implementado em `lib/supabase.ts` para garantir uma única instância do cliente Supabase por contexto de navegador, com coordenação entre abas via `BroadcastChannel` para evitar conflitos e sincronizar o estado de autenticação.
-*   **Hooks Customizados:** Abstração de lógicas complexas e reutilizáveis, como `useSupabaseRetry` para lidar com a conectividade do Supabase e `useAuth` para o estado de autenticação.
+*   **CoinGecko:** Para preços atuais e dados históricos do Bitcoin.
+*   **Exchange Rate API:** Para taxas de câmbio (ex: USD/BRL).
 
-## 4. Considerações de Performance e UX
+## 4. Ferramentas de Desenvolvimento e Build
 
-*   **Carregamento Dinâmico:** Componentes mais pesados ou específicos de cliente (como `BitcoinConverter`) são carregados dinamicamente (`next/dynamic`) para melhorar o tempo de carregamento inicial.
-*   **Fallback e Cache de API:** Para dados de cotação, há um sistema de fallback para dados em cache caso a API externa falhe, garantindo que o aplicativo continue funcional.
-*   **Responsividade:** Uso de Tailwind CSS e hooks como `useIsMobile` para adaptar a interface a diferentes tamanhos de tela.
-*   **Feedback ao Usuário:** Uso de `toast` notifications para informar o usuário sobre o status de operações (login, logout, erros, atualizações de cotação).
-*   **Indicadores de Carregamento:** Componentes de esqueleto (`Skeleton`) e ícones de carregamento (`Loader2`) são usados para indicar atividade e melhorar a percepção de performance. 
+*   **Gerenciador de Pacotes:** `npm` (inferido pelo `package-lock.json` na listagem do diretório, embora `pnpm-lock.yaml` também esteja presente, o `package.json` tem scripts `npm`).
+*   **Build Tool:** Next.js (`next build`).
+*   **Servidor de Desenvolvimento:** Next.js (`next dev`).
+*   **Linting:** ESLint (configurado via `next lint`).
+*   **TypeScript:** (~5.8.3) para tipagem estática.
+*   **Controle de Versão:** Git.
+
+## 5. Deploy
+
+*   **Plataforma:** Vercel (configurado em `vercel.json` e instruções no `README.md`).
+*   **Variáveis de Ambiente:** Utilização de `.env.local` para desenvolvimento e configuração na Vercel para produção/preview (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+
+## 6. Funcionalidades Adicionais e Bibliotecas
+
+*   **Exportação para Excel:** `exceljs` (~4.3.0) e `file-saver` (~2.0.5) para gerar e baixar arquivos Excel.
+*   **Manipulação de Datas:** `date-fns` (~4.1.0).
+*   **Geração de PDF/Screenshots (Potencial, via Puppeteer):**
+    *   `@sparticuz/chromium` (~133.0.0)
+    *   `puppeteer` (~24.8.2) / `puppeteer-core` (~24.8.2)
+    *   *Nota: A presença dessas dependências sugere a possibilidade de geração de PDFs ou screenshots no backend, embora não explicitamente mencionado nas funcionalidades principais. Pode ser para relatórios ou outras features.*
+
+## 7. Arquitetura Geral
+
+*   **Monorepo (implícito):** Todo o código (frontend e backend leve com API routes) está no mesmo projeto Next.js.
+*   **Server-Side Rendering (SSR) e Static Site Generation (SSG):** Capacidades do Next.js, com foco em componentes cliente (`"use client";`) para interatividade.
+*   **Component-Based Architecture:** Utilização de componentes React reutilizáveis.
+*   **Middleware:** `middleware.ts` para lógica de roteamento e proteção de rotas.
+
+## 8. Considerações de Segurança
+
+*   **RLS (Row Level Security)** no Supabase para proteger dados na tabela `profiles`.
+*   Variáveis de ambiente para chaves de API e credenciais do Supabase.
+*   Proteção de rotas via autenticação. 

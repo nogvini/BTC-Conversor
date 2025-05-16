@@ -1,12 +1,18 @@
-# Tarefas Detalhadas - Raid Bitcoin Toolkit
+<!-- 
+AVISO: Este arquivo precisa ser reavaliado e possivelmente reestruturado ou arquivado.
+O `tasks.md` principal foi recentemente atualizado e deve ser a fonte primária para o planejamento de tarefas.
+Data da Revisão: YYYY-MM-DD (Preencher data atual)
+-->
 
-Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit, com ênfase em unidades menores e mais gerenciáveis. As tarefas estão organizadas por área funcional e prioridade, com estimativas de complexidade.
+# Tarefas Detalhadas - Raid Bitcoin Toolkit (A Ser Reestruturado)
 
-## Sistema de Autenticação
+Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit. Este planejamento está sendo redefinido.
+
+## Sistema de Autenticação (Exemplo de Estrutura - Reavaliar Todas as Tarefas)
 
 ### A1.1: Investigação e Otimização do Delay no Login
-- **Complexidade**: Alta
-- **Prioridade**: Crítica
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A1.1.1: Profiling do Login
 - [ ] Adicionar timestamps nos pontos-chave do processo de login para identificar atrasos
@@ -29,8 +35,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Testar performance de carregamento após alterações
 
 ### A1.2: Correção do Carregamento Infinito na Home
-- **Complexidade**: Média
-- **Prioridade**: Crítica
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A1.2.1: Análise do Problema
 - [ ] Reproduzir o problema em ambiente de desenvolvimento
@@ -48,8 +54,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Implementar recuperação de erros durante inicialização
 
 ### A1.3: Melhoria de Feedback Visual na Autenticação
-- **Complexidade**: Baixa
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A1.3.1: Indicadores de Carregamento
 - [ ] Adicionar componente de spinner durante autenticação
@@ -67,8 +73,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Melhorar design visual dos estados de validação
 
 ### A1.4: Otimização do Padrão Singleton
-- **Complexidade**: Alta
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A1.4.1: Refatoração do Singleton
 - [ ] Revisar implementação do padrão Singleton para o cliente Supabase
@@ -86,8 +92,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Validar comportamento em diferentes navegadores
 
 ### A1.5: Funcionalidade "Lembrar-me"
-- **Complexidade**: Média
-- **Prioridade**: Média
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A1.5.1: UI para "Lembrar-me"
 - [ ] Adicionar checkbox no formulário de login
@@ -104,11 +110,11 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Implementar lista de dispositivos logados (opcional)
 - [ ] Adicionar opção para encerrar sessões remotamente
 
-## Calculadora de Lucros - Múltiplos Relatórios
+## Calculadora de Lucros - Múltiplos Relatórios (Exemplo de Estrutura - Reavaliar Todas as Tarefas)
 
 ### A2.1: Interface para Criação e Seleção de Relatórios
-- **Complexidade**: Média
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A2.1.1: Modal de Criação de Relatórios
 - [ ] Implementar UI do modal de criação
@@ -126,8 +132,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Adicionar funcionalidade de duplicar relatório existente
 
 ### A2.2: Sistema de Armazenamento para Múltiplos Relatórios
-- **Complexidade**: Alta
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A2.2.1: Estrutura de Dados
 - [ ] Projetar esquema de dados para múltiplos relatórios
@@ -145,8 +151,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Desenvolver reconciliação de conflitos
 
 ### A2.3: Visualização Comparativa entre Relatórios
-- **Complexidade**: Alta
-- **Prioridade**: Média
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A2.3.1: Gráficos Comparativos
 - [ ] Desenvolver gráficos para comparar performance entre relatórios
@@ -164,8 +170,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Implementar visualização em tela cheia
 
 ### A2.4: Adaptação das Funcionalidades de Importação/Exportação
-- **Complexidade**: Média
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A2.4.1: Exportação por Relatório
 - [ ] Adaptar sistema atual para exportar relatórios específicos
@@ -182,11 +188,11 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Adicionar preview dos dados antes da importação
 - [ ] Implementar validação mais robusta dos dados
 
-## Otimizações de Performance
+## Otimizações de Performance (Exemplo de Estrutura - Reavaliar Todas as Tarefas)
 
 ### A3.1: Redução do Tempo de Carregamento Inicial
-- **Complexidade**: Média
-- **Prioridade**: Alta
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A3.1.1: Code Splitting
 - [ ] Implementar dynamic imports para componentes grandes
@@ -204,8 +210,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Considerar uso de técnicas de streaming SSR do Next.js
 
 ### A3.2: Renderização de Listas e Tabelas
-- **Complexidade**: Alta
-- **Prioridade**: Média
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A3.2.1: Virtualização
 - [ ] Implementar virtualização para listas longas
@@ -223,8 +229,8 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Usar React DevTools para identificar e resolver renderizações desnecessárias
 
 ### A3.3: Sistema de Cache
-- **Complexidade**: Alta
-- **Prioridade**: Média
+- **Complexidade**: A Ser Definido
+- **Prioridade**: A Ser Definido
 
 #### A3.3.1: Cache de Cotações
 - [ ] Implementar sistema de cache com TTL (time-to-live)
@@ -241,97 +247,6 @@ Este documento detalha as tarefas para o desenvolvimento do Raid Bitcoin Toolkit
 - [ ] Implementar estratégias de cache para APIs
 - [ ] Desenvolver experiência offline básica
 
-## Próximos Sprints
+## Próximos Sprints (A Serem Definidos no Novo Planejamento)
 
-### Sprint 1: Autenticação e Performance Crítica (5 dias)
-- Implementar A1.1.1 a A1.1.3: Profiling e otimizações iniciais do login
-- Implementar A1.2.1 a A1.2.3: Correção do carregamento infinito
-- Implementar A1.3.1: Adicionar indicadores de carregamento
-
-### Sprint 2: Múltiplos Relatórios - Fundação (5 dias)
-- Implementar A2.1.1 a A2.1.2: Modal de criação e seletor de relatórios
-- Implementar A2.2.1: Projetar e implementar estrutura de dados
-- Implementar A3.1.1: Code splitting inicial
-
-### Sprint 3: Experiência do Usuário e Otimizações (5 dias)
-- Implementar A1.3.2 a A1.3.3: Melhorias completas de feedback visual
-- Implementar A2.2.2: Persistência no localStorage
-- Implementar A3.2.1: Virtualização para listas longas
-
-### Sprint 4: Finalização de Múltiplos Relatórios (5 dias)
-- Implementar A2.1.3: Gerenciamento completo de relatórios
-- Implementar A2.3.1 a A2.3.2: Visualizações comparativas
-- Implementar A2.4.1 a A2.4.2: Adaptação de importação/exportação
-
-## Plano Detalhado: Correção Urgente da Navegação Entre Abas
-
-### Contexto do Problema
-Após a remoção do componente `SafeNavigationBar` duplicado do `BitcoinConverter`, as abas não estão sendo carregadas corretamente quando o usuário clica nas opções do menu de navegação (Conversor, Gráficos, Calculadora). A mudança que resolveu o problema de menu duplicado quebrou a comunicação entre a navegação e o conteúdo das abas.
-
-### Causas Prováveis
-1. **Perda do estado compartilhado**: O hook `useActiveTab()` utilizado em ambos (navegação e conteúdo) não está sincronizando corretamente.
-2. **Falha na atualização do conteúdo**: O componente `BitcoinConverter` não está respondendo às mudanças de parâmetros de URL.
-3. **Arquitetura de navegação inconsistente**: A refatoração removeu a navegação interna, mas o `BitcoinConverter` ainda espera que exista uma navegação dentro dele.
-
-### Abordagem de Correção
-
-#### Passo 1: Diagnóstico Detalhado
-- Verificar como o hook `useActiveTab()` é implementado e se ele está funcionando corretamente com a mudança de parâmetros URL.
-- Verificar se o componente `BitcoinConverter` ainda espera renderizar um `TabsContent` baseado no valor de `activeTab`.
-- Verificar se existe algum conflito entre a navegação em `app/page.tsx` e a lógica de abas no `BitcoinConverter`.
-
-#### Passo 2: Implementação da Correção (Opções)
-
-**Opção A: Corrigir a Estrutura Atual**
-- Manter a navegação principal em `app/page.tsx` 
-- Modificar o componente `BitcoinConverter` para:
-  1. Escutar corretamente as mudanças de URL/parâmetros
-  2. Ajustar a renderização de conteúdo baseado no valor atualizado de `activeTab`
-  3. Usar um efeito específico para reagir a mudanças no parâmetro 'tab' da URL
-
-**Opção B: Reestruturar a Navegação**
-- Mover toda a lógica de navegação para `app/page.tsx`
-- Criar componentes separados para cada aba (ConverterContent, ChartContent, CalculatorContent)
-- Renderizar o componente correto com base no valor do parâmetro 'tab', sem depender da lógica interna do `BitcoinConverter`
-
-**Opção C: Voltar à Abordagem Original com Ajustes**
-- Restaurar o `SafeNavigationBar` dentro do `BitcoinConverter` mas com uma flag para desativar a renderização visual
-- Manter apenas a lógica de gerenciamento de abas, sem duplicar visualmente os menus
-
-#### Passo 3: Testes Abrangentes
-- Testar a navegação em todos os cenários (desktop/mobile)
-- Verificar se o conteúdo correto é exibido para cada aba
-- Verificar se o histórico de navegação do navegador funciona corretamente com os botões voltar/avançar
-- Garantir que não há efeitos colaterais em outras funcionalidades
-
-### Implementação Recomendada
-A **Opção A** parece a mais direta e de menor impacto, uma vez que preserva a estrutura atual. O problema provavelmente está na sincronização do estado, não na arquitetura geral.
-
-### Mudanças de Código Necessárias
-
-1. **Modificar o hook `useActiveTab`** para garantir que ele reage corretamente às mudanças de URL:
-```tsx
-// Adicionar force update
-useEffect(() => {
-  const tabParam = searchParams.get('tab') as Tab;
-  if (tabParam && (tabParam === 'chart' || tabParam === 'calculator' || tabParam === 'converter')) {
-    setActiveTab(tabParam);
-  }
-}, [searchParams]); // Dependência simplificada para reagir apenas a mudanças nos parâmetros
-```
-
-2. **Ajustar o `BitcoinConverter`** para garantir que ele sincroniza o estado corretamente:
-```tsx
-// Adicionar um useEffect específico para forçar recarregamento do conteúdo
-useEffect(() => {
-  // Forçar atualização do conteúdo quando activeTab mudar
-  console.log("Tab changed to:", activeTab);
-  // Possivelmente adicionar um forceUpdate ou manipulação específica aqui
-}, [activeTab]);
-```
-
-### Métricas de Sucesso
-- Navegação funcionando em todos os botões e abas
-- Não há menus duplicados
-- Transições entre abas são suaves e previsíveis
-- Dados são preservados ao navegar entre abas 
+Este arquivo servirá de base para o novo detalhamento de tarefas e será atualizado conforme o planejamento evoluir. 

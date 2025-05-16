@@ -271,54 +271,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabaseClient, isConnected])
 
   // Memoizar funções de autenticação para evitar recriações a cada renderização
-  const signUp = useCallback(async (email: string, password: string, name?: string) => {
-    try {
-      if (!supabaseClient) throw new Error('Cliente Supabase não disponível')
-      
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name
-          }
-        }
-      })
-
-      if (error) throw error
-
-      // Se o cadastro for bem-sucedido, criar perfil do usuário
-      if (data.user) {
-        try {
-          const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .upsert([
-              {
-                id: data.user.id,
-                name: name || '',
-                email: email,
-                updated_at: new Date().toISOString()
-              }
-            ], { onConflict: 'id' })
-
-          if (profileError) {
-            console.error('Erro ao criar perfil durante cadastro:', profileError)
-            // Não retornar erro aqui, para permitir que o usuário continue com o login
-          } else {
-            console.log('Perfil criado com sucesso durante cadastro para:', email)
-          }
-        } catch (profileError) {
-          console.error('Erro ao criar perfil durante cadastro:', profileError)
-          // Continuar mesmo sem criar o perfil
-        }
+  const signUp = useCallback(
+    async (email: string, password: string, name?: string) => {
+      console.log(`Tentando cadastro com email: ${email}`);
+      if (!supabaseClient) {
+        console.error('Erro no signUp: Cliente Supabase não disponível');
+        toast({ title: "Erro", description: "Cliente não disponível", variant: "destructive" });
+        return { error: new Error('Cliente não disponível') };
       }
 
-      return { error: null }
-    } catch (error) {
-      console.error('Erro no cadastro:', error)
-      return { error: error as Error }
-    }
-  }, [supabaseClient])
+      try {
+        setSession(prev => ({ ...prev, isLoading: true, error: null }));
+
+        // Primeiro, verificar se o email já está autenticado ou existe um perfil
+        // Esta é uma verificação PRELIMINAR e pode não pegar todos os casos,
+        // mas ajuda a evitar chamadas desnecessárias ao signUp que podem ter comportamentos confusos.
+        // A verificação real se o usuário já existe é tratada pelo erro do supabaseClient.auth.signUp.
+
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { // Opcional: passar metadados do usuário que podem ser usados no trigger
+              name: name || '',
+            }
+          }
+        });
+
+        if (error) {
+          console.error('Erro no signUp da API do Supabase:', error);
+          // Melhorar a detecção de email já existente
+          if (error.message && (error.message.toLowerCase().includes('user already registered') || error.message.toLowerCase().includes('email rate limit exceeded') || (error.message.toLowerCase().includes('already exists') && error.message.toLowerCase().includes('email')) )) {
+            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.');
+            setSession(prev => ({ ...prev, error: userExistsError, isLoading: false }));
+            toast({ title: "Erro no Cadastro", description: userExistsError.message, variant: "destructive" });
+            return { error: userExistsError };
+          }
+          // Usar handleAuthError para outras mensagens de erro
+          const friendlyMessage = handleAuthError(error, 'Ocorreu um erro durante o cadastro.');
+          setSession(prev => ({ ...prev, error: new Error(friendlyMessage), isLoading: false }));
+          toast({ title: "Erro no Cadastro", description: friendlyMessage, variant: "destructive" });
+          return { error: new Error(friendlyMessage) };
+        }
+
+        // Se data.user existe mas data.session é null, significa que o cadastro requer confirmação por email.
+        // Este é o fluxo esperado para novos usuários.
+        if (data.user && !data.session) {
+          console.log('Cadastro bem-sucedido, aguardando confirmação por email para:', email);
+          toast({
+            title: "Cadastro iniciado!",
+            description: "Enviamos um email de confirmação para você. Por favor, verifique sua caixa de entrada.",
+            duration: 7000,
+          });
+          // O trigger handle_new_user no Supabase deve criar o perfil.
+          // Não é necessário upsert manual aqui se o trigger estiver funcionando.
+          // O estado isLoading será setado para false pelo onAuthStateChange ou fetchSession.
+          setSession(prev => ({ ...prev, isLoading: false })); // Indica que o processo de signUp terminou no cliente
+          return { error: null };
+        }
+        
+        // Caso inesperado: usuário e sessão existem imediatamente após signUp (ex: auto-confirmação ligada no Supabase)
+        if (data.user && data.session) {
+            console.log('Cadastro e login imediatos (auto-confirmação de email pode estar ativa):', email);
+            // A lógica do onAuthStateChange ou fetchSession deve lidar com o SIGNED_IN e carregar/criar perfil.
+            // Apenas finalizamos o estado de carregamento aqui.
+            setSession(prev => ({ ...prev, isLoading: false }));
+            // O toast de sucesso do login será tratado pelo signIn ou onAuthStateChange
+            return { error: null };
+        }
+
+        // Se chegou aqui, algo muito inesperado aconteceu.
+        console.warn('Situação inesperada no signUp:', { data, error });
+        const unexpectedError = new Error('Resposta inesperada do servidor de autenticação durante o cadastro.');
+        setSession(prev => ({ ...prev, error: unexpectedError, isLoading: false }));
+        toast({ title: "Erro no Cadastro", description: unexpectedError.message, variant: "destructive" });
+        return { error: unexpectedError };
+
+      } catch (error) { // Este catch lida com erros lançados explicitamente no try (ex: new Error criados acima)
+        console.error('Erro capturado no bloco catch final do signUp:', error);
+        // O estado da sessão (isLoading: false, error) e o toast já devem ter sido setados antes do throw.
+        // Apenas retornamos o erro.
+        return { error: error instanceof Error ? error : new Error('Erro desconhecido no cadastro') };
+      }
+    },
+    [supabaseClient, toast]
+  );
 
   // Otimizando a função signIn para reduzir tempo de resposta
   const signIn = useCallback(async (email: string, password: string) => {
@@ -751,4 +788,23 @@ export function useAuth() {
   }
   
   return context
+}
+
+// Função auxiliar para lidar com erros de autenticação
+function handleAuthError(error: any, defaultMessage: string): string {
+  if (error instanceof Error) {
+    if (error.message.includes('Email not confirmed')) {
+      return 'Email não confirmado. Por favor, verifique seu email para ativar sua conta.';
+    }
+    if (error.message.includes('Invalid login credentials')) {
+      return 'Email ou senha incorretos.';
+    }
+    if (error.message.includes('Este email já está cadastrado')) { // Para pegar o erro customizado
+        return error.message;
+    }
+    // Adicionar mais tratamentos de erros específicos do Supabase aqui
+    // como 'Email rate limit exceeded' ou outros.
+    return error.message; // Retorna a mensagem de erro original se não for um dos casos acima
+  }
+  return defaultMessage; // Mensagem padrão se o erro não for uma instância de Error
 } 

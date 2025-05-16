@@ -1,61 +1,57 @@
-# Active Context: Raid Bitcoin Toolkit
+# Active Context: BTC-Conversor (Raid Bitcoin Toolkit)
 
-## 1. Estado Atual do Desenvolvimento
+**Data da Última Atualização:** 2024-07-29
 
-O Raid Bitcoin Toolkit está em um estágio avançado de desenvolvimento, com as três funcionalidades principais (Conversor, Gráficos e Calculadora) já implementadas e operacionais. Recentemente, foram realizadas melhorias significativas no sistema de autenticação para garantir consistência entre múltiplas abas abertas, implementando um padrão Singleton para o cliente Supabase e utilizando a API BroadcastChannel para sincronização.
+## 1. Resumo do Estado Atual do Projeto
 
-## 2. Problemas Atuais
+O projeto BTC-Conversor (Raid Bitcoin Toolkit) passou por uma refatoração completa de seu `@memory-bank` para garantir que toda a documentação interna reflita com precisão o estado atual do código e dos objetivos. A aplicação está funcional, com as seguintes características principais implementadas:
 
-### 2.1. Delay Considerável no Login
+*   **Core:** Conversor de Bitcoin, Gráficos Históricos, Calculadora de Lucros (funcionalidade básica).
+*   **Autenticação:** Sistema completo de Login/Cadastro com Supabase, incluindo criação de perfis e verificação de email.
+*   **Gerenciamento de Usuário:** Páginas de Perfil e Configurações.
+*   **Admin:** Página de Diagnóstico para o Supabase.
+*   **UI/UX:** Tema escuro forçado, componentes `shadcn/ui`, responsividade básica, navegação principal e mobile, notificações (toasts), indicadores de carregamento.
+*   **Tecnologias Chave:** Next.js, TypeScript, Supabase, TailwindCSS, Recharts, React Hook Form, Zod.
 
-**Descrição:** Ao clicar para efetuar login a partir da tela inicial, existe um delay considerável até que o processo seja concluído. Isso afeta negativamente a experiência do usuário.
+O `README.md` está atualizado e fornece boas instruções de setup e deploy.
+Os arquivos do `@memory-bank` (`projectTree.md`, `projectbrief.md`, `productContext.md`, `techContext.md`, `systemPatterns.md`, `componentCatalog.md`, `tasks.md`, `progress.md`) foram todos revisados e atualizados.
 
-**Possíveis Causas:**
-1. **Inicialização Ineficiente do AuthProvider:** O processo de inicialização do AuthProvider pode estar realizando operações síncronas desnecessárias ou bloqueando a thread principal.
-2. **Carga Excessiva no Momento do Login:** Pode haver múltiplas chamadas ao Supabase ou outras operações pesadas durante o processo de login.
-3. **Problemas na Implementação do Singleton/BroadcastChannel:** A nova implementação de comunicação entre abas pode estar introduzindo overhead desnecessário durante a autenticação inicial.
-4. **Feedback Visual Insuficiente:** Pode haver uma percepção de lentidão devido à falta de indicadores de carregamento ou feedback visual adequado durante o processo.
+## 2. Foco Atual / Próximos Passos Imediatos
 
-### 2.2. Problemas de Carregamento Infinito na Home
+O foco imediato, conforme delineado no novo `tasks.md`, é a **validação e teste completo das funcionalidades existentes** para garantir que tudo opera conforme esperado após quaisquer mudanças recentes e para solidificar a base antes de novas features.
 
-**Descrição:** Após as atualizações no sistema de login para operação em múltiplas abas, há relatos de carregamento infinito na página inicial, impedindo que o usuário acesse sua conta.
+*   **Validação Funcional (Prioridade Alta):**
+    *   Testar exaustivamente o `BitcoinConverter` (T009).
+    *   Verificar todos os aspectos do `HistoricalRatesChart` (T010).
+    *   Testar a `ProfitCalculator` (T011).
+    *   Validar todo o fluxo de autenticação: Login (T012), Cadastro (T013), Proteção de Rotas (T014).
+    *   Verificar as páginas de `UserProfile` (T015) e `UserSettings` (T016).
+    *   Testar a página de `DiagnosePageClient` (T017).
 
-**Possível Causa:** Uso incorreto do hook `useAuth` fora do contexto do `AuthProvider`, ou problemas na ordem de inicialização destes componentes.
+*   **Revisão UI/UX (Prioridade Média):**
+    *   Revisão geral da responsividade em múltiplos dispositivos (T018).
+    *   Garantir a consistência do tema escuro em toda a aplicação (T019).
 
-## 3. Focos de Desenvolvimento Atuais
+*   **Revisão dos Arquivos de Planejamento Suplementares (Prioridade Média):**
+    *   Avaliar `detailed-tasks.md`, `quick-wins.md`, `sprint-planning.md`, `sprint-focus-export-import-enhancements.md` e decidir se devem ser arquivados, reestruturados ou integrados ao `tasks.md` principal (T008).
 
-Considerando os problemas identificados, os seguintes pontos são os focos de desenvolvimento atual:
+## 3. Desafios ou Bloqueios Atuais
 
-### 3.1. Otimização do Sistema de Autenticação
+*   Nenhum bloqueio crítico identificado no momento. O principal desafio é garantir que a base de código existente seja estável e bem compreendida através dos testes e da documentação atualizada.
 
-- Identificar e corrigir a causa do delay no login a partir da tela inicial.
-- Resolver o problema de carregamento infinito na página home.
-- Melhorar a experiência do usuário durante o processo de autenticação com feedback visual adequado.
-- Otimizar a implementação do padrão Singleton e BroadcastChannel para comunicação entre abas.
+## 4. Objetivos de Médio Prazo (Pós-Validação)
 
-### 3.2. Finalização do Sistema de Múltiplos Relatórios
+Consultar o Backlog Geral em `tasks.md` para próximos itens, que incluem:
 
-- Implementar a funcionalidade completa de gerenciamento de múltiplos relatórios na calculadora de lucros.
-- Adicionar recursos de filtragem, visualização e comparação entre relatórios.
-- Garantir que a exportação e importação funcionem corretamente com o sistema de múltiplos relatórios.
+*   Implementar persistência na Calculadora de Lucros (B001).
+*   Melhorar tratamento de erros em APIs (B002).
+*   Adicionar testes unitários/integração (B003).
+*   Implementar "Esqueci Senha" (B005).
 
-### 3.3. Melhorias Gerais de UX
+## 5. Considerações Importantes
 
-- Adicionar mais indicadores de carregamento onde necessário.
-- Melhorar o sistema de notificações toast para informar o usuário sobre processos e resultados.
-- Revisar a responsividade em diferentes dispositivos e ajustar onde necessário.
+*   Manter o `tasks.md` como a fonte única da verdade para o planejamento de tarefas.
+*   Continuar priorizando a experiência do usuário (UI/UX) e a performance.
+*   A estrutura do projeto deve ser mantida o mais simples possível para facilitar a manutenção futura.
 
-## 4. Próximos Passos Recomendados
-
-1. **Investigação e Correção do Delay no Login:**
-   - Profiling da performance durante o processo de login.
-   - Revisão da implementação do AuthProvider e fluxo de autenticação.
-   - Otimização das operações realizadas durante a inicialização.
-
-2. **Resolução do Problema de Carregamento Infinito:**
-   - Garantir que o hook useAuth seja utilizado dentro do contexto do AuthProvider.
-   - Verificar a hierarquia de componentes e a ordem de inicialização.
-
-3. **Melhorias no Feedback Visual:**
-   - Implementar indicadores de carregamento mais visíveis durante o processo de autenticação.
-   - Adicionar mensagens informativas sobre o status do processo. 
+Este `activeContext.md` serve como um instantâneo para orientar as próximas etapas de desenvolvimento e garantir que todos os envolvidos estejam alinhados com o estado e as prioridades do projeto. 

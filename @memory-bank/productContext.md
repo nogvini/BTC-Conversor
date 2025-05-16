@@ -1,59 +1,113 @@
-# Product Context: Raid Bitcoin Toolkit
+# Product Context: BTC-Conversor (Raid Bitcoin Toolkit)
 
 ## 1. Funcionalidades Principais
 
-O Raid Bitcoin Toolkit é composto por três módulos principais, cada um com funcionalidades específicas para atender às necessidades dos usuários no acompanhamento e gerenciamento de seus ativos em Bitcoin:
+O BTC-Conversor oferece um conjunto de ferramentas focadas no Bitcoin:
 
-### 1.1. Conversor de Moedas
+*   **Conversor de Moedas:**
+    *   Converte entre BTC, Satoshis, USD e BRL.
+    *   Utiliza taxas de câmbio e preços do Bitcoin em tempo real (ou próximo disso).
+    *   Interface simples e direta para entrada de valores e visualização dos resultados.
 
-*   **Conversão em Tempo Real:** Permite a conversão instantânea entre Bitcoin (BTC), Satoshis (SATS), Dólar Americano (USD) e Real Brasileiro (BRL).
-*   **Cotações Atualizadas:** Busca e exibe as cotações mais recentes do Bitcoin em relação ao USD e BRL, com indicação de quando os dados foram atualizados.
-*   **Interface Intuitiva:** Design simples e direto para facilitar a entrada de valores e a seleção de unidades/moedas.
-*   **Fallback de Dados:** Em caso de falha na API de cotação, utiliza dados em cache para garantir a continuidade da funcionalidade, informando o usuário sobre o uso de dados não atuais.
-*   **Persistência de Uso:** Salva o último valor e unidade utilizados pelo usuário para agilizar conversões futuras.
+*   **Gráficos Históricos de Preços:**
+    *   Exibe o histórico de cotação do Bitcoin em relação a moedas fiduciárias (USD, BRL).
+    *   Permite selecionar diferentes períodos de visualização (ex: 1 dia, 1 semana, 1 mês, 1 ano, máximo).
+    *   Interface interativa para análise de tendências.
+    *   Otimizações de cache para performance (local, servidor, navegador).
 
-### 1.2. Gráficos de Preços Históricos
+*   **Calculadora de Lucros/Perdas:**
+    *   Permite ao usuário simular ou registrar investimentos em Bitcoin.
+    *   Calcula lucros ou perdas com base nos valores de compra e venda ou cotação atual.
+    *   (Pode incluir funcionalidades de registro de aportes e acompanhamento de portfólio, a ser confirmado).
 
-*   **Visualização Dinâmica:** Apresenta gráficos interativos do histórico de preços do Bitcoin.
-*   **Múltiplas Janelas de Tempo:** Permite ao usuário selecionar diferentes períodos para análise (ex: 1 dia, 7 dias, 1 mês, 1 ano, máximo).
-*   **Clareza Visual:** Gráficos limpos e de fácil interpretação para identificar tendências e padrões de mercado.
-*   **Dados Confiáveis:** Utiliza fontes de dados históricos consistentes para a plotagem dos gráficos.
+*   **Autenticação e Gerenciamento de Usuário:**
+    *   Sistema de cadastro e login via email/senha utilizando Supabase.
+    *   Verificação de email.
+    *   Criação automática de perfil de usuário no banco de dados.
+    *   Página de perfil para visualização e edição de dados básicos (nome, avatar).
+    *   Página de configurações do usuário.
+    *   Rotas protegidas que exigem autenticação.
 
-### 1.3. Calculadora de Lucros e Investimentos
+*   **Exportação de Dados:**
+    *   Funcionalidade para exportar dados (possivelmente da calculadora de lucros ou gráficos) para o formato Excel.
+    *   Opções de exportação completa ou mensal.
 
-*   **Registro de Transações:**
-    *   **Aportes (Investimentos):** Permite registrar a data, valor e unidade (BTC/SATS) de cada aporte realizado.
-    *   **Lucros/Perdas:** Permite registrar a data, valor, unidade e tipo (lucro ou perda) de cada operação de realização.
-*   **Gerenciamento de Múltiplas Contas/Relatórios:**
-    *   Criação e gerenciamento de múltiplos "relatórios" (contas) para organizar transações de diferentes origens (ex: exchanges, carteiras pessoais).
-    *   Seleção de um relatório ativo para novos registros.
-    *   Filtragem de visualização por um ou mais relatórios selecionados.
-*   **Visualização de Histórico e Resumo:**
-    *   Exibição do histórico de aportes e lucros/perdas de forma organizada, com opção de filtrar por mês ou período personalizado.
-    *   Cálculo e exibição de totais de investimento, lucro/perda e rendimento para o período selecionado, tanto em criptomoeda quanto na moeda fiduciária escolhida (USD/BRL).
-*   **Importação e Exportação de Dados:**
-    *   **Exportação para Excel (.xlsx):** Permite exportar todos os dados de aportes e lucros/perdas de relatórios selecionados (ou todos) para um arquivo Excel, facilitando backup e análise externa.
-    *   **Importação de CSV:** Suporte para importação de dados de aportes e operações (lucros/perdas) a partir de arquivos CSV com formatos específicos (ex: padrão de exchanges).
-    *   **Importação de Backup (Excel):** Capacidade de importar dados previamente exportados pelo próprio sistema.
-    *   **Prevenção de Duplicidade:** Mecanismos para identificar e evitar a importação de registros duplicados.
-*   **Interface Amigável:** Facilidade para adicionar, visualizar e remover registros.
-*   **Cotações Atuais para Cálculo:** Utiliza as cotações atuais de BTC/USD e BRL/USD para calcular os valores equivalentes em moeda fiduciária nos relatórios.
+*   **Diagnóstico (Admin/Dev):**
+    *   Página de diagnóstico para administradores ou durante o desenvolvimento.
+    *   Testes de conexão com banco de dados.
+    *   Status da conexão com Supabase.
+    *   Monitoramento de tentativas de reconexão.
 
-## 2. Problemas Resolvidos
+## 2. Tipos de Usuários e Seus Objetivos
+
+*   **Usuário Geral/Não Autenticado:**
+    *   **Objetivo:** Acessar rapidamente o conversor de moedas e visualizar gráficos de cotação do Bitcoin.
+    *   **Necessidades:** Informação rápida, interface intuitiva, não requer login para funcionalidades básicas.
+
+*   **Usuário Registrado/Autenticado:**
+    *   **Objetivo:** Além das funcionalidades básicas, salvar preferências, gerenciar um perfil, utilizar a calculadora de lucros com dados persistidos (se aplicável), e acessar funcionalidades personalizadas.
+    *   **Necessidades:** Login seguro, persistência de dados, personalização, acesso a ferramentas avançadas como a calculadora de lucros e exportação de dados.
+
+*   **Administrador/Desenvolvedor (em ambiente de desenvolvimento/admin):**
+    *   **Objetivo:** Monitorar a saúde da aplicação, diagnosticar problemas de conexão e verificar o estado dos serviços integrados (como Supabase).
+    *   **Necessidades:** Acesso a ferramentas de diagnóstico e logs.
+
+## 3. Fluxo de Dados e Persistência
+
+*   **Dados de Mercado (Bitcoin, Câmbio):**
+    *   Obtidos de APIs externas (CoinGecko para Bitcoin, Exchange Rate API para câmbio USD/BRL).
+    *   Possíveis camadas de cache: no servidor (para reduzir chamadas às APIs externas) e no cliente (navegador e/ou estado do componente) para melhorar a performance da UI.
+
+*   **Dados do Usuário (Autenticação e Perfil):**
+    *   Gerenciados pelo Supabase (Autenticação).
+    *   Perfis de usuário (nome, email, avatar_url) armazenados na tabela `profiles` no banco de dados Supabase (PostgreSQL).
+    *   Sessões de usuário gerenciadas pelo Supabase.
+
+*   **Dados da Calculadora de Lucros e Configurações (se persistidos):**
+    *   Se os dados da calculadora ou configurações específicas do usuário forem persistidos, seriam armazenados no banco de dados Supabase, associados ao ID do usuário.
+
+*   **Fluxo de Autenticação:**
+    1.  Usuário tenta fazer login/cadastro.
+    2.  Credenciais são enviadas para o Supabase.
+    3.  Supabase valida/cria o usuário e retorna uma sessão.
+    4.  Para novos usuários, um trigger no Supabase (`handle_new_user`) cria uma entrada na tabela `profiles`.
+    5.  A aplicação no cliente armazena o estado da sessão e permite acesso a rotas protegidas.
+    6.  Middleware (`middleware.ts`) pode ser usado para proteger rotas e gerenciar redirecionamentos com base no status de autenticação.
+
+## 4. Interface do Usuário (UI) e Experiência do Usuário (UX)
+
+*   **Tema:** Tema escuro como padrão, otimizado para visualização de dados financeiros e consistência visual.
+*   **Responsividade:** Design adaptável para desktops, tablets e dispositivos móveis.
+*   **Navegação:**
+    *   Barra de navegação principal (`NavigationBar` / `ClientAppHeader`).
+    *   Possível menu lateral (`Sidebar`) ou menu móvel (`MobileNavigation`).
+    *   Breadcrumbs para navegação em seções aninhadas (ex: Admin).
+*   **Feedback ao Usuário:**
+    *   Notificações/Toasts (`Sonner`, `Toaster`) para ações, erros, atualizações.
+    *   Indicadores de carregamento (`Loader2`, `Skeleton`).
+    *   Transições de página (`PageTransition`) para suavizar a navegação.
+*   **Componentes:** Utilização extensiva da biblioteca `shadcn/ui` para componentes de UI consistentes e customizáveis, complementados por componentes customizados.
+*   **Performance da UI:**
+    *   Carregamento dinâmico de componentes pesados (ex: `BitcoinConverter` na home page).
+    *   Otimizações de renderização e cache.
+    *   Detecção de conexão lenta (`SlowConnectionDetector`).
+
+## 5. Problemas Resolvidos
 
 *   **Dificuldade em Acompanhar Cotações:** Elimina a necessidade de consultar múltiplas fontes para obter cotações atualizadas de Bitcoin.
 *   **Falta de Ferramentas Consolidadas:** Reúne conversor, gráficos e calculadora de investimentos em um único local, evitando o uso de diversas planilhas ou aplicativos separados.
-*   **Gestão Complexa de Portfólio:** Simplifica o rastreamento de aportes, lucros e perdas, especialmente para quem realiza transações frequentes ou utiliza múltiplas plataformas.
-*   **Análise de Desempenho:** Fornece relatórios e cálculos de rendimento que ajudam o usuário a entender a performance de seus investimentos em Bitcoin.
-*   **Portabilidade de Dados Limitada:** Oferece opções de importação e exportação, dando ao usuário controle sobre seus dados financeiros.
-*   **Interface Pouco Intuitiva:** Busca oferecer uma experiência de usuário superior comparada a ferramentas genéricas ou complexas.
+*   **Gestão Complexa de Portfólio Individual:** Simplifica o rastreamento de aportes, lucros e perdas para cada usuário de forma isolada e segura.
+*   **Análise de Desempenho Pessoal:** Fornece relatórios e cálculos de rendimento que ajudam o usuário a entender a performance de seus próprios investimentos em Bitcoin.
+*   **Portabilidade e Backup de Dados Pessoais:** Oferece opções de importação e exportação para que o usuário tenha controle sobre seus dados financeiros.
+*   **Falta de Personalização e Gerenciamento de Conta:** Introduz funcionalidades para que o usuário possa gerenciar seu perfil e configurar preferências da aplicação.
+*   **Manutenção e Verificação do Sistema:** Provê ferramentas para administradores garantirem a integridade da base de dados essencial para o funcionamento da autenticação e perfis.
 
-## 3. Benefícios para o Usuário
+## 6. Benefícios para o Usuário
 
 *   **Tomada de Decisão Informada:** Acesso rápido a cotações e dados históricos para decisões de compra, venda ou conversão.
 *   **Organização Financeira:** Melhor controle e organização dos investimentos em Bitcoin.
 *   **Visão Clara do Desempenho:** Entendimento facilitado sobre a rentabilidade dos ativos digitais.
 *   **Economia de Tempo:** Consolidação de ferramentas que agilizam tarefas comuns relacionadas ao Bitcoin.
-*   **Segurança e Privacidade (Dados Locais):** Os dados de investimento são primariamente armazenados localmente no navegador do usuário, oferecendo um nível de privacidade (com a opção de exportar para backup).
-*   **Flexibilidade:** Capacidade de gerenciar múltiplas "contas" ou "carteiras" de forma segregada.
-*   **Interface Moderna e Responsiva:** Uso agradável em diferentes dispositivos. 
+*   **Segurança e Privacidade:** Com a autenticação via Supabase, os dados de investimento e perfil são atrelados à conta do usuário, com separação clara entre diferentes usuários. A exportação de dados permite backups pessoais.
+*   **Personalização:** Capacidade de ajustar a aplicação (ex: tema) às preferências individuais.
+*   **Continuidade e Acesso Multi-dispositivo:** Dados armazenados no Supabase (associados à conta) permitem que o usuário acesse suas informações de diferentes dispositivos. 

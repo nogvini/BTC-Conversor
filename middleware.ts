@@ -43,5 +43,13 @@ export async function middleware(request: NextRequest) {
 
 // Configurar as páginas que devem passar pelo middleware
 export const config = {
-  matcher: ['/private/:path*', '/auth'],
+  matcher: [
+    '/profile/:path*',
+    '/settings/:path*',
+    '/calculator/:path*',
+    '/admin/:path*',
+    // Adicione outras rotas de primeiro nível que precisam de proteção, ex: '/dashboard/:path*'
+    // '/private/:path*', // Remover se não for mais usado, ou manter se ainda relevante
+    '/auth', // Para redirecionar usuários logados para fora do /auth
+  ],
 } 

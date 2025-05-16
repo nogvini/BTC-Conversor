@@ -1,6 +1,23 @@
+## Estrutura do Projeto (BTC-Conversor)
+
+```
 BTC-Conversor/
 ├── .cursor/
 ├── .git/
+├── @memory-bank/
+│   ├── activeContext.md
+│   ├── componentCatalog.md
+│   ├── detailed-tasks.md
+│   ├── productContext.md
+│   ├── progress.md
+│   ├── projectbrief.md
+│   ├── projectTree.md
+│   ├── quick-wins.md
+│   ├── sprint-focus-export-import-enhancements.md
+│   ├── sprint-planning.md
+│   ├── systemPatterns.md
+│   ├── tasks.md
+│   └── techContext.md
 ├── app/
 │   ├── admin/
 │   │   ├── diagnose/
@@ -94,6 +111,8 @@ BTC-Conversor/
 │   ├── theme-provider.tsx
 │   ├── user-profile.tsx
 │   └── user-settings.tsx
+├── context/
+│   └── AuthContext.tsx
 ├── data/
 ├── hooks/
 │   ├── use-active-tab.ts
@@ -117,10 +136,12 @@ BTC-Conversor/
 │   └── globals.css
 ├── .gitignore
 ├── components.json
-├── next.config.mjs
+├── middleware.ts
+├── next.config.js
 ├── package.json              [MODIFICADO]
 ├── pnpm-lock.yaml
 ├── postcss.config.mjs
 ├── README.md
 ├── tailwind.config.ts
+└── tsconfig.json
 └── vercel.json
