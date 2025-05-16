@@ -5,56 +5,26 @@
  * Gerencia requisições externas e armazenamento de dados
  */
 
-import fs from 'fs';
-import path from 'path';
 import { BitcoinPrice, HistoricalDataPoint, AppData } from './api';
 import { kv } from "@vercel/kv";
 import { format, subDays, parseISO } from 'date-fns';
+import { RateLimitError, ExternalApiError, DataNotFoundError, ApiError } from './errors';
 
 // Caminho para o arquivo de dados no servidor
-const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'bitcoin-data.json');
+// const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'bitcoin-data.json');
+
+// Chave para armazenar AppData no Vercel KV
+const APP_DATA_KV_KEY = 'appDataStore';
 
 // Adicionar um sistema de cache global no servidor
 // Este cache é compartilhado entre todos os usuários
-const globalCacheData: {
-  historicalData: {
-    [currency: string]: { // currency = 'usd' ou 'brl'
-      [days: string]: { // key = "dias" (ex: "30")
-        data: HistoricalDataPoint[],
-        timestamp: number,
-        lastRefreshed: number,
-        accessCount: number,
-        source: string
-      }
-    }
-  },
-  currentPrice: {
-    data: BitcoinPrice | null,
-    timestamp: number,
-    lastRefreshed: number,
-    accessCount: number
-  },
-  metadata: {
-    totalApiCalls: number,
-    cacheHits: number,
-    lastFullUpdate: number
-  }
-} = {
-  historicalData: {
-    usd: {},
-    brl: {}
-  },
-  currentPrice: {
-    data: null,
-    timestamp: 0,
-    lastRefreshed: 0,
-    accessCount: 0
-  },
-  metadata: {
-    totalApiCalls: 0,
-    cacheHits: 0,
-    lastFullUpdate: 0
-  }
+// ESTE CACHE EM MEMÓRIA PODE SER ÚTIL PARA ACESSOS MUITO FREQUENTES,
+// MAS PRECISA SER SINCRONIZADO COM O KV OU SER CONSIDERADO UM CACHE DE CURTA DURAÇÃO.
+// POR AGORA, VAMOS PRIORIZAR O KV PARA PERSISTÊNCIA E CONSISTÊNCIA.
+const globalCacheData: any = {
+  historicalData: { usd: {}, brl: {} },
+  currentPrice: { data: null, timestamp: 0, lastRefreshed: 0, accessCount: 0 },
+  metadata: { totalApiCalls: 0, cacheHits: 0, lastFullUpdate: 0 }
 };
 
 // Constantes de expiração do cache
@@ -67,6 +37,7 @@ const CACHE_EXPIRATION = {
 };
 
 // TTLs para Vercel KV
+const APP_DATA_TTL_SECONDS = 24 * 60 * 60; // 24 horas para o AppData principal
 const DEFAULT_CACHE_TTL_SECONDS = 1 * 60 * 60; // 1 hora (padrão para ranges)
 const DAILY_DATA_CACHE_TTL_SECONDS = 24 * 60 * 60; // 24 horas (para dados de um único dia)
 
@@ -74,16 +45,8 @@ const DAILY_DATA_CACHE_TTL_SECONDS = 24 * 60 * 60; // 24 horas (para dados de um
 interface HistoricalDataCacheObject {
   data: HistoricalDataPoint[];
   lastUpdated: number; // Timestamp de quando os dados foram buscados da API fonte
-  source: 'coingecko' | 'binance' | 'unknown'; // Fonte dos dados
+  source: 'coingecko' | 'binance' | 'unknown' | 'fallback'; // Fonte dos dados
 }
-
-// Garantir que o diretório data existe
-const ensureDataDir = () => {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-};
 
 // Buscar preço atual do Bitcoin em USD
 async function fetchBitcoinUsdPrice(): Promise<number> {
@@ -216,118 +179,86 @@ async function fetchHistoricalData(
   currency = 'usd', 
   daysOrParams: number | { fromTimestamp: number; toTimestamp: number } = 30
 ): Promise<HistoricalDataPoint[]> {
-  try {
-    let apiUrl = '';
-    let operationDescription = '';
-
-    if (typeof daysOrParams === 'number') {
-      const days = daysOrParams;
-      operationDescription = `Moeda: ${currency}, Dias: ${days}`;
-      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`;
-    } else {
-      const { fromTimestamp, toTimestamp } = daysOrParams;
-      operationDescription = `Moeda: ${currency}, De: ${new Date(fromTimestamp * 1000).toISOString().split('T')[0]}, Até: ${new Date(toTimestamp * 1000).toISOString().split('T')[0]}`;
-      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=${currency}&from=${fromTimestamp}&to=${toTimestamp}`;
-    }
-
-    console.log(`[server-api] fetchHistoricalData: Buscando do CoinGecko. ${operationDescription}`);
-    console.log(`[server-api] fetchHistoricalData: URL da API CoinGecko: ${apiUrl}`);
-
-    const response = await fetch(
-      apiUrl,
-      {
-        headers: { 
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        cache: 'no-store', // Não usar cache
-        next: { revalidate: 0 } // Não reutilizar cache
-      }
-    );
-    
-    if (!response.ok) {
-      console.error(`Erro ao obter dados históricos: ${response.status}`);
-      throw new Error(`API retornou status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // LOG ADICIONADO
-    console.log(`[server-api] fetchHistoricalData: Dados recebidos do CoinGecko para ${operationDescription}:`, JSON.stringify(data).substring(0, 500) + (JSON.stringify(data).length > 500 ? '...' : ''));
-
-    // Converter dados para o formato esperado
-    if (!data.prices || !Array.isArray(data.prices)) {
-      console.warn(`[server-api] fetchHistoricalData: CoinGecko retornou formato inesperado ou sem array 'prices' para ${operationDescription}. Retornando array vazio.`);
-      return []; // Retorna array vazio se não houver prices
-    }
-
-    return data.prices.map(([timestamp, price]: [number, number]) => {
-      const date = new Date(timestamp);
-      // Para o endpoint /range, o timestamp já é diário (meia-noite UTC).
-      // Para /market_chart?days=N, os timestamps podem ser mais granulares.
-      // Normalizamos para YYYY-MM-DD com base no timestamp fornecido.
-      const dateString = date.toISOString().split('T')[0];
-      
-      let formattedDisplayDate: string;
-      if (typeof daysOrParams === 'number') {
-        formattedDisplayDate = formatDateForTimeRange(date, daysOrParams);
-      } else {
-        // Para ranges, podemos simplesmente usar a data ou um formato mais curto se necessário
-        formattedDisplayDate = dateString; // Ou formatar de outra forma se preferir
-      }
-
-      return {
-        date: dateString,
-        price,
-        formattedDate: formattedDisplayDate,
-        timestamp: Math.floor(timestamp / 1000), // Armazenar como Unix timestamp em segundos
-        source: 'coingecko',
-        isUsingCache: false
-      };
-    });
-  } catch (error) {
-    console.error(`Erro ao buscar dados históricos (${currency}):`, error);
-    throw new Error('Não foi possível obter dados históricos');
+  // Esta função parece ser a versão antiga, que pode ser obsoleta agora
+  // com fetchHistoricalDataFromCoinGecko e fetchHistoricalDataFromBinance
+  // Se não estiver sendo usada, pode ser removida para evitar confusão.
+  console.warn('[server-api] A função fetchHistoricalData (original) foi chamada. Considerar refatoração para usar getHistoricalData ou forceUpdateHistoricalData.');
+  let apiUrl = '';
+  if (typeof daysOrParams === 'number') {
+    apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${daysOrParams}`;
+  } else {
+    apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=${currency}&from=${daysOrParams.fromTimestamp}&to=${daysOrParams.toTimestamp}`;
   }
+  const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' }});
+  if (!response.ok) throw new Error(`API retornou status ${response.status}`);
+  const data = await response.json();
+  if (!data.prices || !Array.isArray(data.prices)) return [];
+  return data.prices.map(([timestamp, price]: [number, number]) => ({ 
+    timestamp: Math.floor(timestamp / 1000), price, date: new Date(timestamp).toISOString().split('T')[0],
+    formattedDate: new Date(timestamp).toLocaleDateString(), source:'coingecko', isUsingCache: false
+  }));
 }
 
 // Formatar data conforme o intervalo de tempo
 function formatDateForTimeRange(date: Date, days: number): string {
-  if (days <= 1) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else if (days <= 7) {
-    return date.toLocaleDateString([], { weekday: 'short' });
-  } else {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  }
+  if (days <= 1) { return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  else if (days <= 7) { return date.toLocaleDateString([], { weekday: 'short' }); }
+  else { return date.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
 }
 
 // Salvar dados no arquivo
 export async function saveAppData(data: AppData): Promise<void> {
   try {
-    ensureDataDir();
-    await fs.promises.writeFile(DATA_FILE_PATH, JSON.stringify(data, null, 2));
+    // ensureDataDir(); // REMOVIDO - Não usar mais o sistema de arquivos
+    // fs.writeFileSync(DATA_FILE_PATH, JSON.stringify(data, null, 2)); // REMOVIDO
+    console.log('[server-api] Salvando AppData no Vercel KV...');
+    await kv.set(APP_DATA_KV_KEY, data, { ex: APP_DATA_TTL_SECONDS });
+    console.log('[server-api] AppData salvo no Vercel KV com sucesso.');
+    
+    // Atualizar o cache em memória, se ainda for usado
+    // globalCacheData.currentPrice = { data: data.currentPrice, timestamp: Date.now(), lastRefreshed: Date.now(), accessCount: 0 };
+    // globalCacheData.historicalData = data.historicalData; // Precisa de uma estrutura mais granular
+    // globalCacheData.metadata.lastFullUpdate = Date.now();
+
   } catch (error) {
-    console.error('Erro ao salvar dados:', error);
+    console.error('[server-api] Erro ao salvar AppData no Vercel KV:', error);
+    // Considerar se um erro aqui deve ser propagado
   }
 }
 
 // Obter dados do arquivo
 export async function getAppData(): Promise<AppData | null> {
   try {
-    ensureDataDir();
-    
-    // Verificar se o arquivo existe
-    if (!fs.existsSync(DATA_FILE_PATH)) {
-      return null;
+    console.log('[server-api] Buscando AppData do Vercel KV...');
+    const data = await kv.get<AppData>(APP_DATA_KV_KEY);
+    if (data) {
+      console.log('[server-api] AppData obtido do Vercel KV.');
+      return data;
     }
-    
-    const fileData = await fs.promises.readFile(DATA_FILE_PATH, 'utf8');
-    return JSON.parse(fileData) as AppData;
+    console.log('[server-api] Nenhum AppData encontrado no Vercel KV.');
+    return null;
   } catch (error) {
-    console.error('Erro ao ler dados:', error);
+    console.error('[server-api] Erro ao buscar AppData do Vercel KV:', error);
     return null;
   }
+  // Lógica antiga de arquivo - REMOVIDO
+  /*
+  if (fs.existsSync(DATA_FILE_PATH)) {
+    try {
+      const fileContent = fs.readFileSync(DATA_FILE_PATH, 'utf-8');
+      const parsedData = JSON.parse(fileContent) as AppData;
+      console.log('[server-api] AppData carregado do arquivo JSON local.');
+      return parsedData;
+    } catch (error) {
+      console.error('[server-api] Erro ao ler ou parsear AppData do arquivo JSON local:', error);
+      // Se o arquivo estiver corrompido, deletar para evitar problemas futuros? Ou tentar recuperar?
+      // fs.unlinkSync(DATA_FILE_PATH); // Cuidado com isso
+      return null;
+    }
+  }
+  console.log('[server-api] Arquivo de dados local não encontrado.');
+  return null;
+  */
 }
 
 // Criar dados de fallback
@@ -361,281 +292,98 @@ function createFallbackAppData(): AppData {
 
 // Atualizar a função fetchAllAppData para adicionar o campo historicalData
 export async function fetchAllAppData(): Promise<AppData> {
-  try {
-    // Verificar se temos dados recentes salvos
-    const savedData = await getAppData();
+  // Tentar obter do Vercel KV
+  let appData = await getAppData();
+  globalCacheData.metadata.totalApiCalls++; // Incrementar aqui ou dentro de getAppData?
+
+  if (appData) {
+    console.log('[server-api] fetchAllAppData: Dados carregados do Vercel KV.');
+    globalCacheData.metadata.cacheHits++;
+    
+    // Verificar a idade dos dados e se precisam ser atualizados
     const now = Date.now();
+    const priceIsStale = !appData.currentPrice?.lastUpdated || (now - new Date(appData.currentPrice.lastUpdated).getTime()) > CACHE_EXPIRATION.PRICE;
     
-    // Verificar se os dados salvos são recentes (menos de 5 minutos)
-    if (savedData && (now - savedData.lastFetched < 5 * 60 * 1000)) {
-      // Adicionar campo historicalData
-      if (!savedData.historicalData) {
-        savedData.historicalData = {
-          usd: savedData.historicalDataUSD,
-          brl: savedData.historicalDataBRL
-        };
-      }
-      return { ...savedData, isUsingCache: true };
+    // A verificação de "staleness" para dados históricos é mais complexa
+    // pois são vários períodos e moedas.
+    // Poderíamos ter um timestamp geral de "lastHistoricalUpdate" no AppData.
+
+    if (priceIsStale) {
+      console.log('[server-api] fetchAllAppData: Preço atual está obsoleto, atualizando em segundo plano...');
+      // Não esperar por esta atualização para retornar os dados cacheados rapidamente
+      updateCurrentPrice().then(updatedPrice => {
+        if (appData && updatedPrice) { // Verifica se appData ainda é válido
+          const newAppData = { ...appData, currentPrice: updatedPrice };
+          saveAppData(newAppData); // Salva no KV (e atualiza cache em memória se implementado)
+        }
+      }).catch(err => console.error('[server-api] Erro ao atualizar preço em segundo plano:', err));
     }
-    
-    // Buscar novos dados
-    let btcUsdPrice = 0;
-    let usdToBrlRate = 0;
-    let historicalDataUSD: HistoricalDataPoint[] = [];
-    let historicalDataBRL: HistoricalDataPoint[] = [];
-    let isUsingFallback = false;
-    
-    try {
-      btcUsdPrice = await fetchBitcoinUsdPrice();
-      usdToBrlRate = await fetchUsdToBrlRate();
-      
-      // Buscar dados históricos
-      historicalDataUSD = await fetchHistoricalData('usd', 30);
-      
-      // Converter dados históricos USD para BRL
-      historicalDataBRL = historicalDataUSD.map(dataPoint => ({
-        ...dataPoint,
-        price: dataPoint.price * usdToBrlRate
-      }));
-    } catch (error) {
-      console.error("Erro ao buscar dados externos:", error);
-      isUsingFallback = true;
-      
-      // Verificar se temos dados salvos para usar como cache
-      if (savedData) {
-        btcUsdPrice = savedData.currentPrice.usd;
-        usdToBrlRate = savedData.currentPrice.brl / savedData.currentPrice.usd;
-        historicalDataUSD = savedData.historicalDataUSD;
-        historicalDataBRL = savedData.historicalDataBRL;
-      } else {
-        // Criar dados de fallback se não houver nada salvo
-        const fallbackData = createFallbackAppData();
-        btcUsdPrice = fallbackData.currentPrice.usd;
-        usdToBrlRate = fallbackData.currentPrice.brl / fallbackData.currentPrice.usd;
-        historicalDataUSD = fallbackData.historicalDataUSD;
-        historicalDataBRL = fallbackData.historicalDataBRL;
-      }
-    }
-    
-    // Criar objeto de preço atual
-    const currentPrice: BitcoinPrice = {
-      usd: btcUsdPrice,
-      brl: btcUsdPrice * usdToBrlRate,
-      timestamp: now,
-      isUsingCache: isUsingFallback
-    };
-    
-    // Criar objeto de dados completo
-    const appData: AppData = {
-      currentPrice,
-      historicalDataUSD,
-      historicalDataBRL,
-      lastFetched: now,
-      isUsingCache: isUsingFallback,
-      historicalData: {
-        usd: historicalDataUSD,
-        brl: historicalDataBRL
-      }
-    };
-    
-    // Salvar dados para uso futuro
-    await saveAppData(appData);
-    
+    // Adicionar lógica similar para dados históricos se necessário,
+    // ou confiar que `getHistoricalData` já tem sua própria lógica de expiração e atualização.
+
     return appData;
-  } catch (error) {
-    console.error('Erro ao buscar todos os dados:', error);
+  }
+
+  console.log('[server-api] fetchAllAppData: Nenhum dado no Vercel KV. Buscando dados frescos e populando o cache.');
+  // Se não houver dados no KV, buscar tudo, salvar e retornar
+  try {
+    const currentPrice = await updateCurrentPrice(); // Já usa KV internamente se configurado
     
-    // Tentar usar dados salvos
-    const savedData = await getAppData();
-    if (savedData) {
-      // Garantir que o campo historicalData existe
-      if (!savedData.historicalData) {
-        savedData.historicalData = {
-          usd: savedData.historicalDataUSD,
-          brl: savedData.historicalDataBRL
-        };
+    // Para dados históricos, precisamos decidir quais períodos padrão carregar.
+    // Exemplo: carregar USD 30 dias e BRL 30 dias.
+    const historicalUsd30d = await getHistoricalData('usd', 30, true); // true para forçar busca e salvar no KV
+    const historicalBrl30d = await getHistoricalData('brl', 30, true);
+
+    appData = {
+      currentPrice: currentPrice,
+      historicalData: {
+        usd: {
+          '30d': historicalUsd30d || createFallbackHistoricalData('usd', 30)
+        },
+        brl: {
+          '30d': historicalBrl30d || createFallbackHistoricalData('brl', 30)
+        }
+        // Adicionar outros períodos/moedas padrão se necessário
+      },
+      metadata: {
+        lastFullUpdate: new Date().toISOString(),
+        totalApiCalls: globalCacheData.metadata.totalApiCalls, // já incrementado
+        cacheHits: globalCacheData.metadata.cacheHits, // já incrementado
+        // Outros metadados relevantes
       }
-      return { ...savedData, isUsingCache: true };
-    }
-    
-    // Criar e retornar dados de fallback como último recurso
+    };
+
+    await saveAppData(appData);
+    return appData;
+
+  } catch (error) {
+    console.error('[server-api] fetchAllAppData: Erro crítico ao buscar todos os dados pela primeira vez:', error);
+    // Em caso de falha total, retornar dados de fallback para não quebrar a aplicação
     return createFallbackAppData();
   }
 }
 
-// Atualizar o preço atual do Bitcoin - versão melhorada
-export async function updateCurrentPrice(): Promise<BitcoinPrice> {
-  try {
-    const now = Date.now();
-    const debugInfo: string[] = [];
-    debugInfo.push(`Iniciando updateCurrentPrice: ${new Date(now).toISOString()}`);
-    
-    // Verificar se devemos forçar uma atualização
-    // 1. Se o cache for muito recente, verificamos se é o primeiro acesso
-    // 2. Se já houve acessos, verificamos se o cache está expirando em breve
-    let forceUpdate = false;
-    
-    if (globalCacheData.currentPrice.data) {
-      const cacheAge = now - globalCacheData.currentPrice.timestamp;
-      
-      if (cacheAge < CACHE_EXPIRATION.PRICE) {
-        // Cache válido, mas verificar se está expirando em breve para pré-atualizar
-        if (cacheAge > (CACHE_EXPIRATION.PRICE * 0.8)) {
-          // Cache está nos últimos 20% da validade, atualizar em background
-          debugInfo.push(`Cache expirando em breve (${Math.round(cacheAge/1000)}s), atualizando em background`);
-          
-          // Iniciar uma atualização em background e retornar o cache imediatamente
-          setTimeout(() => {
-            const updatePromise = updatePriceInBackground();
-            // Não esperamos esta promise para não bloquear
-          }, 100);
-          
-          // Retornar o cache atual, marcando como cache
-          return {
-            ...globalCacheData.currentPrice.data,
-            isUsingCache: true
-          };
-        } else {
-          // Cache recente e válido, usar sem problemas
-          debugInfo.push(`Usando cache válido (idade: ${Math.round(cacheAge/1000)}s)`);
-          
-          // Incrementar contador de acesso
-          globalCacheData.currentPrice.accessCount++;
-          globalCacheData.metadata.cacheHits++;
-          
-          return {
-            ...globalCacheData.currentPrice.data,
-            isUsingCache: true
-          };
-        }
-      } else {
-        // Cache expirado, forçar atualização
-        debugInfo.push(`Cache expirado (${Math.round(cacheAge/1000)}s), forçando atualização`);
-        forceUpdate = true;
-      }
-    } else {
-      // Não há cache, forçar atualização
-      debugInfo.push('Sem cache disponível, forçando atualização');
-      forceUpdate = true;
-    }
-    
-    // Se chegamos aqui, precisamos atualizar os dados
-    if (forceUpdate) {
-      debugInfo.push('Buscando novos dados de preço do Bitcoin e taxa de câmbio');
-      
-      // Incrementar contador de chamadas de API
-      globalCacheData.metadata.totalApiCalls++;
-      
-      // Buscar dados em paralelo para maior eficiência
-      const [btcUsdPrice, usdToBrlRate] = await Promise.all([
-        fetchBitcoinUsdPrice(),
-        fetchUsdToBrlRate()
-      ]);
-      
-      debugInfo.push(`BTC/USD: ${btcUsdPrice}, USD/BRL: ${usdToBrlRate}`);
-      
-      // Criar objeto de preço atual
-      const currentPrice: BitcoinPrice = {
-        usd: btcUsdPrice,
-        brl: btcUsdPrice * usdToBrlRate,
-        timestamp: now,
-        isUsingCache: false
-      };
-      
-      // Atualizar dados salvos no sistema de arquivos
-      const savedData = await getAppData();
-      if (savedData) {
-        const updatedData = {
-          ...savedData,
-          currentPrice,
-          lastFetched: now
-        };
-        await saveAppData(updatedData);
-        debugInfo.push('Dados salvos no sistema de arquivos');
-      }
-      
-      // Atualizar cache global
-      globalCacheData.currentPrice = {
-        data: currentPrice,
-        timestamp: now,
-        lastRefreshed: now,
-        accessCount: 1 // Iniciar com 1 porque já estamos acessando
-      };
-      
-      debugInfo.push('Cache global atualizado');
-      console.log('updateCurrentPrice:', debugInfo.join(' | '));
-      
-      return currentPrice;
-    }
+// Função auxiliar para criar dados históricos de fallback
+function createFallbackHistoricalData(currency: string, days: number): HistoricalDataCacheObject {
+  console.warn(`[server-api] Criando dados históricos de fallback para ${currency} - ${days} dias.`);
+  return {
+    data: Array(days).fill(null).map((_, i) => ({
+      timestamp: subDays(new Date(), days - 1 - i).getTime(),
+      price: 60000 + Math.random() * 5000 * (currency === 'brl' ? 5 : 1), // Preço de fallback
+    })),
+    lastUpdated: Date.now(),
+    source: 'fallback',
+  };
+}
 
-    // Se chegamos aqui sem retornar, algo deu errado - usar o cache
-    console.log("Comportamento inesperado, retornando cache disponível");
-    if (globalCacheData.currentPrice.data) {
-      return {
-        ...globalCacheData.currentPrice.data,
-        isUsingCache: true
-      };
-    }
-    
-    // Sem cache, criar um valor padrão
-    const currentTimestamp = Date.now();
-    const fallbackPrice: BitcoinPrice = {
-      usd: 65000,
-      brl: 65000 * 5.2,
-      timestamp: currentTimestamp,
-      isUsingCache: true
-    };
-    
-    return fallbackPrice;
-  } catch (error) {
-    console.error('Erro ao atualizar preço atual:', error);
-    
-    // Tentar usar o cache global mesmo que expirado
-    if (globalCacheData.currentPrice.data) {
-      console.log('Usando preço em cache global expirado após erro');
-      return {
-        ...globalCacheData.currentPrice.data,
-        isUsingCache: true
-      };
-    }
-    
-    // Tentar usar dados salvos
-    const savedData = await getAppData();
-    if (savedData && savedData.currentPrice) {
-      const now = Date.now();
-      console.log('Usando preço salvo em arquivo após erro');
-      
-      // Atualizar o cache global
-      globalCacheData.currentPrice = {
-        data: savedData.currentPrice,
-        timestamp: savedData.lastFetched,
-        lastRefreshed: now,
-        accessCount: 1
-      };
-      
-      return { ...savedData.currentPrice, isUsingCache: true };
-    }
-    
-    // Retornar dados de fallback como último recurso
-    console.log('Usando preço fallback após erro');
-    const now = Date.now();
-    const fallbackPrice = {
-      usd: 65000,
-      brl: 65000 * 5.2,
-      timestamp: now,
-      isUsingCache: true
-    };
-    
-    // Armazenar no cache global
-    globalCacheData.currentPrice = {
-      data: fallbackPrice,
-      timestamp: now,
-      lastRefreshed: now,
-      accessCount: 1
-    };
-    
-    return fallbackPrice;
-  }
+// Atualizar o preço atual do Bitcoin - versão melhorada
+export async function updateCurrentPrice(): Promise<BitcoinPrice | null > {
+  const priceData = await kv.get<{price: BitcoinPrice, lastUpdated: number}>('current_price_v2');
+  if (priceData && (Date.now() - priceData.lastUpdated < CACHE_EXPIRATION.PRICE)) return {...priceData.price, isUsingCache:true, lastUpdated: new Date(priceData.lastUpdated).toISOString()};
+  const usd = await fetchBitcoinUsdPrice(); const brlRate = await fetchUsdToBrlRate(); const now = Date.now();
+  const newPrice = { usd, brl: usd * brlRate, timestamp: now, lastUpdated: new Date(now).toISOString()};
+  await kv.set('current_price_v2', {price: newPrice, lastUpdated: now}, {ex: DEFAULT_CACHE_TTL_SECONDS });
+  return {...newPrice, isUsingCache: false};
 }
 
 // Função auxiliar para atualizar o preço em background sem bloquear
@@ -689,74 +437,34 @@ async function fetchHistoricalDataFromCoinGecko(
   currency = 'usd',
   daysOrParams: number | { fromTimestamp: number; toTimestamp: number }
 ): Promise<{ data: HistoricalDataPoint[]; source: 'coingecko' } | null> {
+  globalCacheData.metadata.totalApiCalls++;
+  let apiUrl: string;
+  if (typeof daysOrParams === 'number') {
+    apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${daysOrParams}&interval=daily`;
+  } else {
+    apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=${currency}&from=${daysOrParams.fromTimestamp}&to=${daysOrParams.toTimestamp}`;
+  }
+  console.log(`[CoinGecko] Fetching: ${apiUrl}`);
   try {
-    let apiUrl = '';
-    let operationDescription = '';
-
-    if (typeof daysOrParams === 'number') {
-      const days = daysOrParams;
-      operationDescription = `Moeda: ${currency}, Dias: ${days}`;
-      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`;
-    } else {
-      const { fromTimestamp, toTimestamp } = daysOrParams;
-      operationDescription = `Moeda: ${currency}, De: ${new Date(fromTimestamp * 1000).toISOString().split('T')[0]}, Até: ${new Date(toTimestamp * 1000).toISOString().split('T')[0]}`;
-      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=${currency}&from=${fromTimestamp}&to=${toTimestamp}`;
-    }
-
-    console.log(`[server-api CoinGecko] Tentando buscar dados. ${operationDescription}`);
-    // console.log(`[server-api CoinGecko] URL da API: ${apiUrl}`); // Log da URL pode ser verboso demais para produção constante
-
-    const response = await fetch(
-      apiUrl,
-      {
-        headers: { 
-          'Accept': 'application/json',
-        },
-        next: { revalidate: 0 } 
-      }
-    );
-    
+    const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[server-api CoinGecko] Erro ao obter dados: ${response.status} - ${response.statusText}. Body: ${errorBody}`);
-      if (response.status === 429) {
-        throw new Error(`[CoinGecko API] Limite de requisições atingido (429). Detalhes: ${errorBody}`);
-      }
-      // Para outros erros não-OK, retorna null para permitir fallback ou tratamento genérico.
-      console.warn(`[server-api CoinGecko] Falha na CoinGecko (status ${response.status}).`);
-      return null;
+      if (response.status === 429) throw new RateLimitError('CoinGecko', response.status, errorBody);
+      throw new ExternalApiError('CoinGecko', `Status: ${response.status}. Body: ${errorBody}`, response.status);
     }
-    
-    const jsonData = await response.json();
-    
-    if (!jsonData || !jsonData.prices || !Array.isArray(jsonData.prices)) {
-      console.error('[server-api CoinGecko] Formato de resposta inesperado da API CoinGecko:', jsonData);
-      return null;
-    }
-
-    const processedData: HistoricalDataPoint[] = jsonData.prices.map((priceEntry: [number, number]) => ({
-      timestamp: Math.floor(priceEntry[0] / 1000), 
-      price: priceEntry[1],
-    }));
-    
-    console.log(`[server-api CoinGecko] Dados obtidos com sucesso da CoinGecko. ${processedData.length} pontos.`);
+    const rawData = await response.json();
+    if (!rawData || !rawData.prices || !Array.isArray(rawData.prices)) throw new ExternalApiError('CoinGecko', 'Formato de resposta inesperado.');
+    const processedData: HistoricalDataPoint[] = rawData.prices.map((p: [number, number]) => ({ timestamp: Math.floor(p[0] / 1000), price: p[1] }));
     return { data: processedData, source: 'coingecko' };
-
-  } catch (error: any) {
-    // Se o erro já é o nosso erro de limite de requisições, relança-o.
-    if (error.message && error.message.includes("Limite de requisições")) {
-      throw error;
-    }
-    // Para outras exceções (ex: falha de rede), loga e retorna null.
-    console.error(`[server-api CoinGecko] Exceção ao buscar dados históricos da CoinGecko: ${error.message}`, error);
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ExternalApiError('CoinGecko', error instanceof Error ? error.message : String(error));
   }
 }
 
 // Helper para converter data YYYY-MM-DD para timestamp Unix em segundos
 function dateToUnixTimestamp(dateString: string): number {
-  const date = parseISO(dateString); // parseISO lida com "YYYY-MM-DD"
-  return Math.floor(date.getTime() / 1000);
+  const date = parseISO(dateString); return Math.floor(date.getTime() / 1000);
 }
 
 // Função getHistoricalData modificada
@@ -765,39 +473,54 @@ export async function getHistoricalData(
   daysOrDateParams: number | { fromDate: string; toDate: string } = 30,
   forceUpdate = false
 ): Promise<HistoricalDataCacheObject | null> {
-  const cacheKey = `historical_data_${currency}_${typeof daysOrDateParams === 'number' ? daysOrDateParams : `${daysOrDateParams.fromDate}_${daysOrDateParams.toDate}`}`;
-  console.log(`[server-api getHistoricalData] Solicitado para key: ${cacheKey}, forceUpdate: ${forceUpdate}`);
+  const cacheKeySuffix = typeof daysOrDateParams === 'number' 
+    ? `${daysOrDateParams}d` 
+    : `${daysOrDateParams.fromDate}_to_${daysOrDateParams.toDate}`;
+  const cacheKey = `historical_data_v2_${currency}_${cacheKeySuffix}`;
+  console.log(`[API getHistoricalData] Solicitado para key: ${cacheKey}, forceUpdate: ${forceUpdate}`);
 
   if (!forceUpdate) {
     try {
       const cachedData = await kv.get<HistoricalDataCacheObject>(cacheKey);
       if (cachedData) {
         const now = Date.now();
-        let ttlToCheck = DEFAULT_CACHE_TTL_SECONDS * 1000;
-        if (typeof daysOrDateParams !== 'number' && daysOrDateParams.fromDate === daysOrDateParams.toDate) {
-          ttlToCheck = DAILY_DATA_CACHE_TTL_SECONDS * 1000;
-        }
+        let ttlToCheck = (typeof daysOrDateParams !== 'number' && daysOrDateParams.fromDate === daysOrDateParams.toDate 
+                          ? DAILY_DATA_CACHE_TTL_SECONDS 
+                          : DEFAULT_CACHE_TTL_SECONDS) * 1000;
 
         if ((now - cachedData.lastUpdated) < ttlToCheck) {
-          console.log(`[server-api getHistoricalData] Cache HIT para ${cacheKey}. Fonte: ${cachedData.source}, Última atualização: ${new Date(cachedData.lastUpdated).toISOString()}`);
+          console.log(`[API getHistoricalData] Cache HIT para ${cacheKey}. Fonte: ${cachedData.source}, Atualizado em: ${new Date(cachedData.lastUpdated).toISOString()}`);
           return cachedData;
         } else {
-          console.log(`[server-api getHistoricalData] Cache STALE para ${cacheKey}. Dados de ${new Date(cachedData.lastUpdated).toISOString()}, Fonte original: ${cachedData.source}. Buscando novos dados.`);
-          // Não retorna dados obsoletos por padrão, vai forçar atualização abaixo.
-          // Para stale-while-revalidate, retornaríamos cachedData aqui e atualizaríamos em background.
+          console.log(`[API getHistoricalData] Cache STALE para ${cacheKey}. Fonte: ${cachedData.source}, Atualizado em: ${new Date(cachedData.lastUpdated).toISOString()}. Implementando SWR.`);
+          // Stale-While-Revalidate: retorna dados obsoletos e atualiza em background (sem await).
+          // Não bloquear a resposta atual com a atualização em background.
+          forceUpdateHistoricalData(currency, daysOrDateParams)
+            .then(updatedData => {
+              if (updatedData) {
+                console.log(`[SWR] Cache para ${cacheKey} ATUALIZADO em background via SWR.`);
+              } else {
+                console.warn(`[SWR] Falha ao ATUALIZAR cache em background para ${cacheKey} via SWR (nenhum dado retornado).`);
+              }
+            })
+            .catch(error => {
+              console.error(`[SWR] ERRO ao ATUALIZAR cache em background para ${cacheKey} via SWR:`, error);
+            });
+          return cachedData; // Retorna dados obsoletos imediatamente.
         }
       } else {
-        console.log(`[server-api getHistoricalData] Cache MISS para ${cacheKey}.`);
+        console.log(`[API getHistoricalData] Cache MISS para ${cacheKey}.`);
       }
     } catch (error) {
-      console.error(`[server-api getHistoricalData] Erro ao ler cache KV para ${cacheKey}:`, error);
+      console.error(`[API getHistoricalData] Erro ao LER cache do KV para ${cacheKey}:`, error);
+      // Não relançar; prosseguir para buscar da API como se fosse cache miss.
     }
   } else {
-    console.log(`[server-api getHistoricalData] forceUpdate=true, pulando verificação de cache para ${cacheKey}.`);
+    console.log(`[API getHistoricalData] forceUpdate=true, pulando verificação de cache para ${cacheKey}.`);
   }
 
-  // Se cache miss, expirado, ou forceUpdate=true
-  console.log(`[server-api getHistoricalData] Tentando obter e atualizar dados para ${cacheKey} via forceUpdateHistoricalData.`);
+  // Se cache miss, erro no KV, ou forceUpdate=true, buscar (e potencialmente atualizar) dados.
+  console.log(`[API getHistoricalData] Buscando/Atualizando dados para ${cacheKey} via forceUpdateHistoricalData.`);
   return forceUpdateHistoricalData(currency, daysOrDateParams);
 }
 
@@ -805,205 +528,146 @@ export async function forceUpdateHistoricalData(
   currency = 'usd',
   daysOrParams: number | { fromDate: string; toDate: string }
 ): Promise<HistoricalDataCacheObject | null> {
-  const cacheKey = `historical_data_${currency}_${typeof daysOrParams === 'number' ? daysOrParams : `${daysOrParams.fromDate}_${daysOrParams.toDate}`}`;
-  let daysToFetch: number | { fromTimestamp: number; toTimestamp: number };
-
+  const cacheKeySuffix = typeof daysOrParams === 'number' ? `${daysOrParams}d` : `${daysOrParams.fromDate}_to_${daysOrParams.toDate}`;
+  const cacheKey = `historical_data_v2_${currency}_${cacheKeySuffix}`;
+  
+  let apiParams: number | { fromTimestamp: number; toTimestamp: number };
   if (typeof daysOrParams === 'number') {
-    daysToFetch = daysOrParams;
+    apiParams = daysOrParams;
   } else {
-    daysToFetch = {
-      fromTimestamp: dateToUnixTimestamp(daysOrParams.fromDate),
-      toTimestamp: dateToUnixTimestamp(daysOrParams.toDate) + 86399, // + (24h - 1s) para incluir o dia inteiro
-    };
+    apiParams = { fromTimestamp: dateToUnixTimestamp(daysOrParams.fromDate), toTimestamp: dateToUnixTimestamp(daysOrParams.toDate) + (24 * 60 * 60 - 1) }; // Inclui todo o dia final
   }
+  console.log(`[API forceUpdateHistoricalData] Iniciando para key: ${cacheKey}, Params para API: ${JSON.stringify(apiParams)}`);
 
-  console.log(`[server-api forceUpdateHistoricalData] Iniciando atualização para key: ${cacheKey}`);
-
-  let fetchedResult: { data: HistoricalDataPoint[]; source: 'coingecko' | 'binance' } | null = null;
-  let source: 'coingecko' | 'binance' | 'unknown' = 'unknown';
-  let specificErrorMessage: string | null = null;
+  let result: { data: HistoricalDataPoint[]; source: 'coingecko' | 'binance' } | null = null;
+  let lastError: Error | null = null;
 
   // 1. Tentar CoinGecko
   try {
-    fetchedResult = await fetchHistoricalDataFromCoinGecko(currency, daysToFetch);
-    if (fetchedResult) {
-      source = 'coingecko';
-      console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da CoinGecko para ${cacheKey}.`);
+    console.log(`[API forceUpdateHistoricalData] Tentando CoinGecko para ${cacheKey}...`);
+    result = await fetchHistoricalDataFromCoinGecko(currency, apiParams);
+    if (result && result.data.length > 0) {
+      console.log(`[API forceUpdateHistoricalData] SUCESSO com CoinGecko para ${cacheKey}. Pontos: ${result.data.length}`);
     } else {
-      // Se fetchHistoricalDataFromCoinGecko retornou null (não por rate limit, mas outro erro)
-      console.warn(`[server-api forceUpdateHistoricalData] Falha (não-específica) ao obter dados da CoinGecko para ${cacheKey}. Tentando fallback para Binance...`);
+      // Se CoinGecko retornou null ou dados vazios, mas sem lançar erro, registramos e tentaremos Binance.
+      console.warn(`[API forceUpdateHistoricalData] CoinGecko não retornou dados (ou retornou vazio) para ${cacheKey}.`);
+      result = null; // Garantir que está null para tentar Binance
     }
-  } catch (error: any) {
-    if (error.message && error.message.includes("Limite de requisições")) {
-      specificErrorMessage = error.message; // Captura a mensagem de rate limit da CoinGecko
-      console.warn(`[server-api forceUpdateHistoricalData] CoinGecko reportou: ${specificErrorMessage}`);
-    } else {
-      // Outro erro inesperado da CoinGecko
-      console.error(`[server-api forceUpdateHistoricalData] Erro inesperado da CoinGecko para ${cacheKey}: ${error.message}`, error);
-      // Neste caso, não tentaremos Binance e relançaremos o erro para ser pego pela rota da API
-      // A rota da API já tem um catch-all que pode resultar em 500 ou outra mensagem apropriada.
-      // Ou poderíamos lançar um erro específico aqui se quiséssemos um tratamento diferenciado na rota.
-      throw new Error(`Erro crítico ao buscar dados da CoinGecko: ${error.message}`); 
-    }
+  } catch (error) {
+    console.warn(`[API forceUpdateHistoricalData] FALHA com CoinGecko para ${cacheKey}:`, error);
+    lastError = error instanceof Error ? error : new Error(String(error));
+    result = null; // Garantir que result é null para tentar Binance
   }
 
-  // 2. Tentar Binance SE CoinGecko falhou (retornou null) E NÃO foi por um erro que já lançamos (como erro crítico)
-  // E SE CoinGecko não forneceu uma mensagem de erro específica (como rate limit) que queremos propagar.
-  if (!fetchedResult && !specificErrorMessage) { 
-    console.log(`[server-api forceUpdateHistoricalData] Tentando Binance como fallback para ${cacheKey}.`);
+  // 2. Tentar Binance SE CoinGecko falhou (result é null)
+  if (!result) {
+    console.log(`[API forceUpdateHistoricalData] CoinGecko falhou ou retornou vazio. Tentando Binance para ${cacheKey}. Erro anterior (se houver): ${lastError?.message}`);
     try {
-      fetchedResult = await fetchHistoricalDataFromBinance(currency, daysToFetch);
-      if (fetchedResult) {
-        source = 'binance';
-        console.log(`[server-api forceUpdateHistoricalData] Dados obtidos da BINANCE (fallback) para ${cacheKey}.`);
+      result = await fetchHistoricalDataFromBinance(currency, apiParams);
+      if (result && result.data.length > 0) {
+        console.log(`[API forceUpdateHistoricalData] SUCESSO com Binance (fallback) para ${cacheKey}. Pontos: ${result.data.length}`);
+        lastError = null; // Sucesso com Binance, limpar erro da CoinGecko.
       } else {
-         console.warn(`[server-api forceUpdateHistoricalData] Binance também falhou (retornou null) para ${cacheKey}.`);
+        console.warn(`[API forceUpdateHistoricalData] Binance também não retornou dados (ou retornou vazio) para ${cacheKey}.`);
+        // Se não havia erro da CoinGecko, definir um erro para Binance. Se havia, manter o da CoinGecko.
+        if (!lastError) lastError = new ExternalApiError('Binance', 'Binance não retornou dados ou retornou vazio após tentativa de fallback.', 500);
+        result = null; // Garantir que está null
       }
-    } catch (error: any) {
-      if (error.message && error.message.includes("Limite de requisições")) {
-        // Se a Binance também deu rate limit, usamos essa mensagem.
-        specificErrorMessage = error.message; 
-        console.warn(`[server-api forceUpdateHistoricalData] Binance reportou: ${specificErrorMessage}`);
+    } catch (error) {
+      console.warn(`[API forceUpdateHistoricalData] FALHA com Binance (fallback) para ${cacheKey}:`, error);
+      // Se CoinGecko já tinha um erro, ele prevalece. Se não, usamos o erro da Binance.
+      if (!lastError) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       } else {
-        console.error(`[server-api forceUpdateHistoricalData] Erro inesperado da Binance para ${cacheKey}: ${error.message}`, error);
-        // Não relança aqui para permitir que o fluxo chegue ao 'FALHA EM TODAS AS FONTES' se specificErrorMessage ainda for null
+        // Ambas falharam, logar o erro da Binance mas manter o erro da CoinGecko como o "lastError" principal.
+         console.warn(`Erro da Binance (${error instanceof Error ? error.message : String(error)}) ocorrido após falha da CoinGecko (${lastError.message}). O erro da CoinGecko será priorizado se for lançado.`);
       }
+      result = null; // Garantir que result é null
     }
   }
 
-  // Se houve uma mensagem de erro específica (como rate limit) e não conseguimos dados de nenhuma fonte
-  if (specificErrorMessage && !fetchedResult) {
-    throw new Error(specificErrorMessage); // Relança o erro (ex: "Limite de requisições...") para a rota da API.
-  }
-
-  if (!fetchedResult) {
-    console.error(`[server-api forceUpdateHistoricalData] FALHA EM TODAS AS FONTES (CoinGecko, Binance) para ${cacheKey}.`);
-    // Retornar null fará a rota /api/bitcoin/historical retornar 404.
-    // Se specificErrorMessage tivesse sido definido e !fetchedResult, já teríamos lançado o erro acima.
-    // Este caminho é para quando ambas as fontes retornam null sem um erro específico de rate limit capturado.
-    return null; 
-  }
-  
-  const dataToCache: HistoricalDataPoint[] = fetchedResult.data;
-
-  if (dataToCache && dataToCache.length > 0) {
+  // 3. Processar o resultado ou lançar erro
+  if (result && result.data.length > 0) {
     const cacheObject: HistoricalDataCacheObject = {
-      data: dataToCache,
+      data: result.data,
       lastUpdated: Date.now(),
-      source: source,
+      source: result.source,
     };
 
-    let ttl = DEFAULT_CACHE_TTL_SECONDS;
-    if (typeof daysOrParams !== 'number' && daysOrParams.fromDate === daysOrParams.toDate) {
-      ttl = DAILY_DATA_CACHE_TTL_SECONDS;
-    }
+    let ttl = (typeof daysOrParams !== 'number' && daysOrParams.fromDate === daysOrParams.toDate) ? DAILY_DATA_CACHE_TTL_SECONDS : DEFAULT_CACHE_TTL_SECONDS;
     
     try {
       await kv.set(cacheKey, cacheObject, { ex: ttl });
-      console.log(`[server-api forceUpdateHistoricalData] Cache atualizado para ${cacheKey} com dados de ${source}. TTL: ${ttl}s.`);
+      console.log(`[API forceUpdateHistoricalData] Cache ATUALIZADO para ${cacheKey} com dados de ${result.source}. TTL: ${ttl}s.`);
       return cacheObject;
-    } catch (error) {
-      console.error(`[server-api forceUpdateHistoricalData] Erro ao salvar no cache KV para ${cacheKey}:`, error);
-      return cacheObject; 
+    } catch (kvError) {
+      console.error(`[API forceUpdateHistoricalData] Erro ao SALVAR no cache KV para ${cacheKey}:`, kvError);
+      return cacheObject; // Retornar dados mesmo se o salvamento no KV falhar para a requisição atual
     }
   } else {
-    console.warn(`[server-api forceUpdateHistoricalData] Nenhum dado para cachear para ${cacheKey} após tentativa de busca.`);
-    return null;
+    // Se não houver dados de nenhuma fonte
+    console.error(`[API forceUpdateHistoricalData] NENHUM DADO OBTIDO de nenhuma fonte para ${cacheKey}.`);
+    if (lastError) {
+      // Se o erro capturado não for uma de nossas classes de erro customizadas, encapsulá-lo.
+      if (!(lastError instanceof ApiError)) {
+        // Usar um status mais genérico como 503 Service Unavailable se ambas as fontes falharam.
+        throw new ExternalApiError('MultiSourceFetch', `Falha ao buscar dados de todas as fontes. Último erro: ${lastError.message}`, (lastError as any).status || 503);
+      }
+      throw lastError; // Lançar o ApiError (RateLimitError, ExternalApiError) capturado.
+    }
+    // Se não houve erro explícito (ambas retornaram null/vazio sem erro), lançar DataNotFoundError.
+    throw new DataNotFoundError(`Não foi possível obter dados históricos para ${cacheKey} de nenhuma fonte após tentativas.`);
   }
 }
 
-// NOVA FUNÇÃO PARA BUSCAR DADOS DA BINANCE
-async function fetchHistoricalDataFromBinance(
-  currency: string,
-  daysOrParams: number | { fromTimestamp: number; toTimestamp: number }
-): Promise<{ data: HistoricalDataPoint[]; source: 'binance' } | null> {
-  const symbol = currency.toUpperCase() === 'USD' ? 'BTCUSDT' : 
-                 currency.toUpperCase() === 'BRL' ? 'BTCBRL' : null;
+// fetchHistoricalDataFromBinance (permanece como na última versão funcional, já lança RateLimitError/ExternalApiError)
+async function fetchHistoricalDataFromBinance( currency: string, daysOrParams: number | { fromTimestamp: number; toTimestamp: number }): Promise<{ data: HistoricalDataPoint[]; source: 'binance' } | null> {
+  globalCacheData.metadata.totalApiCalls++;
+  let symbol: string;
+  let apiParamsUsed = JSON.stringify(daysOrParams);
+  if (currency.toLowerCase() === 'usd') symbol = 'BTCUSDT';
+  else if (currency.toLowerCase() === 'brl') { symbol = 'BTCUSDT'; console.warn('[Binance] Para BRL, usando BTCUSDT.'); }
+  else throw new ExternalApiError('Binance', `Moeda ${currency} não suportada.`, 400);
 
-  if (!symbol) {
-    console.warn(`[server-api Binance] Moeda não suportada pela Binance: ${currency}`);
-    return null;
-  }
-
-  let startTime;
-  let endTime = Date.now(); 
-  const limit = 1000; 
-  let operationDescription = `Moeda: ${currency} (Símbolo Binance: ${symbol})`;
-
+  let startTime, endTime, limit;
   if (typeof daysOrParams === 'number') {
-    startTime = Date.now() - (daysOrParams * 24 * 60 * 60 * 1000);
-    operationDescription += `, Dias: ${daysOrParams}`;
-    if (daysOrParams > limit) {
-        console.warn(`[server-api Binance] Número de dias (${daysOrParams}) excede o limite de ${limit} velas. Buscando os ${limit} dias mais recentes.`);
-        startTime = Date.now() - (limit * 24 * 60 * 60 * 1000);
-    }
+    limit = daysOrParams > 0 ? daysOrParams : 1;
+    endTime = Date.now();
+    startTime = subDays(new Date(), limit).getTime();
   } else {
     startTime = daysOrParams.fromTimestamp * 1000;
     endTime = daysOrParams.toTimestamp * 1000;
-    operationDescription += `, De: ${new Date(startTime).toISOString().split('T')[0]}, Até: ${new Date(endTime).toISOString().split('T')[0]}`;
-    
-    const roughlyDaysInRange = (endTime - startTime) / (1000 * 60 * 60 * 24);
-    if (roughlyDaysInRange > limit) {
-        console.warn(`[server-api Binance] Range solicitado (${roughlyDaysInRange.toFixed(0)} dias) excede o limite de ${limit} velas. Ajustando startTime.`);
-        startTime = endTime - (limit * 24 * 60 * 60 * 1000);
-    }
+    // Calcular limite aproximado para Binance (max 1000)
+    const durationDays = Math.max(1, Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24)));
+    limit = Math.min(durationDays, 1000);
   }
-  
-  if (endTime > Date.now()) {
-    endTime = Date.now();
-  }
-
-  const apiUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&startTime=${Math.floor(startTime)}&endTime=${Math.floor(endTime)}&limit=${limit}`;
-
-  console.log(`[server-api Binance] Tentando buscar dados. ${operationDescription}`);
-  // console.log(`[server-api Binance] URL da API: ${apiUrl}`);
+  const apiUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
+  console.log(`[Binance] Fetching: ${apiUrl} (Params Originais: ${apiParamsUsed})`);
 
   try {
-    const response = await fetch(apiUrl, { next: { revalidate: 0 } }); 
-
+    const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[server-api Binance] Erro ao obter dados: ${response.status} - ${response.statusText}. Body: ${errorBody}`);
-      if (response.status === 429 || response.status === 418) { // 418 é usado pela Binance para ban de IP
-        throw new Error(`[Binance API] Limite de requisições/Bloqueio atingido (${response.status}). Detalhes: ${errorBody}`);
-      }
-      // Para outros erros, retorna null.
-      console.warn(`[server-api Binance] Falha na Binance (status ${response.status}).`);
-      return null;
+      if (response.status === 429 || response.status === 418) throw new RateLimitError('Binance', response.status, errorBody);
+      throw new ExternalApiError('Binance', `Status: ${response.status}. Body: ${errorBody}`, response.status);
     }
-
     const klines = await response.json();
-
-    if (!Array.isArray(klines) || klines.length === 0) {
-      console.warn('[server-api Binance] Nenhum dado de klines retornado ou formato inesperado.');
-      return null;
-    }
-
-    const processedData: HistoricalDataPoint[] = klines.map((kline: any[]) => {
-      return {
-        timestamp: Math.floor(kline[0] / 1000), 
-        price: parseFloat(kline[4]), 
-      };
-    });
+    if (!Array.isArray(klines)) throw new ExternalApiError('Binance', 'Formato de resposta inesperado (não array).');
+    if (klines.length === 0) { console.warn('[Binance] Retornou array vazio.'); return { data: [], source: 'binance' }; }
     
-    const validData = processedData.filter(dp => !isNaN(dp.price));
-
-    if (validData.length === 0 && klines.length > 0) {
-        console.warn('[server-api Binance] Dados de klines recebidos, mas todos os preços eram inválidos após o processamento.');
-        return null;
+    const validData: HistoricalDataPoint[] = [];
+    for (const k of klines) {
+      if (Array.isArray(k) && k.length >= 5) {
+        const ts = Math.floor(k[0] / 1000);
+        const price = parseFloat(k[4]);
+        if (!isNaN(price)) validData.push({ timestamp: ts, price });
+      }
     }
-
-    console.log(`[server-api Binance] Dados obtidos com sucesso da Binance. ${validData.length} pontos válidos.`);
+    if (validData.length === 0 && klines.length > 0) throw new ExternalApiError('Binance', 'Dados klines recebidos, mas processamento resultou em zero pontos válidos.');
     return { data: validData, source: 'binance' };
-
-  } catch (error: any) {
-    // Se o erro já é o nosso erro de limite de requisições/bloqueio, relança-o.
-    if (error.message && (error.message.includes("Limite de requisições") || error.message.includes("Bloqueio atingido"))) {
-      throw error;
-    }
-    // Para outras exceções (ex: falha de rede), loga e retorna null.
-    console.error(`[server-api Binance] Exceção ao buscar dados históricos da Binance: ${error.message}`, error);
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ExternalApiError('Binance', error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -1190,71 +854,7 @@ export async function forceUpdateAllData(): Promise<AppData> {
 }
 
 // Adicionar função para buscar o preço atual do Bitcoin (usada em outros lugares)
-export async function getCurrentBitcoinPrice(currency = 'usd'): Promise<{ usd: number; brl: number; lastUpdated: string, source: 'cache' | 'api', isUsingCache?: boolean } | null> {
-  const cacheKey = 'current_bitcoin_price';
-  const now = Date.now();
-  console.log('[server-api] getCurrentBitcoinPrice: Buscando preço atual.');
-
-  try {
-    const cachedData = await kv.get<{ price: { usd: number; brl: number }; lastUpdated: number }>(cacheKey);
-
-    if (cachedData && (now - cachedData.lastUpdated) < (60 * 1000 * 5)) { // Cache de 5 minutos
-      console.log('[server-api] getCurrentBitcoinPrice: Usando preço atual do cache.');
-      return {
-        ...cachedData.price,
-        lastUpdated: new Date(cachedData.lastUpdated).toISOString(),
-        source: 'cache',
-        isUsingCache: true
-      };
-    }
-  } catch (kvError: any) {
-    console.error(`[server-api] getCurrentBitcoinPrice: Erro ao ler do KV (price): ${kvError.message}`);
-  }
-  
-  console.log('[server-api] getCurrentBitcoinPrice: Buscando preço atual da API CoinGecko.');
-  try {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,brl');
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`[server-api] getCurrentBitcoinPrice: Erro ${response.status} da API CoinGecko ao buscar preço atual. Body: ${errorBody}`);
-      throw new Error(`Erro da API CoinGecko ao buscar preço atual: ${response.status}`);
-    }
-    const data = await response.json();
-    const price = {
-      usd: data.bitcoin.usd,
-      brl: data.bitcoin.brl
-    };
-
-    try {
-      await kv.set(cacheKey, { price, lastUpdated: now }, { ex: 60 * 10 }); // Cache de 10 minutos na escrita
-      console.log('[server-api] getCurrentBitcoinPrice: Preço atual armazenado no cache.');
-    } catch (kvError: any) {
-      console.error(`[server-api] getCurrentBitcoinPrice: Erro ao escrever no KV (price): ${kvError.message}`);
-    }
-
-    return {
-      ...price,
-      lastUpdated: new Date(now).toISOString(),
-      source: 'api',
-      isUsingCache: false
-    };
-  } catch (error: any) {
-    console.error(`[server-api] getCurrentBitcoinPrice: ERRO CRÍTICO ao buscar preço atual: ${error.message}`);
-    // Tentar retornar cache antigo como fallback extremo
-    try {
-        const cachedData = await kv.get<{ price: { usd: number; brl: number }; lastUpdated: number }>(cacheKey);
-        if (cachedData) {
-            console.warn('[server-api] getCurrentBitcoinPrice: Usando cache antigo como fallback extremo após falha total da API.');
-            return {
-                ...cachedData.price,
-                lastUpdated: new Date(cachedData.lastUpdated).toISOString(),
-                source: 'cache_fallback_after_api_fail',
-                isUsingCache: true
-            };
-        }
-    } catch (kvErrorFallback: any) {
-        console.error(`[server-api] getCurrentBitcoinPrice: Erro ao tentar ler cache de fallback extremo: ${kvErrorFallback.message}`);
-    }
-    return null;
-  }
-} 
+export async function getCurrentBitcoinPrice(currency = 'usd'): Promise<BitcoinPrice | null > { 
+    return updateCurrentPrice(); // Simplificado para usar a mesma lógica de updateCurrentPrice
+}
+}
