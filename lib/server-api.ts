@@ -1019,56 +1019,6 @@ async function preloadAdjacentPeriods(currency = 'usd', currentDays = 30): Promi
   }
 }
 
-// Nova função para forçar a atualização dos dados históricos
-export async function forceUpdateHistoricalData(
-  currency = 'usd', 
-  daysOrParams: number | { fromDate: string; toDate: string } = 30
-): Promise<HistoricalDataPoint[]> {
-  const cacheKey = typeof daysOrParams === 'number' ? String(daysOrParams) : `${daysOrParams.fromDate}_${daysOrParams.toDate}`;
-  console.log(`[server-api] forceUpdateHistoricalData: Forçando atualização para ${currency}, chave: ${cacheKey}`);
-  
-  let fetchParams: number | { fromTimestamp: number; toTimestamp: number };
-  if (typeof daysOrParams === 'number') {
-    fetchParams = daysOrParams;
-  } else {
-    const fromTimestamp = Math.floor(new Date(daysOrParams.fromDate + 'T12:00:00Z').getTime() / 1000);
-    const toTimestamp = Math.floor(new Date(daysOrParams.toDate + 'T23:59:59Z').getTime() / 1000);
-    fetchParams = { fromTimestamp, toTimestamp };
-  }
-
-  try {
-    const freshData = await fetchHistoricalData(currency, fetchParams);
-    
-    // Atualizar o cache após a busca
-    const cacheData = await getAppData();
-    if (cacheData) {
-      if (currency === 'usd') {
-        cacheData.historicalDataUSD = freshData;
-      } else {
-        cacheData.historicalDataBRL = freshData;
-      }
-      cacheData.lastFetched = Date.now();
-      await saveAppData(cacheData);
-    }
-    
-    // Atualizar o cache global - disponível para todos os usuários
-    globalCacheData.historicalData[currency.toLowerCase()][cacheKey] = {
-      data: freshData,
-      timestamp: Date.now(),
-      lastRefreshed: Date.now(),
-      accessCount: 0,
-      source: 'filesystem'
-    };
-    
-    return freshData;
-  } catch (error) {
-    console.error(`Erro ao forçar atualização de dados históricos (${currency}, ${typeof daysOrParams === 'number' ? daysOrParams : `${daysOrParams.fromDate}_${daysOrParams.toDate}`}):`, error);
-    
-    // Se falhar, ainda tentamos retornar dados em cache ou simulados
-    return getHistoricalData(currency, daysOrParams);
-  }
-}
-
 // Adicionar nova função para forçar atualização sem respeitar cache
 export async function forceUpdateAllData(): Promise<AppData> {
   try {
