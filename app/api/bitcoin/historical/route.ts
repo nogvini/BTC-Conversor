@@ -12,37 +12,40 @@ const PERIOD_MAPPING = {
 
 // GET /api/bitcoin/historical?currency=usd&days=30&force=true&period=30d
 // ou /api/bitcoin/historical?currency=usd&fromDate=2023-01-01&toDate=2023-01-31&force=true
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const currency = searchParams.get('currency') || 'usd';
+  const fromDate = searchParams.get('fromDate');
+  const toDate = searchParams.get('toDate');
+  const days = searchParams.get('days');
+
+  console.log(`[API /historical] GET Request Received. Currency: ${currency}, From: ${fromDate}, To: ${toDate}, Days: ${days}`);
+
   try {
     // Obter parâmetros da requisição
-    const { searchParams } = new URL(request.url);
-    const currency = searchParams.get('currency') || 'usd';
     const forceUpdate = searchParams.get('force') === 'true';
-
-    const fromDateStr = searchParams.get('fromDate');
-    const toDateStr = searchParams.get('toDate');
 
     let daysOrDateParams: number | { fromDate: string; toDate: string };
     let periodForHeader: string;
 
-    if (fromDateStr && toDateStr) {
+    if (fromDate && toDate) {
       // Validar formato YYYY-MM-DD
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(fromDateStr) || !dateRegex.test(toDateStr)) {
+      if (!dateRegex.test(fromDate) || !dateRegex.test(toDate)) {
         return NextResponse.json(
           { error: 'Parâmetros "fromDate" e "toDate" devem estar no formato YYYY-MM-DD.' },
           { status: 400 }
         );
       }
-      if (new Date(fromDateStr) > new Date(toDateStr)) {
+      if (new Date(fromDate) > new Date(toDate)) {
         return NextResponse.json(
           { error: '"fromDate" não pode ser posterior a "toDate".' },
           { status: 400 }
         );
       }
-      daysOrDateParams = { fromDate: fromDateStr, toDate: toDateStr };
-      periodForHeader = `${fromDateStr}_to_${toDateStr}`;
-      console.log(`API: Requisição de dados históricos - moeda: ${currency}, de: ${fromDateStr}, até: ${toDateStr}${forceUpdate ? ', força atualização' : ''}`);
+      daysOrDateParams = { fromDate, toDate };
+      periodForHeader = `${fromDate}_to_${toDate}`;
+      console.log(`API: Requisição de dados históricos - moeda: ${currency}, de: ${fromDate}, até: ${toDate}${forceUpdate ? ', força atualização' : ''}`);
     } else {
       const periodParam = searchParams.get('period');
       let days = parseInt(searchParams.get('days') || '30', 10);
@@ -76,7 +79,7 @@ export async function GET(request: Request) {
         ? await forceUpdateHistoricalData(currency.toLowerCase(), daysOrDateParams)
         : await getHistoricalData(currency.toLowerCase(), daysOrDateParams);
     } catch (error: any) {
-      console.error(`[API /historical] Erro ao buscar dados históricos: ${error.message}`, error);
+      console.error(`[API /historical] DETAILED ERROR: Message: ${error.message}, Stack: ${error.stack}, Full Error: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
       let statusCode = 500;
       let clientMessage = 'Erro interno ao processar a solicitação de dados históricos.';
 
