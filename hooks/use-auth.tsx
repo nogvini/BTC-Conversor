@@ -317,6 +317,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Se data.user existe mas data.session é null, significa que o cadastro requer confirmação por email.
         // Este é o fluxo esperado para novos usuários, ou para usuários existentes não confirmados.
         if (data.user && !data.session) {
+          // LOGS TEMPORÁRIOS PARA DEBUG:
+          console.log('[Auth Debug] Detalhes do data.user recebido:', {
+            id: data.user.id,
+            email: data.user.email,
+            created_at: data.user.created_at,
+            updated_at: data.user.updated_at,
+            email_confirmed_at: data.user.email_confirmed_at,
+            last_sign_in_at: data.user.last_sign_in_at
+          });
+
           // Heurística para diferenciar novo usuário de um existente não confirmado
           // Se updated_at for significativamente diferente de created_at,
           // ou se email_confirmed_at já estiver preenchido,
