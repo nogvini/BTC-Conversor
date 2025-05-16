@@ -261,6 +261,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null });
   const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null });
 
+  // Definir "hoje" para desabilitar datas futuras no calendário
+  const today = startOfDay(new Date());
+
   // Verificar tamanho da tela para decidir entre popover e dialog
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3294,25 +3297,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           {investmentDate ? format(investmentDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                          Selecione a data do aporte
-                        </div>
+                      <PopoverContent className="w-auto p-0" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={investmentDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
-                              const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
+                          onSelect={(day) => {
+                            if (day) {
+                              // Mantém a hora UTC existente, apenas muda a data
+                              const newDate = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 12, 0, 0));
                               setInvestmentDate(newDate);
-                              // Limpar informação de preço anterior ao mudar a data
-                              setInvestmentDatePriceInfo({ price: null, loading: false, currency: null, error: null });
+                              // Buscar preço para a nova data
+                              fetchPriceForDate(newDate, 'investment', displayCurrency);
                             }
                           }}
+                          disabled={(date) => date > today || date < new Date("1970-01-01")}
                           initialFocus
-                          className="bg-black/80"
-                          locale={ptBR}
                         />
                       </PopoverContent>
                     </Popover>
@@ -3384,25 +3383,21 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                           {profitDate ? format(profitDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione uma data"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-black/90 border-purple-800/60" align="start">
-                        <div className="p-2 bg-purple-900/30 text-xs text-center text-gray-300 border-b border-purple-700/50">
-                          Selecione a data do {isProfit ? "lucro" : "perda"}
-                        </div>
+                      <PopoverContent className="w-auto p-0" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={profitDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              // Definir a data com horário meio-dia UTC para evitar problemas de fuso
-                              const newDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
+                          onSelect={(day) => {
+                            if (day) {
+                              // Mantém a hora UTC existente, apenas muda a data
+                              const newDate = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 12, 0, 0));
                               setProfitDate(newDate);
-                              // Limpar informação de preço anterior ao mudar a data
-                              setProfitDatePriceInfo({ price: null, loading: false, currency: null, error: null });
+                               // Buscar preço para a nova data
+                              fetchPriceForDate(newDate, 'profit', displayCurrency);
                             }
                           }}
+                          disabled={(date) => date > today || date < new Date("1970-01-01")}
                           initialFocus
-                          className="bg-black/80"
-                          locale={ptBR}
                         />
                       </PopoverContent>
                     </Popover>

@@ -709,14 +709,22 @@ async function fetchHistoricalDataFromCoinGecko(
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(`[server-api] fetchHistoricalDataFromCoinGecko: Erro ao obter dados históricos: ${response.status}. Resposta: ${errorBody}`);
-      throw new Error(`API CoinGecko retornou status ${response.status}`);
+      // LANÇAR UM ERRO MAIS ESPECÍFICO BASEADO NO STATUS
+      if (response.status === 404) {
+         throw new Error(`Dados históricos não encontrados para os parâmetros fornecidos (status CoinGecko: ${response.status})`);
+      } else if (response.status === 429) { // Too Many Requests
+         throw new Error(`Limite de requisições para a API CoinGecko atingido (status CoinGecko: ${response.status}). Tente mais tarde.`);
+      } else if (response.status >= 500) {
+         throw new Error(`Serviço da API CoinGecko indisponível (status CoinGecko: ${response.status})`);
+      }
+      throw new Error(`API CoinGecko retornou erro inesperado (status CoinGecko: ${response.status})`);
     }
 
     const data = await response.json();
     console.log(`[server-api] fetchHistoricalDataFromCoinGecko: Dados recebidos do CoinGecko para ${operationDescription}: ${JSON.stringify(data).substring(0, 200)}...`);
 
-    if (!data.prices || !Array.isArray(data.prices)) {
-      console.warn(`[server-api] fetchHistoricalDataFromCoinGecko: CoinGecko retornou formato inesperado ou sem array 'prices' para ${operationDescription}. Retornando array vazio.`);
+    if (!data.prices || !Array.isArray(data.prices) || data.prices.length === 0) {
+      console.warn(`[server-api] fetchHistoricalDataFromCoinGecko: CoinGecko retornou formato inesperado, sem array 'prices', ou array 'prices' vazio para ${operationDescription}. Retornando array vazio.`);
       return [];
     }
 

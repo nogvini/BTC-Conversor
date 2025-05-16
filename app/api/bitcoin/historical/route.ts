@@ -75,11 +75,30 @@ export async function GET(request: Request) {
       historicalData = forceUpdate 
         ? await forceUpdateHistoricalData(currency.toLowerCase(), daysOrDateParams)
         : await getHistoricalData(currency.toLowerCase(), daysOrDateParams);
-    } catch (error) {
-      console.error('Erro ao obter dados históricos:', error);
+    } catch (error: any) {
+      console.error(`[API /historical] Erro ao buscar dados históricos: ${error.message}`, error);
+      let statusCode = 500;
+      let clientMessage = 'Erro interno ao processar a solicitação de dados históricos.';
+
+      if (error.message) {
+        if (error.message.includes('não encontrados')) {
+          statusCode = 404;
+          clientMessage = error.message; // Mensagem já formatada da server-api
+        } else if (error.message.includes('Limite de requisições')) {
+          statusCode = 429;
+          clientMessage = error.message; // Mensagem já formatada da server-api
+        } else if (error.message.includes('indisponível')) {
+          statusCode = 503;
+          clientMessage = error.message; // Mensagem já formatada da server-api
+        } else {
+          // Para outros erros originados na server-api ou erros inesperados
+          clientMessage = error.message; 
+        }
+      }
+
       return NextResponse.json(
-        { error: 'Não foi possível obter dados históricos do Bitcoin. Por favor, tente novamente mais tarde.' },
-        { status: 503 }
+        { message: clientMessage },
+        { status: statusCode }
       );
     }
     
