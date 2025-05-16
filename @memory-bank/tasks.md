@@ -32,27 +32,52 @@ Status: (P)endente, (E)m Andamento, (C)oncluído, (B)loqueado, (H)old (Em Espera
 | T020| [DOC] Documentar APIs internas (`/api/*`)  | `app/api/*`              | B          | P      | Adicionar comentários JSDoc/TSDoc.              |
 | T021| [GRÁFICOS] Melhorar interatividade         | `HistoricalRatesChart`   | M          | P      | Ex: tooltips mais ricos, zoom, etc.             |
 | T022| [GRÁFICOS] Otimizar performance            | `HistoricalRatesChart`   | M          | P      | Ex: virtualização, carregamento inteligente.    |
-| T023| [CALC] Refatorar lógica de cálculo         | `ProfitCalculator`       | A          | P      | Preço médio do dia do aporte, divisão de lucros, valorização do principal. |
+| T023| [CALC] Refatorar lógica de cálculo         | `ProfitCalculator`       | A          | H      | REAVALIAR. Parte integrada em T_REL_005. Foco em preço médio e lucros. |
 | T024| [CALC UX] Melhorar responsividade do botão de exclusão em massa | `ProfitCalculator`       | M          | P      |                                                 |
-| T025| [CALC UX] Melhorar pop-up de exportação    | `ProfitCalculator`       | M          | P      | Responsividade e atualização de dados de relatórios. |
+| T025| [CALC UX] Melhorar pop-up de exportação    | `ProfitCalculator`       | M          | H      | REAVALIAR. Será coberto por T_EXPIMP_002 e T_EXPIMP_004. |
 | T026| [BUG AUTH] Corrigir reaplicação de restrições pós-logout | `useAuth`, Middleware    | A          | P      | Usuário deslogado mantém acesso indevido.       |
 | T027| [BUG AUTH] Melhorar feedback de cadastro para email existente | `AuthForm`, `useAuth`    | A          | P      | Exibir erro correto ao invés de "validar email".  |
 | T028| [BUG AUTH] Corrigir proteção da rota `/calculator` | Middleware, `app/calculator` | A          | P      | Rota acessível sem login.                       |
+
+## Backlog: Melhorias em Relatórios e Aportes (Foco BTC)
+
+| ID        | Tarefa                                     | Módulo/Componente        | Prioridade | Status | Observações                                     |
+|-----------|--------------------------------------------|--------------------------|------------|--------|-------------------------------------------------|
+| T_REL_001 | [ÉPICA] Revisão de Relatórios e Aportes (Foco BTC) | Global, `ProfitCalculator`, `use-reports` | A          | P      | Melhorar UX, persistência e alinhamento com BTC. |
+| T_REL_002 | Modificar Input de Aporte para BTC/Sats    | `ProfitCalculator`       | A          | C      | Input principal em BTC/Sats, data do aporte.    |
+| T_REL_003 | Integrar Consulta de Preço Histórico BTC   | `ProfitCalculator`, `lib/api` | A          | P      | Calcular valor USD do aporte.                     |
+| T_REL_003a| Adaptar/Criar API Preço Histórico Diário   | `lib/api`                | A          | P      | Função `getBitcoinPriceOnDate(date, currency)`. |
+| T_REL_004 | Atualizar Estrutura Dados Aportes (Cache)  | `use-reports`, `lib/calculator-types` | A          | P      | Incluir `amountBTC`, `btcPriceUSD`, `investedUSD`.|
+| T_REL_005 | Refatorar Lógica Cálculo Lucro/Prejuízo    | `ProfitCalculator`, `lib/report-processing` | A          | P      | Base no `investedAmountUSD` e `amountBTC` atual.|
+| T_REL_006 | Revisar/Melhorar Geração de Relatórios (UI) | `reports-comparison`, `ProfitCalculator` | M          | P      | UI/UX da visualização de dados.                |
+| T_REL_007 | Implementar Exportação de Relatórios       | `use-reports`, UI        | A          | H      | Ver T_EXPIMP_002. Exportar `ReportCollection`.  |
+| T_REL_008 | Implementar Importação de Relatórios       | `use-reports`, UI        | A          | H      | Ver T_EXPIMP_003. Importar `ReportCollection`.  |
+| T_REL_009 | Revisar UI/UX Aportes em BTC             | `ProfitCalculator`       | A          | P      | Tornar fluxo claro e intuitivo.                 |
+
+## Backlog: Funcionalidades de Exportação/Importação de Relatórios
+
+| ID          | Tarefa                                     | Módulo/Componente        | Prioridade | Status | Observações                                       |
+|-------------|--------------------------------------------|--------------------------|------------|--------|---------------------------------------------------|
+| T_EXPIMP_001| Definir Formato de Arquivo Export/Import   | `lib/calculator-types`   | A          | P      | JSON para `ReportCollection` ou `Report[]`.       |
+| T_EXPIMP_002| Implementar Exportação de Relatórios       | `use-reports`, UI        | A          | P      | Exportar todos ou selecionado(s).                 |
+| T_EXPIMP_003| Implementar Importação de Relatórios       | `use-reports`, UI        | A          | P      | Validar, tratar duplicatas/conflitos.             |
+| T_EXPIMP_004| UI/UX para Exportação/Importação           | UI                       | A          | P      | Modais, feedback ao usuário.                      |
+| T_EXPIMP_005| Refatorar `prepareReportFoundationData`    | `lib/report-processing`  | M          | P      | Alinhar com estrutura de dados focada em BTC.     |
 
 ## Backlog Geral
 
 | ID  | Tarefa                                     | Módulo/Componente        | Prioridade | Status | Observações                                     |
 |-----|--------------------------------------------|--------------------------|------------|--------|-------------------------------------------------|
-| B001| [CALC] Implementar persistência de dados   | `ProfitCalculator`, Supabase | A          | P      | Essencial para funcionalidade completa.         |
+| B001| [CALC] Persistir Relatórios no Cache Navegador| `use-reports`            | A          | C      | Coberto pela persistência da `ReportCollection`.  |
 | B002| Melhorar tratamento de erros em APIs       | `app/api/*`              | M          | P      | Padronizar respostas de erro.                   |
 | B003| Adicionar testes unitários/integração      | Global                   | M          | P      | Foco nos hooks e lógica de negócios.            |
 | B004| Otimizar carregamento de fontes/imagens    | Global                   | B          | P      |                                                 |
-| B005| Implementar funcionalidade de "Esqueci Senha"| `AuthForm`, Supabase     | M          | P      |                                                 |
-| B006| Adicionar mais opções de moedas ao conversor| `BitcoinConverter`       | B          | P      |                                                 |
+| B005| Implementar "Esqueci Senha"              | `AuthForm`, Supabase     | M          | P      |                                                 |
+| B006| Add mais opções de moedas ao conversor   | `BitcoinConverter`       | B          | P      |                                                 |
 | B007| Permitir customização de períodos no gráfico| `HistoricalRatesChart`   | B          | P      | Input de datas.                                 |
 | B008| Internacionalização (i18n)                 | Global                   | B          | P      | Se planejado para o futuro.                      |
 
-## Concluídas Recentemente (Pós-Refatoração MB)
+## Concluídas Recentemente
 
 *   T001: [REVISÃO MB] Revisar `projectbrief.md`
 *   T002: [REVISÃO MB] Revisar `productContext.md`
@@ -64,9 +89,14 @@ Status: (P)endente, (E)m Andamento, (C)oncluído, (B)loqueado, (H)old (Em Espera
 *   T009: [CORE] Validar funcionalidade do Conversor
 *   T010: [CORE] Validar funcionalidade dos Gráficos
 *   T011: [CORE] Validar Calculadora de Lucros (básico)
-*   T012: [AUTH] Testar fluxo de Login
-*   T013: [AUTH] Testar fluxo de Cadastro
-*   T014: [AUTH] Testar proteção de rotas
+*   T012: [AUTH] Testar fluxo de Login (identificado T026)
+*   T013: [AUTH] Testar fluxo de Cadastro (identificado T027)
+*   T014: [AUTH] Testar proteção de rotas (identificado T026, T028)
+*   T015: [PROFILE] Validar exibição do Perfil
+*   T026: [BUG AUTH] Corrigir reaplicação de restrições pós-logout
+*   T027: [BUG AUTH] Melhorar feedback de cadastro para email existente
+*   T028: [BUG AUTH] Corrigir proteção da rota `/calculator`
+*   T_REL_002: Modificar Input de Aporte para BTC/Sats
 
 ## Ideias / Futuro
 

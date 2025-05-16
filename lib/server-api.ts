@@ -668,73 +668,251 @@ async function updatePriceInBackground(): Promise<void> {
   }
 }
 
-// Função para buscar dados históricos com parâmetros específicos
+// Renomeada e ajustada: agora é fetchHistoricalDataFromCoinGecko
+// Esta função busca diretamente da CoinGecko sem cache ou processamento especial.
+async function fetchHistoricalDataFromCoinGecko(
+  currency = 'usd',
+  daysOrParams: number | { fromTimestamp: number; toTimestamp: number }
+): Promise<HistoricalDataPoint[]> {
+  try {
+    let apiUrl = '';
+    let operationDescription = '';
+
+    if (typeof daysOrParams === 'number') {
+      const days = daysOrParams;
+      operationDescription = `Moeda: ${currency}, Dias: ${days}`;
+      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`;
+    } else {
+      const { fromTimestamp, toTimestamp } = daysOrParams;
+      operationDescription = `Moeda: ${currency}, De: ${new Date(fromTimestamp * 1000).toISOString().split('T')[0]}, Até: ${new Date(toTimestamp * 1000).toISOString().split('T')[0]}`;
+      apiUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=${currency}&from=${fromTimestamp}&to=${toTimestamp}`;
+    }
+
+    console.log(`[server-api] fetchHistoricalDataFromCoinGecko: Buscando do CoinGecko. ${operationDescription}`);
+    console.log(`[server-api] fetchHistoricalDataFromCoinGecko: URL da API CoinGecko: ${apiUrl}`);
+
+    const response = await fetch(
+      apiUrl,
+      {
+        headers: {
+          'Accept': 'application/json',
+        },
+        // Importante: CoinGecko pode ter seu próprio cache, mas aqui controlamos o revalidate da nossa chamada.
+        // Para esta função de baixo nível, o ideal é não usar o cache do fetch do Next.js,
+        // pois o cache será gerenciado pelas funções de nível superior (getHistoricalData, forceUpdateHistoricalData).
+        cache: 'no-store', 
+      }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[server-api] fetchHistoricalDataFromCoinGecko: Erro ao obter dados históricos: ${response.status}. Resposta: ${errorBody}`);
+      throw new Error(`API CoinGecko retornou status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`[server-api] fetchHistoricalDataFromCoinGecko: Dados recebidos do CoinGecko para ${operationDescription}: ${JSON.stringify(data).substring(0, 200)}...`);
+
+    if (!data.prices || !Array.isArray(data.prices)) {
+      console.warn(`[server-api] fetchHistoricalDataFromCoinGecko: CoinGecko retornou formato inesperado ou sem array 'prices' para ${operationDescription}. Retornando array vazio.`);
+      return [];
+    }
+
+    return data.prices.map(([timestamp, price]: [number, number]) => ({
+      timestamp: new Date(timestamp).toISOString(), // Manter o timestamp original
+      price: price,
+      currency: currency,
+      source: 'coingecko',
+      isUsingCache: false, // Esta função não lida com cache, será definido por quem a chama
+    }));
+  } catch (error) {
+    console.error(`[server-api] fetchHistoricalDataFromCoinGecko: Erro crítico ao buscar dados históricos (${currency}, ${JSON.stringify(daysOrParams)}):`, error);
+    throw error; // Re-lançar para ser tratado pela função chamadora
+  }
+}
+
+// Função getHistoricalData modificada
 export async function getHistoricalData(
-  currency = 'usd', 
+  currency = 'usd',
   daysOrParams: number | { fromDate: string; toDate: string } = 30
 ): Promise<HistoricalDataPoint[]> {
-  globalCacheData.metadata.totalApiCalls = (globalCacheData.metadata.totalApiCalls || 0) + 1;
-  const cacheKey = typeof daysOrParams === 'number' ? String(daysOrParams) : `${daysOrParams.fromDate}_${daysOrParams.toDate}`;
-  
-  if (!globalCacheData.historicalData[currency]) {
-    globalCacheData.historicalData[currency] = {};
+  ensureDataDir();
+  globalCacheData.metadata.totalApiCalls++;
+
+  const now = Date.now();
+  let cacheKey: string;
+  let operationType: 'days' | 'range';
+
+  if (typeof daysOrParams === 'number') {
+    cacheKey = daysOrParams.toString();
+    operationType = 'days';
+  } else {
+    // Garante que as datas estão no formato YYYY-MM-DD para a chave do cache
+    const from = daysOrParams.fromDate.substring(0, 10);
+    const to = daysOrParams.toDate.substring(0, 10);
+    cacheKey = `${from}_to_${to}`;
+    operationType = 'range';
   }
 
-  const cachedEntry = globalCacheData.historicalData[currency][cacheKey];
+  console.log(`[server-api] getHistoricalData: Solicitado para currency=${currency}, cacheKey=${cacheKey}, type=${operationType}`);
 
-  if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_EXPIRATION.HISTORICAL)) {
-    console.log(`[server-api] getHistoricalData: Usando cache para ${currency}, chave: ${cacheKey}`);
-    globalCacheData.metadata.cacheHits = (globalCacheData.metadata.cacheHits || 0) + 1;
+  const cachedEntry = globalCacheData.historicalData[currency]?.[cacheKey];
+
+  if (cachedEntry && (now - cachedEntry.timestamp < CACHE_EXPIRATION.HISTORICAL)) {
+    console.log(`[server-api] getHistoricalData: Retornando dados do cache para ${currency}/${cacheKey}. Idade: ${((now - cachedEntry.timestamp) / 1000 / 60).toFixed(1)} min.`);
+    globalCacheData.metadata.cacheHits++;
     cachedEntry.accessCount = (cachedEntry.accessCount || 0) + 1;
+    // Retornar uma cópia para evitar mutações no cache
     return cachedEntry.data.map(d => ({ ...d, isUsingCache: true, source: cachedEntry.source || 'coingecko-cache' }));
   }
 
-  console.log(`[server-api] getHistoricalData: Cache não encontrado ou expirado para ${currency}, chave: ${cacheKey}. Buscando dados frescos.`);
-  
+  console.log(`[server-api] getHistoricalData: Cache não encontrado ou expirado para ${currency}/${cacheKey}. Buscando dados...`);
+
+  try {
+    let fetchParams: number | { fromTimestamp: number; toTimestamp: number };
+    if (operationType === 'days') {
+      fetchParams = daysOrParams as number;
+    } else {
+      const { fromDate, toDate } = daysOrParams as { fromDate: string; toDate: string };
+      // Converter YYYY-MM-DD para timestamps UNIX em segundos para a API CoinGecko
+      // Início do dia para fromDate, final do dia para toDate para incluir todos os dados horários
+      const fromTimestamp = Math.floor(new Date(fromDate + 'T00:00:00Z').getTime() / 1000);
+      const toTimestamp = Math.floor(new Date(toDate + 'T23:59:59Z').getTime() / 1000);
+      fetchParams = { fromTimestamp, toTimestamp };
+    }
+
+    const rawDataFromSource = await fetchHistoricalDataFromCoinGecko(currency, fetchParams);
+    let processedData: HistoricalDataPoint[] = rawDataFromSource;
+
+    // Se for por intervalo de datas e houver dados, processar para diário
+    if (operationType === 'range' && rawDataFromSource.length > 0) {
+      console.log(`[server-api] getHistoricalData: Processando ${rawDataFromSource.length} pontos horários para diários. Intervalo: ${cacheKey}`);
+      const dailyDataMap = new Map<string, HistoricalDataPoint>();
+      const { fromDate, toDate } = daysOrParams as { fromDate: string; toDate: string };
+
+      for (const point of rawDataFromSource) {
+        const pointDate = new Date(point.timestamp);
+        const pointDayStr = pointDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        if (pointDayStr >= fromDate && pointDayStr <= toDate) {
+          // O último ponto horário encontrado para um dia (dados da CoinGecko geralmente vêm ordenados)
+          // será usado. Seu timestamp é ajustado para o final do dia UTC.
+          dailyDataMap.set(pointDayStr, {
+            ...point,
+            timestamp: new Date(pointDayStr + 'T23:59:59.999Z').toISOString(),
+            price: point.price,
+            source: point.source || 'coingecko-processed'
+          });
+        }
+      }
+      processedData = Array.from(dailyDataMap.values());
+      // Garantir ordenação, embora o Map deva manter a ordem de inserção para chaves string
+      processedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      console.log(`[server-api] getHistoricalData: Dados processados para ${processedData.length} pontos diários.`);
+    }
+
+    // Salvar no cache
+    if (!globalCacheData.historicalData[currency]) {
+      globalCacheData.historicalData[currency] = {};
+    }
+    globalCacheData.historicalData[currency][cacheKey] = {
+      data: processedData, // Salva os dados processados
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 1,
+      source: processedData[0]?.source || 'coingecko'
+    };
+
+    console.log(`[server-api] getHistoricalData: Dados atualizados no cache para ${currency}/${cacheKey}. Pontos: ${processedData.length}`);
+    return processedData.map(d => ({ ...d, isUsingCache: false })); // Retorna cópia com isUsingCache false
+
+  } catch (error) {
+    console.error(`[server-api] getHistoricalData: Erro ao buscar ou processar dados históricos para ${currency}/${cacheKey}:`, error);
+    // Tentar retornar dados do cache antigo se disponíveis, mesmo que expirados, como fallback
+    if (cachedEntry) {
+      console.warn(`[server-api] getHistoricalData: Falha na atualização, retornando dados do cache antigo (expirado) para ${currency}/${cacheKey}.`);
+      return cachedEntry.data.map(d => ({ ...d, isUsingCache: true, source: (cachedEntry.source || 'coingecko-cache') + '-stale' }));
+    }
+    throw error; // Re-lançar se não houver fallback
+  }
+}
+
+// Função forceUpdateHistoricalData modificada
+export async function forceUpdateHistoricalData(
+  currency = 'usd',
+  daysOrParams: number | { fromDate: string; toDate: string }
+): Promise<HistoricalDataPoint[]> {
+  ensureDataDir();
+  const now = Date.now();
+  let cacheKey: string;
+  let operationType: 'days' | 'range';
   let fetchParams: number | { fromTimestamp: number; toTimestamp: number };
+
+
   if (typeof daysOrParams === 'number') {
+    cacheKey = daysOrParams.toString();
+    operationType = 'days';
     fetchParams = daysOrParams;
   } else {
-    // Convert YYYY-MM-DD to Unix timestamp (seconds)
-    // Adiciona meio-dia para garantir que estamos pegando o dia correto, e CoinGecko usa início do dia UTC.
-    // Para 'toTimestamp', adicionamos 23:59:59 para incluir o dia inteiro.
-    const fromTimestamp = Math.floor(new Date(daysOrParams.fromDate + 'T12:00:00Z').getTime() / 1000);
+    const from = daysOrParams.fromDate.substring(0, 10);
+    const to = daysOrParams.toDate.substring(0, 10);
+    cacheKey = `${from}_to_${to}`;
+    operationType = 'range';
+    
+    const fromTimestamp = Math.floor(new Date(daysOrParams.fromDate + 'T00:00:00Z').getTime() / 1000);
     const toTimestamp = Math.floor(new Date(daysOrParams.toDate + 'T23:59:59Z').getTime() / 1000);
     fetchParams = { fromTimestamp, toTimestamp };
   }
 
+  console.log(`[server-api] forceUpdateHistoricalData: Forçando atualização para ${currency}/${cacheKey}, type=${operationType}`);
+  globalCacheData.metadata.totalApiCalls++;
+
+
   try {
-    const freshData = await fetchHistoricalData(currency, fetchParams);
-    
-    if (freshData && freshData.length > 0) {
-      console.log(`[server-api] getHistoricalData: Dados frescos obtidos para ${currency}, chave: ${cacheKey}. Armazenando em cache.`);
-      globalCacheData.historicalData[currency][cacheKey] = {
-        data: freshData,
-        timestamp: Date.now(),
-        lastRefreshed: Date.now(),
-        accessCount: 1,
-        source: freshData[0]?.source || 'coingecko'
-      };
-      globalCacheData.metadata.lastFullUpdate = Date.now();
-      await saveAppData(globalCacheData as any); // Salvar o cache global no arquivo
-      return freshData.map(d => ({ ...d, isUsingCache: false }));
-    } else {
-      console.warn(`[server-api] getHistoricalData: fetchHistoricalData não retornou dados para ${currency}, chave: ${cacheKey}.`);
-      // Se o cache antigo existir e ainda for um pouco recente (ex: < 12 horas), usar ele como fallback
-      if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_EXPIRATION.HISTORICAL * 4)) {
-        console.warn(`[server-api] getHistoricalData: Usando cache antigo como fallback para ${currency}, chave: ${cacheKey}`);
-        return cachedEntry.data.map(d => ({ ...d, isUsingCache: true, source: cachedEntry.source || 'coingecko-cache-fallback' }));
+    const rawDataFromSource = await fetchHistoricalDataFromCoinGecko(currency, fetchParams);
+    let processedData: HistoricalDataPoint[] = rawDataFromSource;
+
+    if (operationType === 'range' && rawDataFromSource.length > 0) {
+      console.log(`[server-api] forceUpdateHistoricalData: Processando ${rawDataFromSource.length} pontos horários para diários. Intervalo: ${cacheKey}`);
+      const dailyDataMap = new Map<string, HistoricalDataPoint>();
+      const { fromDate, toDate } = daysOrParams as { fromDate: string; toDate: string };
+
+      for (const point of rawDataFromSource) {
+        const pointDate = new Date(point.timestamp);
+        const pointDayStr = pointDate.toISOString().split('T')[0];
+
+        if (pointDayStr >= fromDate && pointDayStr <= toDate) {
+          dailyDataMap.set(pointDayStr, {
+            ...point,
+            timestamp: new Date(pointDayStr + 'T23:59:59.999Z').toISOString(),
+            price: point.price,
+            source: point.source || 'coingecko-processed-force'
+          });
+        }
       }
-      return [];
+      processedData = Array.from(dailyDataMap.values());
+      processedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      console.log(`[server-api] forceUpdateHistoricalData: Dados processados para ${processedData.length} pontos diários.`);
     }
+    
+    if (!globalCacheData.historicalData[currency]) {
+      globalCacheData.historicalData[currency] = {};
+    }
+    globalCacheData.historicalData[currency][cacheKey] = {
+      data: processedData,
+      timestamp: now,
+      lastRefreshed: now,
+      accessCount: 1,
+      source: processedData[0]?.source || 'coingecko-force'
+    };
+    globalCacheData.metadata.lastFullUpdate = now;
+
+    console.log(`[server-api] forceUpdateHistoricalData: Cache atualizado para ${currency}/${cacheKey}. Pontos: ${processedData.length}`);
+    return processedData.map(d => ({ ...d, isUsingCache: false }));
+
   } catch (error) {
-    console.error(`[server-api] getHistoricalData: Erro ao buscar dados frescos para ${currency}, chave: ${cacheKey}.`, error);
-    // Tentar retornar dados do cache se o erro for na busca de novos dados e o cache existir
-    if (cachedEntry) {
-      console.warn(`[server-api] getHistoricalData: Erro ao buscar, usando cache existente como fallback para ${currency}, chave: ${cacheKey}`);
-      return cachedEntry.data.map(d => ({ ...d, isUsingCache: true, source: cachedEntry.source || 'coingecko-cache-error-fallback' }));
-    }
-    throw error; // Re-lançar o erro se não houver cache
+    console.error(`[server-api] forceUpdateHistoricalData: Erro ao forçar atualização para ${currency}/${cacheKey}:`, error);
+    throw error;
   }
 }
 
