@@ -639,35 +639,27 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
               </Button>
             </div>
 
-            {customLoading && (
-              <div className="h-80 flex items-center justify-center">
-                <Skeleton className="h-full w-full" />
-              </div>
-            )}
+            {/* Estados de erro e informação simplificados para a aba custom */}
             {!customLoading && customError && (
-              <div className="h-80 flex flex-col items-center justify-center text-center p-4">
-                <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <p className="text-destructive text-lg font-semibold">Erro ao carregar dados</p>
-                <p className="text-muted-foreground">{customError}</p>
-                <Button onClick={fetchCustomHistoricalData} variant="outline" className="mt-4">
+              <div className="my-4 p-4 border border-destructive/50 rounded-md bg-destructive/10 text-center">
+                <p className="text-destructive text-sm font-semibold">Erro ao carregar dados</p>
+                <p className="text-muted-foreground text-xs mt-1">{customError}</p>
+                <Button onClick={fetchCustomHistoricalData} variant="outline" size="sm" className="mt-3">
                   Tentar Novamente
                 </Button>
               </div>
             )}
-            {!customLoading && !customError && customChartData.length > 0 && (
-              <ResponsiveContainer width="100%" height={isMobile ? 300 : 400}>
-                <ComposedChartComponent data={customChartData} type={chartType} currency={currency} />
-              </ResponsiveContainer>
-            )}
-            {!customLoading && !customError && customChartData.length === 0 && !customStartDate && (
-               <div className="h-80 flex flex-col items-center justify-center text-center p-4">
-                <Search className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-semibold">Realize uma Busca</p>
-                <p className="text-muted-foreground">Selecione as datas de início e fim e clique em "Buscar".</p>
+            
+            {!customLoading && !customError && customChartData.length === 0 && !customStartDate && !customEndDate && (
+               <div className="my-4 p-4 border border-border rounded-md bg-muted/20 text-center">
+                <Search className="h-8 w-8 text-muted-foreground mb-2 inline-block" />
+                <p className="text-sm font-semibold">Realize uma Busca</p>
+                <p className="text-muted-foreground text-xs mt-1">Selecione as datas de início e fim e clique em "Buscar".</p>
               </div>
             )}
-            {/* Adicionar informações de fonte e cache para busca personalizada */}
-            {!customLoading && customChartData.length > 0 && (
+
+            {/* Informações de fonte e cache para busca personalizada */}
+            {!customLoading && !customError && customChartData.length > 0 && (
               <div className="text-xs text-muted-foreground mt-2 text-right">
                 Fonte: {customDataSource} {customIsUsingCache ? "(Cache)" : "(Ao Vivo)"}
               </div>
