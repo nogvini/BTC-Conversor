@@ -334,12 +334,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const creationTime = new Date(data.user.created_at).getTime();
           // Se updated_at não existir, usar creationTime para que a diferença seja 0
           const updateTime = new Date(data.user.updated_at || data.user.created_at).getTime();
-          // Considera existente se houve uma atualização substancial após a criação ou se o email já foi confirmado.
-          const isLikelyExistingUser = (updateTime - creationTime > 1000) || !!data.user.email_confirmed_at; // 1 segundo de tolerância
+          
+          // Condição revisada:
+          // 1. Se email_confirmed_at já existe, é um usuário confirmado (improvável aqui, mas seguro incluir).
+          // 2. Se updated_at é significativamente diferente de created_at, indica uma atualização posterior.
+          // 3. Se NENHUMA das anteriores, mas data.user existe e data.session é nulo,
+          //    e email_confirmed_at AINDA é nulo após a chamada signUp,
+          //    é altamente provável que seja um usuário existente não confirmado para o qual um novo email de confirmação foi enviado.
+          const isConfirmed = !!data.user.email_confirmed_at;
+          const hasBeenUpdatedLater = (updateTime - creationTime > 1000); // 1 segundo de tolerância
 
-          if (isLikelyExistingUser) {
-            console.warn(`[Auth] SignUp para e-mail (${email}) que parece já existir e/ou está confirmado, mas Supabase não retornou erro explícito. Tratando como "já cadastrado". User data:`, data.user);
-            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.');
+          // Se o email não está confirmado E não houve uma atualização significativa posteriormente,
+          // mas recebemos um objeto de usuário, é provável que seja um usuário existente não confirmado.
+          const isLikelyExistingUnconfirmedUser = !isConfirmed && !hasBeenUpdatedLater;
+
+          if (isConfirmed || hasBeenUpdatedLater || isLikelyExistingUnconfirmedUser) {
+            // Se estiver confirmado OU tiver sido atualizado depois OU for um provável existente não confirmado:
+            // Tratar como "já cadastrado".
+            // O log original foi ajustado para ser mais genérico sobre a razão.
+            console.warn(`[Auth] SignUp para e-mail (${email}) resultou em usuário sem sessão. Supabase data:`, data.user, `Condições: isConfirmed=${isConfirmed}, hasBeenUpdatedLater=${hasBeenUpdatedLater}, isLikelyExistingUnconfirmedUser=${isLikelyExistingUnconfirmedUser}`);
+            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou use a opção de recuperar senha.');
             setSession(prev => ({ ...prev, error: userExistsError, isLoading: false }));
             toast({ title: "Erro no Cadastro", description: userExistsError.message, variant: "destructive" });
             return { error: userExistsError };
