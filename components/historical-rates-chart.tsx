@@ -333,6 +333,38 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     }
   }
 
+  // Função auxiliar para calcular mudança de preço para um conjunto de dados específico
+  const calculatePriceChangeForData = (data: HistoricalDataPoint[]): { change: number; percentage: number } => {
+    if (data.length < 2) return { change: 0, percentage: 0 };
+    const firstPrice = data[0].price;
+    const lastPrice = data[data.length - 1].price;
+    const priceDiff = lastPrice - firstPrice;
+    const priceChangePercentage = (priceDiff / firstPrice) * 100;
+    return { change: priceDiff, percentage: priceChangePercentage };
+  };
+
+  // Função para calcular a volatilidade anualizada
+  function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
+    if (data.length < 2) return 0
+    
+    // Calcular retornos diários
+    const returns: number[] = []
+    for (let i = 1; i < data.length; i++) {
+      const dailyReturn = (data[i].price - data[i-1].price) / data[i-1].price
+      returns.push(dailyReturn)
+    }
+    
+    // Calcular desvio padrão dos retornos
+    const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length
+    const variance = returns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / returns.length
+    const stdDev = Math.sqrt(variance)
+    
+    // Anualizar (aproximadamente 252 dias de negociação em um ano)
+    const annualizedVol = stdDev * Math.sqrt(252) * 100
+    
+    return annualizedVol
+  }
+
   // Calcular volatilidade anualizada com base nos dados históricos reais
   const annualizedVolatility = useMemo(() => {
     return calculateAnnualizedVolatility(activeTab === 'periods' ? chartData : customChartData)
@@ -362,16 +394,6 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       priceChangePeriod: calculatePriceChangeForData(dataToAnalyze).percentage,
     };
   }, [chartData, customChartData, activeTab, currency])
-
-  // Função auxiliar para calcular mudança de preço para um conjunto de dados específico
-  const calculatePriceChangeForData = (data: HistoricalDataPoint[]): { change: number; percentage: number } => {
-    if (data.length < 2) return { change: 0, percentage: 0 };
-    const firstPrice = data[0].price;
-    const lastPrice = data[data.length - 1].price;
-    const priceDiff = lastPrice - firstPrice;
-    const priceChangePercentage = (priceDiff / firstPrice) * 100;
-    return { change: priceDiff, percentage: priceChangePercentage };
-  };
 
   // Função para buscar dados para o gráfico personalizado
   const fetchCustomHistoricalData = useCallback(async () => {
@@ -784,28 +806,6 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       </CardContent>
     </Card>
   )
-}
-
-// Função para calcular a volatilidade anualizada
-function calculateAnnualizedVolatility(data: HistoricalDataPoint[]): number {
-  if (data.length < 2) return 0
-  
-  // Calcular retornos diários
-  const returns: number[] = []
-  for (let i = 1; i < data.length; i++) {
-    const dailyReturn = (data[i].price - data[i-1].price) / data[i-1].price
-    returns.push(dailyReturn)
-  }
-  
-  // Calcular desvio padrão dos retornos
-  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length
-  const variance = returns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / returns.length
-  const stdDev = Math.sqrt(variance)
-  
-  // Anualizar (aproximadamente 252 dias de negociação em um ano)
-  const annualizedVol = stdDev * Math.sqrt(252) * 100
-  
-  return annualizedVol
 }
 
 // NOVO COMPONENTE AUXILIAR PARA OS STATS CARDS
