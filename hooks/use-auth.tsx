@@ -19,6 +19,8 @@ type AuthContextType = {
   isConnecting: boolean
   connectionRetries: number
   resendVerificationEmail: (email: string) => Promise<{ error: Error | null, sent: boolean }>
+  fetchProfileData: (userId: string) => Promise<UserData | null>
+  lastAuthEvent: string
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -269,6 +271,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchSession()
     }
   }, [supabaseClient, isConnected])
+
+  // Função para buscar dados do perfil, memoizada
+  const fetchProfileData = useCallback(async (userId: string) => {
+    if (!supabaseClient) {
+      console.error('[fetchProfileData] Cliente Supabase não disponível.');
+      return null; // Retorna null ou lança um erro para indicar falha
+    }
+    try {
+      console.log(`[fetchProfileData] Buscando perfil para o usuário: ${userId}`);
+      const { data: userData, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('[fetchProfileData] Erro ao buscar perfil:', profileError);
+        // Se o perfil não for encontrado, pode ser necessário criar um
+        if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+          console.log('[fetchProfileData] Perfil não encontrado, pode ser necessário criar.');
+        }
+        return null; // Ou lançar o erro, dependendo de como você quer tratar
+      }
+      
+      console.log('[fetchProfileData] Perfil encontrado:', userData);
+      return userData;
+    } catch (error) {
+      console.error('[fetchProfileData] Erro inesperado:', error);
+      return null; // Ou lançar
+    }
+  }, [supabaseClient]);
 
   // Memoizar funções de autenticação para evitar recriações a cada renderização
   const signUp = useCallback(
@@ -579,63 +612,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       return { error: error as Error };
     }
-  }, [supabaseClient, toast])
-
-  // Função auxiliar para buscar dados de perfil de forma assíncrona
-  const fetchProfileData = useCallback(async (userId: string) => {
-    console.log('[fetchProfileData] Iniciando para userId:', userId);
-    if (!supabaseClient || !userId) {
-      console.log('[fetchProfileData] Cliente Supabase ou userId ausente. Retornando null.', { supabaseClientExists: !!supabaseClient, userId });
-      return null;
-    }
-    
-    try {
-      console.log('[fetchProfileData] Buscando dados de perfil via supabaseClient.from(\'profiles\').select...');
-      const { data: userData, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      console.log('[fetchProfileData] Resultado de supabaseClient.from(\'profiles\').select:', { userData, profileError });
-      
-      if (profileError) {
-        console.log('[fetchProfileData] Perfil não encontrado ou erro na busca. Tentando criar automaticamente...', profileError.message);
-        
-        if (profileError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-          console.log('[fetchProfileData] Tentando criar perfil via supabaseClient.from(\'profiles\').insert...');
-          const { error: insertError } = await supabaseClient
-            .from('profiles')
-            .insert([{
-              id: userId,
-              name: session.user?.name || '',
-              email: session.user?.email || ''
-            }]);
-          console.log('[fetchProfileData] Resultado de supabaseClient.from(\'profiles\').insert:', { insertError });
-          
-          if (insertError) {
-            console.error('[fetchProfileData] Erro ao criar perfil automaticamente:', insertError);
-            return null;
-          }
-          
-          console.log('[fetchProfileData] Perfil criado. Buscando perfil recém-criado...');
-          const { data: newProfileData } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-          console.log('[fetchProfileData] Resultado da busca do novo perfil:', { newProfileData });
-          
-          return newProfileData;
-        }
-      }
-      
-      console.log('[fetchProfileData] Perfil encontrado. Retornando userData.', userData);
-      return userData;
-    } catch (error) {
-      console.error('[fetchProfileData] Erro no bloco catch:', error);
-      return null;
-    }
-  }, [supabaseClient, session.user]);
+  }, [supabaseClient, toast, fetchProfileData])
 
   const signOut = useCallback(async () => {
     console.log('[signOut] Iniciando processo de logout...');
@@ -757,6 +734,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isConnecting: isAttemptingConnection,
     connectionRetries: retryCount,
     resendVerificationEmail,
+    fetchProfileData,
+    lastAuthEvent
   }), [
     session, 
     signUp, 
@@ -765,8 +744,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateProfile, 
     retryConnection, 
     isAttemptingConnection, 
-    retryCount, 
-    resendVerificationEmail
+    retryCount,
+    resendVerificationEmail,
+    fetchProfileData,
+    lastAuthEvent
   ])
 
   // LOGS PARA DEBUG
