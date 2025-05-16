@@ -258,9 +258,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [exportPdfDarkMode, setExportPdfDarkMode] = useState<boolean>(false); // NOVO estado
 
   // NOVOS ESTADOS PARA PREÇO DO DIA DO APORTE/LUCRO
-  const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null });
-  const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null });
-  const [profitPriceInfo, setProfitPriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null });
+  const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null, source: null });
+  const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null, source: null });
 
   // Definir "hoje" para desabilitar datas futuras no calendário
   const today = startOfDay(new Date());
@@ -3165,17 +3164,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     if (isFutureDate(date)) {
       const errorMsg = "Não é possível buscar preços para datas futuras.";
       if (type === 'investment') {
-        setInvestmentPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
+        setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
       } else {
-        setProfitPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
+        setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
       }
       return;
     }
 
     if (type === 'investment') {
-      setInvestmentPriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
+      setInvestmentDatePriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
     } else {
-      setProfitPriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
+      setProfitDatePriceInfo(prev => ({ ...prev, loading: true, currency: currentDisplayCurrency, error: null, source: null }));
     }
 
     try {
@@ -3186,16 +3185,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       if (data && data.length > 0) {
         const priceData = data[0];
         if (type === 'investment') {
-          setInvestmentPriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
+          setInvestmentDatePriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
         } else {
-          setProfitPriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
+          setProfitDatePriceInfo({ price: priceData.price, loading: false, currency: currentDisplayCurrency, error: null, source: priceData.source || 'API' });
         }
       } else {
         const errorMsg = "Nenhum dado de preço retornado para esta data.";
         if (type === 'investment') {
-          setInvestmentPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
+          setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
         } else {
-          setProfitPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
+          setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: errorMsg, source: null });
         }
       }
     } catch (error: any) {
@@ -3216,9 +3215,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
       
       if (type === 'investment') {
-        setInvestmentPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
+        setInvestmentDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
       } else {
-        setProfitPriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
+        setProfitDatePriceInfo({ price: null, loading: false, currency: currentDisplayCurrency, error: specificErrorMessage, source: null });
       }
     }
   };
@@ -3365,14 +3364,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </div>
                   {/* Exibir preço do dia do investimento */}
                   <div className="text-xs text-gray-400 h-6">
-                    {investmentPriceInfo.loading && (
+                    {investmentDatePriceInfo.loading && (
                       <span className="flex items-center"><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Buscando preço do dia...</span>
                     )}
-                    {!investmentPriceInfo.loading && investmentPriceInfo.price !== null && investmentPriceInfo.currency === displayCurrency && (
-                      <span>Preço BTC em {format(investmentDate, "dd/MM/yy")}: {formatCurrency(investmentPriceInfo.price, investmentPriceInfo.currency || "USD")} ({investmentPriceInfo.source || 'API'})</span>
+                    {!investmentDatePriceInfo.loading && investmentDatePriceInfo.price !== null && investmentDatePriceInfo.currency === displayCurrency && (
+                      <span>Preço BTC em {format(investmentDate, "dd/MM/yy")}: {formatCurrency(investmentDatePriceInfo.price, investmentDatePriceInfo.currency || "USD")} ({investmentDatePriceInfo.source || 'API'})</span>
                     )}
-                    {!investmentPriceInfo.loading && investmentPriceInfo.error && (
-                      <span className="text-red-500 flex items-center"><AlertTriangle className="h-3 w-3 mr-1" /> {investmentPriceInfo.error}</span>
+                    {!investmentDatePriceInfo.loading && investmentDatePriceInfo.error && (
+                      <span className="text-red-500 flex items-center"><AlertTriangle className="h-3 w-3 mr-1" /> {investmentDatePriceInfo.error}</span>
                     )}
                   </div>
                   <div>
@@ -3451,14 +3450,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                   </div>
                   {/* Exibir preço do dia do lucro/perda */}
                   <div className="text-xs text-gray-400 h-6">
-                    {profitPriceInfo.loading && (
+                    {profitDatePriceInfo.loading && (
                       <span className="flex items-center"><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Buscando preço do dia...</span>
                     )}
-                    {!profitPriceInfo.loading && profitPriceInfo.price !== null && profitPriceInfo.currency === displayCurrency && (
-                      <span>Preço BTC em {format(profitDate, "dd/MM/yy")}: {formatCurrency(profitPriceInfo.price, profitPriceInfo.currency || "USD")} ({profitPriceInfo.source || 'API'})</span>
+                    {!profitDatePriceInfo.loading && profitDatePriceInfo.price !== null && profitDatePriceInfo.currency === displayCurrency && (
+                      <span>Preço BTC em {format(profitDate, "dd/MM/yy")}: {formatCurrency(profitDatePriceInfo.price, profitDatePriceInfo.currency || "USD")} ({profitDatePriceInfo.source || 'API'})</span>
                     )}
-                    {!profitPriceInfo.loading && profitPriceInfo.error && (
-                      <span className="text-red-500 flex items-center"><AlertTriangle className="h-3 w-3 mr-1" /> {profitPriceInfo.error}</span>
+                    {!profitDatePriceInfo.loading && profitDatePriceInfo.error && (
+                      <span className="text-red-500 flex items-center"><AlertTriangle className="h-3 w-3 mr-1" /> {profitDatePriceInfo.error}</span>
                     )}
                   </div>
                   
