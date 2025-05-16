@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * Módulo de API para o servidor
  * Gerencia requisições externas e armazenamento de dados
