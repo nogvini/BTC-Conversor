@@ -3248,32 +3248,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // }, [profitDate, displayCurrency, profitPriceInfo.price, profitPriceInfo.currency]);
 
 
-  const investmentsForSelectedMonth = useMemo(() => {
-    // ... existing code ...
-                              mode="single"
-                              selected={investmentDate}
-                              onSelect={(currentDay) => {
-                                if (currentDay) {
-                                  const newDate = new Date(Date.UTC(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 12, 0, 0));
-                                  setInvestmentDate(newDate);
-                                  // Chama a função com debounce
-                                  fetchPriceForDateWithDebounce(newDate, 'investment', displayCurrency); 
-                                }
-                              }}
-                              disabled={(date) =>
-// ... existing code ...
-                              mode="single"
-                              selected={profitDate}
-                              onSelect={(currentDay) => {
-                                if (currentDay) {
-                                  const newDate = new Date(Date.UTC(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 12, 0, 0));
-                                  setProfitDate(newDate);
-                                  fetchPriceForDate(newDate, 'profit', displayCurrency);
-                                }
-                              }}
-                              disabled={(date) =>
-// ... existing code ...
-  }, [investmentDate, profitDate, displayCurrency, fetchPriceForDate]);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // REMOVER O BLOCO useMemo A PARTIR DAQUI
+  // const investmentsForSelectedMonth = useMemo(() => {
+  // ... (todo o conteúdo do useMemo removido) ...
+  // }, [investmentDate, profitDate, displayCurrency, fetchPriceForDateWithDebounce]);
+  // ATÉ AQUI
 
   if (!reportsDataLoaded) { // USAR reportsDataLoaded
     return (
@@ -3371,7 +3352,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             if (currentDay) {
                               const newDate = new Date(Date.UTC(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 12, 0, 0));
                               setInvestmentDate(newDate);
-                              fetchPriceForDate(newDate, 'investment', displayCurrency);
+                              fetchPriceForDateWithDebounce(newDate, 'investment', displayCurrency);
                             }
                           }}
                           disabled={(date) =>
@@ -3457,7 +3438,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             if (currentDay) {
                               const newDate = new Date(Date.UTC(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 12, 0, 0));
                               setProfitDate(newDate);
-                              fetchPriceForDate(newDate, 'profit', displayCurrency);
+                              fetchPriceForDateWithDebounce(newDate, 'profit', displayCurrency); // CORRIGIDO para usar debounce
                             }
                           }}
                           disabled={(date) =>
