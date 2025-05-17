@@ -10,8 +10,8 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Força o uso do Babel em vez do SWC
-    forceSwcTransforms: false,
+    // Usar SWC para transpilação
+    forceSwcTransforms: true,
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
@@ -67,10 +67,6 @@ const nextConfig = {
     '@react-pdf/renderer',
     'ahooks'
   ],
-  env: {
-    NEXT_PUBLIC_SWC_MINIFY: 'false',
-    DISABLE_SWC: 'true'
-  },
 }
 
 module.exports = nextConfig 

@@ -31,3 +31,5 @@ yarn-error.log*
 next-env.d.ts
 nul
 logs_result (2).json
+fix_all_clients.ps1
+fix_client_script.ps1

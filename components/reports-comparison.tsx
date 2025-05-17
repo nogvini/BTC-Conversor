@@ -91,6 +91,11 @@ interface ReportStatDetails {
   roiAnualizadoPercent: number;
   mediaDiariaLucroBtc: number;
   mediaDiariaRoiPercent: number;
+  operationalProfitBtc: number; // Novo: lucro operacional em BTC
+  operationalProfitSats: number; // Novo: lucro operacional em satoshis 
+  netProfitFromOperationsBtc: number; // Novo: lucro operacional líquido em BTC
+  netProfitFromOperationsSats: number; // Novo: lucro operacional líquido em satoshis
+  totalBalanceSats: number; // Novo: saldo total estimado em satoshis (investimentos + lucro operacional)
 }
 
 interface ChartDataPoint {
@@ -112,6 +117,11 @@ interface ComparisonDataResult {
   aggregatedRoiAnualizadoPercent: number;
   aggregatedMediaDiariaLucroBtc: number;
   aggregatedMediaDiariaRoiPercent: number;
+  aggregatedOperationalProfitBtc: number; // Novo: lucro operacional agregado em BTC
+  aggregatedOperationalProfitSats: number; // Novo: lucro operacional agregado em satoshis
+  aggregatedNetProfitFromOperationsBtc: number; // Novo: lucro operacional líquido agregado em BTC
+  aggregatedNetProfitFromOperationsSats: number; // Novo: lucro operacional líquido agregado em satoshis
+  aggregatedTotalBalanceSats: number; // Novo: saldo total agregado estimado em satoshis
 }
 
 // NOVA FUNÇÃO AUXILIAR
@@ -123,6 +133,37 @@ const parseReportDateStringToUTCDate = (dateString: string): Date => {
   const [year, month, day] = dateString.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 };
+
+// Adicionando função para calcular lucro operacional
+function calculateOperationalProfit(
+  profits: ProfitRecord[]
+): { 
+  operationalProfitBtc: number; 
+  operationalProfitSats: number; 
+  netProfitFromOperationsBtc: number; 
+  netProfitFromOperationsSats: number
+} {
+  let grossProfitBtc = 0;
+  let grossLossBtc = 0;
+
+  profits.forEach(prof => {
+    const amountBtc = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
+    if (prof.isProfit) {
+      grossProfitBtc += amountBtc;
+    } else {
+      grossLossBtc += amountBtc;
+    }
+  });
+  
+  const netProfitBtc = grossProfitBtc - grossLossBtc;
+  
+  return { 
+    operationalProfitBtc: grossProfitBtc, // Soma dos lucros (ProfitRecord.isProfit = true)
+    operationalProfitSats: grossProfitBtc * 100000000, // Valor em satoshis
+    netProfitFromOperationsBtc: netProfitBtc, // Lucro líquido (lucros - perdas de ProfitRecord)
+    netProfitFromOperationsSats: netProfitBtc * 100000000 // Valor líquido em satoshis
+  };
+}
 
 // ADICIONAR FUNÇÃO formatTempoInvestimento
 const formatTempoInvestimento = (dias: number): string => {
@@ -392,6 +433,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       const mediaDiariaLucroBtc = diasDeInvestimento > 0 ? totalProfitsBtc / diasDeInvestimento : 0;
       const mediaDiariaRoiPercent = diasDeInvestimento > 0 && totalInvestmentsBtc > 0 ? roiSimple / diasDeInvestimento : 0;
       
+      // Calcular lucros operacionais
+      const operationalProfits = calculateOperationalProfit(reportProfitsData);
+
       statsData[reportId] = {
         totalInvestments: totalInvestmentsBtc,
         totalProfits: totalProfitsBtc,
@@ -402,7 +446,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         tempoTotalInvestimento: formatTempoInvestimento(diasDeInvestimento),
         roiAnualizadoPercent,
         mediaDiariaLucroBtc,
-        mediaDiariaRoiPercent
+        mediaDiariaRoiPercent,
+        operationalProfitBtc: operationalProfits.operationalProfitBtc,
+        operationalProfitSats: operationalProfits.operationalProfitSats,
+        netProfitFromOperationsBtc: operationalProfits.netProfitFromOperationsBtc,
+        netProfitFromOperationsSats: operationalProfits.netProfitFromOperationsSats,
+        totalBalanceSats: (totalInvestmentsBtc + operationalProfits.netProfitFromOperationsBtc) * 100000000
       };
     });
     
@@ -482,6 +531,24 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       }
     }
 
+    // Calcular valores agregados para os lucros operacionais
+    let aggregatedOperationalProfitBtc = 0;
+    let aggregatedOperationalProfitSats = 0;
+    let aggregatedNetProfitFromOperationsBtc = 0;
+    let aggregatedNetProfitFromOperationsSats = 0;
+    let aggregatedTotalBalanceSats = 0;
+
+    selectedReportIds.forEach(id => {
+      const reportStats = statsData[id];
+      if (reportStats) {
+        aggregatedOperationalProfitBtc += reportStats.operationalProfitBtc;
+        aggregatedOperationalProfitSats += reportStats.operationalProfitSats;
+        aggregatedNetProfitFromOperationsBtc += reportStats.netProfitFromOperationsBtc;
+        aggregatedNetProfitFromOperationsSats += reportStats.netProfitFromOperationsSats;
+        aggregatedTotalBalanceSats += reportStats.totalBalanceSats;
+      }
+    });
+
     return {
       chartData,
       statsData,
@@ -498,7 +565,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       aggregatedTempoTotalInvestimento: formatTempoInvestimento(aggregatedDiasDeInvestimento),
       aggregatedRoiAnualizadoPercent,
       aggregatedMediaDiariaLucroBtc,
-      aggregatedMediaDiariaRoiPercent
+      aggregatedMediaDiariaRoiPercent,
+      aggregatedOperationalProfitBtc,
+      aggregatedOperationalProfitSats,
+      aggregatedNetProfitFromOperationsBtc,
+      aggregatedNetProfitFromOperationsSats,
+      aggregatedTotalBalanceSats
     };
   }, [reports, selectedReportIds, comparisonMode]); // CORRIGIDO: Removido minDate e maxDate das dependências
 
@@ -1182,12 +1254,39 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             : 'N/A'}
                         </TableCell>
                       </TableRow>
-                      <TableRow className="border-b-0"> {/* Remover borda da última linha */}
+                      <TableRow className="border-purple-700/20">
                         <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de ROI (Agregado)</TableCell>
                         <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
                           {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0)
                             ? `${comparisonData.aggregatedMediaDiariaRoiPercent.toFixed(4)}%`
                             : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Lucro Operacional Bruto (Agregado)</TableCell>
+                        <TableCell className="text-right text-xs py-2.5">
+                          <div className="flex flex-col items-end">
+                            <span>{formatCryptoAmount(comparisonData.aggregatedOperationalProfitBtc)}</span>
+                            <span className="text-xs text-muted-foreground">{Math.round(comparisonData.aggregatedOperationalProfitSats).toLocaleString()} sats</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-purple-700/20">
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Lucro Operacional Líquido (Agregado)</TableCell>
+                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedNetProfitFromOperationsBtc > 0 ? "text-green-400" : comparisonData.aggregatedNetProfitFromOperationsBtc < 0 ? "text-red-400" : "text-gray-400")}>
+                          <div className="flex flex-col items-end">
+                            <span>{formatCryptoAmount(comparisonData.aggregatedNetProfitFromOperationsBtc)}</span>
+                            <span className="text-xs text-muted-foreground">{Math.round(comparisonData.aggregatedNetProfitFromOperationsSats).toLocaleString()} sats</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="border-b-0"> {/* Remover borda da última linha */}
+                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Saldo Total Estimado (Agregado)</TableCell>
+                        <TableCell className="text-right text-xs py-2.5">
+                          <div className="flex flex-col items-end">
+                            <span>{formatCryptoAmount(comparisonData.totalBalanceBtc)}</span>
+                            <span className="text-xs text-muted-foreground">{Math.round(comparisonData.aggregatedTotalBalanceSats).toLocaleString()} sats</span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -1311,10 +1410,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   <TableHead>Investimentos (BTC)</TableHead>
                   <TableHead>Lucros (BTC)</TableHead>
                   <TableHead>ROI</TableHead>
-                  <TableHead>Saldo (BTC)</TableHead>
-                  <TableHead>Saldo (USD)</TableHead>
-                  <TableHead># Aportes</TableHead>
-                  <TableHead># Lucros</TableHead>
+                                      <TableHead>Saldo (BTC)</TableHead>
+                    <TableHead>Saldo (USD)</TableHead>
+                    <TableHead>Lucro Op. (SATS)</TableHead>
+                    <TableHead># Aportes</TableHead>
+                    <TableHead># Lucros</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1338,6 +1438,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     </TableCell>
                     <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
                     <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                    <TableCell>{Math.round(comparisonData?.statsData[summary.id]?.netProfitFromOperationsSats || 0).toLocaleString()}</TableCell>
                     <TableCell>{summary.investmentCount}</TableCell>
                     <TableCell>{summary.profitCount}</TableCell>
                   </TableRow>
