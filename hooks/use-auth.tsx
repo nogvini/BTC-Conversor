@@ -612,7 +612,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       return { error: error as Error };
     }
-  }, [supabaseClient, toast, fetchProfileData])
+  }, [supabaseClient, toast, fetchProfileData, router, pathname, setSession]);
 
   const signOut = useCallback(async () => {
     console.log('[signOut] Iniciando processo de logout...');
@@ -677,7 +677,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('[signOut] Redirecionando para /auth após logout.');
     }
 
-  }, [supabaseClient, toast, router, pathname]); // Adicionado router e pathname às dependências
+  }, [supabaseClient, toast, router, pathname, setSession]);
 
   const updateProfile = useCallback(async (data: Partial<UserData>) => {
     try {
@@ -702,7 +702,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao atualizar perfil:', error)
       return { error: error as Error }
     }
-  }, [supabaseClient, session.user])
+  }, [supabaseClient, session.user, setSession, toast]);
 
   const resendVerificationEmail = useCallback(async (email: string) => {
     try {
@@ -721,7 +721,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao reenviar email de verificação:', error)
       return { error: error as Error, sent: false }
     }
-  }, [supabaseClient])
+  }, [supabaseClient, setSession, toast]);
 
   // Memoizar o valor do contexto para evitar recriações desnecessárias
   const contextValue = useMemo(() => ({
