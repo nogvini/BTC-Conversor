@@ -680,7 +680,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
     // A função addInvestment do hook já lida com a adição ao relatório ativo
-    const success = addInvestment(investmentData); 
+    const success = addInvestment(investmentBaseData); 
     
     if (success) {
       setInvestmentAmount(""); // Limpa o campo de valor
@@ -3101,7 +3101,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       const reader = new FileReader();
       
       reader.onload = async (e) => { // Tornar o onload async
-        const processingToastId = toast({ title: "Processando Registros...", description: "Buscando preços e validando dados...", variant: "default" });
+        const currentToastId = toast({ title: "Processando Registros...", description: "Buscando preços e validando dados...", variant: "default" });
         try {
           if (!e.target || !e.target.result) {
             throw new Error("Falha ao ler o arquivo CSV");
@@ -3197,8 +3197,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             }
           }
           
-          if (processingToastId.id) {
-            toast({id: processingToastId.id, title: "Processamento Concluído", description: "Adicionando registros ao relatório...", variant: "success"});
+          if (currentToastId) {
+            toast({description: "Adicionando registros ao relatório...", variant: "success", id: currentToastId, title: "Processamento Concluído"});
           }
 
           setImportStats({
@@ -3240,7 +3240,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
         } catch (error) {
-          if (processingToastId.id) toast.dismiss(processingToastId.id);
+          if (currentToastId) toast.dismiss(currentToastId);
           console.error("[CSV Import] Erro ao processar o arquivo CSV de aportes:", error);
           toast({
             title: "Erro na importação",
@@ -3498,6 +3498,74 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // }, [investmentDate, profitDate, displayCurrency, fetchPriceForDateWithDebounce]);
   // ATÉ AQUI
 
+  const reportSummaryData = useMemo(() => {
+    if (!currentActiveReportObjectFromHook) {
+      return {
+        totalInvestmentsBtc: 0,
+        operationalProfitBtc: 0,
+        netProfitFromOperationsBtc: 0,
+        valuationProfitUsd: 0,
+        valuationProfitBtc: 0,
+        averageBuyPriceUsd: 0,
+        totalActiveInvestments: 0,
+        balanceBtc: 0,
+        roiSimple: 0,
+        combinedTotalProfitBtc: 0,
+      };
+    }
+
+    const investments = currentActiveReportObjectFromHook.investments || [];
+    const profits = currentActiveReportObjectFromHook.profits || [];
+
+    const operationalProfitInfo = calculateOperationalProfitForSummary(
+      profits,
+      convertToBtc
+    );
+
+    const valuationProfitInfo = calculateValuationProfitForSummary(
+      investments,
+      currentRates.btcToUsd,
+      currentRates.brlToUsd,
+      convertToBtc
+    );
+
+    const avgBuyPriceInfo = calculateAverageBuyPriceForSummary(
+      investments,
+      currentRates.brlToUsd,
+      convertToBtc
+    );
+    
+    // totalInvestmentsBtc é o mesmo que avgBuyPriceInfo.totalInvestmentsBtc
+    const totalInvestmentsBtc = avgBuyPriceInfo.totalInvestmentsBtc;
+
+    const balanceBtc = totalInvestmentsBtc + operationalProfitInfo.netProfitFromOperationsBtc;
+    
+    const roiSimple = totalInvestmentsBtc > 0
+      ? (operationalProfitInfo.netProfitFromOperationsBtc / totalInvestmentsBtc) * 100
+      : 0;
+
+    const combinedTotalProfitBtc = valuationProfitInfo.valuationProfitBtc + operationalProfitInfo.netProfitFromOperationsBtc;
+    
+    // Contar investimentos que efetivamente têm preço na data para o cálculo do preço médio
+    // A lógica de calculateAverageBuyPriceForSummary já considera isso implicitamente
+    // Para totalActiveInvestments, vamos contar quantos investimentos tem priceAtDate
+    const totalActiveInvestmentsCount = investments.filter(inv => inv.priceAtDate && inv.priceAtDate > 0).length;
+
+
+    return {
+      totalInvestmentsBtc,
+      operationalProfitBtc: operationalProfitInfo.operationalProfitBtc,
+      netProfitFromOperationsBtc: operationalProfitInfo.netProfitFromOperationsBtc,
+      valuationProfitUsd: valuationProfitInfo.valuationProfitUsd,
+      valuationProfitBtc: valuationProfitInfo.valuationProfitBtc,
+      averageBuyPriceUsd: avgBuyPriceInfo.averageBuyPriceUsd,
+      totalActiveInvestments: totalActiveInvestmentsCount, 
+      balanceBtc,
+      roiSimple,
+      combinedTotalProfitBtc,
+    };
+  }, [currentActiveReportObjectFromHook, currentRates.btcToUsd, currentRates.brlToUsd, displayCurrency]);
+  
   if (!reportsDataLoaded) { // USAR reportsDataLoaded
     return (
       <div className="flex justify-center items-center h-64">
