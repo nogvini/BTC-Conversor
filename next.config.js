@@ -10,8 +10,8 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Usar SWC para transpilação
-    forceSwcTransforms: true,
+    // Força o uso do Babel em vez do SWC
+    forceSwcTransforms: false,
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
