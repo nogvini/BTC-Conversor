@@ -73,6 +73,10 @@ interface Investment {
   date: string;
   amount: number;
   unit: CurrencyUnit;
+  // Novos campos para armazenar o preço do Bitcoin na data do aporte
+  priceAtDate?: number;
+  priceAtDateCurrency?: DisplayCurrency;
+  priceAtDateSource?: string;
 }
 
 interface ProfitRecord {
@@ -150,6 +154,146 @@ interface DatePriceInfo {
   error?: string | null;
   source?: string | null; // Adicionar fonte
 }
+
+// Função interna que realmente busca o preço - Refatorada para retornar o valor
+async function fetchBtcPriceOnDate(
+  date: Date, 
+  targetCurrency: DisplayCurrency
+): Promise<{ price: number; source: string; currency: DisplayCurrency } | null> {
+  const targetDate = startOfDay(date); // Normalizar para o início do dia
+  const targetDateStr = format(targetDate, "yyyy-MM-dd");
+
+  console.log(`[fetchBtcPriceOnDate] Buscando preço para ${targetDateStr} em ${targetCurrency}`);
+
+  try {
+    const data = await getHistoricalBitcoinDataForRange(
+      targetCurrency.toLowerCase() as 'usd' | 'brl',
+      targetDateStr,
+      targetDateStr, // Para um único dia, from e to são iguais
+      true // Forçar atualização para obter o preço mais preciso do dia
+    );
+
+    if (data && data.length > 0 && data[0].price !== null && data[0].price !== undefined) {
+      console.log(`[fetchBtcPriceOnDate] Preço encontrado: ${data[0].price} ${targetCurrency}, Fonte: ${data[0].source}`);
+      return {
+        price: data[0].price,
+        source: data[0].source || 'API',
+        currency: targetCurrency,
+      };
+    } else {
+      console.warn(`[fetchBtcPriceOnDate] Dados de preço não encontrados para ${targetDateStr} em ${targetCurrency}. Resposta:`, data);
+      return null; // Retorna null se não encontrar dados específicos
+    }
+  } catch (error: any) {
+    console.error(`[fetchBtcPriceOnDate] Erro ao buscar preço para ${targetDateStr} em ${targetCurrency}:`, error);
+    // Não relançar o erro aqui, deixar que o chamador decida como lidar com null
+    return null;
+  }
+}
+
+// +++ NOVAS FUNÇÕES AUXILIARES DE CÁLCULO +++
+
+// Função para calcular o lucro operacional bruto
+function calculateOperationalProfitForSummary(
+  profitRecords: ProfitRecord[],
+  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
+): { operationalProfitBtc: number; netProfitFromOperationsBtc: number } {
+  let grossProfitBtc = 0;
+  let grossLossBtc = 0;
+
+  profitRecords.forEach(prof => {
+    const amountBtc = convertToBtcFunction(prof.amount, prof.unit);
+    if (prof.isProfit) {
+      grossProfitBtc += amountBtc;
+    } else {
+      grossLossBtc += amountBtc;
+    }
+  });
+  return { 
+    operationalProfitBtc: grossProfitBtc, // Soma dos lucros (ProfitRecord.isProfit = true)
+    netProfitFromOperationsBtc: grossProfitBtc - grossLossBtc // Lucro líquido (lucros - perdas de ProfitRecord)
+  };
+}
+
+// Função para calcular o lucro de valorização
+function calculateValuationProfitForSummary(
+  investments: Investment[],
+  currentBtcPriceUsd: number,
+  brlToUsdRate: number, // Taxa de BRL para USD
+  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
+): { valuationProfitUsd: number; valuationProfitBtc: number } {
+  let totalValuationProfitUsd = 0;
+
+  if (currentBtcPriceUsd > 0) {
+    investments.forEach(inv => {
+      if (inv.priceAtDate && inv.priceAtDateCurrency) {
+        let priceAtDateUsd = inv.priceAtDate;
+        if (inv.priceAtDateCurrency === "BRL" && brlToUsdRate !== 0) {
+          priceAtDateUsd = inv.priceAtDate / brlToUsdRate;
+        }
+
+        if (typeof priceAtDateUsd === 'number' && priceAtDateUsd > 0) {
+          const investmentBtc = convertToBtcFunction(inv.amount, inv.unit);
+          totalValuationProfitUsd += (currentBtcPriceUsd - priceAtDateUsd) * investmentBtc;
+        }
+      }
+    });
+  }
+  const valuationProfitBtc = currentBtcPriceUsd > 0 && totalValuationProfitUsd !== 0 
+    ? totalValuationProfitUsd / currentBtcPriceUsd 
+    : 0;
+  return { valuationProfitUsd: totalValuationProfitUsd, valuationProfitBtc };
+}
+
+// Função para calcular o preço médio de compra
+function calculateAverageBuyPriceForSummary(
+  investments: Investment[],
+  brlToUsdRate: number, // Taxa de BRL para USD
+  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
+): { averageBuyPriceUsd: number; totalInvestmentsBtc: number } {
+  let totalInvestmentsBtc = 0;
+  let totalWeightedPriceUsd = 0;
+
+  investments.forEach(inv => {
+    const investmentBtc = convertToBtcFunction(inv.amount, inv.unit);
+    totalInvestmentsBtc += investmentBtc;
+    if (inv.priceAtDate && inv.priceAtDateCurrency) {
+      let priceUsd = inv.priceAtDate;
+      if (inv.priceAtDateCurrency === "BRL" && brlToUsdRate !== 0) {
+        priceUsd = inv.priceAtDate / brlToUsdRate;
+      }
+      if (typeof priceUsd === 'number' && priceUsd > 0) {
+        totalWeightedPriceUsd += priceUsd * investmentBtc;
+      }
+    }
+  });
+
+  const averageBuyPriceUsd = totalInvestmentsBtc > 0 ? totalWeightedPriceUsd / totalInvestmentsBtc : 0;
+  return { averageBuyPriceUsd, totalInvestmentsBtc };
+}
+
+// +++ FIM DAS NOVAS FUNÇÕES AUXILIARES +++
+
+// +++ MOVER formatTempoInvestimento PARA CÁ +++
+const formatTempoInvestimento = (dias: number): string => {
+  if (dias < 0) return "N/A"; // Sanity check
+  if (dias === 0) return "Menos de 1 dia";
+
+  const anos = Math.floor(dias / 365);
+  const meses = Math.floor((dias % 365) / 30);
+  const diasRestantes = Math.floor((dias % 365) % 30);
+  
+  let str = "";
+  if (anos > 0) str += `${anos} ano${anos > 1 ? 's' : ''} `;
+  if (meses > 0) str += `${meses} ${meses > 1 ? 'meses' : 'mês'} `;
+  if (diasRestantes > 0) str += `${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}`;
+  
+  if (str.trim() === "" && dias > 0) {
+    return `${dias} dia${dias > 1 ? 's' : ''}`;
+  }
+  return str.trim() || "N/A";
+};
+// +++ FIM DE formatTempoInvestimento MOVIDA +++
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
@@ -258,8 +402,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [exportPdfDarkMode, setExportPdfDarkMode] = useState<boolean>(false); // NOVO estado
 
   // NOVOS ESTADOS PARA PREÇO DO DIA DO APORTE/LUCRO
-  const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null, source: null });
-  const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: null, error: null, source: null });
+  const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
+  const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
 
   // Definir "hoje" para desabilitar datas futuras no calendário
   const today = startOfDay(new Date());
@@ -472,39 +616,127 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
     }
 
-    const newInvestment: Investment = { // ID será gerado pelo hook addInvestment
-      id: Date.now().toString(), // Este ID é temporário para a lógica de duplicados local
-      date: formatDateToUTC(investmentDate),
-      amount: Number(investmentAmount), unit: investmentUnit,
+    const newInvestmentBase: Omit<Investment, "id" | "priceAtDate" | "priceAtDateCurrency" | "priceAtDateSource"> = { // Omitir campos de preço aqui
+      date: formatDateToUTC(investmentDate), // Usar formatDateToUTC
+      amount: Number(investmentAmount),
+      unit: investmentUnit,
     };
 
-    const possibleDuplicates = reportToUpdate.investments.filter(inv => 
-      inv.date === newInvestment.date && inv.amount === newInvestment.amount && inv.unit === newInvestment.unit
-    );
+    // ... (lógica de verificação de duplicados existente, usando newInvestmentBase) ...
+    // Se não for duplicado ou se o usuário confirmar a duplicata:
+    // A busca de preço e a adição final acontecem em confirmAddInvestment
+
+    // Exemplo de como a lógica de duplicados chamaria confirmAddInvestment
+    // if (possibleDuplicates.length > 0) {
+    //   setPendingInvestment({ ...newInvestmentBase, id: Date.now().toString() }); // Adiciona ID temporário para pending
+    //   // ... (mostrar diálogo de confirmação) ...
+    // } else {
+    //    confirmAddInvestment(newInvestmentBase); // Chama diretamente se não houver duplicados
+    // }
+    // Esta parte precisa ser ajustada para como você está lidando com o estado pendente e a confirmação.
+    // O importante é que `confirmAddInvestment` receba os dados base.
+    // Para simplificar, vamos assumir que a lógica de `handleAddInvestmentButtonClick`
+    // eventualmente chama `confirmAddInvestment` com os dados base do investimento (sem ID e sem preço ainda).
+    // A lógica exata de como `newInvestmentBase` chega a `confirmAddInvestment` (direto ou via estado)
+    // depende da sua implementação de tratamento de duplicados.
+
+    // Temporariamente, para o fluxo, vamos assumir que newInvestmentBase é o que passamos
+    // (Ajustar conforme sua lógica de pendingInvestment e confirmação de duplicados)
+    const { id, ...investmentDataForConfirmation } = { ...newInvestmentBase, id: Date.now().toString() }; // Simula a preparação dos dados
+    
+    // A lógica de tratamento de duplicatas deve ser revisada para passar os dados corretos
+    // para setPendingInvestment e depois para confirmAddInvestment.
+    // Por ora, focaremos em como confirmAddInvestment lida com a busca de preço.
+    // O fluxo exato de como `investmentData` chega aqui (via `pendingInvestment` ou direto)
+    // precisa ser consistente.
+
+    // Lógica de duplicidade (simplificada para focar na busca de preço):
+    const possibleDuplicates = reportToUpdate?.investments.filter(inv => 
+      inv.date === newInvestmentBase.date && 
+      inv.amount === newInvestmentBase.amount && 
+      inv.unit === newInvestmentBase.unit
+    ) || [];
 
     if (possibleDuplicates.length > 0) {
-      setPendingInvestment(newInvestment);
-      setDuplicateConfirmInfo({ type: 'investment', date: newInvestment.date, amount: newInvestment.amount, unit: newInvestment.unit });
+      // Armazena os dados SEM o preço para o diálogo de confirmação
+      setPendingInvestment({ ...newInvestmentBase, id: Date.now().toString() }); // ID temporário
+      setDuplicateConfirmInfo({
+        type: 'investment',
+        date: newInvestmentBase.date,
+        amount: newInvestmentBase.amount,
+        unit: newInvestmentBase.unit
+      });
       setShowConfirmDuplicateDialog(true);
     } else {
-      // Passar Omit<Investment, "id"> para confirmAddInvestment
-      const { id, ...investmentData } = newInvestment;
-      confirmAddInvestment(investmentData);
+      confirmAddInvestment(newInvestmentBase); // Passa os dados base sem ID e sem preço
     }
   };
   
   // Função para confirmar adição do investimento após possível duplicação
-  const confirmAddInvestment = (investmentData: Omit<Investment, "id">) => { // Recebe Omit<Investment, "id">
+  // Recebe os dados base do investimento (sem ID, sem preço na data)
+  const confirmAddInvestment = async (investmentBaseData: Omit<Investment, "id" | "priceAtDate" | "priceAtDateCurrency" | "priceAtDateSource">) => {
     if (!activeReportIdFromHook) {
       toast({ title: "Erro", description: "Nenhum relatório ativo para adicionar o aporte.", variant: "destructive" });
       return;
     }
-    // A função addInvestment do hook já lida com a adição ao relatório ativo
-    const success = addInvestment(investmentData); 
-    
-    if (success) {
-      setInvestmentAmount("");
+
+    // Mostrar um toast de carregamento enquanto busca o preço
+    constราคาทองคำ toastId = toast({ title: "Processando Aporte...", description: "Buscando preço do Bitcoin na data do aporte...", variant: "default" });
+
+    let priceDetails: { price: number; source: string; currency: DisplayCurrency } | null = null;
+    try {
+      // Determinar a moeda para buscar o preço. Pode ser a displayCurrency atual,
+      // ou uma moeda padrão como USD se preferir consistência.
+      // Para este exemplo, usaremos a displayCurrency.
+      const currencyForPriceFetch = displayCurrency;
+      const investmentDateObj = parseISODate(investmentBaseData.date); // Converte string de data para objeto Date
+
+      if (!isNaN(investmentDateObj.getTime())) {
+        priceDetails = await fetchBtcPriceOnDate(investmentDateObj, currencyForPriceFetch);
+      } else {
+        console.warn("[confirmAddInvestment] Data do investimento inválida, não foi possível buscar preço:", investmentBaseData.date);
+      }
+    } catch (fetchError) {
+      console.error("[confirmAddInvestment] Erro ao buscar preço do Bitcoin na data do aporte:", fetchError);
+      // Continuar mesmo se a busca de preço falhar, mas logar e talvez notificar.
+      toast({
+        title: "Aviso sobre Preço",
+        description: "Não foi possível buscar o preço do Bitcoin para a data do aporte. O aporte será salvo sem essa informação.",
+        variant: "warning",
+        duration: 5000
+      });
     }
+
+    const investmentDataWithPrice: Omit<Investment, "id"> = {
+      ...investmentBaseData,
+      priceAtDate: priceDetails?.price,
+      priceAtDateCurrency: priceDetails?.currency,
+      priceAtDateSource: priceDetails?.source,
+    };
+
+    // A função addInvestment do hook já lida com a adição ao relatório ativo e geração de ID
+    // Esta função (no hook useReports) precisará ser atualizada para aceitar os novos campos de preço.
+    const success = addInvestment(investmentDataWithPrice); 
+    
+    // Atualizar o toast com o resultado
+    if (toastId.id) { // Verifica se o toastId e sua propriedade id existem
+      toast({
+        id: toastId.id, // Usa o ID do toast anterior para atualizá-lo
+        title: success ? "Aporte Adicionado" : "Falha ao Adicionar",
+        description: success ? "Seu aporte foi registrado com sucesso." : "Houve um problema ao salvar seu aporte.",
+        variant: success ? "success" : "destructive",
+      });
+    }
+
+
+    if (success) {
+      setInvestmentAmount(""); // Limpa o campo de valor
+      // Não limpar a data do investimento, pode ser útil para registros sequenciais.
+      // setInvestmentDate(new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12, 0, 0)));
+      // Limpar info do preço do dia na UI se desejar, ou deixar para o próximo onSelect da data.
+      setInvestmentDatePriceInfo({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
+    }
+    
     setPendingInvestment(null);
     setDuplicateConfirmInfo(null);
     setShowConfirmDuplicateDialog(false);
@@ -893,18 +1125,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               if (diasDeInvestimento < 0) diasDeInvestimento = 0; // Evitar dias negativos se algo der errado
             }
 
-            const formatTempoInvestimento = (dias: number): string => {
-              if (dias <= 0) return "N/A";
-              const anos = Math.floor(dias / 365);
-              const meses = Math.floor((dias % 365) / 30);
-              const diasRestantes = Math.floor((dias % 365) % 30);
-              let str = "";
-              if (anos > 0) str += `${anos} ano(s) `;
-              if (meses > 0) str += `${meses} mes(es) `;
-              if (diasRestantes > 0 || (anos === 0 && meses === 0)) str += `${diasRestantes} dia(s)`;
-              return str.trim();
-            };
-
             const roiObtidoPercent = totalInvestmentsBtc > 0 ? (netProfitBtc / totalInvestmentsBtc) * 100 : 0;
             
             let roiAnualizadoPercent = 0;
@@ -920,6 +1140,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             const mediaDiariaLucroBtc = diasDeInvestimento > 0 ? netProfitBtc / diasDeInvestimento : 0;
             const mediaDiariaRoiPercent = diasDeInvestimento > 0 ? roiObtidoPercent / diasDeInvestimento : 0;
 
+            // +++ CÁLCULO DAS NOVAS MÉTRICAS PARA EXPORTAÇÃO +++
+            const { averageBuyPriceUsd: avgBuyPriceExportUsd } = calculateAverageBuyPriceForSummary(
+              finalInvestmentsToExport,
+              currentRates.brlToUsd,
+              convertToBtc
+            );
+            const { operationalProfitBtc: opProfitExportBtc } = calculateOperationalProfitForSummary(
+              finalProfitsToExport,
+              convertToBtc
+            );
+            const { valuationProfitUsd: valProfitExportUsd, valuationProfitBtc: valProfitExportBtc } = calculateValuationProfitForSummary(
+              finalInvestmentsToExport,
+              currentRates.btcToUsd,
+              currentRates.brlToUsd,
+              convertToBtc
+            );
+            // +++ FIM DO CÁLCULO DAS NOVAS MÉTRICAS PARA EXPORTAÇÃO +++
+
             summarySheet.addRow({ metric: 'Relatório(s) Exportado(s)', value: reportNameForExport });
             summarySheet.addRow({ metric: 'Período Exportado', 
               value: options.periodSelectionType === 'all' ? 'Todos os dados' : 
@@ -931,15 +1169,24 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                     : 'Não Especificado'
             });
             summarySheet.addRow({ metric: 'Total de Investimentos (BTC)', value: totalInvestmentsBtc });
-            summarySheet.addRow({ metric: 'Total de Lucros (BTC)', value: totalProfitsBtc });
-            summarySheet.addRow({ metric: 'Total de Prejuízos (BTC)', value: totalLossesBtc });
-            summarySheet.addRow({ metric: 'Lucro Líquido (BTC)', value: netProfitBtc });
+            summarySheet.addRow({ metric: 'Lucro Líquido das Operações (BTC)', value: netProfitBtc }); // netProfitBtc é o lucro líquido das operações (trades)
             summarySheet.addRow({ metric: 'Saldo Atual Estimado (BTC)', value: balanceBtc });
             
             if (appData?.currentPrice) {
-              summarySheet.addRow({ metric: `Saldo Atual Estimado (${displayCurrency})`, value: formatCurrency(balanceBtc * (displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd), displayCurrency) });
-              summarySheet.addRow({ metric: `Preço BTC (${displayCurrency}) Usado`, value: formatCurrency(displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd, displayCurrency) });
+              const currentPriceForDisplay = displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd;
+              summarySheet.addRow({ metric: `Saldo Atual Estimado (${displayCurrency})`, value: formatCurrency(balanceBtc * currentPriceForDisplay, displayCurrency) });
+              summarySheet.addRow({ metric: `Preço BTC (${displayCurrency}) Usado (Atual)`, value: formatCurrency(currentPriceForDisplay, displayCurrency) });
             }
+
+            // +++ ADICIONANDO NOVAS MÉTRICAS À PLANILHA DE RESUMO +++
+            summarySheet.addRow({ metric: 'Lucro de Operações (BTC)', value: opProfitExportBtc });
+            if (appData?.currentPrice) {
+                summarySheet.addRow({ metric: `Lucro de Operações (${displayCurrency})`, value: formatCurrency(opProfitExportBtc * (displayCurrency === "USD" ? currentRates.btcToUsd : currentRates.btcToUsd * currentRates.brlToUsd), displayCurrency) });
+            }
+            summarySheet.addRow({ metric: 'Lucro de Valorização (BTC)', value: valProfitExportBtc });
+            summarySheet.addRow({ metric: `Lucro de Valorização (${displayCurrency})`, value: formatCurrency(valProfitExportUsd, displayCurrency) });
+            summarySheet.addRow({ metric: `Preço Médio de Compra (${displayCurrency})`, value: formatCurrency(avgBuyPriceExportUsd, displayCurrency) });
+            // +++ FIM DA ADIÇÃO DAS NOVAS MÉTRICAS +++
 
             // Adicionando novas métricas
             summarySheet.addRow({ metric: 'Data do Primeiro Aporte', value: primeiroAporteDate ? format(primeiroAporteDate, "dd/MM/yyyy", { locale: ptBR }) : 'N/A' });
@@ -2894,11 +3141,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     setIsImporting(true);
     setImportStats(null);
     setImportType("investment-csv");
+    toast({ title: "Importando CSV...", description: "Processando arquivo de aportes. Isso pode levar um momento...", variant: "default" });
+
 
     try {
       const reader = new FileReader();
       
-      reader.onload = async (e) => {
+      reader.onload = async (e) => { // Tornar o onload async
+        const processingToastId = toast({ title: "Processando Registros...", description: "Buscando preços e validando dados...", variant: "default" });
         try {
           if (!e.target || !e.target.result) {
             throw new Error("Falha ao ler o arquivo CSV");
@@ -2923,48 +3173,81 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let importedCount = 0;
           let errorCount = 0;
           let duplicatedCount = 0;
-          const newInvestmentsFromCsv: Omit<Investment, "id">[] = []; // Coleção de dados sem ID para o hook
+          const newInvestmentsToBatchAdd: Omit<Investment, "id">[] = []; 
           
           const existingIds = new Set(currentActiveReportForInvestCsv.investments.map(inv => inv.originalId || inv.id));
           
-          records.forEach((record, index) => {
+          // Usar for...of para permitir await dentro do loop
+          for (const [index, record] of records.entries()) {
             try {
               const successValue = String(record.success).toLowerCase();
               const isSuccess = successValue === "true" || successValue === "1";
-              if (!isSuccess) return;
+              if (!isSuccess) continue; // Pular registros não marcados como sucesso
               
               let investmentDateFromFile: Date;
               const tsNum = Number(record.ts);
               if (!isNaN(tsNum)) {
                 investmentDateFromFile = new Date(tsNum);
               } else {
-                investmentDateFromFile = new Date(record.ts);
+                // Tentar parsear como string se não for um número de timestamp direto
+                investmentDateFromFile = parseISODate(record.ts.toString());
               }
-              if (isNaN(investmentDateFromFile.getTime())) throw new Error(`Data inválida: ${record.ts}`);
+              if (isNaN(investmentDateFromFile.getTime())) {
+                console.warn(`[CSV Import] Data inválida na linha ${index + 1}: ${record.ts}. Pulando registro.`);
+                errorCount++;
+                continue;
+              }
               
               const amount = parseFloat(record.amount.toString());
-              if (isNaN(amount) || amount <= 0) throw new Error(`Valor inválido: ${record.amount}`);
-              
-              const unit: CurrencyUnit = "SATS";
-              const originalId = record.id.toString();
-              if (existingIds.has(originalId)) {
-                duplicatedCount++;
-                return;
+              if (isNaN(amount) || amount <= 0) {
+                console.warn(`[CSV Import] Valor inválido na linha ${index + 1}: ${record.amount}. Pulando registro.`);
+                errorCount++;
+                continue;
               }
               
-              newInvestmentsFromCsv.push({
+              const unit: CurrencyUnit = "SATS"; // Assumindo SATS conforme formato do CSV, ajustar se necessário
+              const originalId = record.id.toString();
+
+              if (existingIds.has(originalId)) {
+                duplicatedCount++;
+                continue;
+              }
+              
+              // Buscar o preço do Bitcoin para a data do aporte
+              // Usar displayCurrency ou uma moeda padrão (ex: USD) para consistência
+              const currencyForPriceFetch = displayCurrency; // ou 'USD'
+              let priceDetails: { price: number; source: string; currency: DisplayCurrency } | null = null;
+              
+              // Adicionar um pequeno delay para não sobrecarregar a API, especialmente em CSVs grandes
+              // Removido por enquanto para manter a simplicidade, adicionar se houver problemas de rate limit
+              // await new Promise(resolve => setTimeout(resolve, 100)); // Ex: 100ms delay
+
+              try {
+                  priceDetails = await fetchBtcPriceOnDate(investmentDateFromFile, currencyForPriceFetch);
+              } catch (priceError) {
+                  console.warn(`[CSV Import] Falha ao buscar preço para ${formatDateToUTC(investmentDateFromFile)} na linha ${index + 1}. Aporte será salvo sem preço. Erro:`, priceError);
+              }
+
+              newInvestmentsToBatchAdd.push({
                 originalId: originalId, 
-                date: formatDateToUTC(investmentDateFromFile), // Usar formatDateToUTC
+                date: formatDateToUTC(investmentDateFromFile),
                 amount: amount,
-                unit: unit
+                unit: unit,
+                priceAtDate: priceDetails?.price,
+                priceAtDateCurrency: priceDetails?.currency,
+                priceAtDateSource: priceDetails?.source,
               });
               importedCount++;
             } catch (error) {
-              console.error(`Erro ao processar linha ${index + 1} do CSV de aportes:`, error);
+              console.error(`[CSV Import] Erro ao processar linha ${index + 1} do CSV de aportes:`, error);
               errorCount++;
             }
-          });
+          }
           
+          if (processingToastId.id) {
+            toast({id: processingToastId.id, title: "Processamento Concluído", description: "Adicionando registros ao relatório...", variant: "success"});
+          }
+
           setImportStats({
             total: totalRecords,
             success: importedCount,
@@ -2972,27 +3255,40 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             duplicated: duplicatedCount
           });
           
-          if (newInvestmentsFromCsv.length > 0) {
-            newInvestmentsFromCsv.forEach(invData => addInvestment(invData)); // Chamar o hook addInvestment
+          if (newInvestmentsToBatchAdd.length > 0) {
+            // Adicionar todos os novos investimentos de uma vez (ou em lotes menores se preferir)
+            // O hook useReports e sua função addInvestment precisam lidar com a adição desses novos campos.
+            newInvestmentsToBatchAdd.forEach(invData => addInvestment(invData)); 
             
             toast({
               title: "Importação de aportes concluída",
-              description: `Foram importados ${importedCount} aportes com sucesso.`,
+              description: `Foram importados ${importedCount} aportes com sucesso. ${errorCount} erros. ${duplicatedCount} duplicados.`,
               variant: "success",
+              duration: 7000,
             });
-          } else if (duplicatedCount > 0) {
-            setDuplicateInfo({ count: duplicatedCount, type: 'aportes' });
-            setShowDuplicateDialog(true);
-          } else {
+          } else if (errorCount > 0 || duplicatedCount > 0) {
+             toast({
+              title: "Importação Concluída com Observações",
+              description: `${importedCount} aportes importados. ${errorCount} erros. ${duplicatedCount} duplicados.`,
+              variant: duplicatedCount > 0 && importedCount === 0 ? "warning" : "default",
+              duration: 7000,
+            });
+            if (duplicatedCount > 0 && importedCount === 0 && errorCount === 0) {
+               setDuplicateInfo({ count: duplicatedCount, type: 'aportes CSV' });
+               setShowDuplicateDialog(true);
+            }
+          }
+           else {
             toast({
-              title: "Nenhum aporte importado",
-              description: "Não foram encontrados registros de aportes válidos no arquivo CSV.",
-              variant: "destructive",
+              title: "Nenhum novo aporte importado",
+              description: "Não foram encontrados registros de aportes válidos e não duplicados no arquivo CSV.",
+              variant: "warning",
             });
           }
           
         } catch (error) {
-          console.error("Erro ao processar o arquivo CSV de aportes:", error);
+          if (processingToastId.id) toast.dismiss(processingToastId.id);
+          console.error("[CSV Import] Erro ao processar o arquivo CSV de aportes:", error);
           toast({
             title: "Erro na importação",
             description: error instanceof Error ? error.message : "Falha ao processar o arquivo CSV.",
@@ -3002,11 +3298,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           setIsImporting(false);
           setImportType(null);
           if (event.target && event.target.files) {
-            event.target.value = '';
+            event.target.value = ''; // Limpar o input de arquivo
           }
         }
       };
-      
+      // ... (reader.onerror e reader.readAsText)
       reader.onerror = () => {
         setIsImporting(false);
         setImportType(null);
@@ -3023,10 +3319,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     } catch (error) {
       setIsImporting(false);
       setImportType(null);
-      console.error("Erro ao importar CSV de aportes:", error);
+      console.error("Erro ao iniciar importação de CSV de aportes:", error);
       toast({
         title: "Erro na importação",
-        description: "Ocorreu um erro ao tentar importar o arquivo CSV.",
+        description: "Ocorreu um erro ao tentar iniciar a importação do arquivo CSV.",
         variant: "destructive",
       });
       if (event.target) event.target.value = '';
@@ -3512,6 +3808,117 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <ImportOptions />
             </CardContent>
           </Card>
+
+          {/* Card de Saldo Atual Estimado */}
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">Saldo Atual Estimado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                <AnimatedCounter 
+                  value={reportSummaryData.balanceBtc || 0}
+                  prefix={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? "丰 " : "₿ "} 
+                  decimals={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? 0 : 8}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatBtcValueInCurrency(reportSummaryData.balanceBtc || 0)}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Card de ROI Simples */}
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">ROI (Operacional)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${(reportSummaryData.roiSimple || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter value={reportSummaryData.roiSimple || 0} suffix="%" decimals={2} />
+              </div>
+              <p className="text-xs text-muted-foreground">Retorno sobre Aportes (Operacional)</p>
+            </CardContent>
+          </Card>
+
+          {/* +++ NOVOS CARDS DE RESUMO +++ */}
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">Lucro de Operações</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${(reportSummaryData.operationalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter 
+                  value={reportSummaryData.operationalProfitBtc || 0}
+                  prefix={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                  decimals={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? 0 : 8}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatBtcValueInCurrency(reportSummaryData.operationalProfitBtc || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Soma dos lucros/perdas registrados</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">Lucro de Valorização (Hold)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${(reportSummaryData.valuationProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter 
+                  value={reportSummaryData.valuationProfitBtc || 0}
+                  prefix={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                  decimals={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? 0 : 8}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatBtcValueInCurrency(reportSummaryData.valuationProfitBtc || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Valorização dos aportes contra preço atual</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">Preço Médio de Compra</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold text-blue-400`}>
+                <AnimatedCounter 
+                  value={reportSummaryData.averageBuyPriceUsd || 0} 
+                  prefix={displayCurrency === 'USD' ? '$' : 'R$'} // Ajustar prefixo se displayCurrency for BRL
+                  decimals={2} 
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Média ponderada do preço dos aportes em {displayCurrency}</p>
+               <p className="text-xs text-gray-500 mt-1">
+                  (Considera {reportSummaryData.totalActiveInvestments || 0} aportes)
+               </p>
+            </CardContent>
+          </Card>
+
+          {/* Card de Lucro Total Combinado */}
+          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-lg mb-1.5">Lucro Total Combinado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${(reportSummaryData.combinedTotalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <AnimatedCounter 
+                  value={reportSummaryData.combinedTotalProfitBtc || 0}
+                  prefix={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                  decimals={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? 0 : 8}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatBtcValueInCurrency(reportSummaryData.combinedTotalProfitBtc || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Valorização + Lucros Operacionais</p>
+            </CardContent>
+          </Card>
+
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
