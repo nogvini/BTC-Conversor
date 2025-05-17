@@ -679,56 +679,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({ title: "Erro", description: "Nenhum relatório ativo para adicionar o aporte.", variant: "destructive" });
       return;
     }
-
-    // Mostrar um toast de carregamento enquanto busca o preço
-    const toastId = toast({ title: "Processando Aporte...", description: "Buscando preço do Bitcoin na data do aporte...", variant: "default" });
-
-    let priceDetails: { price: number; source: string; currency: DisplayCurrency } | null = null;
-    try {
-      // Determinar a moeda para buscar o preço. Pode ser a displayCurrency atual,
-      // ou uma moeda padrão como USD se preferir consistência.
-      // Para este exemplo, usaremos a displayCurrency.
-      const currencyForPriceFetch = displayCurrency;
-      const investmentDateObj = parseISODate(investmentBaseData.date); // Converte string de data para objeto Date
-
-      if (!isNaN(investmentDateObj.getTime())) {
-        priceDetails = await fetchBtcPriceOnDate(investmentDateObj, currencyForPriceFetch);
-      } else {
-        console.warn("[confirmAddInvestment] Data do investimento inválida, não foi possível buscar preço:", investmentBaseData.date);
-      }
-    } catch (fetchError) {
-      console.error("[confirmAddInvestment] Erro ao buscar preço do Bitcoin na data do aporte:", fetchError);
-      // Continuar mesmo se a busca de preço falhar, mas logar e talvez notificar.
-      toast({
-        title: "Aviso sobre Preço",
-        description: "Não foi possível buscar o preço do Bitcoin para a data do aporte. O aporte será salvo sem essa informação.",
-        variant: "warning",
-        duration: 5000
-      });
-    }
-
-    const investmentDataWithPrice: Omit<Investment, "id"> = {
-      ...investmentBaseData,
-      priceAtDate: priceDetails?.price,
-      priceAtDateCurrency: priceDetails?.currency,
-      priceAtDateSource: priceDetails?.source,
-    };
-
-    // A função addInvestment do hook já lida com a adição ao relatório ativo e geração de ID
-    // Esta função (no hook useReports) precisará ser atualizada para aceitar os novos campos de preço.
-    const success = addInvestment(investmentDataWithPrice); 
+    // A função addInvestment do hook já lida com a adição ao relatório ativo
+    const success = addInvestment(investmentData); 
     
-    // Atualizar o toast com o resultado
-    if (toastId.id) { // Verifica se o toastId e sua propriedade id existem
-      toast({
-        id: toastId.id, // Usa o ID do toast anterior para atualizá-lo
-        title: success ? "Aporte Adicionado" : "Falha ao Adicionar",
-        description: success ? "Seu aporte foi registrado com sucesso." : "Houve um problema ao salvar seu aporte.",
-        variant: success ? "success" : "destructive",
-      });
-    }
-
-
     if (success) {
       setInvestmentAmount(""); // Limpa o campo de valor
       // Não limpar a data do investimento, pode ser útil para registros sequenciais.
