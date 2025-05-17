@@ -102,9 +102,17 @@ export async function GET(request: NextRequest) {
       headers: Object.fromEntries(headers.entries())
     });
   } catch (error) {
-    console.error(`[API /historical] Erro ao processar requisição: ${error instanceof Error ? error.message : String(error)}`, error);
+    console.error(`[API /historical] ERRO BRUTO CAPTURADO:`, error);
+    console.error(`[API /historical] Tipo do erro: ${error?.constructor?.name}`);
+    console.error(`[API /historical] Mensagem do erro: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`[API /historical] Stack do erro: ${error instanceof Error ? error.stack : 'N/A'}`);
+    console.error(`[API /historical] É ApiError? ${error instanceof ApiError}`);
+    console.error(`[API /historical] É RateLimitError? ${error instanceof RateLimitError}`);
+    console.error(`[API /historical] É DataNotFoundError? ${error instanceof DataNotFoundError}`);
+    console.error(`[API /historical] É ExternalApiError? ${error instanceof ExternalApiError}`);
 
     if (error instanceof RateLimitError) {
+      console.log('[API /historical] Tratando como RateLimitError...');
       return NextResponse.json(
         { error: error.message, details: 'API externa atingiu o limite de taxa.' },
         { status: error.status }
@@ -123,6 +131,7 @@ export async function GET(request: NextRequest) {
       );
     }
     if (error instanceof ApiError) {
+      console.log('[API /historical] Tratando como ApiError genérico...');
       return NextResponse.json(
         { error: error.message },
         { status: error.status }
