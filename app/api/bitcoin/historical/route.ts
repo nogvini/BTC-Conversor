@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         );
       }
       daysOrDateParams = { fromDate, toDate };
-      logPeriodDescription = `de ${fromDate} até ${toDate}`;
+      logPeriodDescription = `de ${fromDate} ate ${toDate}`;
     } else {
       let resolvedDays: number;
       if (periodParam && PERIOD_MAPPING[periodParam as keyof typeof PERIOD_MAPPING]) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         );
       }
       daysOrDateParams = resolvedDays;
-      logPeriodDescription = `${resolvedDays} dias (período: ${periodParam || 'N/A'})`;
+      logPeriodDescription = `${resolvedDays} dias (periodo: ${periodParam || 'N/A'})`;
     }
     
     console.log(`[API /historical] Processando para: Moeda: ${currency}, Período: ${logPeriodDescription}${forceUpdate ? ", Forçar Atualização" : ""}`);
