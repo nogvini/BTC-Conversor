@@ -11,7 +11,7 @@ import {
   createNewReport,
   migrateFromLegacyData
 } from "@/lib/calculator-types";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/toast";
 
 // Hook para gerenciar relatórios da calculadora
 export function useReports() {

@@ -1,6 +1,10 @@
 ﻿"use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useReports } from "@/hooks/use-reports";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useToast } from "@/hooks/use-toast";
+import { startOfDay } from "date-fns";
 import {
 
   Calendar,
@@ -107,7 +111,11 @@ interface AppData {
 
     isUsingCache?: boolean;
 
-  }
+  };
+
+  isUsingCache?: boolean;
+
+}
 
 interface ProfitCalculatorProps {
 
@@ -206,84 +214,80 @@ interface ExportOptions {
 }
 
 async function fetchBtcPriceOnDate(
-
   date: Date, 
-
   targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
+): Promise<{ price: number; source: string; currency: DisplayCurrency }> {
+  // Implementação simplificada - substitua por lógica real
+  try {
+    const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    // Aqui você faria uma chamada API real para obter o preço histórico
+    // Por enquanto, retornando um valor mock
+    return {
+      price: 50000, // valor mock
+      source: "API histórica",
+      currency: targetCurrency
+    };
+  } catch (error) {
+    console.error("Erro ao buscar preço histórico:", error);
+    throw error;
+  }
+}
 
 function calculateOperationalProfitForSummary(
-
   profitRecords: ProfitRecord[],
-
   convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
+): { 
+  operationalProfitBtc: number; 
+  operationalProfitSats: number; 
+  netProfitFromOperationsBtc: number; 
+  netProfitFromOperationsSats: number 
+} {
+  // Implementação simplificada - substitua por lógica real
+  let totalProfit = 0;
+  let totalLoss = 0;
 
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
+  profitRecords.forEach(record => {
+    const amountInBtc = convertToBtcFunction(record.amount, record.unit);
+    if (record.isProfit) {
+      totalProfit += amountInBtc;
+    } else {
+      totalLoss += amountInBtc;
+    }
+  });
 
-async function fetchBtcPriceOnDate(
+  const netProfit = totalProfit - totalLoss;
+  
+  return {
+    operationalProfitBtc: totalProfit,
+    operationalProfitSats: totalProfit * 100000000,
+    netProfitFromOperationsBtc: netProfit,
+    netProfitFromOperationsSats: netProfit * 100000000
+  };
+}
 
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
+// Função auxiliar para obter o preço atual do Bitcoin
+async function getCurrentBitcoinPrice(): Promise<{
+  usd: number;
+  brl: number;
+  isUsingCache: boolean;
+}> {
+  try {
+    // Aqui você faria uma chamada API real
+    // Implementação mock - substitua pela sua chamada de API real
+    return {
+      usd: 65000,
+      brl: 338000,
+      isUsingCache: false
+    };
+  } catch (error) {
+    console.error("Erro ao buscar preço atual:", error);
+    return {
+      usd: 65000, // valor fallback
+      brl: 338000, // valor fallback
+      isUsingCache: true
+    };
+  }
+}
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
 
@@ -506,10 +510,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
 
   const { toast, dismiss } = useToast(); // Desestruturar toast e dismiss
-
-  const notificationToastRef = React.useRef<ReturnType<typeof toast> | null>(null); // Usar o toast desestruturado
-
-  const [currentToastId, setCurrentToastId] = React.useState<string | null>(null); // Manter para lÃ³gica existente
+  const notificationToastRef = useRef<ReturnType<typeof toast> | null>(null); // Usar o toast desestruturado
+  const [currentToastId, setCurrentToastId] = useState<string | null>(null); // Manter para lógica existente
 
 
 
@@ -630,9 +632,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       } else {
 
         // Garante que os relatÃ³rios selecionados para histÃ³rico ainda existam
-
-        setSelectedReportIdsForHistoryView(prev => prev.filter(id => allReportsFromHook.some(r => r.id === id)));
-
+        setSelectedReportIdsForHistoryView(prev => prev.filter(id => allReportsFromHook.some((r: Report) => r.id === id)));
       }
 
     } else if (reportsDataLoaded && (!allReportsFromHook || allReportsFromHook.length === 0)) {
@@ -923,7 +923,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     
 
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
+    const reportToUpdate = allReportsFromHook?.find((r: Report) => r.id === targetReportId);
 
     if (!reportToUpdate) {
 
@@ -1005,14 +1005,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     // LÃ³gica de duplicidade (simplificada para focar na busca de preÃ§o):
 
-    const possibleDuplicates = reportToUpdate?.investments.filter(inv => 
-
+    const possibleDuplicates = reportToUpdate?.investments.filter((inv: Investment) => 
       inv.date === newInvestmentBase.date && 
-
       inv.amount === newInvestmentBase.amount && 
-
       inv.unit === newInvestmentBase.unit
-
     ) || [];
 
 
@@ -1165,7 +1161,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     
 
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
+    const reportToUpdate = allReportsFromHook?.find((r: Report) => r.id === targetReportId);
 
     if (!reportToUpdate) {
 
