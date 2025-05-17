@@ -225,7 +225,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     } finally {
       setLoading(false)
     }
-  }, [timeRange, currency, getCacheKey, updateCacheInBackground]) // Adicionado updateCacheInBackground
+  }, [timeRange, currency, getCacheKey])
   
   // Função para atualizar o cache em segundo plano
   const updateCacheInBackground = useCallback(async (currencyType: CurrencyType, range: TimeRange, days: number) => {
