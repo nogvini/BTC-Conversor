@@ -681,7 +681,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     // Mostrar um toast de carregamento enquanto busca o preço
-    constราคาทองคำ toastId = toast({ title: "Processando Aporte...", description: "Buscando preço do Bitcoin na data do aporte...", variant: "default" });
+    const toastId = toast({ title: "Processando Aporte...", description: "Buscando preço do Bitcoin na data do aporte...", variant: "default" });
 
     let priceDetails: { price: number; source: string; currency: DisplayCurrency } | null = null;
     try {
