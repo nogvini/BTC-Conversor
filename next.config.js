@@ -9,9 +9,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  compiler: {
+    // Usar o compilador de styled-components que pode ser mais estável
+    styledComponents: true
+  },
   experimental: {
-    // Força o uso do Babel em vez do SWC
-    forceSwcTransforms: false,
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],

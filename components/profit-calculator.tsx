@@ -109,6 +109,8 @@ interface AppData {
 
   }
 
+}
+
 interface ProfitCalculatorProps {
 
   btcToUsd: number;
@@ -205,85 +207,21 @@ interface ExportOptions {
 
 }
 
-async function fetchBtcPriceOnDate(
-
+// Declaração de tipos para as funções
+type FetchBtcPriceOnDateType = (
   date: Date, 
-
   targetCurrency: DisplayCurrency
+) => Promise<{ price: number; source: string; currency: DisplayCurrency }>;
 
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
+type CalculateOperationalProfitType = (
   profitRecords: ProfitRecord[],
-
   convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
-
-async function fetchBtcPriceOnDate(
-
-  date: Date, 
-
-  targetCurrency: DisplayCurrency
-
-): Promise<{ price: number; source: string; currency: DisplayCurrency }
-
-function calculateOperationalProfitForSummary(
-
-  profitRecords: ProfitRecord[],
-
-  convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
-
-): { operationalProfitBtc: number; operationalProfitSats: number; netProfitFromOperationsBtc: number; netProfitFromOperationsSats: number }
+) => { 
+  operationalProfitBtc: number; 
+  operationalProfitSats: number; 
+  netProfitFromOperationsBtc: number; 
+  netProfitFromOperationsSats: number 
+};
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
 
