@@ -6,7 +6,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Check, AlertTriangle, X, Database, RefreshCw, Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useReports } from "@/hooks/use-reports";
 import Link from "next/link";
 
 export default function DiagnoseClientPage() {
@@ -20,7 +19,6 @@ export default function DiagnoseClientPage() {
   } | null>(null);
 
   const { session } = useAuth();
-  const { reports } = useReports();
 
   // Inicializar o estado do cliente
   useEffect(() => {
