@@ -31,7 +31,7 @@ import {
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
-import { startOfDay } from "@/lib/utils";
+import { startOfDay } from "date-fns";
 import { getCurrentBitcoinPrice } from "@/lib/api";
 
 // Tipos de dados
