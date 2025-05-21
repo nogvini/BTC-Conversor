@@ -228,7 +228,7 @@ export function useReports() {
   const updateReport = useCallback((reportId: string, updates: Partial<Report>) => {
     setCollection(prevCollection => {
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
-      
+
       if (reportIndex === -1) {
         toast({
           title: "Relatório não encontrado",
@@ -238,27 +238,44 @@ export function useReports() {
         });
         return prevCollection;
       }
-      
-      const updatedReports = [...prevCollection.reports];
-      
+
       // Verificar e impedir alteração de investments e profits diretamente por esta função
       const safeUpdates = { ...updates };
       delete safeUpdates.investments;
       delete safeUpdates.profits;
+
+      const updatedReportsArray = prevCollection.reports.map((report, index) => {
+        if (index === reportIndex) {
+          return {
+            ...report,
+            ...safeUpdates, // Aplicar apenas atualizações seguras
+            updatedAt: new Date().toISOString(), // Atualizar a data de modificação
+          };
+        }
+        return report;
+      });
       
-      updatedReports[reportIndex] = {
-        ...updatedReports[reportIndex],
-        ...safeUpdates,
-        updatedAt: new Date().toISOString()
-      };
+      const reportName = updatedReportsArray[reportIndex].name;
+
+      // Não mostrar toast para cada atualização (ex: reordenar)
+      // Apenas se for uma edição de nome ou descrição vinda do ReportManager
+      if (updates.name || updates.description) {
+        toast({
+          title: "Relatório atualizado",
+          description: `O relatório "${reportName}" foi atualizado.`,
+          duration: 3000,
+        });
+      }
       
       return {
         ...prevCollection,
-        reports: updatedReports,
-        lastUpdated: new Date().toISOString()
+        reports: updatedReportsArray, // Usar o novo array mapeado
+        lastUpdated: new Date().toISOString(),
+        // Manter o activeReportId, a menos que o updateReport especificamente mude o report ativo
+        activeReportId: safeUpdates.isActive === true ? reportId : safeUpdates.isActive === false && prevCollection.activeReportId === reportId ? undefined : prevCollection.activeReportId,
       };
     });
-    
+
     return true;
   }, []);
   
