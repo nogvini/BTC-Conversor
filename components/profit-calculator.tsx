@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
@@ -3198,7 +3198,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
           if (currentToastId) {
-            toast({description: "Adicionando registros ao relatório...", variant: "success", id: currentToastId, title: "Processamento Concluído"});
+            toast({description: "Adicionando registros ao relatório...", variant: "success", title: "Processamento Concluído"});
           }
 
           setImportStats({
@@ -3240,7 +3240,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
         } catch (error) {
-          if (currentToastId) toast.dismiss(currentToastId);
           console.error("[CSV Import] Erro ao processar o arquivo CSV de aportes:", error);
           toast({
             title: "Erro na importação",
@@ -3549,7 +3548,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     // Contar investimentos que efetivamente têm preço na data para o cálculo do preço médio
     // A lógica de calculateAverageBuyPriceForSummary já considera isso implicitamente
     // Para totalActiveInvestments, vamos contar quantos investimentos tem priceAtDate
-    const totalActiveInvestmentsCount = investments.filter(inv => inv.priceAtDate && inv.priceAtDate > 0).length;
+    const totalActiveInvestmentsCount = investments.filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
 
 
     return {
