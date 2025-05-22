@@ -204,13 +204,13 @@ async function fetchBtcPriceOnDate(
 
 // Função para calcular o lucro operacional bruto
 function calculateOperationalProfitForSummary(
-  profitRecords: ProfitRecord[],
+  profitRecords: ProfitRecord[] | undefined, // Permitir undefined
   convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
 ): { operationalProfitBtc: number; netProfitFromOperationsBtc: number } {
   let grossProfitBtc = 0;
   let grossLossBtc = 0;
 
-  profitRecords.forEach(prof => {
+  (profitRecords || []).forEach(prof => { // Adicionar fallback para array vazio
     const amountBtc = convertToBtcFunction(prof.amount, prof.unit);
     if (prof.isProfit) {
       grossProfitBtc += amountBtc;
@@ -226,7 +226,7 @@ function calculateOperationalProfitForSummary(
 
 // Função para calcular o lucro de valorização
 function calculateValuationProfitForSummary(
-  investments: Investment[],
+  investments: Investment[] | undefined, // Permitir undefined
   currentBtcPriceUsd: number,
   brlToUsdRate: number, // Taxa de BRL para USD
   convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
@@ -234,7 +234,7 @@ function calculateValuationProfitForSummary(
   let totalValuationProfitUsd = 0;
 
   if (currentBtcPriceUsd > 0) {
-    investments.forEach(inv => {
+    (investments || []).forEach(inv => { // Adicionar fallback para array vazio
       if (inv.priceAtDate && inv.priceAtDateCurrency) {
         let priceAtDateUsd = inv.priceAtDate;
         if (inv.priceAtDateCurrency === "BRL" && brlToUsdRate !== 0) {
@@ -256,14 +256,14 @@ function calculateValuationProfitForSummary(
 
 // Função para calcular o preço médio de compra
 function calculateAverageBuyPriceForSummary(
-  investments: Investment[],
+  investments: Investment[] | undefined, // Permitir undefined
   brlToUsdRate: number, // Taxa de BRL para USD
   convertToBtcFunction: (amount: number, unit: CurrencyUnit) => number
 ): { averageBuyPriceUsd: number; totalInvestmentsBtc: number } {
   let totalInvestmentsBtc = 0;
   let totalWeightedPriceUsd = 0;
 
-  investments.forEach(inv => {
+  (investments || []).forEach(inv => { // Adicionar fallback para array vazio
     const investmentBtc = convertToBtcFunction(inv.amount, inv.unit);
     totalInvestmentsBtc += investmentBtc;
     if (inv.priceAtDate && inv.priceAtDateCurrency) {
@@ -3423,8 +3423,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       };
     }
 
-    const investments = currentActiveReportObjectFromHook.investments || [];
-    const profits = currentActiveReportObjectFromHook.profits || [];
+    const investments = currentActiveReportObjectFromHook.investments || []; // Garantir array
+    const profits = currentActiveReportObjectFromHook.profits || [];       // Garantir array
 
     const operationalProfitInfo = calculateOperationalProfitForSummary(
       profits,
@@ -3458,7 +3458,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     // Contar investimentos que efetivamente têm preço na data para o cálculo do preço médio
     // A lógica de calculateAverageBuyPriceForSummary já considera isso implicitamente
     // Para totalActiveInvestments, vamos contar quantos investimentos tem priceAtDate
-    const totalActiveInvestmentsCount = investments.filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
+    const totalActiveInvestmentsCount = (investments || []).filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
 
 
     return {
