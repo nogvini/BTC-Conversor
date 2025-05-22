@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { /*useState, useEffect, useMemo, useRef, useCallback */ } from "react"; // Comentar hooks não usados na versão simplificada
 import {
   Calendar,
   Coins,
@@ -47,7 +47,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { useIsMobile } from "@/hooks/use-mobile";
+// import { useIsMobile } from "@/hooks/use-mobile"; // Comentar se não usar
+// import { useToast } from "@/components/ui/use-toast"; // Comentar se não usar
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -63,7 +64,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useReports } from "@/hooks/use-reports";
 import { getHistoricalBitcoinDataForRange, type HistoricalDataPoint } from "@/lib/client-api";
 import { v4 as uuidv4 } from 'uuid';
-import { useToast } from "@/components/ui/use-toast";
 // import DatePickerWithRange from "./date-picker-with-range";
 // import DatePicker from "./date-picker";
 
@@ -340,207 +340,81 @@ const parseISODate = (dateString: string): Date => {
 };
 
 export default function ProfitCalculator(props: ProfitCalculatorProps) {
-  // =================================================================================
-  // 1. DECLARAÇÃO DE HOOKS PRIMÁRIOS (useState, useRef, useIsMobile)
-  // =================================================================================
-  // REMOVER a chamada a useReports()
-  // const { 
-  //   collection: rawCollection,
-  //   activeReportId: activeReportIdFromHook, 
-  //   isLoaded: reportsDataLoadedHook, // Renomear para evitar conflito com a prop
-  //   ... (resto das funções)
-  // } = useReports();
+  // Desestruturar apenas o que será usado no JSX mínimo
+  const { reportsCollection, reportsDataLoaded } = props;
 
-  // Usar props diretamente
+  // Adicionar um log aqui para ver se o corpo da função é alcançado
+  console.log("[ProfitCalculator - SIMPLIFICADO] Renderizando. reportsDataLoaded:", reportsDataLoaded);
+  if (reportsCollection?.reports) {
+    console.log("[ProfitCalculator - SIMPLIFICADO] Número de relatórios:", reportsCollection.reports.length);
+  }
+
+  // ======= INÍCIO DO CÓDIGO COMENTADO (QUASE TUDO) =======
+  /*
   const { 
-    reportsCollection, 
-    activeReportId, 
-    reportsDataLoaded, // Esta prop será sempre true aqui
-    addReport, 
-    selectReport, 
-    addInvestmentToReport, 
-    addProfitRecordToReport, 
-    deleteInvestmentFromReport, 
-    deleteProfitRecordFromReport, 
-    updateReportDetails, 
-    importExternalDataToReport, 
-    deleteAllInvestmentsFromReport,
-    deleteAllProfitsFromReport,
-    recalculateReportSummary,
-    // btcToUsd, brlToUsd, appData já estão em props
+    // ... (resto das props desestruturadas)
   } = props;
 
-  // Todos os useState devem vir aqui
+  // Todos os useState 
   const [activeTab, setActiveTab] = useState<string>("register");
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
-  const [currentRates, setCurrentRates] = useState({ btcToUsd: props.btcToUsd, brlToUsd: props.brlToUsd });
-  const [loading, setLoading] = useState(false);
-  const [usingFallbackRates, setUsingFallbackRates] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [investmentAmount, setInvestmentAmount] = useState<string>("");
-  const [investmentUnit, setInvestmentUnit] = useState<CurrencyUnit>("SATS");
-  const [investmentDate, setInvestmentDate] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
-  });
-  const [profitAmount, setProfitAmount] = useState<string>("");
-  const [profitUnit, setProfitUnit] = useState<CurrencyUnit>("SATS");
-  const [profitDate, setProfitDate] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
-  });
-  const [isProfit, setIsProfit] = useState<boolean>(true);
-  const [filterMonth, setFilterMonth] = useState<Date>(new Date());
-  const [showFilterOptions, setShowFilterOptions] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
-  const [useExportDialog, setUseExportDialog] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importStats, setImportStats] = useState<ImportStats | null>(null);
-  const [importType, setImportType] = useState<"excel" | "csv" | "internal" | "investment-csv" | null>(null);
-  const [showDeleteInvestmentsDialog, setShowDeleteInvestmentsDialog] = useState(false);
-  const [showDeleteProfitsDialog, setShowDeleteProfitsDialog] = useState(false);
-  const [selectedReportIdsForHistoryView, setSelectedReportIdsForHistoryView] = useState<string[]>([]);
-  const [toastDebounce, setToastDebounce] = useState(false);
-  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
-  const [duplicateInfo, setDuplicateInfo] = useState<{count: number, type: string} | null>(null);
-  const [pendingInvestment, setPendingInvestment] = useState<Investment | null>(null);
-  const [pendingProfit, setPendingProfit] = useState<ProfitRecord | null>(null);
-  const [showConfirmDuplicateDialog, setShowConfirmDuplicateDialog] = useState(false);
-  const [duplicateConfirmInfo, setDuplicateConfirmInfo] = useState<{ type: 'investment' | 'profit', date: string, amount: number, unit: CurrencyUnit } | null>(null);
-  const [reportNameInput, setReportNameInput] = useState("");
-  const [showCreateReportDialog, setShowCreateReportDialog] = useState(false);
-  const [historyFilterType, setHistoryFilterType] = useState<'month' | 'custom'>('month');
-  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
-  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
-  const [showAdvancedExportDialog, setShowAdvancedExportDialog] = useState(false);
-  const [exportReportSelectionType, setExportReportSelectionType] = useState<'active' | 'history' | 'manual'>('active');
-  const [manualSelectedReportIdsForExport, setManualSelectedReportIdsForExport] = useState<string[]>([]);
-  const [exportPeriodSelectionType, setExportPeriodSelectionType] = useState<'all' | 'historyFilter' | 'specificMonth' | 'customRange'>('all');
-  const [exportSpecificMonthDate, setExportSpecificMonthDate] = useState<Date | null>(new Date());
-  const [exportCustomStartDateForRange, setExportCustomStartDateForRange] = useState<Date | null>(null);
-  const [exportCustomEndDateForRange, setExportCustomEndDateForRange] = useState<Date | null>(null);
-  const [exportIncludeCharts, setExportIncludeCharts] = useState<boolean>(true);
-  const [exportIncludeSummarySection, setExportIncludeSummarySection] = useState<boolean>(true);
-  const [exportIncludeInvestmentsTableSection, setExportIncludeInvestmentsTableSection] = useState<boolean>(true);
-  const [exportIncludeProfitsTableSection, setExportIncludeProfitsTableSection] = useState<boolean>(true);
-  const [exportPdfDarkMode, setExportPdfDarkMode] = useState<boolean>(false);
-  const [investmentDatePriceInfo, setInvestmentDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
+  // ... (comentar TODOS os useState)
   const [profitDatePriceInfo, setProfitDatePriceInfo] = useState<DatePriceInfo>({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
   
-  // Todos os useRef devem vir aqui
+  // Todos os useRef, useIsMobile, useToast
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const csvFileInputRef = useRef<HTMLInputElement>(null);
-  const internalFileInputRef = useRef<HTMLInputElement>(null);
-  const investmentCsvFileInputRef = useRef<HTMLInputElement>(null);
+  // ... (comentar TODOS os useRef)
   const backupExcelFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Outros hooks primários
   const isMobile = useIsMobile();
-  const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false; // Considerar mover para um useEffect se window não estiver sempre disponível no momento da declaração
-  const { toast } = useToast(); // Assumindo que useToast está importado
-  const today = startOfDay(new Date()); // Isso não é um hook, pode ficar aqui
+  const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 350 : false; 
+  const { toast } = useToast(); 
+  const today = startOfDay(new Date()); 
 
-  // =================================================================================
-  // 2. TODOS OS useEffect E useMemo AQUI (usarão as props agora)
-  // =================================================================================
+  // Todos os useEffect e useMemo
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const checkScreenSize = () => {
-        setUseExportDialog(window.innerWidth < 350);
-      };
-      checkScreenSize();
-      window.addEventListener('resize', checkScreenSize);
-      return () => window.removeEventListener('resize', checkScreenSize);
-    }
+    // ...
   }, []);
-
+  // ... (comentar TODOS os useEffect e useMemo)
   useEffect(() => {
-    if (props.appData) {
-      const newRates = {
-        btcToUsd: props.appData.currentPrice.usd,
-        brlToUsd: props.appData.currentPrice.brl / props.appData.currentPrice.usd
-      };
-      setCurrentRates(newRates);
-      setUsingFallbackRates(props.appData.isUsingCache || !!props.appData.currentPrice.isUsingCache);
-    } else {
-      setCurrentRates({ btcToUsd: props.btcToUsd, brlToUsd: props.brlToUsd });
-      // Considerar uma lógica mais robusta para fallback rates se btcToUsd ou brlToUsd forem 0 ou undefined
-      setUsingFallbackRates( (props.btcToUsd === 0 && props.brlToUsd === 0) || (props.btcToUsd === 65000 && props.brlToUsd === 5.2) );
-    }
-  }, [props.btcToUsd, props.brlToUsd, props.appData]);
-
-  useEffect(() => {
-    const savedDisplayCurrency = localStorage.getItem("bitcoinDisplayCurrency");
-    if (savedDisplayCurrency) {
-      try {
-        const parsedCurrency = JSON.parse(savedDisplayCurrency);
-        if (parsedCurrency === "USD" || parsedCurrency === "BRL") {
-          setDisplayCurrency(parsedCurrency as DisplayCurrency);
-        }
-      } catch (e) {
-        console.error("Erro ao analisar moeda de exibição salva:", e);
-      }
-    }
-
-    if (props.reportsDataLoaded) {
-      const currentReports = props.reportsCollection?.reports;
-      if (currentReports && Array.isArray(currentReports)) {
-        const activeReportExists = props.activeReportId && currentReports.some(r => r.id === props.activeReportId);
-        
-        if (selectedReportIdsForHistoryView.length === 0) {
-           const initialSelection = activeReportExists 
-              ? [props.activeReportId as string] 
-              : (currentReports.length > 0 ? [currentReports[0].id] : []);
-           setSelectedReportIdsForHistoryView(initialSelection);
-        } else {
-          // Garante que os IDs selecionados ainda existem nos relatórios
-          setSelectedReportIdsForHistoryView(prev => prev.filter(id => currentReports.some(r => r.id === id)));
-        }
-      } else { // currentReports não é um array válido (raro, pois temos guarda acima, mas defensivo)
-        setSelectedReportIdsForHistoryView([]);
-      }
-    }
-    // Dependências: Adicionar reportsCollection para reagir a mudanças nos relatórios.
-    // Evitar selectedReportIdsForHistoryView se possível para não causar loops,
-    // a menos que a lógica interna realmente precise reagir a mudanças nela mesma.
+    // ...
   }, [props.reportsDataLoaded, props.reportsCollection, props.activeReportId]);
+
+  // Guardas (já não são estritamente necessárias por causa do Wrapper)
+  // if (!props.reportsDataLoaded) { ... }
+  // if (!props.reportsCollection || ...) { ... }
   
-  // Adicionar aqui quaisquer outros useEffects ou useMemos que existam no componente.
-  // Por exemplo:
-  // useEffect(() => { /* Lógica para buscar preço do Bitcoin na data do aporte/lucro */ ... }, [investmentDate, profitDate, displayCurrency, reportsDataLoaded]);
-  // const processedDataForChart = useMemo(() => { /* ... */ return ... }, [allReportsFromHook, filters]);
-
-
-  // =================================================================================
-  // 3. RETORNOS ANTECIPADOS (GUARD CLAUSES) - PODEM SER REMOVIDOS OU SIMPLIFICADOS
-  // =================================================================================
-  // Estas guardas não são mais estritamente necessárias aqui, pois o Wrapper já as implementa.
-  // Se decidir mantê-las por segurança dupla, elas usarão as props.
-  // if (!props.reportsDataLoaded) { /* ... isto nunca deve acontecer ... */ }
-  // if (!props.reportsCollection || !props.reportsCollection.reports || !Array.isArray(props.reportsCollection.reports)) { /* ... isto nunca deve acontecer ... */ }
-  
-  // =================================================================================
-  // 4. DERIVAÇÃO DE ESTADO E LÓGICA DE RENDERIZAÇÃO PRINCIPAL
-  // =================================================================================
-  const collection = props.reportsCollection; // Usar a prop
-  const allReportsFromHook = collection.reports; // collection.reports já é um array verificado pelo Wrapper
-
+  const collection = props.reportsCollection; 
+  const allReportsFromHook = collection.reports; 
   const currentActiveReportObjectFromHook = props.activeReportId && allReportsFromHook
     ? allReportsFromHook.find(report => report.id === props.activeReportId)
     : null;
   
-  // console.log("[ProfitCalculator] Renderizando com props:", props.reportsCollection?.reports?.length);
+  // ... (todas as funções de manipulação de eventos, lógicas de cálculo etc.)
+  */
+  // ======= FIM DO CÓDIGO COMENTADO =======
 
-  // ... (Resto da lógica do componente, adaptada para usar props para dados e funções de reports)
-  // Exemplo: ao adicionar um investimento, chamar props.addInvestmentToReport(...)
-
+  // JSX Mínimo para Teste
   return (
-    <div className="container mx-auto p-0 sm:p-4 md:p-2 lg:p-1 xl:p-0 max-w-full">
-      {/* Seu JSX aqui, adaptado para usar as props */}
-      <p>Conteúdo do ProfitCalculator (usando props para dados e ações de relatórios)</p>
-      {/* Exemplo: <div>Total de relatórios: {props.reportsCollection.reports.length}</div> */}
+    <div className="container mx-auto p-4">
+      <h1 className="text-xl font-bold">Profit Calculator (Versão Simplificada)</h1>
+      <p>Dados de Relatórios Carregados: {reportsDataLoaded ? 'Sim' : 'Não'}</p>
+      {reportsDataLoaded && reportsCollection?.reports && (
+        <p>Número de Relatórios: {reportsCollection.reports.length}</p>
+      )}
+      {reportsDataLoaded && !reportsCollection?.reports && (
+        <p className="text-red-500">Coleção de relatórios não é um array ou é indefinida!</p>
+      )}
+      {/* Adicionar aqui um .map() simples e seguro para testar o erro de map especificamente */}
+      {/* {reportsDataLoaded && reportsCollection?.reports && Array.isArray(reportsCollection.reports) && (
+        <div>
+          <h2 className="text-lg">Nomes dos Relatórios:</h2>
+          <ul>
+            {reportsCollection.reports.map(report => (
+              <li key={report.id}>{report.name || "Sem nome"}</li>
+            ))}
+          </ul>
+        </div>
+      )} */}
     </div>
   );
 }
