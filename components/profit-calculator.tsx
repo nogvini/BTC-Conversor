@@ -133,6 +133,12 @@ interface Report {
   createdAt: string;
 }
 
+// NOVA INTERFACE PARA ReportsCollection (para corrigir linter error)
+interface ReportsCollection {
+  reports: Report[];
+  // Outros campos potenciais da coleção, como 'activeReportId' ou metadados globais, podem ser adicionados aqui se necessário.
+}
+
 // NOVA INTERFACE PARA OPÇÕES DE EXPORTAÇÃO
 interface ExportOptions {
   exportFormat: 'excel' | 'pdf'; // Novo
@@ -297,6 +303,26 @@ const formatTempoInvestimento = (dias: number): string => {
   return str.trim() || "N/A";
 };
 // +++ FIM DE formatTempoInvestimento MOVIDA +++
+
+// Função auxiliar para converter string de data ISO para objeto Date com fuso horário correto
+const parseISODate = (dateString: string): Date => {
+  if (!dateString) {
+    // Retornar uma data inválida ou lançar um erro se a string for vazia/nula
+    // Isso depende de como o resto do código espera lidar com datas inválidas.
+    // Por agora, vamos logar um aviso e retornar uma data que provavelmente causará erro adiante se não tratada.
+    console.warn("parseISODate recebeu uma string vazia ou nula.");
+    return new Date("invalid date"); 
+  }
+  const date = new Date(dateString);
+  // Verificar se a data é válida, pois o construtor de Date pode retornar "Invalid Date"
+  // mas ainda assim ser um objeto Date.
+  if (isNaN(date.getTime())) {
+    console.warn(`parseISODate resultou em data inválida para a string: "${dateString}"`);
+    // Considerar lançar um erro aqui se uma data inválida não for esperada
+    // throw new Error(`Invalid date string provided to parseISODate: ${dateString}`);
+  }
+  return date;
+};
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
@@ -2470,6 +2496,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Função para importar dados internos de um arquivo Excel gerado pelo sistema
   const handleImportInternalData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const importTargetReportId: string | null = activeReportIdFromHook; // Definido para resolver linter error
+
     if (!event.target.files || event.target.files.length === 0) return;
     const file = event.target.files[0];
     setLoading(true);
@@ -2516,8 +2544,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         investmentsToProcess = (parsedData as { investments: Investment[], profits: ProfitRecord[] }).investments || [];
         profitsToProcess = (parsedData as { investments: Investment[], profits: ProfitRecord[] }).profits || [];
       } else if ("id" in parsedData && "name" in parsedData && "investments" in parsedData) {
-        investmentsToProcess = (parsedData as Report).investments || [];
-        profitsToProcess = (parsedData as Report).profits || [];
+        // Cast to a type that reflects known properties and what we're accessing,
+        // without asserting it's a full Report (which requires createdAt and profits).
+        const knownShape = parsedData as { investments: Investment[]; profits?: ProfitRecord[]; [key: string]: any };
+        investmentsToProcess = knownShape.investments; // Assured by "investments" in parsedData
+        profitsToProcess = knownShape.profits || [];   // profits might be undefined
       } else if ("reports" in parsedData) {
         const collection = parsedData as ReportsCollection;
         if (collection.reports && collection.reports.length > 0) {
@@ -2706,7 +2737,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           reportNameForToast = finalTargetReportName; // Nome final para o toast
           
           if (!finalTargetReportId) { // Se mesmo após toda a lógica, não temos um ID
-            throw new Error("Não foi possível determinar um relatório de destino válido para a importação.");
+            throw new Error("Não foi possível determinar um relatório de destino válido para a importação. Por favor, selecione ou crie um relatório ativo.");
           }
 
           const tempImportedInvestments: Omit<Investment, 'id'>[] = [];
@@ -2839,25 +2870,37 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
           for (const invData of tempImportedInvestments) {
-            const result = addInvestmentToReport(activeReportIdFromHook, invData, { suppressToast: true });
+            // ADICIONAR VERIFICAÇÃO PARA finalTargetReportId
+            if (!finalTargetReportId) {
+              console.error("Erro crítico: ID do relatório alvo é nulo ao tentar adicionar aporte de backup.");
+              investmentsFailedToHookAdd++;
+              continue;
+            }
+            const result = addInvestmentToReport(finalTargetReportId, invData, { suppressToast: true });
             switch (result.status) {
               case 'added': investmentsSuccessfullyAdded++; break;
               case 'duplicate': investmentsDuplicatesSkipped++; break;
               case 'error':
                 investmentsFailedToHookAdd++;
-                console.error(`Falha ao adicionar aporte (ID original: ${invData.originalId}) ao relatório ${activeReportIdFromHook}: ${result.message}`);
+                console.error(`Falha ao adicionar aporte (ID original: ${invData.originalId}) ao relatório ${finalTargetReportId}: ${result.message}`);
                 break;
             }
           }
 
           for (const profitData of tempImportedProfits) {
-            const result = addProfitRecordToReport(activeReportIdFromHook, profitData, { suppressToast: true });
+            // ADICIONAR VERIFICAÇÃO PARA finalTargetReportId
+            if (!finalTargetReportId) {
+              console.error("Erro crítico: ID do relatório alvo é nulo ao tentar adicionar lucro/perda de backup.");
+              profitsFailedToHookAdd++;
+              continue;
+            }
+            const result = addProfitRecordToReport(finalTargetReportId, profitData, { suppressToast: true });
             switch (result.status) {
               case 'added': profitsSuccessfullyAdded++; break;
               case 'duplicate': profitsDuplicatesSkipped++; break;
               case 'error':
                 profitsFailedToHookAdd++;
-                console.error(`Falha ao adicionar lucro/perda (ID original: ${profitData.originalId}) ao relatório ${activeReportIdFromHook}: ${result.message}`);
+                console.error(`Falha ao adicionar lucro/perda (ID original: ${profitData.originalId}) ao relatório ${finalTargetReportId}: ${result.message}`);
                 break;
             }
           }
