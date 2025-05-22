@@ -47,7 +47,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
-    "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "exceljs": "^4.3.0",
     "file-saver": "^2.0.5",
@@ -58,7 +57,6 @@
     "puppeteer": "^24.8.2",
     "puppeteer-core": "^24.8.2",
     "react": "^19",
-    "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
@@ -67,22 +65,25 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "vaul": "^0.9.6",
-    "zod": "^3.24.1",
-    "zustand": "^5.0.5"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.5",
     "@types/node": "^22.15.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "browserify-zlib": "^0.2.0",
     "crypto-browserify": "^3.12.1",
+    "date-fns": "^3.6.0",
     "path-browserify": "^1.0.1",
     "postcss": "^8",
+    "react-day-picker": "^9.7.0",
     "stream-browserify": "^3.0.0",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vaul": "^1.1.2",
+    "zustand": "^5.0.5"
   },
   "overrides": {
     "fstream": "^1.0.12",
