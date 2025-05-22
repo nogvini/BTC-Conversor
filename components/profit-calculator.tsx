@@ -105,6 +105,20 @@ interface ProfitCalculatorProps {
   btcToUsd: number;
   brlToUsd: number;
   appData?: AppData;
+  reportsCollection: ReportsCollection;
+  activeReportId: string | null;
+  reportsDataLoaded: boolean;
+  addReport: (name: string, description?: string, color?: string, id?: string) => Report;
+  selectReport: (reportId: string | null) => void;
+  addInvestmentToReport: (reportId: string, investmentBaseData: Omit<Investment, "id" | "priceAtDate" | "priceAtDateCurrency" | "priceAtDateSource">, options?: { suppressToast?: boolean }) => { status: 'added' | 'error' | 'duplicate', reportId: string, investmentId?: string, message?: string };
+  addProfitRecordToReport: (reportId: string, profitBaseData: Omit<ProfitRecord, "id">, options?: { suppressToast?: boolean }) => { status: 'added' | 'error' | 'duplicate', reportId: string, profitId?: string, message?: string };
+  deleteInvestmentFromReport: (reportId: string, investmentId: string) => boolean;
+  deleteProfitRecordFromReport: (reportId: string, profitId: string) => boolean;
+  updateReportDetails: (reportId: string, updates: Partial<Pick<Report, "name" | "description" | "color">>) => boolean;
+  importExternalDataToReport: (reportId: string, investments: Investment[], profits: ProfitRecord[], options?: { suppressToast?: boolean, source?: string }) => { success: boolean, investmentStats: { added: number, duplicates: number, errors: number }, profitStats: { added: number, duplicates: number, errors: number } };
+  deleteAllInvestmentsFromReport: (reportId: string) => boolean;
+  deleteAllProfitsFromReport: (reportId: string) => boolean;
+  recalculateReportSummary: (reportId: string, currentRates: any) => Promise<boolean>;
 }
 
 // Adicionar tipo para o objeto monthlyData
@@ -325,14 +339,23 @@ const parseISODate = (dateString: string): Date => {
   return date;
 };
 
-export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
+export default function ProfitCalculator(props: ProfitCalculatorProps) {
   // =================================================================================
-  // 1. DECLARAÇÃO DE HOOKS PRIMÁRIOS (useReports, useState, useRef, useIsMobile)
+  // 1. DECLARAÇÃO DE HOOKS PRIMÁRIOS (useState, useRef, useIsMobile)
   // =================================================================================
+  // REMOVER a chamada a useReports()
+  // const { 
+  //   collection: rawCollection,
+  //   activeReportId: activeReportIdFromHook, 
+  //   isLoaded: reportsDataLoadedHook, // Renomear para evitar conflito com a prop
+  //   ... (resto das funções)
+  // } = useReports();
+
+  // Usar props diretamente
   const { 
-    collection: rawCollection,
-    activeReportId: activeReportIdFromHook, 
-    isLoaded: reportsDataLoaded, 
+    reportsCollection, 
+    activeReportId, 
+    reportsDataLoaded, // Esta prop será sempre true aqui
     addReport, 
     selectReport, 
     addInvestmentToReport, 
@@ -344,13 +367,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
     recalculateReportSummary,
-  } = useReports();
+    // btcToUsd, brlToUsd, appData já estão em props
+  } = props;
 
   // Todos os useState devem vir aqui
   const [activeTab, setActiveTab] = useState<string>("register");
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
-  const [currentRates, setCurrentRates] = useState({ btcToUsd, brlToUsd });
+  const [currentRates, setCurrentRates] = useState({ btcToUsd: props.btcToUsd, brlToUsd: props.brlToUsd });
   const [loading, setLoading] = useState(false);
   const [usingFallbackRates, setUsingFallbackRates] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -419,7 +443,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const today = startOfDay(new Date()); // Isso não é um hook, pode ficar aqui
 
   // =================================================================================
-  // 2. TODOS OS useEffect E useMemo AQUI
+  // 2. TODOS OS useEffect E useMemo AQUI (usarão as props agora)
   // =================================================================================
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -433,19 +457,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   }, []);
 
   useEffect(() => {
-    if (appData) {
+    if (props.appData) {
       const newRates = {
-        btcToUsd: appData.currentPrice.usd,
-        brlToUsd: appData.currentPrice.brl / appData.currentPrice.usd // Evitar divisão por zero se usd for 0
+        btcToUsd: props.appData.currentPrice.usd,
+        brlToUsd: props.appData.currentPrice.brl / props.appData.currentPrice.usd
       };
       setCurrentRates(newRates);
-      setUsingFallbackRates(appData.isUsingCache || !!appData.currentPrice.isUsingCache);
+      setUsingFallbackRates(props.appData.isUsingCache || !!props.appData.currentPrice.isUsingCache);
     } else {
-      setCurrentRates({ btcToUsd, brlToUsd });
+      setCurrentRates({ btcToUsd: props.btcToUsd, brlToUsd: props.brlToUsd });
       // Considerar uma lógica mais robusta para fallback rates se btcToUsd ou brlToUsd forem 0 ou undefined
-      setUsingFallbackRates( (btcToUsd === 0 && brlToUsd === 0) || (btcToUsd === 65000 && brlToUsd === 5.2) );
+      setUsingFallbackRates( (props.btcToUsd === 0 && props.brlToUsd === 0) || (props.btcToUsd === 65000 && props.brlToUsd === 5.2) );
     }
-  }, [btcToUsd, brlToUsd, appData]);
+  }, [props.btcToUsd, props.brlToUsd, props.appData]);
 
   useEffect(() => {
     const savedDisplayCurrency = localStorage.getItem("bitcoinDisplayCurrency");
@@ -460,34 +484,28 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
 
-    if (reportsDataLoaded) {
-      const currentReports = rawCollection?.reports; // Usar rawCollection diretamente
+    if (props.reportsDataLoaded) {
+      const currentReports = props.reportsCollection?.reports;
       if (currentReports && Array.isArray(currentReports)) {
-        if (currentReports.length > 0) {
-          // Somente atualiza se selectedReportIdsForHistoryView ainda não tem nada válido
-          // ou se o ID ativo mudou e não está na seleção, e a seleção está vazia
-          const activeReportExists = activeReportIdFromHook && currentReports.some(r => r.id === activeReportIdFromHook);
-          
-          if (selectedReportIdsForHistoryView.length === 0) {
-             const initialSelection = activeReportExists 
-                ? [activeReportIdFromHook as string] 
-                : [currentReports[0].id];
-             setSelectedReportIdsForHistoryView(initialSelection);
-          } else {
-            // Garante que os IDs selecionados ainda existem nos relatórios
-            setSelectedReportIdsForHistoryView(prev => prev.filter(id => currentReports.some(r => r.id === id)));
-          }
-        } else { // Nenhum relatório, limpar seleção
-          setSelectedReportIdsForHistoryView([]);
+        const activeReportExists = props.activeReportId && currentReports.some(r => r.id === props.activeReportId);
+        
+        if (selectedReportIdsForHistoryView.length === 0) {
+           const initialSelection = activeReportExists 
+              ? [props.activeReportId as string] 
+              : (currentReports.length > 0 ? [currentReports[0].id] : []);
+           setSelectedReportIdsForHistoryView(initialSelection);
+        } else {
+          // Garante que os IDs selecionados ainda existem nos relatórios
+          setSelectedReportIdsForHistoryView(prev => prev.filter(id => currentReports.some(r => r.id === id)));
         }
       } else { // currentReports não é um array válido (raro, pois temos guarda acima, mas defensivo)
         setSelectedReportIdsForHistoryView([]);
       }
     }
-    // Dependências: Adicionar rawCollection para reagir a mudanças nos relatórios.
+    // Dependências: Adicionar reportsCollection para reagir a mudanças nos relatórios.
     // Evitar selectedReportIdsForHistoryView se possível para não causar loops,
     // a menos que a lógica interna realmente precise reagir a mudanças nela mesma.
-  }, [reportsDataLoaded, rawCollection, activeReportIdFromHook]);
+  }, [props.reportsDataLoaded, props.reportsCollection, props.activeReportId]);
   
   // Adicionar aqui quaisquer outros useEffects ou useMemos que existam no componente.
   // Por exemplo:
@@ -496,57 +514,33 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
 
   // =================================================================================
-  // 3. RETORNOS ANTECIPADOS (GUARD CLAUSES)
+  // 3. RETORNOS ANTECIPADOS (GUARD CLAUSES) - PODEM SER REMOVIDOS OU SIMPLIFICADOS
   // =================================================================================
-  if (!reportsDataLoaded) {
-    // O console.log foi removido daqui pois o erro ocorre antes dele
-    return (
-      <div className="flex justify-center items-center h-64">
-        <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
-        <span className="ml-2">Carregando seus dados...</span>
-      </div>
-    );
-  }
-
-  if (!rawCollection || !rawCollection.reports || !Array.isArray(rawCollection.reports)) {
-    // O console.log foi removido daqui
-    return (
-      <div className="flex flex-col justify-center items-center h-64 text-red-500">
-        <AlertTriangle className="h-8 w-8 mb-2" />
-        <span>Erro ao carregar dados dos relatórios.</span>
-        <span>Por favor, tente recarregar a página.</span>
-      </div>
-    );
-  }
+  // Estas guardas não são mais estritamente necessárias aqui, pois o Wrapper já as implementa.
+  // Se decidir mantê-las por segurança dupla, elas usarão as props.
+  // if (!props.reportsDataLoaded) { /* ... isto nunca deve acontecer ... */ }
+  // if (!props.reportsCollection || !props.reportsCollection.reports || !Array.isArray(props.reportsCollection.reports)) { /* ... isto nunca deve acontecer ... */ }
   
   // =================================================================================
   // 4. DERIVAÇÃO DE ESTADO E LÓGICA DE RENDERIZAÇÃO PRINCIPAL
   // =================================================================================
-  const collection = rawCollection; // Agora é seguro usar rawCollection
-  const allReportsFromHook = collection.reports; // Já verificado que é um array
+  const collection = props.reportsCollection; // Usar a prop
+  const allReportsFromHook = collection.reports; // collection.reports já é um array verificado pelo Wrapper
 
-  // O console.log foi removido daqui
-  const currentActiveReportObjectFromHook = activeReportIdFromHook && allReportsFromHook
-    ? allReportsFromHook.find(report => report.id === activeReportIdFromHook)
+  const currentActiveReportObjectFromHook = props.activeReportId && allReportsFromHook
+    ? allReportsFromHook.find(report => report.id === props.activeReportId)
     : null;
   
-  // ... (O restante do corpo da função do componente: funções de manipulação de eventos, cálculos, JSX)
-  // Exemplo:
-  // const handleAddInvestment = () => { ... }
-  // const investmentsToDisplay = useMemo(() => allReportsFromHook.flatMap(r => r.investments), [allReportsFromHook]);
+  // console.log("[ProfitCalculator] Renderizando com props:", props.reportsCollection?.reports?.length);
 
-  // Se houver console.logs que você quer manter para depuração, eles podem vir aqui ou dentro de funções específicas.
-  // console.log("[ProfitCalculator] Componente renderizando com dados válidos. Reports:", allReportsFromHook.length);
+  // ... (Resto da lógica do componente, adaptada para usar props para dados e funções de reports)
+  // Exemplo: ao adicionar um investimento, chamar props.addInvestmentToReport(...)
 
-  // ... (restante do código JSX)
   return (
     <div className="container mx-auto p-0 sm:p-4 md:p-2 lg:p-1 xl:p-0 max-w-full">
-      {/* Exemplo de uso de allReportsFromHook, certifique-se que 'investments' existe em cada report */}
-      {/* <div>{allReportsFromHook.map(report => <div key={report.id}>{report.name} - {report.investments ? report.investments.length : 0} investments</div>)}</div> */}
-      
-      {/* O SEU JSX EXISTENTE VAI AQUI */}
-      <p>Conteúdo principal do ProfitCalculator aqui...</p>
-       {/* Este é um placeholder, substitua pelo seu JSX real */}
+      {/* Seu JSX aqui, adaptado para usar as props */}
+      <p>Conteúdo do ProfitCalculator (usando props para dados e ações de relatórios)</p>
+      {/* Exemplo: <div>Total de relatórios: {props.reportsCollection.reports.length}</div> */}
     </div>
   );
 }

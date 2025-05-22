@@ -18,14 +18,27 @@ interface ProfitCalculatorWrapperProps {
 }
 
 export default function ProfitCalculatorWrapper(props: ProfitCalculatorWrapperProps) {
-  const { 
+  const {
     collection,
+    activeReportId,
     isLoaded: reportsDataLoaded,
+    addReport,
+    selectReport,
+    addInvestmentToReport,
+    addProfitRecordToReport,
+    deleteInvestmentFromReport,
+    deleteProfitRecordFromReport,
+    updateReportDetails,
+    importExternalDataToReport,
+    deleteAllInvestmentsFromReport,
+    deleteAllProfitsFromReport,
+    recalculateReportSummary
   } = useReports();
 
   console.log("[Wrapper] reportsDataLoaded:", reportsDataLoaded);
   if (reportsDataLoaded) {
     console.log("[Wrapper] collection.reports:", collection?.reports ? JSON.stringify(collection.reports.map(r => ({id: r.id, name: r.name, numInvestments: r.investments?.length, numProfits: r.profits?.length }))) : 'undefined/null');
+    console.log("[Wrapper] activeReportId:", activeReportId);
   }
 
   if (!reportsDataLoaded) {
@@ -50,5 +63,24 @@ export default function ProfitCalculatorWrapper(props: ProfitCalculatorWrapperPr
   }
 
   console.log("[Wrapper] Dados verificados. Renderizando ProfitCalculator...");
-  return <ProfitCalculator {...props} />;
+  
+  return (
+    <ProfitCalculator 
+      {...props}
+      reportsCollection={collection}
+      activeReportId={activeReportId}
+      reportsDataLoaded={true}
+      addReport={addReport}
+      selectReport={selectReport}
+      addInvestmentToReport={addInvestmentToReport}
+      addProfitRecordToReport={addProfitRecordToReport}
+      deleteInvestmentFromReport={deleteInvestmentFromReport}
+      deleteProfitRecordFromReport={deleteProfitRecordFromReport}
+      updateReportDetails={updateReportDetails}
+      importExternalDataToReport={importExternalDataToReport}
+      deleteAllInvestmentsFromReport={deleteAllInvestmentsFromReport}
+      deleteAllProfitsFromReport={deleteAllProfitsFromReport}
+      recalculateReportSummary={recalculateReportSummary}
+    />
+  );
 } 
