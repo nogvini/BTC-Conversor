@@ -1,13 +1,10 @@
-"use client";
-
 import type { Metadata } from "next"
 import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
 import { ClientAppHeader } from "@/components/client-app-header"
-import { useEffect } from "react"
-import { initializeReportsStore } from "@/hooks/use-reports"
+import ReportsInitializer from "./reports-initializer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,12 +18,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  useEffect(() => {
-    console.log("[RootLayout] Chamando initializeReportsStore...");
-    initializeReportsStore();
-    console.log("[RootLayout] initializeReportsStore chamado.");
-  }, []);
-
   return (
     <html lang="pt-BR" suppressHydrationWarning className="dark">
       <head>
@@ -38,6 +29,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProviderClient>
           <ThemeProvider>
+            <ReportsInitializer />
             <ClientAppHeader />
             <main className="pt-16">
               {children}
