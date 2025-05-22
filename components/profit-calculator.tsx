@@ -358,8 +358,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   }
 
   // Se reportsDataLoaded é true, mas a coleção ou os relatórios são inválidos, é um estado de erro.
-  if (!rawCollection || !rawCollection.reports) {
-    console.error("[ProfitCalculator] Erro crítico: reportsDataLoaded é true, mas rawCollection ou rawCollection.reports é inválido.", rawCollection);
+  // MODIFICADO AQUI para verificar Array.isArray
+  if (!rawCollection || !rawCollection.reports || !Array.isArray(rawCollection.reports)) {
+    console.error("[ProfitCalculator] Erro crítico: reportsDataLoaded é true, mas rawCollection ou rawCollection.reports é inválido/não é um array.", rawCollection);
     return (
       <div className="flex flex-col justify-center items-center h-64 text-red-500">
         <AlertTriangle className="h-8 w-8 mb-2" />
@@ -372,7 +373,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   
   // Somente definir collection, allReportsFromHook etc., se os dados forem válidos
   const collection = rawCollection;
-  const allReportsFromHook = collection.reports || []; // Agora podemos assumir que collection.reports existe, mas ainda adicionamos fallback
+  const allReportsFromHook = collection.reports; // REMOVIDO || [] por causa da checagem acima
   const currentActiveReportObjectFromHook = activeReportIdFromHook
     ? allReportsFromHook.find(report => report.id === activeReportIdFromHook)
     : null;
