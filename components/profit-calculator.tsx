@@ -60,9 +60,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useReports } from "@/hooks/use-reports"; // ADICIONAR IMPORT
-import { getHistoricalBitcoinDataForRange, type HistoricalDataPoint } from "@/lib/client-api"; // <--- ADICIONAR IMPORT
+import { useReports } from "@/hooks/use-reports";
+import { getHistoricalBitcoinDataForRange, type HistoricalDataPoint } from "@/lib/client-api";
 import { v4 as uuidv4 } from 'uuid';
+import { useToast } from "@/components/ui/use-toast";
 // import DatePickerWithRange from "./date-picker-with-range";
 // import DatePicker from "./date-picker";
 
