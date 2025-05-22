@@ -3243,8 +3243,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
   
   const selectAllHistoryReports = () => {
-    if (allReportsFromHook) { // USAR allReportsFromHook
-      setSelectedReportIdsForHistoryView(allReportsFromHook.map((r: Report) => r.id));
+    if (allReportsFromHook) { 
+      setSelectedReportIdsForHistoryView((allReportsFromHook || []).map((r: Report) => r.id)); // Adicionada proteção || [] aqui também
     }
   };
 
