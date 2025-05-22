@@ -3,7 +3,7 @@
  * Consome as APIs do servidor, eliminando a necessidade de armazenamento local
  */
 
-import { AppData, BitcoinPrice, HistoricalDataPoint } from './api';
+import { AppData, BitcoinPrice, HistoricalDataPoint, type CurrentPriceData } from './api';
 
 // URL base para as APIs do servidor
 const API_BASE_URL = '/api/bitcoin';
@@ -11,33 +11,42 @@ const API_BASE_URL = '/api/bitcoin';
 /**
  * Buscar todos os dados necessários para a aplicação
  */
-export async function fetchAllAppData(force: boolean = false): Promise<AppData> {
+export async function fetchAllAppData(): Promise<AppData> {
   try {
-    const url = force 
-      ? `${API_BASE_URL}/data?force=true` 
-      : `${API_BASE_URL}/data`;
-      
-    const response = await fetch(url, {
-      cache: force ? 'no-store' : 'default',
-      next: force ? { revalidate: 0 } : { revalidate: 300 } // 5 minutos se não for forçado
-    });
-    
+    const response = await fetch('/api/rates');
     if (!response.ok) {
-      throw new Error(`Erro ao buscar dados: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || response.statusText || response.status;
+      console.error("Failed to fetch from /api/rates:", response.status, errorMessage);
+      // Tenta retornar uma estrutura AppData de fallback com dados mínimos ou cacheados do cliente se disponíveis
+      // Por enquanto, lançamos um erro para ser tratado pelo chamador.
+      throw new Error(`API Error: ${errorMessage}`);
     }
+    const data: { currentPrice: CurrentPriceData, isUsingCache: boolean } = await response.json();
     
-    const data = await response.json() as AppData;
-    
-    // Adicionar o campo historicalData para compatibilidade com o código existente
-    data.historicalData = {
-      usd: data.historicalDataUSD,
-      brl: data.historicalDataBRL
+    // Para os campos não fornecidos por /api/rates, precisamos fornecer valores padrão ou buscá-los de outro lugar.
+    // Por agora, vamos fornecer valores de fallback para manter a estrutura AppData.
+    return {
+      currentPrice: {
+        usd: data.currentPrice.usd,
+        brl: data.currentPrice.brl,
+        usdToBrlExchangeRate: data.currentPrice.usdToBrlExchangeRate,
+        timestamp: data.currentPrice.timestamp,
+        isUsingCache: data.currentPrice.isUsingCache, 
+      },
+      isUsingCache: data.isUsingCache, 
+      // Valores de fallback para campos não cobertos por /api/rates
+      historicalDataUSD: [], 
+      historicalDataBRL: [],
+      lastFetched: Date.now(), // Ou o timestamp de data.currentPrice.timestamp
+      historicalData: { usd: [], brl: [] },
     };
-    
-    return data;
   } catch (error) {
-    console.error('Erro ao buscar todos os dados:', error);
-    throw error;
+    console.error("Error in fetchAllAppData:", error);
+    // Em um cenário real, poderia tentar carregar de um cache do localStorage do cliente aqui
+    // ou retornar uma estrutura AppData com indicadores de erro.
+    // Por enquanto, relançamos o erro.
+    throw error; 
   }
 }
 
@@ -46,50 +55,15 @@ export async function fetchAllAppData(force: boolean = false): Promise<AppData> 
  * @param forceUpdate Força a atualização dos dados ignorando o cache
  * @returns Dados atualizados do preço do Bitcoin
  */
-export async function getCurrentBitcoinPrice(forceUpdate: boolean = false): Promise<BitcoinPrice | null> {
+export async function getCurrentBitcoinPrice(forceRefresh?: boolean): Promise<CurrentPriceData> {
+  // forceRefresh não tem efeito direto no KV aqui, pois o Cron atualiza o KV.
+  // Esta função agora é uma conveniência para obter apenas os dados de preço.
   try {
-    // Construir URL com parâmetro de força atualização se necessário
-    const url = forceUpdate 
-      ? `${API_BASE_URL}/price?force=true` 
-      : `${API_BASE_URL}/price`;
-    
-    // Configurar opções da requisição
-    const fetchOptions: RequestInit = {
-      // Se forceUpdate, não usar cache
-      cache: forceUpdate ? 'no-store' : 'default',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Client-App': 'BTCRaidToolkit',
-        'X-Force-Update': forceUpdate ? 'true' : 'false'
-      }
-    };
-    
-    // Fazer a requisição com as opções adequadas
-    console.log(`Buscando preço atual${forceUpdate ? ' (forçando atualização)' : ''}`);
-    
-    // Adicionar timeout para evitar requisições intermináveis
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos de timeout
-    fetchOptions.signal = controller.signal;
-    
-    const response = await fetch(url, fetchOptions);
-    clearTimeout(timeoutId); // Limpar timeout se obtiver resposta
-    
-    if (!response.ok) {
-      console.warn(`Erro ao buscar preço: ${response.status} ${response.statusText}`);
-      return null; // Retornar null em vez de lançar erro
-    }
-    
-    // Exibir informações de diagnóstico se disponíveis
-    const forceUpdateHeader = response.headers.get('X-Force-Update');
-    if (forceUpdateHeader) {
-      console.log(`Dados ${forceUpdateHeader === 'true' ? 'forçadamente atualizados' : 'obtidos do cache'}`);
-    }
-    
-    return await response.json();
+    const appData = await fetchAllAppData();
+    return appData.currentPrice;
   } catch (error) {
-    console.error('Erro ao buscar preço atual:', error);
-    return null; // Retornar null em vez de lançar erro
+    console.error("Error in getCurrentBitcoinPrice:", error);
+    throw error;
   }
 }
 

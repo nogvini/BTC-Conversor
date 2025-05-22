@@ -62,6 +62,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useReports } from "@/hooks/use-reports"; // ADICIONAR IMPORT
 import { getHistoricalBitcoinDataForRange, type HistoricalDataPoint } from "@/lib/client-api"; // <--- ADICIONAR IMPORT
+import { v4 as uuidv4 } from 'uuid';
+// import DatePickerWithRange from "./date-picker-with-range";
+// import DatePicker from "./date-picker";
 
 // Tipos de dados
 type CurrencyUnit = "BTC" | "SATS";
@@ -464,7 +467,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         setSelectedReportIdsForHistoryView(initialHistorySelection);
       } else {
         // Garante que os relatórios selecionados para histórico ainda existam
-        setSelectedReportIdsForHistoryView(prev => prev.filter(id => allReportsFromHook.some(r => r.id === id)));
+        setSelectedReportIdsForHistoryView(prev => prev.filter(id => allReportsFromHook.some((r: Report) => r.id === id)));
       }
     } else if (reportsDataLoaded && (!allReportsFromHook || allReportsFromHook.length === 0)) {
         setSelectedReportIdsForHistoryView([]);
@@ -497,7 +500,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             btcToUsd: priceData.usd,
             brlToUsd: priceData.brl / priceData.usd,
           });
-          setUsingFallbackRates(priceData.isUsingCache);
+          setUsingFallbackRates(priceData.isUsingCache ?? false);
           
           // Evitar múltiplos toasts
           if (!toastDebounce) {
@@ -610,7 +613,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
     
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
+    const reportToUpdate = allReportsFromHook?.find((r: Report) => r.id === targetReportId);
     if (!reportToUpdate) {
         toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar aporte.", variant: "destructive" });
         return;
@@ -651,7 +654,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     // precisa ser consistente.
 
     // Lógica de duplicidade (simplificada para focar na busca de preço):
-    const possibleDuplicates = reportToUpdate?.investments.filter(inv => 
+    const possibleDuplicates = reportToUpdate?.investments.filter((inv: Investment) => 
       inv.date === newInvestmentBase.date && 
       inv.amount === newInvestmentBase.amount && 
       inv.unit === newInvestmentBase.unit
@@ -731,7 +734,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       }
     }
 
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
+    const reportToUpdate = allReportsFromHook?.find((r: Report) => r.id === targetReportId);
      if (!reportToUpdate) {
         toast({ title: "Erro", description: "Relatório alvo não encontrado para adicionar lucro/perda.", variant: "destructive" });
         return;
@@ -745,7 +748,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       isProfit,
     };
 
-    const possibleDuplicates = reportToUpdate.profits.filter(p => 
+    const possibleDuplicates = reportToUpdate.profits.filter((p: ProfitRecord) => 
       p.date === newProfit.date && 
       p.amount === newProfit.amount && 
       p.unit === newProfit.unit &&
@@ -879,10 +882,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         allSelectedReports = [currentActiveReportObjectFromHook];
         reportNameForExport = currentActiveReportObjectFromHook.name;
       } else if (options.reportSelectionType === 'manual' && options.manualSelectedReportIds && allReportsFromHook) {
-        allSelectedReports = allReportsFromHook.filter(r => options.manualSelectedReportIds!.includes(r.id));
+        allSelectedReports = allReportsFromHook.filter((r: Report) => options.manualSelectedReportIds!.includes(r.id));
         reportNameForExport = allSelectedReports.length === 1 ? allSelectedReports[0].name : "Relatórios Selecionados";
       } else if (options.reportSelectionType === 'history' && allReportsFromHook) {
-        allSelectedReports = allReportsFromHook.filter(r => selectedReportIdsForHistoryView.includes(r.id));
+        allSelectedReports = allReportsFromHook.filter((r: Report) => selectedReportIdsForHistoryView.includes(r.id));
         reportNameForExport = allSelectedReports.length === 1 ? allSelectedReports[0].name : "Seleção do Histórico";
       }
 
@@ -1534,148 +1537,108 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Funções de filtro e cálculo para o histórico
   const calculateTotalInvestmentsInMonth = (month: Date): number => {
-    const monthStart = startOfMonth(month);
-    const monthEnd = endOfMonth(month);
-    // MODIFICADO: Usar selectedReportIdsForHistoryView
-    if (selectedReportIdsForHistoryView.length === 0) return 0;
-
     let total = 0;
-    allReportsFromHook?.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => { // USAR allReportsFromHook
-      total += (report.investments || [])
-        .filter(investment => { 
-          if (!investment || !investment.date) return false;
-          try {
-            const investmentDate = parseISODate(investment.date);
-            if (isNaN(investmentDate.getTime())) return false; 
-            return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
-          } catch (e) { console.error("Erro data investimento calc:", investment.date, e); return false; }
-        })
-        .reduce((subTotal: number, investment: Investment) => {
-          if (investment && typeof investment.amount === 'number' && investment.unit) {
-            const btcValue = convertToBtc(investment.amount, investment.unit);
-            return subTotal + (isNaN(btcValue) ? 0 : btcValue); 
-          }
-          return subTotal;
-        }, 0);
+    getFilteredInvestments().forEach((investment: Investment) => {
+      const investmentDate = parseISODate(investment.date);
+      if (
+        investmentDate.getMonth() === month.getMonth() &&
+        investmentDate.getFullYear() === month.getFullYear()
+      ) {
+        total += convertToBtc(investment.amount, investment.unit);
+      }
     });
     return total;
   };
 
   const calculateTotalProfitsInMonth = (month: Date): number => {
-    const monthStart = startOfMonth(month);
-    const monthEnd = endOfMonth(month);
-    // MODIFICADO: Usar selectedReportIdsForHistoryView
-    if (selectedReportIdsForHistoryView.length === 0) return 0;
-    
     let total = 0;
-    allReportsFromHook?.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => { // USAR allReportsFromHook
-      total += (report.profits || [])
-        .filter(profit => { 
-          if (!profit || !profit.date) return false;
-          try {
-            const profitDate = parseISODate(profit.date);
-            if (isNaN(profitDate.getTime())) return false; 
-            return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-          } catch (e) { console.error("Erro data lucro calc:", profit.date, e); return false; }
-        })
-        .reduce((subTotal: number, profit: ProfitRecord) => {
-          if (profit && typeof profit.amount === 'number' && profit.unit) {
-            const btcAmount = convertToBtc(profit.amount, profit.unit);
-            if (isNaN(btcAmount)) return subTotal;
-            return profit.isProfit ? subTotal + btcAmount : subTotal - btcAmount;
-          }
-          return subTotal;
-        }, 0);
+    let totalLoss = 0;
+    getFilteredProfits().forEach((profit: ProfitRecord) => {
+      const profitDate = parseISODate(profit.date);
+      if (
+        profitDate.getMonth() === month.getMonth() &&
+        profitDate.getFullYear() === month.getFullYear()
+      ) {
+        if (profit.isProfit) {
+          total += convertToBtc(profit.amount, profit.unit);
+        } else {
+          totalLoss += convertToBtc(profit.amount, profit.unit);
+        }
+      }
     });
-    return total;
+    return total - totalLoss;
   };
 
   const getFilteredInvestments = (): (Investment & { reportName?: string, reportColor?: string })[] => {
-    // MODIFICADO: Usar selectedReportIdsForHistoryView
-    if (selectedReportIdsForHistoryView.length === 0 || !allReportsFromHook) return []; // USAR allReportsFromHook
+    let investmentsToFilter: (Investment & { reportName?: string, reportColor?: string })[] = [];
 
-    let allInvestments: (Investment & { reportName?: string, reportColor?: string })[] = [];
-    allReportsFromHook.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => { // USAR allReportsFromHook
-      (report.investments || []).forEach(inv => {
-        allInvestments.push({ ...inv, reportName: report.name, reportColor: report.color });
+    const reportsToProcess = activeReportIdFromHook
+      ? allReportsFromHook?.filter((r: Report) => r.id === activeReportIdFromHook)
+      : (activeTab === 'history' && selectedReportIdsForHistoryView.length > 0
+          ? allReportsFromHook?.filter((r: Report) => selectedReportIdsForHistoryView.includes(r.id))
+          : allReportsFromHook);
+
+    reportsToProcess?.forEach((report: Report) => {
+      (report.investments || []).forEach((inv: Investment) => {
+        investmentsToFilter.push({
+          ...inv,
+          reportName: report.name,
+          reportColor: report.color
+        });
       });
     });
 
-    if (!showFilterOptions) return allInvestments;
-
-    if (historyFilterType === 'month') {
-      const monthStart = startOfMonth(filterMonth);
-      const monthEnd = endOfMonth(filterMonth);
-      return allInvestments.filter(investment => {
-        try {
+    if (activeTab === 'history') {
+      if (historyFilterType === 'month') {
+        investmentsToFilter = investmentsToFilter.filter(investment => {
           const investmentDate = parseISODate(investment.date);
-          if (isNaN(investmentDate.getTime())) return false;
-          return isWithinInterval(investmentDate, { start: monthStart, end: monthEnd });
-        } catch (e) { console.error("Erro data inv filtro mensal:", investment.date, e); return false; }
-      });
-    } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
-      const startDate = startOfDay(customStartDate); // startOfDay importado de date-fns
-      const endDate = endOfDay(customEndDate);     // endOfDay importado de date-fns
-      if (isBefore(endDate, startDate)) { // Validação simples
-        // console.warn("Data final anterior à data inicial no filtro personalizado.");
-        return []; // Ou mostrar um aviso
+          return investmentDate.getFullYear() === filterMonth.getFullYear() &&
+                 investmentDate.getMonth() === filterMonth.getMonth();
+        });
+      } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+        investmentsToFilter = investmentsToFilter.filter(investment => {
+          const investmentDate = parseISODate(investment.date);
+          return investmentDate >= customStartDate && investmentDate <= customEndDate;
+        });
       }
-      return allInvestments.filter(investment => {
-        try {
-          const investmentDate = parseISODate(investment.date);
-          if (isNaN(investmentDate.getTime())) return false;
-          return isWithinInterval(investmentDate, { start: startDate, end: endDate });
-        } catch (e) { console.error("Erro data inv filtro custom:", investment.date, e); return false; }
-      });
-    } else if (historyFilterType === 'custom') {
-      // Se o filtro é customizado mas as datas não estão completas, retorna vazio para evitar confusão.
-      // Poderia também retornar baseInvestments se a intenção for mostrar tudo até que o filtro esteja pronto.
-      return []; 
     }
-    return allInvestments; // Fallback se nenhum filtro específico se aplicar
+    return investmentsToFilter.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   const getFilteredProfits = (): (ProfitRecord & { reportName?: string, reportColor?: string })[] => {
-    // MODIFICADO: Usar selectedReportIdsForHistoryView
-    if (selectedReportIdsForHistoryView.length === 0 || !allReportsFromHook) return []; // USAR allReportsFromHook
+    let profitsToFilter: (ProfitRecord & { reportName?: string, reportColor?: string })[] = [];
 
-    let allProfits: (ProfitRecord & { reportName?: string, reportColor?: string })[] = [];
-    allReportsFromHook.filter(r => selectedReportIdsForHistoryView.includes(r.id)).forEach(report => { // USAR allReportsFromHook
-      (report.profits || []).forEach(prof => {
-        allProfits.push({ ...prof, reportName: report.name, reportColor: report.color });
+    const reportsToProcess = activeReportIdFromHook
+    ? allReportsFromHook?.filter((r: Report) => r.id === activeReportIdFromHook)
+    : (activeTab === 'history' && selectedReportIdsForHistoryView.length > 0
+        ? allReportsFromHook?.filter((r: Report) => selectedReportIdsForHistoryView.includes(r.id))
+        : allReportsFromHook);
+
+    reportsToProcess?.forEach((report: Report) => {
+      (report.profits || []).forEach((prof: ProfitRecord) => {
+        profitsToFilter.push({
+          ...prof,
+          reportName: report.name,
+          reportColor: report.color
+        });
       });
     });
-    
-    if (!showFilterOptions) return allProfits;
 
-    if (historyFilterType === 'month') {
-      const monthStart = startOfMonth(filterMonth);
-      const monthEnd = endOfMonth(filterMonth);
-      return allProfits.filter(profit => {
-        try {
-          const profitDate = parseISODate(profit.date);
-          if (isNaN(profitDate.getTime())) return false;
-          return isWithinInterval(profitDate, { start: monthStart, end: monthEnd });
-        } catch (e) { console.error("Erro data lucro filtro mensal:", profit.date, e); return false; }
-      });
-    } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
-      const startDate = startOfDay(customStartDate);
-      const endDate = endOfDay(customEndDate);
-      if (isBefore(endDate, startDate)) {
-        // console.warn("Data final anterior à data inicial no filtro personalizado.");
-        return [];
+    if (activeTab === 'history') {
+      if (historyFilterType === 'month') {
+        profitsToFilter = profitsToFilter.filter(prof => {
+          const profitDate = parseISODate(prof.date);
+          return profitDate.getFullYear() === filterMonth.getFullYear() &&
+                 profitDate.getMonth() === filterMonth.getMonth();
+        });
+      } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+        profitsToFilter = profitsToFilter.filter(prof => {
+          const profitDate = parseISODate(prof.date);
+          return profitDate >= customStartDate && profitDate <= customEndDate;
+        });
       }
-      return allProfits.filter(profit => {
-        try {
-          const profitDate = parseISODate(profit.date);
-          if (isNaN(profitDate.getTime())) return false;
-          return isWithinInterval(profitDate, { start: startDate, end: endDate });
-        } catch (e) { console.error("Erro data lucro filtro custom:", profit.date, e); return false; }
-      });
-    } else if (historyFilterType === 'custom') {
-      return [];
     }
-    return allProfits;
+    return profitsToFilter.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   // Função para formatar valor baseado na moeda selecionada
@@ -1839,7 +1802,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const currentActiveReportForCsv = allReportsFromHook?.find(r => r.id === activeReportId);
+    const currentActiveReportForCsv = allReportsFromHook?.find((r: Report) => r.id === activeReportId);
     if (!currentActiveReportForCsv) {
       toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
       if (csvFileInputRef.current) csvFileInputRef.current.value = '';
@@ -2352,7 +2315,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         return;
       }
       
-      const currentActiveReportForExcel = allReportsFromHook?.find(r => r.id === activeReportIdFromHook); // USAR allReportsFromHook e activeReportIdFromHook
+      const currentActiveReportForExcel = allReportsFromHook?.find((r: Report) => r.id === activeReportIdFromHook); // USAR allReportsFromHook e activeReportIdFromHook
       if (!currentActiveReportForExcel) {
         toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -2566,19 +2529,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let errorCount = 0;
           let duplicatedCount = 0;
           
-          const currentActiveReport = allReportsFromHook?.find(r => r.id === activeReportIdFromHook);
+          const currentActiveReport = allReportsFromHook?.find((r: Report) => r.id === activeReportIdFromHook);
           if (!currentActiveReport) {
             throw new Error("Relatório ativo não encontrado durante a importação.");
           }
 
           const existingInvestmentIds = new Set(
             currentActiveReport.investments
-              .map(inv => inv.originalId || inv.id)
+              .map((inv: Investment) => inv.originalId || inv.id)
           );
           
           const existingProfitIds = new Set(
             currentActiveReport.profits
-              .map(p => p.originalId || p.id)
+              .map((p: ProfitRecord) => p.originalId || p.id)
           );
           
           for (let i = 2; i <= recordsSheet.rowCount; i++) {
@@ -2804,7 +2767,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           reportNameForToast = reportNameFromMetadata; // Nome para o toast, mesmo que o ID não seja usado
 
           if (!determinedTargetReportId && reportNameFromMetadata) {
-            const foundReport = allReportsFromHook.find(r => r.name === reportNameFromMetadata);
+            const foundReport = allReportsFromHook.find((r: Report) => r.name === reportNameFromMetadata);
             if (foundReport) determinedTargetReportId = foundReport.id;
           }
           
@@ -2813,14 +2776,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let finalTargetReportName = currentActiveReportObjectFromHook?.name || "Relatório Ativo Desconhecido";
 
           if (determinedTargetReportId) {
-            const targetReportExists = allReportsFromHook.some(r => r.id === determinedTargetReportId);
+            const targetReportExists = allReportsFromHook.some((r: Report) => r.id === determinedTargetReportId);
             if (targetReportExists) {
               if (determinedTargetReportId !== activeReportIdFromHook) {
                 selectReport(determinedTargetReportId); // Ativa o relatório alvo
                 // Aguardar a atualização do estado do hook (activeReportIdFromHook) não é simples aqui
                 // Então vamos usar determinedTargetReportId diretamente para as chamadas e para o nome no toast
                 finalTargetReportId = determinedTargetReportId;
-                finalTargetReportName = allReportsFromHook.find(r => r.id === determinedTargetReportId)?.name || reportNameFromMetadata || "Relatório Alvo";
+                finalTargetReportName = allReportsFromHook.find((r: Report) => r.id === determinedTargetReportId)?.name || reportNameFromMetadata || "Relatório Alvo";
                 toast({ title: "Relatório Alvo Ativado", description: `Importando para "${finalTargetReportName}".`, variant: "default", duration: 4000});
               } else {
                 // O relatório alvo já é o ativo
@@ -3083,7 +3046,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const currentActiveReportForInvestCsv = allReportsFromHook?.find(r => r.id === activeReportIdFromHook);
+    const currentActiveReportForInvestCsv = allReportsFromHook?.find((r: Report) => r.id === activeReportIdFromHook);
     if (!currentActiveReportForInvestCsv) {
       toast({ title: "Erro na Importação", description: "Relatório ativo não encontrado.", variant: "destructive" });
       if (investmentCsvFileInputRef.current) investmentCsvFileInputRef.current.value = '';
@@ -3128,7 +3091,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           let duplicatedCount = 0;
           const newInvestmentsToBatchAdd: Omit<Investment, "id">[] = []; 
           
-          const existingIds = new Set(currentActiveReportForInvestCsv.investments.map(inv => inv.originalId || inv.id));
+          const existingIds = new Set(currentActiveReportForInvestCsv.investments.map((inv: Investment) => inv.originalId || inv.id));
           
           // Usar for...of para permitir await dentro do loop
           for (const [index, record] of records.entries()) {
@@ -3334,7 +3297,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   
   const selectAllHistoryReports = () => {
     if (allReportsFromHook) { // USAR allReportsFromHook
-      setSelectedReportIdsForHistoryView(allReportsFromHook.map(r => r.id));
+      setSelectedReportIdsForHistoryView(allReportsFromHook.map((r: Report) => r.id));
     }
   };
 
@@ -3610,7 +3573,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                         <SelectValue placeholder="Selecione um relatório" />
                     </SelectTrigger>
                     <SelectContent className="bg-black/95 border-purple-700/60 text-white">
-                        {allReportsFromHook.map(report => ( // USAR allReportsFromHook
+                        {allReportsFromHook.map((report: Report) => ( // USAR allReportsFromHook
                             <SelectItem key={report.id} value={report.id} style={{ color: report.color || '#E0E0E0' }}>
                                 {report.name}
                             </SelectItem>
@@ -3965,7 +3928,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </div>
                       <ScrollArea className="h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
                         <div className="space-y-1.5">
-                        {allReportsFromHook.map(report => ( // USAR allReportsFromHook
+                        {allReportsFromHook.map((report: Report) => ( // USAR allReportsFromHook
                           <div key={`hist-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
                             <Checkbox
                               id={`hist-report-${report.id}`}
@@ -3991,7 +3954,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               {activeReportIdFromHook && allReportsFromHook && allReportsFromHook.length > 0 && ( // USAR activeReportIdFromHook e allReportsFromHook
                 <div className="mt-1 mb-3 p-2 text-xs bg-yellow-900/30 border border-yellow-700/40 text-yellow-300 rounded-md">
                   <HelpCircle className="inline h-3 w-3 mr-1 mb-0.5" /> {/* Usar HelpCircle diretamente */}
-                  Lembrete: A exportação e exclusão de dados em massa (botões "Remover todos") afetam apenas o relatório <span className="font-semibold">"{allReportsFromHook.find(r=>r.id === activeReportIdFromHook)?.name || 'selecionado na aba Registrar'}"</span>. {/* USAR allReportsFromHook */}
+                  Lembrete: A exportação e exclusão de dados em massa (botões "Remover todos") afetam apenas o relatório <span className="font-semibold">"{allReportsFromHook.find((r: Report) =>r.id === activeReportIdFromHook)?.name || 'selecionado na aba Registrar'}"</span>. {/* USAR allReportsFromHook */}
                 </div>
               )}
 
@@ -4324,7 +4287,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             disabled={!activeReportIdFromHook} 
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Remover todos (do relatório "{allReportsFromHook?.find(r=>r.id === activeReportIdFromHook)?.name || ''}")
+                            Remover todos (do relatório "{allReportsFromHook?.find((r: Report) =>r.id === activeReportIdFromHook)?.name || ''}")
                           </Button>
                         )}
                       </div>
@@ -4384,7 +4347,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                             disabled={!activeReportIdFromHook} 
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                             Remover todos (do relatório "{allReportsFromHook?.find(r=>r.id === activeReportIdFromHook)?.name || ''}")
+                             Remover todos (do relatório "{allReportsFromHook?.find((r: Report) =>r.id === activeReportIdFromHook)?.name || ''}")
                           </Button>
                         )}
                       </div>
@@ -4734,7 +4697,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       {exportReportSelectionType === 'manual' && allReportsFromHook && allReportsFromHook.length > 0 && (
                         <ScrollArea className="mt-2 h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
                           <div className="space-y-1.5">
-                            {allReportsFromHook.map(report => (
+                            {allReportsFromHook.map((report: Report) => (
                               <div key={`manual-exp-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
                                 <Checkbox
                                   id={`manual-exp-report-${report.id}`}

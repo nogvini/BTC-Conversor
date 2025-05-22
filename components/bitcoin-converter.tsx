@@ -25,11 +25,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
-interface ConversionRates {
-  BTC_USD: number
-  BRL_USD: number
-  lastUpdated: Date
-  isUsingFallback: boolean
+interface ConverterRatesData {
+  BTC_USD: number;          // Preço do BTC em USD
+  USD_BRL: number;          // Taxa de câmbio: 1 USD = X BRL
+  lastUpdated: Date;        // Data da última atualização
+  isUsingServerCache: boolean; // Se os dados vieram do cache do servidor (KV)
 }
 
 // Função para formatar valores monetários corretamente
@@ -63,329 +63,201 @@ const formatBtc = (value: string | number): string => {
 export default function BitcoinConverter() {
   const [amount, setAmount] = useState<string>("")
   const [selectedUnit, setSelectedUnit] = useState<CurrencyUnit>("SATS")
-  const [rates, setRates] = useState<ConversionRates | null>(null)
+  const [rates, setRates] = useState<ConverterRatesData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
-  const [apiError, setApiError] = useState<boolean>(false)
+  const [apiError, setApiError] = useState<string | null>(null)
   const [appData, setAppData] = useState<AppData | null>(null)
   const [activeTab, setActiveTab] = useActiveTab()
-  // Adicionar flag para evitar chamadas simultâneas
   const isUpdatingRef = useRef<boolean>(false)
-  // Adicionar timestamp da última atualização
   const lastUpdateTimeRef = useRef<number>(0)
-  // Flag para controlar se o componente foi montado
   const [isInitialized, setIsInitialized] = useState<boolean>(false)
-  // Estados para controlar quais valores foram copiados recentemente
   const [copiedValues, setCopiedValues] = useState<{[key in CurrencyUnit]?: boolean}>({})
-  // Adicionar novo estado para forçar a renderização
   const [forceRender, setForceRender] = useState(0)
   const searchParams = useSearchParams()
   const router = useRouter()
-
-  // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
-  
-  // Função para atualizar a URL quando a aba é alterada
+
   const handleTabChange = (value: string) => {
-    // Primeiro atualiza o estado local
     setActiveTab(value as 'converter' | 'chart' | 'calculator')
-    
-    // Depois atualiza a URL
     router.push(`/?tab=${value}`, { scroll: false })
   }
   
-  // Carregar todos os dados da aplicação de uma vez - convertido para useCallback
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setApiError(false)
+  const fetchData = useCallback(async (isTriggeredByUser: boolean = false) => {
+    if (!isTriggeredByUser) {
+      setLoading(true);
+    }
+    setApiError(null);
 
     try {
-      // Buscar todos os dados necessários em uma única chamada
-      const data = await fetchAllAppData()
-      setAppData(data)
+      const data = await fetchAllAppData();
+      setAppData(data); // Armazena o AppData completo
       
-      // Extrair as taxas de conversão dos dados
-      const newRates: ConversionRates = {
+      // Mapeia para o estado local 'rates' que o conversor usa
+      const newConverterRates: ConverterRatesData = {
         BTC_USD: data.currentPrice.usd,
-        BRL_USD: data.currentPrice.brl / data.currentPrice.usd,
+        USD_BRL: data.currentPrice.usdToBrlExchangeRate, // Usar a taxa correta
         lastUpdated: new Date(data.currentPrice.timestamp),
-        isUsingFallback: data.isUsingCache || data.currentPrice.isUsingCache,
-      }
-      
-      setRates(newRates)
+        isUsingServerCache: data.currentPrice.isUsingCache ?? true,
+      };
+      setRates(newConverterRates);
 
-      // Verificar se estamos usando dados de fallback
-      if (newRates.isUsingFallback) {
-        setApiError(true)
-        // Notificação removida daqui pois o aviso visual já aparece na UI
-        // e evita toast ao carregar a aplicação inicialmente
+      if (newConverterRates.isUsingServerCache && isTriggeredByUser) {
+        toast({
+          title: "Cotações do Servidor",
+          description: "Exibindo cotações mais recentes do cache do servidor.",
+        });
+      } else if (isTriggeredByUser) {
+        toast({
+          title: "Cotações Atualizadas",
+          description: `Taxas atualizadas ao vivo: BTC = $${newConverterRates.BTC_USD.toLocaleString()}`,
+        });
       }
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error)
-      setApiError(true)
-      
-      // Manter apenas essa notificação de erro crítico
-      toast({
-        title: "Erro de conexão",
-        description: "Não foi possível conectar à API. Usando dados em cache.",
-        variant: "destructive",
-      })
+      lastUpdateTimeRef.current = Date.now();
+
+    } catch (error: any) {
+      console.error("Erro ao buscar dados no BitcoinConverter:", error);
+      setApiError(error.message || "Falha ao carregar dados. Verifique sua conexão.");
+      // Não mostrar toast de erro aqui se a atualização em segundo plano falhar silenciosamente
+      // Apenas se for uma ação do usuário ou a carga inicial.
+      if (isTriggeredByUser || !rates) { // Se for ação do usuário ou não houver taxas ainda
+        toast({
+          title: "Erro de Conexão",
+          description: error.message || "Não foi possível conectar à API. Tentando usar dados anteriores se disponíveis.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setLoading(false)
+      if (!isTriggeredByUser || !rates) {
+         setLoading(false);
+      }
+      isUpdatingRef.current = false;
     }
-  }, []) // Dependências vazias já que não dependemos de estado externo
+  }, [rates]); // Adicionado rates à dependência para permitir que o toast de erro seja mostrado se não houver taxas
 
-  // Efeito para recuperar valores salvos do localStorage ao inicializar
   useEffect(() => {
     try {
-      // Recuperar o último valor e unidade salvos
       const savedAmount = localStorage.getItem("btcConverter_lastAmount") || "";
       const savedUnit = localStorage.getItem("btcConverter_lastUnit");
-      
-      if (savedAmount) {
-        setAmount(savedAmount);
-      }
-      
-      // Verificar se a unidade salva é válida
+      if (savedAmount) setAmount(savedAmount);
       if (savedUnit && ["BTC", "SATS", "USD", "BRL"].includes(savedUnit)) {
         setSelectedUnit(savedUnit as CurrencyUnit);
       }
     } catch (error) {
       console.warn("Não foi possível acessar o localStorage:", error);
     }
-    
     setIsInitialized(true);
   }, []);
   
-  // Efeito para salvar valores quando mudarem
   useEffect(() => {
-    // Só salvar após a inicialização para evitar sobrescrever com valores vazios
     if (!isInitialized) return;
-    
     try {
-      // Salvar o valor atual se não for vazio
-      if (amount) {
-        localStorage.setItem("btcConverter_lastAmount", amount);
-      }
-      
-      // Salvar a unidade selecionada
+      if (amount) localStorage.setItem("btcConverter_lastAmount", amount);
       localStorage.setItem("btcConverter_lastUnit", selectedUnit);
     } catch (error) {
       console.warn("Não foi possível salvar no localStorage:", error);
     }
   }, [amount, selectedUnit, isInitialized]);
 
-  // Atualizar apenas o preço atual do Bitcoin - convertido para useCallback
-  const updateCurrentPrice = useCallback(async () => {
-    // Verificar se já está atualizando para evitar chamadas duplicadas
-    if (isUpdatingRef.current) {
-      console.log("Atualização já em andamento, ignorando chamada duplicada");
-      return;
-    }
-    
-    try {
-      // Marcar como em atualização
-      isUpdatingRef.current = true;
-      setLoading(true);
-      
-      // Usar a nova função específica para atualizar preço, forçando atualização
-      const priceData = await getCurrentBitcoinPrice(true)
-        .catch(err => {
-          console.warn("Erro ao atualizar preço, usando cache:", err);
-          // Em vez de lançar erro, retornamos null para tratamento
-          return null;
-        });
-      
-      // Se não conseguimos obter nenhum dado, usar o que já temos e mostrar erro
-      if (!priceData) {
-        console.warn("Falha ao obter dados atualizados de preço");
-        setApiError(true);
-        toast({
-          title: "Erro ao atualizar",
-          description: "Não foi possível obter cotações atualizadas. Tentando novamente...",
-          variant: "warning",
-        });
-        
-        // Tentar novamente após 5 segundos
-        setTimeout(() => {
-          isUpdatingRef.current = false;
-          setLoading(false);
-        }, 5000);
-        
-        return;
-      }
-      
-      // Se a busca de preço for bem-sucedida, precisamos atualizar todo o appData
-      // para manter consistência com o restante da aplicação
-      try {
-        const newData = await fetchAllAppData();
-        setAppData(newData);
-        
-        const newRates: ConversionRates = {
-          BTC_USD: newData.currentPrice.usd,
-          BRL_USD: newData.currentPrice.brl / newData.currentPrice.usd,
-          lastUpdated: new Date(newData.currentPrice.timestamp),
-          isUsingFallback: newData.isUsingCache || newData.currentPrice.isUsingCache,
-        };
-        
-        setRates(newRates);
-        setApiError(newRates.isUsingFallback);
-        
-        // Armazenar o timestamp da última atualização
-        lastUpdateTimeRef.current = Date.now();
-        
-        toast({
-          title: "Cotações atualizadas",
-          description: `Taxas atualizadas com sucesso: BTC = $${newRates.BTC_USD.toLocaleString()}`,
-        });
-      } catch (error) {
-        console.error("Erro ao buscar dados completos após atualização de preço:", error);
-        setApiError(true);
-      }
-    } finally {
-      // Resetar flag de atualização e loading
-      isUpdatingRef.current = false;
-      setLoading(false);
-    }
-  }, []);
-
-  // Buscar dados quando montar o componente
+  // Efeito para buscar dados na montagem e configurar atualização periódica
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    fetchData(false); // Carga inicial
+    const intervalId = setInterval(() => {
+      console.log("Fetching updated rates from server (background task)...");
+      fetchData(false); // Passar false para não mostrar loading em atualizações de background
+    }, 5 * 60 * 1000); // A cada 5 minutos
 
-  // Memoize os valores convertidos para melhorar performance
+    return () => clearInterval(intervalId);
+  }, [fetchData]); // fetchData é memoizado com useCallback
+
   const convertedValues = useMemo(() => {
-    // Se não houver taxas ou valor, retornar zero
     if (!rates || !amount) {
-      return {
-        btc: 0,
-        sats: 0,
-        usd: 0,
-        brl: 0
-      }
+      return { btc: 0, sats: 0, usd: 0, brl: 0 };
     }
-
-    // Processar a string de entrada
     let processedAmountString = amount;
-    // Se a unidade selecionada for SATS, remover pontos e vírgulas
     if (selectedUnit === "SATS") {
       processedAmountString = amount.replace(/[.,]/g, '');
     }
-
-    // Tentar converter a string processada (ou original) para número
     const numAmount = parseFloat(processedAmountString);
-
-    // Se a conversão falhar (resultar em NaN), retornar zero
     if (isNaN(numAmount)) {
-      return {
-        btc: 0,
-        sats: 0,
-        usd: 0,
-        brl: 0
-      };
+      return { btc: 0, sats: 0, usd: 0, brl: 0 };
     }
 
-    // Lógica de conversão existente usando numAmount
-    let btc = 0
-    let sats = 0
-    let usd = 0
-    let brl = 0
+    let btc = 0, sats = 0, usd = 0, brl = 0;
 
     switch (selectedUnit) {
       case "BTC":
-        btc = numAmount
-        sats = btc * 100000000
-        usd = btc * rates.BTC_USD
-        brl = usd * rates.BRL_USD
-        break
+        btc = numAmount;
+        sats = btc * 100000000;
+        usd = btc * rates.BTC_USD;
+        brl = usd * rates.USD_BRL; // Alterado para USD_BRL
+        break;
       case "SATS":
-        sats = numAmount
-        btc = sats / 100000000
-        usd = btc * rates.BTC_USD
-        brl = usd * rates.BRL_USD
-        break
+        sats = numAmount;
+        btc = sats / 100000000;
+        usd = btc * rates.BTC_USD;
+        brl = usd * rates.USD_BRL; // Alterado para USD_BRL
+        break;
       case "USD":
-        usd = numAmount
-        btc = usd / rates.BTC_USD
-        sats = btc * 100000000
-        brl = usd * rates.BRL_USD
-        break
+        usd = numAmount;
+        btc = usd / rates.BTC_USD;
+        sats = btc * 100000000;
+        brl = usd * rates.USD_BRL; // Alterado para USD_BRL
+        break;
       case "BRL":
-        brl = numAmount
-        usd = brl / rates.BRL_USD
-        btc = usd / rates.BTC_USD
-        sats = btc * 100000000
-        break
+        brl = numAmount;
+        usd = brl / rates.USD_BRL; // Alterado para USD_BRL
+        btc = usd / rates.BTC_USD;
+        sats = btc * 100000000;
+        break;
     }
+    return { btc, sats, usd, brl };
+  }, [rates, amount, selectedUnit]);
 
-    return {
-      btc,
-      sats,
-      usd,
-      brl
-    }
-  }, [rates, amount, selectedUnit])
-
-  // Função para atualizar os valores convertidos
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newAmount = e.target.value
-    
-    // Verifica se é um número válido (incluindo separador decimal)
+    const newAmount = e.target.value;
     if (newAmount === "" || /^[0-9]*\.?[0-9]*$/.test(newAmount)) {
-      setAmount(newAmount)
+      setAmount(newAmount);
     }
-  }
+  };
 
-  // Função para selecionar a unidade
   const handleUnitChange = (unit: CurrencyUnit) => {
-    setSelectedUnit(unit)
-  }
+    setSelectedUnit(unit);
+  };
 
-  // Função para atualizar as cotações
   const handleRefresh = () => {
-    // Previnir atualizações muito frequentes (menos de 30 segundos)
-    const currentTime = Date.now()
-    const timeSinceLastUpdate = currentTime - lastUpdateTimeRef.current
-    
-    if (timeSinceLastUpdate < 30000 && lastUpdateTimeRef.current > 0) {
-      toast({
-        title: "Aguarde um momento",
-        description: "As cotações só podem ser atualizadas a cada 30 segundos.",
-        variant: "warning",
-      })
-      return
+    const currentTime = Date.now();
+    if (isUpdatingRef.current && (currentTime - lastUpdateTimeRef.current < 5000)) {
+        toast({
+            title: "Aguarde",
+            description: "Atualização já em progresso ou muito recente.",
+            variant: "warning",
+        });
+        return;
     }
-    
-    updateCurrentPrice()
-  }
+    isUpdatingRef.current = true;
+    lastUpdateTimeRef.current = currentTime; // Atualiza o tempo da última tentativa de refresh manual
+    toast({ title: "Atualizando Cotações...", description: "Buscando os dados mais recentes do servidor." });
+    fetchData(true); // true indica que foi uma ação do usuário
+  };
 
-  // Função para copiar um valor para a área de transferência
   const copyToClipboard = (value: number, unit: CurrencyUnit) => {
     const formattedValue = (() => {
       switch (unit) {
         case "BTC": return formatBtc(value);
-        case "SATS": return Math.round(value).toString();
+        case "SATS": return Math.round(value).toLocaleString();
         case "USD": return formatCurrency(value, "$");
         case "BRL": return formatCurrency(value, "R$");
         default: return value.toString();
       }
     })();
-    
-    // Remover símbolos de moeda e espaços para obter apenas o número
     const cleanValue = formattedValue.replace(/[^0-9.,]/g, '');
-    
     navigator.clipboard.writeText(cleanValue).then(() => {
-      // Atualizar estado para mostrar o ícone de confirmação
       setCopiedValues(prev => ({ ...prev, [unit]: true }));
-      
-      // Mostrar mensagem de sucesso
       toast({
         title: "Valor copiado",
         description: `${formattedValue} copiado para a área de transferência.`,
         variant: "success",
       });
-      
-      // Resetar após 2 segundos
       setTimeout(() => {
         setCopiedValues(prev => ({ ...prev, [unit]: false }));
       }, 2000);
@@ -393,13 +265,12 @@ export default function BitcoinConverter() {
       console.error("Falha ao copiar:", err);
       toast({
         title: "Erro ao copiar",
-        description: "Não foi possível copiar o valor para a área de transferência.",
+        description: "Não foi possível copiar o valor.",
         variant: "destructive",
       });
     });
   };
 
-  // Componente para exibir um valor com botão de cópia
   const ValueDisplay = ({ value, unit, label, icon }: { 
     value: number, 
     unit: CurrencyUnit, 
@@ -415,56 +286,34 @@ export default function BitcoinConverter() {
         default: return value.toString();
       }
     })();
-    
     const isCopied = copiedValues[unit];
-
     const valueColorClass = () => {
       switch (unit) {
-        case "BTC":
-        case "SATS":
-          return "text-amber-400 dark:text-amber-300"; // Dourado
-        case "USD":
-        case "BRL":
-          return "text-green-500 dark:text-green-400"; // Verde
-        default:
-          return "text-foreground";
+        case "BTC": case "SATS": return "text-amber-400 dark:text-amber-300";
+        case "USD": case "BRL": return "text-green-500 dark:text-green-400";
+        default: return "text-foreground";
       }
     };
-    
     return (
       <div className="flex flex-col space-y-1">
         <div className="flex justify-between items-center">
-          <Label className="text-sm font-medium flex items-center gap-1">
-            {icon}
-            <span>{label}</span>
-          </Label>
+          <Label className="text-sm font-medium flex items-center gap-1">{icon}<span>{label}</span></Label>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-7 w-7" 
-                  onClick={() => copyToClipboard(value, unit)}
-                >
-                  {isCopied ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(value, unit)}>
+                  {isCopied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>{isCopied ? "Copiado!" : "Copiar valor"}</p>
-              </TooltipContent>
+              <TooltipContent><p>{isCopied ? "Copiado!" : "Copiar valor"}</p></TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
         <div 
           className={cn(
             "p-2 rounded border text-lg font-mono cursor-pointer",
-            "bg-gray-950/70 dark:bg-black/60 border-purple-700/40", // Fundo mais escuro (preto/cinza escuro) e borda roxa ajustada
-            "hover:bg-purple-700/20 dark:hover:bg-purple-600/20 hover:border-purple-500/70 transition-colors group" 
+            "bg-gray-950/70 dark:bg-black/60 border-purple-700/40",
+            "hover:bg-purple-700/20 dark:hover:bg-purple-600/20 hover:border-purple-500/70 transition-colors group"
           )}
           onClick={() => copyToClipboard(value, unit)}
         >
@@ -474,44 +323,34 @@ export default function BitcoinConverter() {
     );
   };
 
-  // Converter time since para string "há X minutos"
   const getTimeAgo = (date: Date): string => {
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMin = Math.floor(diffMs / 60000)
-    
-    if (diffMin < 1) return "agora mesmo"
-    if (diffMin === 1) return "há 1 minuto"
-    return `há ${diffMin} minutos`
-  }
-
-  // Novo efeito para detectar mudanças de tab via searchParams
-  // e forçar uma re-renderização do conteúdo
-  useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    console.log("Tab param changed:", tabParam)
-    
-    if (tabParam && (tabParam === 'chart' || tabParam === 'calculator' || tabParam === 'converter')) {
-      // Forçar re-renderização quando a aba mudar
-      setForceRender(prev => prev + 1)
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+        return "data indisponível";
     }
-  }, [searchParams])
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 1) return "agora mesmo";
+    if (diffMin === 1) return "há 1 minuto";
+    return `há ${diffMin} minutos`;
+  };
 
-  // Efeito para limpar o estado "copiado" após um tempo (NÃO remover este)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && (tabParam === 'chart' || tabParam === 'calculator' || tabParam === 'converter')) {
+      setForceRender(prev => prev + 1);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     let copyTimeoutId: NodeJS.Timeout | null = null;
     if (Object.values(copiedValues).some(v => v)) {
-      copyTimeoutId = setTimeout(() => {
-        setCopiedValues({});
-      }, 2000); // Limpar após 2 segundos
+      copyTimeoutId = setTimeout(() => setCopiedValues({}), 2000);
     }
-    return () => {
-      if (copyTimeoutId) clearTimeout(copyTimeoutId);
-    };
+    return () => { if (copyTimeoutId) clearTimeout(copyTimeoutId); };
   }, [copiedValues]);
 
-  if (loading && !isInitialized) {
-    // Mostrar um loader simples enquanto carrega inicialmente
+  if (loading && !rates) { // Mostrar loading apenas se não houver taxas para exibir (carga inicial)
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
@@ -522,70 +361,13 @@ export default function BitcoinConverter() {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8">
-        {/* Container para Tabs com efeito Sticky */}
         <div className="sticky top-16 z-40 pt-2 pb-1 bg-background/80 dark:bg-black/70 backdrop-blur-md -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 px-2 sm:px-4 md:px-6 lg:px-8 mb-3 border-b border-purple-700/30 shadow-sm">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3 gap-2 bg-transparent p-0 h-auto">
-              <TabsTrigger 
-                value="converter"
-                className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
-                  "border border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
-                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50",
-                  activeTab === "converter" && "data-[state=active]:animate-pulse"
-                )}
-              >
-                <ArrowRightLeft className={cn(
-                  "mr-1.5 h-4 w-4",
-                  activeTab === "converter" && "data-[state=active]:animate-pulse"
-                )} />
-                <span className={cn(
-                  activeTab === "converter" && "data-[state=active]:animate-pulse"
-                )}>Conversor</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="chart"
-                className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
-                  "border border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
-                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50",
-                  activeTab === "chart" && "data-[state=active]:animate-pulse"
-                )}
-              >
-                <TrendingUp className={cn(
-                  "mr-1.5 h-4 w-4",
-                  activeTab === "chart" && "data-[state=active]:animate-pulse"
-                )} />
-                <span className={cn(
-                  activeTab === "chart" && "data-[state=active]:animate-pulse"
-                )}>Gráficos</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="calculator" 
-                className={cn(
-                  "py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md",
-                  "border border-transparent text-gray-400 dark:text-gray-500",
-                  "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40",
-                  "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black",
-                  "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50",
-                  activeTab === "calculator" && "data-[state=active]:animate-pulse"
-                )}
-              >
-                <Calculator className={cn(
-                  "mr-1.5 h-4 w-4",
-                  activeTab === "calculator" && "data-[state=active]:animate-pulse"
-                )} />
-                <span className={cn(
-                  activeTab === "calculator" && "data-[state=active]:animate-pulse"
-                )}>Calculadora</span>
-              </TabsTrigger>
+              <TabsTrigger value="converter" className={cn("py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md", "border border-transparent text-gray-400 dark:text-gray-500", "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40", "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black", "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50", activeTab === "converter" && "data-[state=active]:animate-pulse")}><ArrowRightLeft className={cn("mr-1.5 h-4 w-4", activeTab === "converter" && "data-[state=active]:animate-pulse")} /><span className={cn(activeTab === "converter" && "data-[state=active]:animate-pulse")}>Conversor</span></TabsTrigger>
+              <TabsTrigger value="chart" className={cn("py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md", "border border-transparent text-gray-400 dark:text-gray-500", "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40", "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black", "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50", activeTab === "chart" && "data-[state=active]:animate-pulse")}><TrendingUp className={cn("mr-1.5 h-4 w-4", activeTab === "chart" && "data-[state=active]:animate-pulse")} /><span className={cn(activeTab === "chart" && "data-[state=active]:animate-pulse")}>Gráficos</span></TabsTrigger>
+              <TabsTrigger value="calculator"  className={cn("py-2.5 text-sm font-medium transition-all duration-200 ease-in-out rounded-md", "border border-transparent text-gray-400 dark:text-gray-500", "hover:text-purple-300 hover:border-purple-700/30 hover:bg-purple-900/40", "focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-black", "data-[state=active]:text-white data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-800 data-[state=active]:to-purple-900 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-900/40 data-[state=active]:border-purple-700/50", activeTab === "calculator" && "data-[state=active]:animate-pulse")}><Calculator className={cn("mr-1.5 h-4 w-4", activeTab === "calculator" && "data-[state=active]:animate-pulse")} /><span className={cn(activeTab === "calculator" && "data-[state=active]:animate-pulse")}>Calculadora</span></TabsTrigger>
             </TabsList>
-
-            {/* Conteúdo das Abas com PageTransition restaurado */}
             <div className="mt-4">
               <PageTransition>
                 <TabsContent value="converter">
@@ -594,28 +376,11 @@ export default function BitcoinConverter() {
                       <div className="flex justify-between items-center">
                         <div>
                           <CardTitle className="mb-1.5">Conversor Bitcoin</CardTitle>
-                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                            Converta entre BTC, Satoshis, Dólares e Reais
-                          </CardDescription>
+                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Converta entre BTC, Satoshis, Dólares e Reais</CardDescription>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "bg-background/30 dark:bg-black/40 border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all",
-                            "p-2 sm:px-3 sm:py-1.5 sm:gap-1",
-                            loading && "text-purple-300 border-purple-500/90 bg-purple-700/20"
-                          )}
-                          onClick={handleRefresh}
-                          disabled={loading}
-                          aria-label="Atualizar Cotações"
-                        >
-                          {loading ? (
-                            <RefreshCw className="h-4 w-4 animate-spin text-purple-300" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          <span className={cn("hidden sm:inline-block", loading && "text-purple-300")}>Atualizar</span>
+                        <Button variant="outline" size="sm" className={cn("bg-background/30 dark:bg-black/40 border-purple-600/70 hover:bg-purple-700/20 hover:border-purple-500/90 transition-all", "p-2 sm:px-3 sm:py-1.5 sm:gap-1", (loading && isUpdatingRef.current) && "text-purple-300 border-purple-500/90 bg-purple-700/20")} onClick={handleRefresh} disabled={(loading && isUpdatingRef.current)} aria-label="Atualizar Cotações">
+                          {(loading && isUpdatingRef.current) ? <RefreshCw className="h-4 w-4 animate-spin text-purple-300" /> : <RefreshCw className="h-4 w-4" />}
+                          <span className={cn("hidden sm:inline-block", (loading && isUpdatingRef.current) && "text-purple-300")}>Atualizar</span>
                         </Button>
                       </div>
                     </CardHeader>
@@ -624,124 +389,39 @@ export default function BitcoinConverter() {
                         <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-3 rounded-md border border-amber-200 dark:border-amber-950 flex items-start">
                           <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-medium">Usando dados em cache</p>
-                            <p className="text-sm">
-                              Não foi possível obter cotações em tempo real. Usando dados armazenados localmente.
-                            </p>
+                            <p className="font-medium">Falha na Comunicação</p>
+                            <p className="text-sm">{apiError}</p>
                           </div>
                         </div>
                       )}
-                      
-                      <div className="space-y-4">
+                      <div className="space-y-4 mt-4">
                         <div className="space-y-2">
                           <Label htmlFor="amount">Valor para conversão</Label>
-                          <Input
-                            id="amount"
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="Digite um valor..."
-                            value={amount}
-                            onChange={handleAmountChange}
-                            className="text-lg bg-background/30 dark:bg-black/40 border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200"
-                          />
+                          <Input id="amount" type="text" inputMode="decimal" placeholder="Digite um valor..." value={amount} onChange={handleAmountChange} className="text-lg bg-background/30 dark:bg-black/40 border-purple-400/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-500/70 transition-colors duration-200" />
                         </div>
-                        
                         <div className="space-y-2">
                           <Label>Unidade de origem</Label>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                                selectedUnit === "BTC"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
-                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
-                              )}
-                              onClick={() => handleUnitChange("BTC")}
-                            >
-                              <Bitcoin className="h-5 w-5 mb-1" /> 
-                              <span className="text-xs text-center">Bitcoin</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                                selectedUnit === "SATS"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
-                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
-                              )}
-                              onClick={() => handleUnitChange("SATS")}
-                            >
-                              <Bitcoin className="h-5 w-5 mb-1" /> 
-                              <span className="text-xs text-center">Satoshis</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                                selectedUnit === "USD"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
-                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
-                              )}
-                              onClick={() => handleUnitChange("USD")}
-                            >
-                              <DollarSign className="h-5 w-5 mb-1" /> 
-                              <span className="text-xs text-center">Dólar (USD)</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2",
-                                selectedUnit === "BRL"
-                                  ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20"
-                                  : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300"
-                              )}
-                              onClick={() => handleUnitChange("BRL")}
-                            >
-                              <DollarSign className="h-5 w-5 mb-1" /> 
-                              <span className="text-xs text-center">Real (BRL)</span>
-                            </Button>
+                            <Button variant="outline" className={cn("w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2", selectedUnit === "BTC" ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20" : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300")} onClick={() => handleUnitChange("BTC")}><Bitcoin className="h-5 w-5 mb-1" /> <span className="text-xs text-center">Bitcoin</span></Button>
+                            <Button variant="outline" className={cn("w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2", selectedUnit === "SATS" ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20" : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300")} onClick={() => handleUnitChange("SATS")}><Bitcoin className="h-5 w-5 mb-1" /> <span className="text-xs text-center">Satoshis</span></Button>
+                            <Button variant="outline" className={cn("w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2", selectedUnit === "USD" ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20" : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300")} onClick={() => handleUnitChange("USD")}><DollarSign className="h-5 w-5 mb-1" /> <span className="text-xs text-center">Dólar (USD)</span></Button>
+                            <Button variant="outline" className={cn("w-full h-auto flex flex-col items-center justify-center rounded-lg transition-all duration-300 py-3 border-2", selectedUnit === "BRL" ? "border-purple-600 dark:border-purple-500 text-purple-300 dark:text-purple-200 bg-purple-900/20" : "bg-background/30 dark:bg-black/40 border-gray-700/50 dark:border-gray-600/40 text-muted-foreground hover:bg-purple-900/20 hover:border-purple-700/30 hover:text-purple-300")} onClick={() => handleUnitChange("BRL")}><DollarSign className="h-5 w-5 mb-1" /> <span className="text-xs text-center">Real (BRL)</span></Button>
                           </div>
                         </div>
-                        
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                           <h3 className="text-lg font-medium mb-4">Valores convertidos</h3>
-                          
-                          {loading ? (
+                          {(loading && !rates) ? (
                             <div className="space-y-4">
-                              <Skeleton className="h-10 w-full" />
-                              <Skeleton className="h-10 w-full" />
-                              <Skeleton className="h-10 w-full" />
-                              <Skeleton className="h-10 w-full" />
+                              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
                             </div>
-                          ) : (
+                          ) : rates ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <ValueDisplay 
-                                value={convertedValues.btc} 
-                                unit="BTC"
-                                label="Bitcoin (BTC)"
-                                icon={<Bitcoin className="h-4 w-4" />}
-                              />
-                              <ValueDisplay 
-                                value={convertedValues.sats} 
-                                unit="SATS"
-                                label="Satoshis (SATS)"
-                                icon={<Bitcoin className="h-4 w-4" />}
-                              />
-                              <ValueDisplay 
-                                value={convertedValues.usd} 
-                                unit="USD"
-                                label="Dólar Americano (USD)"
-                                icon={<DollarSign className="h-4 w-4" />}
-                              />
-                              <ValueDisplay 
-                                value={convertedValues.brl} 
-                                unit="BRL"
-                                label="Real Brasileiro (BRL)"
-                                icon={<DollarSign className="h-4 w-4" />}
-                              />
+                              <ValueDisplay value={convertedValues.btc} unit="BTC" label="Bitcoin (BTC)" icon={<Bitcoin className="h-4 w-4" />} />
+                              <ValueDisplay value={convertedValues.sats} unit="SATS" label="Satoshis (SATS)" icon={<Bitcoin className="h-4 w-4" />} />
+                              <ValueDisplay value={convertedValues.usd} unit="USD" label="Dólar Americano (USD)" icon={<DollarSign className="h-4 w-4" />} />
+                              <ValueDisplay value={convertedValues.brl} unit="BRL" label="Real Brasileiro (BRL)" icon={<DollarSign className="h-4 w-4" />} />
                             </div>
-                          )}
+                          ) : null }
                         </div>
                       </div>
                     </CardContent>
@@ -752,45 +432,33 @@ export default function BitcoinConverter() {
                           {rates ? (
                             `Cotações atualizadas ${getTimeAgo(rates.lastUpdated)}`
                           ) : (
-                            "Carregando cotações..."
+                            loading ? "Carregando cotações..." : "Cotações indisponíveis"
                           )}
                         </span>
                       </div>
-                      
                       <div className="flex flex-col items-start md:items-end gap-1 self-start md:self-center">
                         {rates ? (
                           <>
-                            <div>
-                              1 BTC = <span className="font-semibold text-amber-500 dark:text-amber-400">${rates.BTC_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </div>
-                            <div>
-                              1 USD = <span className="font-semibold text-green-500 dark:text-green-400">R$ {rates.BRL_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </div>
+                            <div>1 BTC = <span className="font-semibold text-amber-500 dark:text-amber-400">${rates.BTC_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div>1 USD = <span className="font-semibold text-green-500 dark:text-green-400">R$ {rates.USD_BRL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                           </>
                         ) : (
-                          <span>Calculando cotações...</span>
+                          <span></span> // Não mostrar nada se as taxas não estiverem carregadas
                         )}
                       </div>
                     </CardFooter>
                   </Card>
                 </TabsContent>
-                
                 <TabsContent value="calculator">
                   {appData && rates ? (
                     <Suspense fallback={<div className="text-center py-8">Carregando calculadora...</div>}>
                       <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
                         <CardHeader>
                           <CardTitle className="mb-1.5">Calculadora de Lucros</CardTitle>
-                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                            Calcule seus lucros e perdas de operações e investimentos.
-                          </CardDescription>
+                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">Calcule seus lucros e perdas de operações e investimentos.</CardDescription>
                         </CardHeader>
                         <CardContent className="pt-4 md:pt-6">
-                          <MultiReportCalculator
-                            btcToUsd={rates.BTC_USD} 
-                            brlToUsd={rates.BRL_USD} 
-                            appData={appData}
-                          />
+                          <MultiReportCalculator btcToUsd={rates.BTC_USD} brlToUsd={rates.USD_BRL} appData={appData} />
                         </CardContent>
                       </Card>
                     </Suspense>
@@ -800,7 +468,6 @@ export default function BitcoinConverter() {
                     </div>
                   )}
                 </TabsContent>
-                
                 <TabsContent value="chart">
                   <Suspense fallback={<div className="text-center py-8">Carregando gráfico...</div>}>
                     <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">

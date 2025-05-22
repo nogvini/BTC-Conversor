@@ -31,5 +31,11 @@
       "NEXT_PUBLIC_SWC_MINIFY": "false",
       "DISABLE_SWC": "true"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/rates",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 } 
