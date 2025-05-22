@@ -325,34 +325,67 @@ const parseISODate = (dateString: string): Date => {
 };
 
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
-  // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
-  const {
-    collection, // Pegar a coleção inteira
-    activeReportId: activeReportIdFromHook,
-    isLoaded: reportsDataLoaded,
-    addReport, // addReport parece estar correto conforme a interface
-    selectReport, // selectReport parece estar correto
-    addInvestmentToReport, // Corrigir nome da função
-    addProfitRecordToReport, // Corrigir nome da função
-    deleteInvestmentFromReport, // Corrigir nome da função
-    deleteProfitRecordFromReport, // Corrigir nome da função
-    updateReportDetails, // Corrigir para updateReportDetails se for o caso, ou manter updateReportData se for diferente
-    importExternalDataToReport, // Corrigir nome da função
+  const { 
+    collection: rawCollection, // Renomear para evitar conflito no escopo mais amplo
+    activeReportId: activeReportIdFromHook, 
+    isLoaded: reportsDataLoaded, 
+    addReport, 
+    selectReport, 
+    addInvestmentToReport, 
+    addProfitRecordToReport, 
+    deleteInvestmentFromReport, 
+    deleteProfitRecordFromReport, 
+    updateReportDetails, 
+    importExternalDataToReport, 
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
-    recalculateReportSummary, // Adicionar se estiver faltando e for usado
-    // Adicione outras funções que você usa do hook com os nomes corretos
+    recalculateReportSummary,
   } = useReports();
 
-  // Derivar allReportsFromHook e currentActiveReportObjectFromHook
-  const allReportsFromHook = collection?.reports || []; // Garantir que seja sempre um array
+  // Adicionar logs para depuração - movidos para depois da verificação de carregamento
+  // console.log("[ProfitCalculator] Hook useReports - reportsDataLoaded:", reportsDataLoaded);
+  // console.log("[ProfitCalculator] Hook useReports - collection:", JSON.stringify(rawCollection));
+
+  // ESTADO DE CARREGAMENTO INICIAL E VERIFICAÇÃO DE DADOS INVÁLIDOS DE useReports
+  if (!reportsDataLoaded) {
+    console.log("[ProfitCalculator] Renderizando estado de carregamento (reportsDataLoaded é falso).");
+    return (
+      <div className="flex justify-center items-center h-64">
+        <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
+        <span className="ml-2">Carregando seus dados...</span>
+      </div>
+    );
+  }
+
+  // Se reportsDataLoaded é true, mas a coleção ou os relatórios são inválidos, é um estado de erro.
+  if (!rawCollection || !rawCollection.reports) {
+    console.error("[ProfitCalculator] Erro crítico: reportsDataLoaded é true, mas rawCollection ou rawCollection.reports é inválido.", rawCollection);
+    return (
+      <div className="flex flex-col justify-center items-center h-64 text-red-500">
+        <AlertTriangle className="h-8 w-8 mb-2" />
+        <span>Erro ao carregar dados dos relatórios.</span>
+        <span>Por favor, tente recarregar a página.</span>
+        {/* Você pode adicionar um botão de recarregar aqui */}
+      </div>
+    );
+  }
+  
+  // Somente definir collection, allReportsFromHook etc., se os dados forem válidos
+  const collection = rawCollection;
+  const allReportsFromHook = collection.reports || []; // Agora podemos assumir que collection.reports existe, mas ainda adicionamos fallback
   const currentActiveReportObjectFromHook = activeReportIdFromHook
     ? allReportsFromHook.find(report => report.id === activeReportIdFromHook)
     : null;
 
-  // Manter estados locais que não são gerenciados por useReports ou que são específicos da UI deste componente
+  // Logs para depois das verificações e definições
+  console.log("[ProfitCalculator] Dados dos relatórios carregados e válidos.");
+  console.log("[ProfitCalculator] reportsDataLoaded:", reportsDataLoaded);
+  console.log("[ProfitCalculator] collection stringified:", JSON.stringify(collection));
+
   const [activeTab, setActiveTab] = useState<string>("register");
-  // selectedMonth e filterMonth são para a UI de Histórico, não diretamente para o relatório ativo de registro
+  // ... resto do código do componente ...
+
+  // Manter estados locais que não são gerenciados por useReports ou que são específicos da UI deste componente
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
   const [currentRates, setCurrentRates] = useState({ btcToUsd, brlToUsd });
