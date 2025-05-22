@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
 import { ClientAppHeader } from "@/components/client-app-header"
+import { useEffect } from "react"
+import { initializeReportsStore } from "@/hooks/use-reports"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -17,6 +19,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  useEffect(() => {
+    console.log("[RootLayout] Chamando initializeReportsStore...");
+    initializeReportsStore();
+    console.log("[RootLayout] initializeReportsStore chamado.");
+  }, []);
+
   return (
     <html lang="pt-BR" suppressHydrationWarning className="dark">
       <head>
