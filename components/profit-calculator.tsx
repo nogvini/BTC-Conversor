@@ -345,7 +345,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   } = useReports();
 
   // Derivar allReportsFromHook e currentActiveReportObjectFromHook
-  const allReportsFromHook = collection.reports;
+  const allReportsFromHook = collection?.reports || []; // Garantir que seja sempre um array
   const currentActiveReportObjectFromHook = activeReportIdFromHook
     ? allReportsFromHook.find(report => report.id === activeReportIdFromHook)
     : null;
@@ -3514,13 +3514,13 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <Plus className="mr-1 h-3 w-3" /> Criar Novo
               </Button>
             </div>
-            {allReportsFromHook && allReportsFromHook.length > 0 ? ( // USAR allReportsFromHook
-                <Select value={activeReportIdFromHook || ""} onValueChange={(value) => { if (value) selectReport(value); }}> {/* USAR activeReportIdFromHook e selectReport */}
+            {allReportsFromHook && allReportsFromHook.length > 0 ? ( 
+                <Select value={activeReportIdFromHook || ""} onValueChange={(value) => { if (value) selectReport(value); }}> 
                     <SelectTrigger className="w-full bg-black/40 border-purple-600/50 focus:border-purple-500 focus:ring-purple-500/50 hover:border-purple-600/70 text-white">
                         <SelectValue placeholder="Selecione um relatório" />
                     </SelectTrigger>
                     <SelectContent className="bg-black/95 border-purple-700/60 text-white">
-                        {allReportsFromHook.map((report: Report) => ( // USAR allReportsFromHook
+                        {(allReportsFromHook || []).map((report: Report) => ( 
                             <SelectItem key={report.id} value={report.id} style={{ color: report.color || '#E0E0E0' }}>
                                 {report.name}
                             </SelectItem>
@@ -3866,7 +3866,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <div className="mt-4 mb-2 space-y-3">
                 <div>
                   <Label className="text-sm text-purple-400 block mb-2">Selecionar Relatórios para Visualização no Histórico:</Label>
-                  {allReportsFromHook && allReportsFromHook.length > 0 ? ( // USAR allReportsFromHook
+                  {allReportsFromHook && allReportsFromHook.length > 0 ? ( 
                     <>
                       <div className="flex space-x-2 mb-2">
                         {/* MODIFICADO: size="sm" e classes para parecer menor */}
@@ -3875,7 +3875,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </div>
                       <ScrollArea className="h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
                         <div className="space-y-1.5">
-                        {allReportsFromHook.map((report: Report) => ( // USAR allReportsFromHook
+                        {(allReportsFromHook || []).map((report: Report) => ( 
                           <div key={`hist-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
                             <Checkbox
                               id={`hist-report-${report.id}`}
@@ -4644,7 +4644,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       {exportReportSelectionType === 'manual' && allReportsFromHook && allReportsFromHook.length > 0 && (
                         <ScrollArea className="mt-2 h-[100px] border border-purple-700/30 bg-black/20 p-2 rounded-md">
                           <div className="space-y-1.5">
-                            {allReportsFromHook.map((report: Report) => (
+                            {(allReportsFromHook || []).map((report: Report) => (
                               <div key={`manual-exp-sel-${report.id}`} className="flex items-center space-x-2 p-1 hover:bg-purple-900/20 rounded-sm">
                                 <Checkbox
                                   id={`manual-exp-report-${report.id}`}
