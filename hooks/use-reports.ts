@@ -186,6 +186,7 @@ export const useReports = create<ReportsState>()(
       isLoaded: false,
 
       setLoaded: (loadedCollection, loadedActiveId) => {
+        console.log("[useReports] setLoaded chamado com:", loadedCollection, loadedActiveId);
         set({
           collection: loadedCollection,
           activeReportId: loadedActiveId,
@@ -826,10 +827,23 @@ export const useReports = create<ReportsState>()(
         collection: state.collection,
         activeReportId: state.activeReportId,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.isLoaded = true;
-          console.log("useReports: Dados reidratados do localStorage.");
+      onRehydrateStorage: () => (persistedState) => {
+        console.log("[useReports] onRehydrateStorage: Estado persistido recebido:", persistedState);
+        if (persistedState) {
+          // A migração e o carregamento inicial agora são tratados por initializeReportsStore
+          // Esta callback apenas confirma a reidratação. O estado isLoaded
+          // será definido por initializeReportsStore após a migração.
+          // Se initializeReportsStore não for usado, então precisaríamos chamar setLoaded aqui.
+          // Por agora, vamos assumir que initializeReportsStore é o ponto de entrada principal para definir o estado carregado.
+          // Se for necessário, podemos reativar: 
+          // get().setLoaded(persistedState.collection || { reports: [] }, persistedState.activeReportId || null);
+          console.log("[useReports] onRehydrateStorage: Reidratação concluída. initializeReportsStore deve finalizar o setup.");
+        } else {
+          console.log("[useReports] onRehydrateStorage: Nenhum estado persistido encontrado. initializeReportsStore deve configurar estado inicial.");
+          // Garante que, se não houver estado persistido, isLoaded seja true após a tentativa de reidratação (via initializeReportsStore)
+          // Se initializeReportsStore não for usado, e não há estado persistido, o estado inicial do create() (isLoaded: false) permanece
+          // até que algo o altere. Considerar chamar setLoaded com estado padrão se não houver persistência e initializeReportsStore não for usado.
+          // Ex: get().setLoaded({ reports: [] }, null);
         }
       },
     }
@@ -923,44 +937,45 @@ export function loadActiveReportId(): string | null {
 
 // Fora do hook, para ser chamado na inicialização da aplicação:
 export const initializeReportsStore = () => {
+  console.log("[initializeReportsStore] Iniciando inicialização do store de relatórios...");
   const rawState = localStorage.getItem(STORAGE_KEYS.REPORTS_COLLECTION);
-  let initialState: { collection: ReportsCollection; activeReportId: string | null } | undefined = undefined;
+  let collectionToLoad: ReportsCollection = { reports: [] };
+  let activeIdToLoad: string | null = null;
 
   if (rawState) {
     try {
       const parsedState = JSON.parse(rawState);
       if (parsedState && parsedState.state) { // Zustand armazena sob uma chave "state"
-        const migratedCollection = migrateReportsCollection({ 
+        console.log("[initializeReportsStore] Estado bruto do localStorage:", parsedState.state);
+        collectionToLoad = migrateReportsCollection({ 
             collection: parsedState.state.collection, 
-            // activeReportId não está no mesmo objeto persistido pelo middleware aqui, 
-            // mas `migrateReportsCollection` não precisa dele.
         });
-        const activeIdFromStorage = parsedState.state.activeReportId || loadActiveReportId(); // Prioriza o que está no objeto, depois tenta individual
-        
-        initialState = { collection: migratedCollection, activeReportId: activeIdFromStorage };
-        useReports.getState().setLoaded(migratedCollection, activeIdFromStorage); // Chama setLoaded com dados migrados
+        activeIdToLoad = parsedState.state.activeReportId || loadActiveReportId(); // Prioriza o que está no objeto
+        console.log("[initializeReportsStore] Coleção migrada e ID ativo carregado:", collectionToLoad, activeIdToLoad);
       } else {
-        console.warn("Formato inesperado no localStorage para ReportsCollection.");
+        console.warn("[initializeReportsStore] Formato inesperado no localStorage. Usando padrão.");
       }
     } catch (e) {
-      console.error("Erro ao parsear ou migrar dados do localStorage para ReportsCollection:", e);
+      console.error("[initializeReportsStore] Erro ao parsear/migrar dados do localStorage. Usando padrão:", e);
     }
   }
-  
-  // Se não houver estado inicial (localStorage vazio ou erro), o store já foi criado com valores padrão pelo `create`.
-  // Apenas garantimos que isLoaded seja setado se não foi pelo onRehydrateStorage (embora devesse ser)
-  if (!useReports.getState().isLoaded) {
-     useReports.setState({ isLoaded: true }); // Garante que isLoaded seja true mesmo se localStorage estiver vazio
-  }
+
+  // Chamar setLoaded para atualizar o store com os dados carregados/migrados e definir isLoaded = true
+  useReports.getState().setLoaded(collectionToLoad, activeIdToLoad);
 
   // Garantir que o relatório ativo exista, ou selecionar o primeiro, ou null
   const finalActiveId = useReports.getState().activeReportId;
   const reports = useReports.getState().collection.reports;
   if (finalActiveId && !reports.some(r => r.id === finalActiveId)) {
+    console.log(`[initializeReportsStore] ID ativo '${finalActiveId}' não encontrado nos relatórios. Selecionando o primeiro.`);
     useReports.getState().selectReport(reports.length > 0 ? reports[0].id : null);
   } else if (!finalActiveId && reports.length > 0) {
+    console.log("[initializeReportsStore] Nenhum ID ativo. Selecionando o primeiro relatório.");
     useReports.getState().selectReport(reports[0].id);
+  } else {
+    console.log("[initializeReportsStore] Nenhum ID ativo e nenhum relatório para selecionar, ou ID ativo já é válido.");
   }
+  console.log("[initializeReportsStore] Finalizado. Estado atual de isLoaded:", useReports.getState().isLoaded);
 };
 
 // +++ INÍCIO DA NOVA FUNÇÃO calculateReportSummaryLogic +++
