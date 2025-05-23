@@ -22,7 +22,7 @@ import {
   calculateAverageBuyPriceForSummary
 } from "./utils/profit-calculator-utils";
 
-export default function ProfitCalculatorV2({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
+export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // Hook de relatórios
   const {
     reports: allReportsFromHook,
@@ -36,6 +36,7 @@ export default function ProfitCalculatorV2({ btcToUsd, brlToUsd, appData }: Prof
     deleteInvestment,
     deleteProfitRecord,
     updateReportData,
+    updateReport,
     importData,
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
@@ -301,15 +302,31 @@ export default function ProfitCalculatorV2({ btcToUsd, brlToUsd, appData }: Prof
       return;
     }
 
-    // Aqui você implementaria a lógica para salvar as mudanças
-    // Por enquanto, apenas cancelar a edição
-    cancelEditingActiveReport();
+    // Preparar as atualizações
+    const updates: { name: string; description?: string } = {
+      name: states.editingActiveReportName.trim(),
+      description: states.editingActiveReportDescription.trim() || undefined
+    };
+
+    // Usar a função updateReport do hook para salvar as alterações
+    const success = updateReport(currentActiveReportObjectFromHook.id, updates);
     
-    toast({
-      title: "Relatório Atualizado",
-      description: "As informações do relatório foram atualizadas com sucesso.",
-      variant: "default",
-    });
+    if (success) {
+      // Cancelar o modo de edição após salvar com sucesso
+      cancelEditingActiveReport();
+      
+      toast({
+        title: "Relatório Atualizado",
+        description: "As informações do relatório foram atualizadas com sucesso.",
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "Erro ao Salvar",
+        description: "Houve um problema ao salvar as alterações do relatório.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Calcular dados do resumo
