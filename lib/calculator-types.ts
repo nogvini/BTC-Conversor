@@ -44,6 +44,7 @@ export interface Report {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  lastUpdated?: string; // Timestamp da última atualização para sincronização
   investments: Investment[];
   profits: ProfitRecord[];
   withdrawals: WithdrawalRecord[];

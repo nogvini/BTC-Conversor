@@ -48,10 +48,36 @@ export interface AppData {
   isUsingCache: boolean;
 }
 
+// Tipo para dados de relatório ativo com informações de sincronização
+export interface ActiveReportData {
+  id: string | undefined;
+  report: Report | undefined;
+  forceUpdateTrigger: number;
+}
+
+// Handlers de sincronização para operações CRUD
+export interface SyncHandlers {
+  onInvestmentAdd?: (date: string, amount: number, unit: CurrencyUnit) => any;
+  onProfitAdd?: (date: string, amount: number, unit: CurrencyUnit, isProfit: boolean) => any;
+  onInvestmentDelete?: (id: string) => boolean;
+  onProfitDelete?: (id: string) => boolean;
+  onInvestmentsUpdate?: (investments: Investment[]) => boolean;
+  onProfitsUpdate?: (profits: ProfitRecord[]) => boolean;
+}
+
 export interface ProfitCalculatorProps {
   btcToUsd: number;
   brlToUsd: number;
   appData?: AppData;
+  // Novas props para sincronização em tempo real
+  activeReportData?: ActiveReportData;
+  // Handlers opcionais para operações sincronizadas
+  onInvestmentAdd?: (date: string, amount: number, unit: CurrencyUnit) => any;
+  onProfitAdd?: (date: string, amount: number, unit: CurrencyUnit, isProfit: boolean) => any;
+  onInvestmentDelete?: (id: string) => boolean;
+  onProfitDelete?: (id: string) => boolean;
+  onInvestmentsUpdate?: (investments: Investment[]) => boolean;
+  onProfitsUpdate?: (profits: ProfitRecord[]) => boolean;
 }
 
 export interface MonthlyData {
@@ -81,6 +107,7 @@ export interface Report {
   color?: string;
   createdAt: string;
   updatedAt: string;
+  lastUpdated?: string; // Timestamp da última atualização para sincronização
   
   // NOVO: Associação com configuração LN Markets
   associatedLNMarketsConfigId?: string; // ID da configuração LN Markets associada
@@ -109,4 +136,12 @@ export interface DatePriceInfo {
   currency: DisplayCurrency | null;
   error?: string | null;
   source?: string | null;
+}
+
+// Tipo para controle de sincronização
+export interface SyncState {
+  lastUpdate: number;
+  lastReportId: string | null;
+  lastDataHash: string | null;
+  isStale: boolean;
 } 

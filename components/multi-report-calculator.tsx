@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, ChevronLeft } from "lucide-react";
 import { ReportManager } from "@/components/report-manager";
@@ -18,7 +18,15 @@ interface MultiReportCalculatorProps {
 
 export function MultiReportCalculator({ btcToUsd, brlToUsd, appData, key }: MultiReportCalculatorProps) {
   const [isComparisonMode, setIsComparisonMode] = useState(false);
+  
+  // Refs para controle de sincronização
   const lastUpdateRef = useRef<number>(0);
+  const lastActiveReportIdRef = useRef<string | null>(null);
+  const lastActiveReportDataRef = useRef<string | null>(null);
+  const forceUpdateCountRef = useRef<number>(0);
+  
+  // Estado local para forçar re-renders
+  const [localForceUpdate, setLocalForceUpdate] = useState(0);
   
   const {
     activeReport,
@@ -31,51 +39,147 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData, key }: Mult
     updateReportData,
   } = useReports();
 
+  // Função para forçar atualização
+  const forceUpdate = useCallback(() => {
+    forceUpdateCountRef.current += 1;
+    setLocalForceUpdate(forceUpdateCountRef.current);
+    console.log('[MultiReportCalculator] Forçando atualização:', forceUpdateCountRef.current);
+  }, []);
+
+  // Effect principal para detectar mudanças no relatório ativo
   useEffect(() => {
-    if (activeReport) {
-      const now = Date.now();
-      if (now - lastUpdateRef.current > 100) {
-        lastUpdateRef.current = now;
-        console.log('[MultiReportCalculator] Relatório ativo atualizado:', activeReport.name);
-      }
+    if (!isLoaded || !activeReport || !activeReportId) {
+      return;
     }
-  }, [activeReport, activeReportId]);
 
-  const handleAddInvestment = (date: string, amount: number, unit: CurrencyUnit) => {
-    return addInvestment({ date, amount, unit });
-  };
+    const now = Date.now();
+    const reportChanged = lastActiveReportIdRef.current !== activeReportId;
+    
+    // Criar hash dos dados do relatório para detectar mudanças no conteúdo
+    const reportDataHash = JSON.stringify({
+      investments: activeReport.investments,
+      profits: activeReport.profits,
+      withdrawals: activeReport.withdrawals,
+      updatedAt: activeReport.updatedAt,
+      lastUpdated: activeReport.lastUpdated
+    });
+    
+    const dataChanged = lastActiveReportDataRef.current !== reportDataHash;
+    
+    // Detectar se houve mudança significativa
+    if (reportChanged || dataChanged || now - lastUpdateRef.current > 1000) {
+      console.log('[MultiReportCalculator] Mudança detectada:', {
+        reportId: activeReportId,
+        reportName: activeReport.name,
+        reportChanged,
+        dataChanged,
+        investmentsCount: activeReport.investments?.length || 0,
+        profitsCount: activeReport.profits?.length || 0,
+        withdrawalsCount: activeReport.withdrawals?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Atualizar referências
+      lastUpdateRef.current = now;
+      lastActiveReportIdRef.current = activeReportId;
+      lastActiveReportDataRef.current = reportDataHash;
+      
+      // Forçar atualização do componente filho
+      forceUpdate();
+    }
+  }, [
+    activeReport, 
+    activeReportId, 
+    isLoaded,
+    activeReport?.investments, 
+    activeReport?.profits, 
+    activeReport?.withdrawals,
+    activeReport?.updatedAt,
+    activeReport?.lastUpdated,
+    forceUpdate
+  ]);
 
-  const handleAddProfitRecord = (
+  // Effect adicional para mudanças de props externas
+  useEffect(() => {
+    console.log('[MultiReportCalculator] Props externas mudaram:', {
+      btcToUsd,
+      brlToUsd,
+      key,
+      appDataTimestamp: appData?.lastFetched
+    });
+    forceUpdate();
+  }, [btcToUsd, brlToUsd, key, appData?.lastFetched, forceUpdate]);
+
+  // Effect para log de re-renderização
+  useEffect(() => {
+    console.log('[MultiReportCalculator] Componente re-renderizado:', {
+      key,
+      localForceUpdate,
+      activeReportId,
+      isLoaded,
+      timestamp: new Date().toISOString()
+    });
+  }, [key, localForceUpdate, activeReportId, isLoaded]);
+
+  // Handlers com sincronização automática
+  const handleAddInvestment = useCallback((date: string, amount: number, unit: CurrencyUnit) => {
+    const result = addInvestment({ date, amount, unit });
+    // Forçar atualização após adicionar investimento
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [addInvestment, forceUpdate]);
+
+  const handleAddProfitRecord = useCallback((
     date: string,
     amount: number,
     unit: CurrencyUnit,
     isProfit: boolean
   ) => {
-    return addProfitRecord({ date, amount, unit, isProfit });
-  };
+    const result = addProfitRecord({ date, amount, unit, isProfit });
+    // Forçar atualização após adicionar registro de lucro
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [addProfitRecord, forceUpdate]);
 
-  const handleDeleteInvestment = (id: string) => {
+  const handleDeleteInvestment = useCallback((id: string) => {
     if (!activeReportId) return false;
-    return deleteInvestment(activeReportId, id);
-  };
+    const result = deleteInvestment(activeReportId, id);
+    // Forçar atualização após deletar investimento
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportId, deleteInvestment, forceUpdate]);
 
-  const handleDeleteProfit = (id: string) => {
+  const handleDeleteProfit = useCallback((id: string) => {
     if (!activeReportId) return false;
-    return deleteProfitRecord(activeReportId, id);
-  };
+    const result = deleteProfitRecord(activeReportId, id);
+    // Forçar atualização após deletar lucro
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportId, deleteProfitRecord, forceUpdate]);
 
-  const handleUpdateAllInvestments = (investments: Investment[]) => {
+  const handleUpdateAllInvestments = useCallback((investments: Investment[]) => {
     if (!activeReportId) return false;
-    return updateReportData(activeReportId, investments, undefined);
-  };
+    const result = updateReportData(activeReportId, investments, undefined);
+    // Forçar atualização após atualizar investimentos
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportId, updateReportData, forceUpdate]);
 
-  const handleUpdateAllProfits = (profits: ProfitRecord[]) => {
+  const handleUpdateAllProfits = useCallback((profits: ProfitRecord[]) => {
     if (!activeReportId) return false;
-    return updateReportData(activeReportId, undefined, profits);
-  };
+    const result = updateReportData(activeReportId, undefined, profits);
+    // Forçar atualização após atualizar lucros
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportId, updateReportData, forceUpdate]);
+
+  // Gerar chave única para o ProfitCalculator baseada em múltiplos fatores
+  const profitCalculatorKey = `profit-calc-${activeReportId || 'no-report'}-${localForceUpdate}-${activeReport?.updatedAt || 'no-date'}-${JSON.stringify(activeReport?.investments?.length || 0)}-${JSON.stringify(activeReport?.profits?.length || 0)}-${Date.now()}`;
+
+  console.log('[MultiReportCalculator] Renderizando com key:', profitCalculatorKey);
 
   return (
-    <div className="space-y-6" key={`multi-calc-${activeReportId || 'no-report'}-${key || 'default'}`}>
+    <div className="space-y-6" key={`multi-calc-${activeReportId || 'no-report'}-${localForceUpdate}`}>
       {isComparisonMode ? (
         <ReportsComparison 
           onBack={() => setIsComparisonMode(false)} 
@@ -100,10 +204,23 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData, key }: Mult
           
           {activeReport && isLoaded ? (
             <ProfitCalculator
-              key={`profit-calc-${activeReportId}-${activeReport.lastUpdated || 'no-date'}`}
+              key={profitCalculatorKey}
               btcToUsd={btcToUsd}
               brlToUsd={brlToUsd}
               appData={appData}
+              // Passar dados diretamente para garantir sincronização
+              activeReportData={{
+                id: activeReportId,
+                report: activeReport,
+                forceUpdateTrigger: localForceUpdate
+              }}
+              // Passar handlers sincronizados
+              onInvestmentAdd={handleAddInvestment}
+              onProfitAdd={handleAddProfitRecord}
+              onInvestmentDelete={handleDeleteInvestment}
+              onProfitDelete={handleDeleteProfit}
+              onInvestmentsUpdate={handleUpdateAllInvestments}
+              onProfitsUpdate={handleUpdateAllProfits}
             />
           ) : (
             <div className="flex items-center justify-center h-40">

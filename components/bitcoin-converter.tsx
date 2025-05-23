@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { useActiveTab } from "@/hooks/use-active-tab"
 import { PageTransition } from "./page-transition"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useReports } from "@/hooks/use-reports"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -83,6 +84,9 @@ export default function BitcoinConverter() {
 
   // Adicionar detecção de dispositivo móvel
   const isMobile = useIsMobile()
+  
+  // Hook de relatórios para sincronização em tempo real
+  const { activeReportId, activeReport, isLoaded: reportsLoaded } = useReports()
   
   // Função para atualizar a URL quando a aba é alterada
   const handleTabChange = (value: string) => {
@@ -714,6 +718,14 @@ export default function BitcoinConverter() {
     }
   }, [searchParams])
 
+  // NOVO: Efeito para detectar mudanças no relatório ativo e forçar re-render
+  useEffect(() => {
+    if (reportsLoaded && activeReportId) {
+      console.log("[BitcoinConverter] Relatório ativo mudou:", activeReportId, activeReport?.name)
+      setForceRender(prev => prev + 1)
+    }
+  }, [activeReportId, activeReport?.name, activeReport?.updatedAt, reportsLoaded])
+
   // Efeito para limpar o estado "copiado" após um tempo (NÃO remover este)
   useEffect(() => {
     let copyTimeoutId: NodeJS.Timeout | null = null;
@@ -1004,7 +1016,7 @@ export default function BitcoinConverter() {
                         </CardHeader>
                         <CardContent className="pt-4 md:pt-6">
                           <MultiReportCalculator
-                            key={`calculator-${forceRender}-${activeTab === 'calculator' ? Date.now() : 'inactive'}`}
+                            key={`calculator-sync-${activeReportId || 'no-report'}-${activeReport?.lastUpdated || activeReport?.updatedAt || 'no-timestamp'}-${forceRender}`}
                             btcToUsd={rates.BTC_USD} 
                             brlToUsd={rates.BRL_USD} 
                             appData={appData}

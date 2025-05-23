@@ -36,12 +36,23 @@ import {
 } from "@/lib/ln-markets-api";
 import { useAuth } from "@/hooks/use-auth";
 
-export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
+export default function ProfitCalculator({ 
+  btcToUsd, 
+  brlToUsd, 
+  appData, 
+  activeReportData,
+  onInvestmentAdd,
+  onProfitAdd,
+  onInvestmentDelete,
+  onProfitDelete,
+  onInvestmentsUpdate,
+  onProfitsUpdate
+}: ProfitCalculatorProps) {
   // Hook de autenticação
   const { session } = useAuth();
   const { user } = session;
 
-  // Hook de relatórios
+  // Hook de relatórios - com controle de sincronização
   const {
     reports: allReportsFromHook,
     activeReportId: activeReportIdFromHook,
@@ -82,6 +93,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [pendingInvestment, setPendingInvestment] = useState<any>(null);
   const [pendingProfit, setPendingProfit] = useState<any>(null);
 
+  // NOVO: Estado de controle de sincronização
+  const [syncState, setSyncState] = useState({
+    lastUpdate: Date.now(),
+    isStale: false,
+    forceUpdateCount: 0
+  });
+
+  // Refs para controle de sincronização
+  const lastReportDataRef = useRef<string | null>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvFileInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +112,77 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const backupExcelFileInputRef = useRef<HTMLInputElement>(null);
 
   const isMobile = useIsMobile();
+
+  // Determinar qual fonte de dados usar (props ou hook)
+  const effectiveActiveReportId = activeReportData?.id || activeReportIdFromHook;
+  const effectiveActiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+
+  // NOVO: Effect principal para sincronização de dados
+  useEffect(() => {
+    if (!effectiveActiveReport || !effectiveActiveReportId) {
+      return;
+    }
+
+    const reportDataHash = JSON.stringify({
+      id: effectiveActiveReportId,
+      investments: effectiveActiveReport.investments,
+      profits: effectiveActiveReport.profits,
+      withdrawals: effectiveActiveReport.withdrawals,
+      updatedAt: effectiveActiveReport.updatedAt,
+      lastUpdated: effectiveActiveReport.lastUpdated,
+      forceUpdateTrigger: activeReportData?.forceUpdateTrigger
+    });
+
+    if (lastReportDataRef.current !== reportDataHash) {
+      console.log('[ProfitCalculator] Dados do relatório mudaram:', {
+        reportId: effectiveActiveReportId,
+        reportName: effectiveActiveReport.name,
+        investmentsCount: effectiveActiveReport.investments?.length || 0,
+        profitsCount: effectiveActiveReport.profits?.length || 0,
+        withdrawalsCount: effectiveActiveReport.withdrawals?.length || 0,
+        forceUpdateTrigger: activeReportData?.forceUpdateTrigger,
+        timestamp: new Date().toISOString()
+      });
+
+      lastReportDataRef.current = reportDataHash;
+      
+      // Atualizar estado de sincronização
+      setSyncState(prev => ({
+        ...prev,
+        lastUpdate: Date.now(),
+        isStale: false,
+        forceUpdateCount: prev.forceUpdateCount + 1
+      }));
+
+      // Limpar timeout anterior se existir
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+
+      // Agendar uma verificação de estagnação
+      syncTimeoutRef.current = setTimeout(() => {
+        setSyncState(prev => ({ ...prev, isStale: true }));
+      }, 5000);
+    }
+  }, [
+    effectiveActiveReportId,
+    effectiveActiveReport,
+    effectiveActiveReport?.investments,
+    effectiveActiveReport?.profits,
+    effectiveActiveReport?.withdrawals,
+    effectiveActiveReport?.updatedAt,
+    effectiveActiveReport?.lastUpdated,
+    activeReportData?.forceUpdateTrigger
+  ]);
+
+  // Limpeza do timeout ao desmontar
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Effect para verificar tamanho da tela
   useEffect(() => {

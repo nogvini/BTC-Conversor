@@ -7,6 +7,21 @@ export interface LNMarketsCredentials {
   isConfigured: boolean;
 }
 
+// Enum para status de importação
+export enum ImportStatus {
+  PENDING = 'pending',
+  SUCCESS = 'success',
+  ERROR = 'error'
+}
+
+// Tipo para estatísticas de categoria de importação
+export interface ImportCategoryStats {
+  total: number;
+  imported: number;
+  duplicated: number;
+  errors: number;
+}
+
 // NOVO: Configuração individual da API LN Markets
 export interface LNMarketsAPIConfig {
   id: string; // UUID único
@@ -106,31 +121,9 @@ export interface LNMarketsApiResponse<T> {
   message?: string;
 }
 
-// Enum para status de importação
-export enum ImportStatus {
-  PENDING = 'pending',
-  SUCCESS = 'success',
-  ERROR = 'error'
-}
-
-// Tipo para estatísticas de importação LN Markets
+// Tipo para estatísticas de importação LN Markets (versão simplificada para compatibilidade)
 export interface LNMarketsImportStats {
-  trades: {
-    total: number;
-    imported: number;
-    duplicated: number;
-    errors: number;
-  };
-  deposits: {
-    total: number;
-    imported: number;
-    duplicated: number;
-    errors: number;
-  };
-  withdrawals: {
-    total: number;
-    imported: number;
-    duplicated: number;
-    errors: number;
-  };
+  trades: ImportCategoryStats;
+  deposits: ImportCategoryStats;
+  withdrawals: ImportCategoryStats;
 } 
