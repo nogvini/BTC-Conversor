@@ -225,6 +225,8 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
  * Converte saque LN Markets para registro de saque
  */
 export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
+  const withdrawalType = withdrawal.withdrawal_type === 'ln' ? 'lightning' : 'onchain';
+  
   return {
     id: `lnm_withdrawal_${withdrawal.id}`,
     originalId: withdrawal.id.toString(),
@@ -232,7 +234,7 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
     amount: withdrawal.amount,
     unit: 'SATS' as const,
     fee: withdrawal.fees || 0,
-    type: withdrawal.withdrawal_type === 'ln' ? 'lightning' : 'onchain' as const,
+    type: withdrawalType as 'lightning' | 'onchain',
     txid: withdrawal.txid,
   };
 }

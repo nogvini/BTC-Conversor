@@ -29,11 +29,15 @@ import {
 import type { LNMarketsCredentials, LNMarketsImportStats, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "./types/ln-markets-types";
 import { retrieveLNMarketsCredentials, retrieveLNMarketsMultipleConfigs, getLNMarketsConfig } from "@/lib/encryption";
 import { 
-  createLNMarketsClient, 
   convertTradeToProfit, 
   convertDepositToInvestment, 
   convertWithdrawalToRecord 
 } from "@/lib/ln-markets-api";
+import { 
+  fetchLNMarketsTrades,
+  fetchLNMarketsDeposits,
+  fetchLNMarketsWithdrawals
+} from "@/lib/ln-markets-client";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function ProfitCalculator({ 
@@ -336,8 +340,7 @@ export default function ProfitCalculator({
 
     setIsImportingTrades(true);
     try {
-      const client = createLNMarketsClient(config.credentials);
-      const response = await client.getTrades();
+      const response = await fetchLNMarketsTrades(config.credentials);
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar trades");
@@ -398,8 +401,7 @@ export default function ProfitCalculator({
 
     setIsImportingDeposits(true);
     try {
-      const client = createLNMarketsClient(config.credentials);
-      const response = await client.getDeposits();
+      const response = await fetchLNMarketsDeposits(config.credentials);
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar depósitos");
@@ -460,8 +462,7 @@ export default function ProfitCalculator({
 
     setIsImportingWithdrawals(true);
     try {
-      const client = createLNMarketsClient(config.credentials);
-      const response = await client.getWithdrawals();
+      const response = await fetchLNMarketsWithdrawals(config.credentials);
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar saques");
