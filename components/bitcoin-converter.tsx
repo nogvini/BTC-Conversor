@@ -99,34 +99,172 @@ export default function BitcoinConverter() {
     setApiError(false)
 
     try {
-      // Buscar todos os dados necessários em uma única chamada
-      const data = await fetchAllAppData()
-      setAppData(data)
+      console.log("[BitcoinConverter] Iniciando busca de dados - priorizando API externa...")
       
-      // Extrair as taxas de conversão dos dados
-      const newRates: ConversionRates = {
-        BTC_USD: data.currentPrice.usd,
-        BRL_USD: data.currentPrice.brl / data.currentPrice.usd,
-        lastUpdated: new Date(data.currentPrice.timestamp),
-        isUsingFallback: data.isUsingCache || data.currentPrice.isUsingCache,
-      }
-      
-      setRates(newRates)
+      // PRIMEIRA TENTATIVA: Sempre tentar buscar dados frescos da API
+      try {
+        // Usar Promise.race para adicionar timeout de 10 segundos
+        const dataWithTimeout = await Promise.race([
+          fetchAllAppData(true), // force=true para sempre buscar dados frescos
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: API demorou mais de 10 segundos')), 10000)
+          )
+        ])
 
-      // Verificar se estamos usando dados de fallback
-      if (newRates.isUsingFallback) {
-        setApiError(true)
-        // Notificação removida daqui pois o aviso visual já aparece na UI
-        // e evita toast ao carregar a aplicação inicialmente
+        console.log("[BitcoinConverter] Dados obtidos da API com sucesso")
+        setAppData(dataWithTimeout)
+        
+        // Extrair as taxas de conversão dos dados
+        const newRates: ConversionRates = {
+          BTC_USD: dataWithTimeout.currentPrice.usd,
+          BRL_USD: dataWithTimeout.currentPrice.brl / dataWithTimeout.currentPrice.usd,
+          lastUpdated: new Date(dataWithTimeout.currentPrice.timestamp),
+          isUsingFallback: dataWithTimeout.isUsingCache || dataWithTimeout.currentPrice.isUsingCache,
+        }
+        
+        setRates(newRates)
+        
+        // Se conseguiu dados da API mas estão marcados como cache, mostrar aviso
+        if (newRates.isUsingFallback) {
+          console.log("[BitcoinConverter] API retornou dados em cache")
+          setApiError(true)
+        } else {
+          console.log("[BitcoinConverter] Dados frescos da API obtidos com sucesso")
+          setApiError(false)
+          
+          // Salvar dados válidos no localStorage para uso futuro como fallback
+          try {
+            const dataToSave = {
+              ...dataWithTimeout,
+              timestamp: new Date().toISOString()
+            }
+            localStorage.setItem('btcConverter_lastValidData', JSON.stringify(dataToSave))
+            console.log("[BitcoinConverter] Dados válidos salvos localmente para fallback futuro")
+          } catch (saveError) {
+            console.warn("[BitcoinConverter] Erro ao salvar dados localmente:", saveError)
+          }
+        }
+
+        return // Sucesso, sair da função
+      } catch (apiError) {
+        console.warn("[BitcoinConverter] Falha na primeira tentativa (API forçada):", apiError)
+        
+        // SEGUNDA TENTATIVA: Tentar buscar sem forçar (permite cache do servidor)
+        try {
+          console.log("[BitcoinConverter] Tentando buscar dados do cache do servidor...")
+          const cachedData = await Promise.race([
+            fetchAllAppData(false), // force=false para permitir cache do servidor
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout: Cache do servidor demorou mais de 5 segundos')), 5000)
+            )
+          ])
+
+          console.log("[BitcoinConverter] Dados obtidos do cache do servidor")
+          setAppData(cachedData)
+          
+          const newRates: ConversionRates = {
+            BTC_USD: cachedData.currentPrice.usd,
+            BRL_USD: cachedData.currentPrice.brl / cachedData.currentPrice.usd,
+            lastUpdated: new Date(cachedData.currentPrice.timestamp),
+            isUsingFallback: true, // Marcar como fallback pois não conseguimos dados frescos
+          }
+          
+          setRates(newRates)
+          setApiError(true) // Indicar que está usando dados em cache
+          
+          toast({
+            title: "Usando dados em cache",
+            description: "Não foi possível obter cotações atualizadas. Usando dados armazenados no servidor.",
+            variant: "warning",
+          })
+          
+          return // Sucesso com cache, sair da função
+        } catch (cacheError) {
+          console.error("[BitcoinConverter] Falha também no cache do servidor:", cacheError)
+          // Continuar para fallback local
+        }
       }
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error)
+
+      // TERCEIRA TENTATIVA: Fallback para dados locais salvos no localStorage
+      console.log("[BitcoinConverter] Tentando usar dados salvos localmente...")
+      try {
+        const localData = localStorage.getItem('btcConverter_lastValidData')
+        if (localData) {
+          const parsedData = JSON.parse(localData)
+          const dataAge = Date.now() - new Date(parsedData.timestamp).getTime()
+          
+          // Usar dados locais se forem de menos de 24 horas
+          if (dataAge < 24 * 60 * 60 * 1000) {
+            console.log("[BitcoinConverter] Usando dados locais salvos")
+            setAppData(parsedData)
+            
+            const newRates: ConversionRates = {
+              BTC_USD: parsedData.currentPrice.usd,
+              BRL_USD: parsedData.currentPrice.brl / parsedData.currentPrice.usd,
+              lastUpdated: new Date(parsedData.currentPrice.timestamp),
+              isUsingFallback: true,
+            }
+            
+            setRates(newRates)
+            setApiError(true)
+            
+            toast({
+              title: "Usando dados salvos localmente",
+              description: "APIs indisponíveis. Usando última cotação salva localmente.",
+              variant: "warning",
+            })
+            
+            return // Sucesso com dados locais
+          } else {
+            console.log("[BitcoinConverter] Dados locais muito antigos (>24h), descartando")
+          }
+        }
+      } catch (localError) {
+        console.error("[BitcoinConverter] Erro ao acessar dados locais:", localError)
+      }
+
+      // QUARTA TENTATIVA: Fallback absoluto com valores fixos
+      console.log("[BitcoinConverter] Usando valores de fallback absoluto")
+      const fallbackTimestamp = Date.now()
+      const fallbackData = {
+        currentPrice: {
+          usd: 65000, // Valor de fallback
+          brl: 338000, // 65000 * 5.2
+          timestamp: fallbackTimestamp,
+          isUsingCache: true
+        },
+        isUsingCache: true,
+        lastFetched: fallbackTimestamp,
+        historicalDataUSD: [],
+        historicalDataBRL: [],
+        historicalData: { usd: [], brl: [] }
+      }
+      
+      setAppData(fallbackData)
+      
+      const fallbackRates: ConversionRates = {
+        BTC_USD: 65000,
+        BRL_USD: 5.2,
+        lastUpdated: new Date(fallbackTimestamp),
+        isUsingFallback: true,
+      }
+      
+      setRates(fallbackRates)
       setApiError(true)
       
-      // Manter apenas essa notificação de erro crítico
       toast({
-        title: "Erro de conexão",
-        description: "Não foi possível conectar à API. Usando dados em cache.",
+        title: "Usando valores de fallback",
+        description: "Todos os serviços estão indisponíveis. Usando valores aproximados.",
+        variant: "destructive",
+      })
+
+    } catch (error) {
+      console.error("[BitcoinConverter] Erro crítico:", error)
+      setApiError(true)
+      
+      toast({
+        title: "Erro crítico",
+        description: "Falha completa ao carregar dados. Recarregue a página.",
         variant: "destructive",
       })
     } finally {
@@ -178,7 +316,7 @@ export default function BitcoinConverter() {
   const updateCurrentPrice = useCallback(async () => {
     // Verificar se já está atualizando para evitar chamadas duplicadas
     if (isUpdatingRef.current) {
-      console.log("Atualização já em andamento, ignorando chamada duplicada");
+      console.log("[BitcoinConverter] Atualização já em andamento, ignorando chamada duplicada");
       return;
     }
     
@@ -187,60 +325,139 @@ export default function BitcoinConverter() {
       isUpdatingRef.current = true;
       setLoading(true);
       
-      // Usar a nova função específica para atualizar preço, forçando atualização
-      const priceData = await getCurrentBitcoinPrice(true)
-        .catch(err => {
-          console.warn("Erro ao atualizar preço, usando cache:", err);
-          // Em vez de lançar erro, retornamos null para tratamento
-          return null;
-        });
+      console.log("[BitcoinConverter] Atualizando preço - priorizando API externa...")
       
-      // Se não conseguimos obter nenhum dado, usar o que já temos e mostrar erro
-      if (!priceData) {
-        console.warn("Falha ao obter dados atualizados de preço");
-        setApiError(true);
-        toast({
-          title: "Erro ao atualizar",
-          description: "Não foi possível obter cotações atualizadas. Tentando novamente...",
-          variant: "warning",
-        });
-        
-        // Tentar novamente após 5 segundos
-        setTimeout(() => {
-          isUpdatingRef.current = false;
-          setLoading(false);
-        }, 5000);
-        
-        return;
-      }
-      
-      // Se a busca de preço for bem-sucedida, precisamos atualizar todo o appData
-      // para manter consistência com o restante da aplicação
+      // PRIMEIRA TENTATIVA: Buscar dados frescos da API
       try {
-        const newData = await fetchAllAppData();
-        setAppData(newData);
+        const priceData = await Promise.race([
+          getCurrentBitcoinPrice(true), // force=true para sempre buscar dados frescos
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: API de preço demorou mais de 8 segundos')), 8000)
+          )
+        ])
         
-        const newRates: ConversionRates = {
-          BTC_USD: newData.currentPrice.usd,
-          BRL_USD: newData.currentPrice.brl / newData.currentPrice.usd,
-          lastUpdated: new Date(newData.currentPrice.timestamp),
-          isUsingFallback: newData.isUsingCache || newData.currentPrice.isUsingCache,
-        };
-        
-        setRates(newRates);
-        setApiError(newRates.isUsingFallback);
-        
-        // Armazenar o timestamp da última atualização
-        lastUpdateTimeRef.current = Date.now();
-        
-        toast({
-          title: "Cotações atualizadas",
-          description: `Taxas atualizadas com sucesso: BTC = $${newRates.BTC_USD.toLocaleString()}`,
-        });
-      } catch (error) {
-        console.error("Erro ao buscar dados completos após atualização de preço:", error);
-        setApiError(true);
+        if (priceData) {
+          console.log("[BitcoinConverter] Preço atualizado da API com sucesso")
+          
+          // Buscar dados completos para manter consistência
+          const newData = await fetchAllAppData(false); // Permitir cache para dados complementares
+          setAppData(newData);
+          
+          const newRates: ConversionRates = {
+            BTC_USD: priceData.usd,
+            BRL_USD: priceData.brl / priceData.usd,
+            lastUpdated: new Date(priceData.timestamp),
+            isUsingFallback: priceData.isUsingCache || false,
+          };
+          
+          setRates(newRates);
+          setApiError(newRates.isUsingFallback);
+          
+          // Armazenar o timestamp da última atualização
+          lastUpdateTimeRef.current = Date.now();
+          
+          // Salvar dados válidos se não estiver usando cache
+          if (!newRates.isUsingFallback) {
+            try {
+              const dataToSave = {
+                currentPrice: priceData,
+                timestamp: new Date().toISOString()
+              }
+              localStorage.setItem('btcConverter_lastValidData', JSON.stringify(dataToSave))
+            } catch (saveError) {
+              console.warn("[BitcoinConverter] Erro ao salvar dados de preço:", saveError)
+            }
+          }
+          
+          toast({
+            title: "Cotações atualizadas",
+            description: `Taxas atualizadas com sucesso: BTC = $${newRates.BTC_USD.toLocaleString()}`,
+            variant: "default",
+          });
+          
+          return; // Sucesso
+        }
+      } catch (apiError) {
+        console.warn("[BitcoinConverter] Falha ao atualizar preço da API:", apiError)
       }
+      
+      // SEGUNDA TENTATIVA: Usar cache do servidor
+      try {
+        console.log("[BitcoinConverter] Tentando obter preço do cache...")
+        const cachedPriceData = await Promise.race([
+          getCurrentBitcoinPrice(false), // Permitir cache
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: Cache de preço demorou mais de 5 segundos')), 5000)
+          )
+        ])
+        
+        if (cachedPriceData) {
+          console.log("[BitcoinConverter] Preço obtido do cache")
+          
+          const newRates: ConversionRates = {
+            BTC_USD: cachedPriceData.usd,
+            BRL_USD: cachedPriceData.brl / cachedPriceData.usd,
+            lastUpdated: new Date(cachedPriceData.timestamp),
+            isUsingFallback: true, // Marcar como fallback
+          };
+          
+          setRates(newRates);
+          setApiError(true);
+          
+          toast({
+            title: "Preço do cache",
+            description: "Usando cotação armazenada no servidor.",
+            variant: "warning",
+          });
+          
+          return; // Sucesso com cache
+        }
+      } catch (cacheError) {
+        console.error("[BitcoinConverter] Falha também no cache de preço:", cacheError)
+      }
+      
+      // TERCEIRA TENTATIVA: Usar dados locais salvos
+      try {
+        const localData = localStorage.getItem('btcConverter_lastValidData')
+        if (localData) {
+          const parsedData = JSON.parse(localData)
+          const dataAge = Date.now() - new Date(parsedData.timestamp).getTime()
+          
+          if (dataAge < 24 * 60 * 60 * 1000) { // Menos de 24 horas
+            console.log("[BitcoinConverter] Usando preço local salvo")
+            
+            const newRates: ConversionRates = {
+              BTC_USD: parsedData.currentPrice.usd,
+              BRL_USD: parsedData.currentPrice.brl / parsedData.currentPrice.usd,
+              lastUpdated: new Date(parsedData.currentPrice.timestamp),
+              isUsingFallback: true,
+            };
+            
+            setRates(newRates);
+            setApiError(true);
+            
+            toast({
+              title: "Preço local",
+              description: "Usando última cotação salva localmente.",
+              variant: "warning",
+            });
+            
+            return; // Sucesso com dados locais
+          }
+        }
+      } catch (localError) {
+        console.error("[BitcoinConverter] Erro ao acessar preço local:", localError)
+      }
+      
+      // FALLBACK FINAL: Mostrar erro
+      console.warn("[BitcoinConverter] Falha ao obter dados atualizados de preço");
+      setApiError(true);
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível obter cotações atualizadas de nenhuma fonte.",
+        variant: "destructive",
+      });
+      
     } finally {
       // Resetar flag de atualização e loading
       isUpdatingRef.current = false;
