@@ -30,7 +30,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProviderClient>
           <ThemeProvider>
-            {/* <ReportsInitializer /> */ }
+            <ReportsInitializer />
             <ClientAppHeader />
             <main className="pt-16">
               {children}
