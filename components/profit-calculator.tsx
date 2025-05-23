@@ -319,25 +319,25 @@ const formatTempoInvestimento = (dias: number): string => {
 };
 // +++ FIM DE formatTempoInvestimento MOVIDA +++
 
-// Função auxiliar para converter string de data ISO para objeto Date com fuso horário correto
-const parseISODate = (dateString: string): Date => {
-  if (!dateString) {
-    // Retornar uma data inválida ou lançar um erro se a string for vazia/nula
-    // Isso depende de como o resto do código espera lidar com datas inválidas.
-    // Por agora, vamos logar um aviso e retornar uma data que provavelmente causará erro adiante se não tratada.
-    console.warn("parseISODate recebeu uma string vazia ou nula.");
-    return new Date("invalid date"); 
-  }
-  const date = new Date(dateString);
-  // Verificar se a data é válida, pois o construtor de Date pode retornar "Invalid Date"
-  // mas ainda assim ser um objeto Date.
-  if (isNaN(date.getTime())) {
-    console.warn(`parseISODate resultou em data inválida para a string: "${dateString}"`);
-    // Considerar lançar um erro aqui se uma data inválida não for esperada
-    // throw new Error(`Invalid date string provided to parseISODate: ${dateString}`);
-  }
-  return date;
-};
+  // Função auxiliar para converter string de data ISO para objeto Date com fuso horário correto
+  const parseISODate = (dateString: string): Date => {
+    if (!dateString) {
+      // Retornar uma data inválida ou lançar um erro se a string for vazia/nula
+      // Isso depende de como o resto do código espera lidar com datas inválidas.
+      // Por agora, vamos logar um aviso e retornar uma data que provavelmente causará erro adiante se não tratada.
+      console.warn("parseISODate recebeu uma string vazia ou nula.");
+      return new Date("invalid date"); 
+    }
+    const date = new Date(dateString);
+    // Verificar se a data é válida, pois o construtor de Date pode retornar "Invalid Date"
+    // mas ainda assim ser um objeto Date.
+    if (isNaN(date.getTime())) {
+      console.warn(`parseISODate resultou em data inválida para a string: "${dateString}"`);
+      // Considerar lançar um erro aqui se uma data inválida não for esperada
+      // throw new Error(`Invalid date string provided to parseISODate: ${dateString}`);
+    }
+    return date;
+  };
 
 export default function ProfitCalculator(props: ProfitCalculatorProps) {
   // Desestruturar apenas o que será usado no JSX mínimo
@@ -394,7 +394,7 @@ export default function ProfitCalculator(props: ProfitCalculatorProps) {
   // ======= FIM DO CÓDIGO COMENTADO =======
 
   // JSX Mínimo para Teste
-  return (
+    return (
     <div className="container mx-auto p-4">
       <h1 className="text-xl font-bold">Profit Calculator (Versão Simplificada)</h1>
       <p>Dados de Relatórios Carregados: {reportsDataLoaded ? 'Sim' : 'Não'}</p>
@@ -406,14 +406,14 @@ export default function ProfitCalculator(props: ProfitCalculatorProps) {
       )}
       {/* Adicionar aqui um .map() simples e seguro para testar o erro de map especificamente */}
       {/* {reportsDataLoaded && reportsCollection?.reports && Array.isArray(reportsCollection.reports) && (
-        <div>
+                  <div>
           <h2 className="text-lg">Nomes dos Relatórios:</h2>
           <ul>
             {reportsCollection.reports.map(report => (
               <li key={report.id}>{report.name || "Sem nome"}</li>
             ))}
-          </ul>
-        </div>
+                  </ul>
+                </div>
       )} */}
     </div>
   );

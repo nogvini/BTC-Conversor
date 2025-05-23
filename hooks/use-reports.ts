@@ -187,6 +187,13 @@ export const useReports = create<ReportsState>()(
 
       setLoaded: (loadedCollection, loadedActiveId) => {
         console.log("[useReports] setLoaded chamado com:", loadedCollection, loadedActiveId);
+        console.log("[useReports] setLoaded - typeof loadedCollection.reports:", typeof loadedCollection.reports, "isArray:", Array.isArray(loadedCollection.reports));
+        if (!Array.isArray(loadedCollection.reports)) {
+          console.error("[useReports] setLoaded - ERRO CRÍTICO: loadedCollection.reports NÃO é um array!", loadedCollection.reports);
+          // Poderia até forçar para um array vazio aqui para evitar quebrar a UI,
+          // mas é melhor entender por que isso aconteceria.
+          // loadedCollection.reports = []; 
+        }
         set({
           collection: loadedCollection,
           activeReportId: loadedActiveId,
@@ -865,8 +872,13 @@ function generateRandomColor(): string {
 // interface OldReportsCollectionV1 { reports: OldReportV1[]; }
 
 export function migrateReportsCollection(persistedState: any): ReportsCollection {
-  if (!persistedState || !persistedState.collection || !persistedState.collection.reports) {
-    return { reports: [] }; // Estado inicial se não houver nada ou estrutura inválida
+  if (!persistedState || 
+      !persistedState.collection || 
+      // Verifica explicitamente se reports não é um array
+      !Array.isArray(persistedState.collection.reports) 
+     ) {
+    console.warn("[migrateReportsCollection] Estado persistido inválido ou reports não é um array. Retornando coleção vazia.");
+    return { reports: [] }; 
   }
 
   let collectionToMigrate = persistedState.collection as ReportsCollection; // Assume que já pode ser o formato novo
