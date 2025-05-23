@@ -60,7 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useReports } from "@/hooks/use-reports"; // ADICIONAR IMPORT
+import { useReports, type Report as ReportFromHook, type ReportSummary, type CurrencyRates } from "@/hooks/use-reports"; // Garantir que Report seja importado como ReportFromHook
 import { getHistoricalBitcoinDataForRange, type HistoricalDataPoint } from "@/lib/client-api"; // <--- ADICIONAR IMPORT
 import { v4 as uuidv4 } from 'uuid';
 // import DatePickerWithRange from "./date-picker-with-range";
@@ -301,21 +301,27 @@ const formatTempoInvestimento = (dias: number): string => {
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
   // USAR O HOOK useReports - AJUSTAR DESESTRUTURAÇÃO
   const {
-    reports: allReportsFromHook,
+    collection: reportsCollectionFromHook,
     activeReportId: activeReportIdFromHook,
-    activeReport: currentActiveReportObjectFromHook,
     isLoaded: reportsDataLoaded,
     addReport,
     selectReport,
-    addInvestment,
-    addProfitRecord,
-    deleteInvestment,
-    deleteProfitRecord,
-    updateReportData,
-    importData,
-    deleteAllInvestmentsFromReport, // Adicionar esta função
-    deleteAllProfitsFromReport,    // Adicionar esta função
+    addInvestmentToReport,
+    addProfitRecordToReport,
+    deleteInvestmentFromReport,
+    deleteProfitRecordFromReport,
+    updateReportDetails,
+    deleteAllInvestmentsFromReport,
+    deleteAllProfitsFromReport,
+    recalculateReportSummary,
   } = useReports();
+
+  // Forçar o tipo aqui para ReportFromHook[] pode ajudar o TypeScript
+  const allReportsFromHook: ReportFromHook[] = useMemo(() => reportsCollectionFromHook.reports as ReportFromHook[], [reportsCollectionFromHook]);
+  
+  const currentActiveReportObjectFromHook: ReportFromHook | undefined = useMemo(() => {
+    return allReportsFromHook.find(report => report.id === activeReportIdFromHook);
+  }, [allReportsFromHook, activeReportIdFromHook]);
 
   // Manter estados locais que não são gerenciados por useReports ou que são específicos da UI deste componente
   const [activeTab, setActiveTab] = useState<string>("register");
@@ -459,9 +465,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
 
     // Inicializar selectedReportIdsForHistoryView com base nos relatórios carregados pelo hook
-    if (reportsDataLoaded && allReportsFromHook && allReportsFromHook.length > 0) { // USAR allReportsFromHook
+    if (reportsDataLoaded && allReportsFromHook && allReportsFromHook.length > 0) {
       if (selectedReportIdsForHistoryView.length === 0) {
-        const initialHistorySelection = activeReportIdFromHook // USAR activeReportIdFromHook
+        const initialHistorySelection = activeReportIdFromHook
           ? [activeReportIdFromHook]
           : (allReportsFromHook.length > 0 ? [allReportsFromHook[0].id] : []);
         setSelectedReportIdsForHistoryView(initialHistorySelection);
@@ -472,7 +478,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     } else if (reportsDataLoaded && (!allReportsFromHook || allReportsFromHook.length === 0)) {
         setSelectedReportIdsForHistoryView([]);
     }
-  }, [reportsDataLoaded, allReportsFromHook, activeReportIdFromHook]); // ATUALIZAR DEPENDÊNCIAS
+  }, [reportsDataLoaded, allReportsFromHook, activeReportIdFromHook]);
 
   // MANTER useEffect PARA SALVAR displayCurrency
   useEffect(() => {
@@ -683,15 +689,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
     // A função addInvestment do hook já lida com a adição ao relatório ativo
-    const success = addInvestment(investmentBaseData); 
+    // A função do hook é addInvestmentToReport e espera o reportId explicitamente
+    const result = addInvestmentToReport(activeReportIdFromHook, investmentBaseData);
     
-    if (success) {
+    if (result.status === 'added') {
       setInvestmentAmount(""); // Limpa o campo de valor
-      // Não limpar a data do investimento, pode ser útil para registros sequenciais.
-      // setInvestmentDate(new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12, 0, 0)));
-      // Limpar info do preço do dia na UI se desejar, ou deixar para o próximo onSelect da data.
       setInvestmentDatePriceInfo({ price: null, loading: false, currency: displayCurrency, error: null, source: null });
+    } else if (result.status === 'error') {
+      toast({ title: "Erro ao Adicionar Aporte", description: result.message || "Não foi possível adicionar o aporte.", variant: "destructive"});
     }
+    // O hook já lida com o toast de duplicado ou sucesso, não precisamos adicionar um aqui, a menos que queiramos customizar.
+    // A lógica de busca de preço já é tratada no hook também.
     
     setPendingInvestment(null);
     setDuplicateConfirmInfo(null);
@@ -777,12 +785,16 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({ title: "Erro", description: "Nenhum relatório ativo para adicionar o registro.", variant: "destructive" });
       return;
     }
-    // A função addProfitRecord do hook já lida com a adição ao relatório ativo
-    const success = addProfitRecord(profitData);
+    // A função addProfitRecordToReport do hook já lida com a adição ao relatório ativo
+    const result = addProfitRecordToReport(activeReportIdFromHook, profitData);
 
-    if (success) {
+    if (result.status === 'added') {
       setProfitAmount("");
+    } else if (result.status === 'error') {
+      toast({ title: "Erro ao Adicionar Lucro/Perda", description: result.message || "Não foi possível adicionar o registro.", variant: "destructive"});
     }
+    // O hook já lida com o toast de duplicado ou sucesso.
+
     setPendingProfit(null);
     setDuplicateConfirmInfo(null);
     setShowConfirmDuplicateDialog(false);
@@ -793,7 +805,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado.", variant: "destructive" });
       return;
     }
-    deleteInvestment(activeReportIdFromHook, id);
+    deleteInvestmentFromReport(activeReportIdFromHook, id);
   };
 
   const deleteProfitLocal = (id: string) => {
@@ -801,7 +813,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       toast({ title: "Erro", description: "Nenhum relatório ativo selecionado para exclusão.", variant: "destructive" });
       return;
     }
-    deleteProfitRecord(activeReportIdFromHook, id);
+    deleteProfitRecordFromReport(activeReportIdFromHook, id);
   };
   
   const deleteAllInvestments = () => {
@@ -1790,9 +1802,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const activeReportId = activeReportIdFromHook; // Usar a variável já desestruturada
+    const targetReportIdForCsv = activeReportIdFromHook; // Usar a variável já desestruturada
 
-    if (!activeReportId) {
+    if (!targetReportIdForCsv) {
       toast({
         title: "Importação CSV Falhou",
         description: "Nenhum relatório ativo. Por favor, selecione ou crie um relatório antes de importar.",
@@ -1802,7 +1814,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return;
     }
 
-    const currentActiveReportForCsv = allReportsFromHook?.find((r: Report) => r.id === activeReportId);
+    const currentActiveReportForCsv = allReportsFromHook?.find((r: Report) => r.id === targetReportIdForCsv);
     if (!currentActiveReportForCsv) {
       toast({ title: "Erro na Importação", description: "Não foi possível encontrar o relatório ativo.", variant: "destructive" });
       if (csvFileInputRef.current) csvFileInputRef.current.value = '';
@@ -1849,7 +1861,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             for (const profit of newProfits) {
               const {id, ...profitData} = profit; // Remover ID temporário se houver
               // CHAMAR COM suppressToast: true
-              const result = addProfitRecord(profitData, activeReportId, { suppressToast: true }); 
+              const result = addProfitRecordToReport(targetReportIdForCsv, profitData, { suppressToast: true }); 
               
               if (result.status === 'added') {
                 addedCount++;
@@ -2389,7 +2401,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             // MODIFICADO: Adicionar lucros ao activeReport e remover localStorage antigo
             newProfits.forEach(profit => {
               const {id, ...profitData} = profit; // Remover ID temporário se houver
-              addProfitRecord(profitData); // USAR hook addProfitRecord
+              addProfitRecordToReport(activeReportIdFromHook, profitData); // USAR hook addProfitRecordToReport
             });
             // localStorage.setItem("bitcoinProfits", JSON.stringify(combinedProfits)); // REMOVIDO
             
@@ -2622,13 +2634,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             let importedInvCount = 0;
             newInvestments.forEach(inv => {
               const { id, ...invData } = inv;
-              if (addInvestment(invData)) importedInvCount++;
+              // A função do hook é addInvestmentToReport
+              const result = addInvestmentToReport(activeReportIdFromHook, invData as Omit<Investment, "id" | "priceAtDate" | "priceAtDateCurrency" | "priceAtDateSource">, { suppressToast: true });
+              if (result.status === 'added') importedInvCount++;
             });
 
             let importedProfitCount = 0;
             newProfits.forEach(prof => {
               const { id, ...profData } = prof;
-              if (addProfitRecord(profData)) importedProfitCount++;
+              // A função do hook é addProfitRecordToReport
+              const result = addProfitRecordToReport(activeReportIdFromHook, profData, { suppressToast: true });
+              if (result.status === 'added') importedProfitCount++;
             });
             
             toast({
@@ -2938,7 +2954,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
           
           for (const invData of tempImportedInvestments) {
-            const result = addInvestment(invData, finalTargetReportId, { suppressToast: true });
+            const result = addInvestmentToReport(finalTargetReportId, invData, { suppressToast: true });
             switch (result.status) {
               case 'added': investmentsSuccessfullyAdded++; break;
               case 'duplicate': investmentsDuplicatesSkipped++; break;
@@ -2950,7 +2966,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           }
 
           for (const profitData of tempImportedProfits) {
-            const result = addProfitRecord(profitData, finalTargetReportId, { suppressToast: true });
+            const result = addProfitRecordToReport(finalTargetReportId, profitData, { suppressToast: true });
             switch (result.status) {
               case 'added': profitsSuccessfullyAdded++; break;
               case 'duplicate': profitsDuplicatesSkipped++; break;
@@ -3173,8 +3189,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           
           if (newInvestmentsToBatchAdd.length > 0) {
             // Adicionar todos os novos investimentos de uma vez (ou em lotes menores se preferir)
-            // O hook useReports e sua função addInvestment precisam lidar com a adição desses novos campos.
-            newInvestmentsToBatchAdd.forEach(invData => addInvestment(invData)); 
+            // O hook useReports e sua função addInvestmentToReport precisam lidar com a adição desses novos campos.
+            newInvestmentsToBatchAdd.forEach(invData => addInvestmentToReport(currentActiveReportForInvestCsv.id, invData)); 
             
             toast({
               title: "Importação de aportes concluída",
@@ -3461,58 +3477,83 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   // ATÉ AQUI
 
   const reportSummaryData = useMemo(() => {
-    if (!currentActiveReportObjectFromHook) {
+    // Acessar diretamente .summary, confiando na tipagem de currentActiveReportObjectFromHook
+    if (currentActiveReportObjectFromHook && currentActiveReportObjectFromHook.summary && currentActiveReportObjectFromHook.summary.calculationError === null) {
+      const summaryFromHook = currentActiveReportObjectFromHook.summary; // Deve ser ReportSummary
+      
+      const investments = currentActiveReportObjectFromHook.investments || [];
+      const profits = currentActiveReportObjectFromHook.profits || [];
+
+      // Lógica de recálculo/fallback (mantida por enquanto)
+      const operationalProfitInfo = calculateOperationalProfitForSummary(profits, convertToBtc);
+      const valuationProfitInfo = calculateValuationProfitForSummary(investments, currentRates.btcToUsd, currentRates.brlToUsd, convertToBtc);
+      const avgBuyPriceInfo = calculateAverageBuyPriceForSummary(investments, currentRates.brlToUsd, convertToBtc);
+      
+      const totalInvestmentsBtc = avgBuyPriceInfo.totalInvestmentsBtc;
+      const balanceBtc = summaryFromHook.currentPortfolioBtc ?? (totalInvestmentsBtc + operationalProfitInfo.netProfitFromOperationsBtc);
+      const roiSimple = totalInvestmentsBtc > 0 ? (operationalProfitInfo.netProfitFromOperationsBtc / totalInvestmentsBtc) * 100 : (summaryFromHook.returnOnInvestmentPercent ?? 0);
+      const combinedTotalProfitBtc = summaryFromHook.totalNetProfitLossBtc ?? (valuationProfitInfo.valuationProfitBtc + operationalProfitInfo.netProfitFromOperationsBtc);
+      const totalActiveInvestmentsCount = investments.filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
+
       return {
-        totalInvestmentsBtc: 0,
-        operationalProfitBtc: 0,
-        netProfitFromOperationsBtc: 0,
-        valuationProfitUsd: 0,
-        valuationProfitBtc: 0,
-        averageBuyPriceUsd: 0,
-        totalActiveInvestments: 0,
-        balanceBtc: 0,
-        roiSimple: 0,
-        combinedTotalProfitBtc: 0,
+        totalInvestmentsBtc: summaryFromHook.totalInvestedBtc ?? totalInvestmentsBtc,
+        operationalProfitBtc: summaryFromHook.totalOperationalProfitBtc ?? operationalProfitInfo.operationalProfitBtc,
+        netProfitFromOperationsBtc: summaryFromHook.netOperationalProfitBtc ?? operationalProfitInfo.netProfitFromOperationsBtc,
+        valuationProfitUsd: summaryFromHook.valuationProfitUsd ?? valuationProfitInfo.valuationProfitUsd,
+        valuationProfitBtc: summaryFromHook.valuationProfitBtc ?? valuationProfitInfo.valuationProfitBtc,
+        averageBuyPriceUsd: summaryFromHook.averageBuyPriceUsd ?? avgBuyPriceInfo.averageBuyPriceUsd,
+        totalActiveInvestments: totalActiveInvestmentsCount,
+        balanceBtc,
+        roiSimple,
+        combinedTotalProfitBtc,
       };
     }
 
-    const investments = currentActiveReportObjectFromHook.investments || [];
-    const profits = currentActiveReportObjectFromHook.profits || [];
+    // Fallback para a estrutura zerada
+    return {
+      totalInvestmentsBtc: 0, operationalProfitBtc: 0, netProfitFromOperationsBtc: 0,
+      valuationProfitUsd: 0, valuationProfitBtc: 0, averageBuyPriceUsd: 0,
+      totalActiveInvestments: 0, balanceBtc: 0, roiSimple: 0, combinedTotalProfitBtc: 0,
+    };
+  }, [currentActiveReportObjectFromHook, currentRates.btcToUsd, currentRates.brlToUsd, displayCurrency]);
+  
+  const historyReportSummaryData = useMemo(() => {
+    const filteredInvestments = getFilteredInvestments();
+    const filteredProfits = getFilteredProfits();
+
+    if (filteredInvestments.length === 0 && filteredProfits.length === 0) {
+      return {
+        totalInvestmentsBtc: 0, operationalProfitBtc: 0, netProfitFromOperationsBtc: 0,
+        valuationProfitUsd: 0, valuationProfitBtc: 0, averageBuyPriceUsd: 0,
+        totalActiveInvestments: 0, balanceBtc: 0, roiSimple: 0, combinedTotalProfitBtc: 0,
+      };
+    }
 
     const operationalProfitInfo = calculateOperationalProfitForSummary(
-      profits,
+      filteredProfits,
       convertToBtc
     );
 
     const valuationProfitInfo = calculateValuationProfitForSummary(
-      investments,
+      filteredInvestments,
       currentRates.btcToUsd,
       currentRates.brlToUsd,
       convertToBtc
     );
 
     const avgBuyPriceInfo = calculateAverageBuyPriceForSummary(
-      investments,
+      filteredInvestments,
       currentRates.brlToUsd,
       convertToBtc
     );
     
-    // totalInvestmentsBtc é o mesmo que avgBuyPriceInfo.totalInvestmentsBtc
     const totalInvestmentsBtc = avgBuyPriceInfo.totalInvestmentsBtc;
-
     const balanceBtc = totalInvestmentsBtc + operationalProfitInfo.netProfitFromOperationsBtc;
-    
     const roiSimple = totalInvestmentsBtc > 0
       ? (operationalProfitInfo.netProfitFromOperationsBtc / totalInvestmentsBtc) * 100
       : 0;
-
     const combinedTotalProfitBtc = valuationProfitInfo.valuationProfitBtc + operationalProfitInfo.netProfitFromOperationsBtc;
-    
-    // Contar investimentos que efetivamente têm preço na data para o cálculo do preço médio
-    // A lógica de calculateAverageBuyPriceForSummary já considera isso implicitamente
-    // Para totalActiveInvestments, vamos contar quantos investimentos tem priceAtDate
-    const totalActiveInvestmentsCount = investments.filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
-
+    const totalActiveInvestmentsCount = filteredInvestments.filter((inv: Investment) => inv.priceAtDate && inv.priceAtDate > 0).length;
 
     return {
       totalInvestmentsBtc,
@@ -3526,9 +3567,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       roiSimple,
       combinedTotalProfitBtc,
     };
-  }, [currentActiveReportObjectFromHook, currentRates.btcToUsd, currentRates.brlToUsd, displayCurrency]);
-  
-  if (!reportsDataLoaded) { // USAR reportsDataLoaded
+  }, [getFilteredInvestments, getFilteredProfits, currentRates.btcToUsd, currentRates.brlToUsd, displayCurrency]);
+
+  if (!reportsDataLoaded) {
     return (
       <div className="flex justify-center items-center h-64">
         <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
@@ -3793,6 +3834,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </Card>
 
           {/* Card de Saldo Atual Estimado */}
+          {/* 
           <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
               <CardTitle className="text-lg mb-1.5">Saldo Atual Estimado</CardTitle>
@@ -3810,8 +3852,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </p>
             </CardContent>
           </Card>
+          */}
 
           {/* Card de ROI Simples */}
+          {/* 
           <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
               <CardTitle className="text-lg mb-1.5">ROI (Operacional)</CardTitle>
@@ -3823,8 +3867,10 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <p className="text-xs text-muted-foreground">Retorno sobre Aportes (Operacional)</p>
             </CardContent>
           </Card>
+          */}
 
-          {/* +++ NOVOS CARDS DE RESUMO +++ */}
+          {/* +++ NOVOS CARDS DE RESUMO - REMOVIDOS DESTA ABA +++ */}
+          {/* 
           <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
               <CardTitle className="text-lg mb-1.5">Lucro de Operações</CardTitle>
@@ -3871,7 +3917,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <div className={`text-3xl font-bold text-blue-400`}>
                 <AnimatedCounter 
                   value={reportSummaryData.averageBuyPriceUsd || 0} 
-                  prefix={displayCurrency === 'USD' ? '$' : 'R$'} // Ajustar prefixo se displayCurrency for BRL
+                  prefix={displayCurrency === 'USD' ? '$' : 'R$'} 
                   decimals={2} 
                 />
               </div>
@@ -3882,7 +3928,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </CardContent>
           </Card>
 
-          {/* Card de Lucro Total Combinado */}
           <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
               <CardTitle className="text-lg mb-1.5">Lucro Total Combinado</CardTitle>
@@ -3901,6 +3946,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <p className="text-xs text-muted-foreground mt-1">Valorização + Lucros Operacionais</p>
             </CardContent>
           </Card>
+          */}
 
         </TabsContent>
 
@@ -4407,6 +4453,76 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </Table>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* CARDS DE RESUMO MOVIDOS PARA CÁ */}
+              {(selectedReportIdsForHistoryView.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6 pt-4 border-t border-purple-700/20">
+                  {/* Card Saldo (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">Saldo (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        <AnimatedCounter value={historyReportSummaryData?.balanceBtc || 0} prefix={(historyReportSummaryData?.balanceBtc || 0) < 0.01 && (historyReportSummaryData?.balanceBtc || 0) > -0.01 && (historyReportSummaryData?.balanceBtc || 0) !== 0 ? "丰 " : "₿ "} decimals={(historyReportSummaryData?.balanceBtc || 0) < 0.01 && (historyReportSummaryData?.balanceBtc || 0) > -0.01 && (historyReportSummaryData?.balanceBtc || 0) !== 0 ? 0 : 8} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatBtcValueInCurrency(historyReportSummaryData?.balanceBtc || 0)}</p>
+                    </CardContent>
+                  </Card>
+                  {/* Card ROI Operacional (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">ROI Operacional (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${(historyReportSummaryData?.roiSimple || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <AnimatedCounter value={historyReportSummaryData?.roiSimple || 0} suffix="%" decimals={2} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Retorno sobre Aportes (Operacional)</p>
+                    </CardContent>
+                  </Card>
+                  {/* Card Lucro Operações (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">Lucro Operações (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${(historyReportSummaryData?.operationalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <AnimatedCounter value={historyReportSummaryData?.operationalProfitBtc || 0} prefix={(historyReportSummaryData?.operationalProfitBtc || 0) < 0.01 && (historyReportSummaryData?.operationalProfitBtc || 0) > -0.01 && (historyReportSummaryData?.operationalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} decimals={(historyReportSummaryData?.operationalProfitBtc || 0) < 0.01 && (historyReportSummaryData?.operationalProfitBtc || 0) > -0.01 && (historyReportSummaryData?.operationalProfitBtc || 0) !== 0 ? 0 : 8} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatBtcValueInCurrency(historyReportSummaryData?.operationalProfitBtc || 0)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Soma dos lucros/perdas registrados</p>
+                    </CardContent>
+                  </Card>
+                  {/* Card Lucro Valorização (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">Lucro Valorização (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${(historyReportSummaryData?.valuationProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <AnimatedCounter value={historyReportSummaryData?.valuationProfitBtc || 0} prefix={(historyReportSummaryData?.valuationProfitBtc || 0) < 0.01 && (historyReportSummaryData?.valuationProfitBtc || 0) > -0.01 && (historyReportSummaryData?.valuationProfitBtc || 0) !== 0 ? "丰 " : "₿ "} decimals={(historyReportSummaryData?.valuationProfitBtc || 0) < 0.01 && (historyReportSummaryData?.valuationProfitBtc || 0) > -0.01 && (historyReportSummaryData?.valuationProfitBtc || 0) !== 0 ? 0 : 8} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatBtcValueInCurrency(historyReportSummaryData?.valuationProfitBtc || 0)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Valorização dos aportes contra preço atual</p>
+                    </CardContent>
+                  </Card>
+                  {/* Card Preço Médio Compra (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">Preço Médio Compra (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold text-blue-400`}>
+                        <AnimatedCounter value={historyReportSummaryData?.averageBuyPriceUsd || 0} prefix={displayCurrency === 'USD' ? '$' : 'R$'} decimals={2} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Média ponderada do preço dos aportes em {displayCurrency}</p>
+                      <p className="text-xs text-gray-500 mt-1">(Considera {historyReportSummaryData?.totalActiveInvestments || 0} aportes filtrados)</p>
+                    </CardContent>
+                  </Card>
+                  {/* Card Lucro Total Combinado (Filtrado) */}
+                  <Card className="bg-black/20 border-purple-700/30">
+                    <CardHeader><CardTitle className="text-base">Lucro Total Combinado (Filtrado)</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${(historyReportSummaryData?.combinedTotalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <AnimatedCounter value={historyReportSummaryData?.combinedTotalProfitBtc || 0} prefix={(historyReportSummaryData?.combinedTotalProfitBtc || 0) < 0.01 && (historyReportSummaryData?.combinedTotalProfitBtc || 0) > -0.01 && (historyReportSummaryData?.combinedTotalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} decimals={(historyReportSummaryData?.combinedTotalProfitBtc || 0) < 0.01 && (historyReportSummaryData?.combinedTotalProfitBtc || 0) > -0.01 && (historyReportSummaryData?.combinedTotalProfitBtc || 0) !== 0 ? 0 : 8} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatBtcValueInCurrency(historyReportSummaryData?.combinedTotalProfitBtc || 0)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Valorização + Lucros Operacionais</p>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </CardContent>
