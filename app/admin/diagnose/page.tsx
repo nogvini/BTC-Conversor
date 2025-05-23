@@ -4,11 +4,18 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle, XCircle, AlertCircle, Info } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, XCircle, AlertCircle, Info, RefreshCw } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function DiagnosePage() {
   const [diagnostics, setDiagnostics] = useState<any>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [isTestingAuth, setIsTestingAuth] = useState(false)
+  const [authTestResult, setAuthTestResult] = useState<any>(null)
+  
+  // Hook de autenticação para testar
+  const { session } = useAuth()
 
   useEffect(() => {
     const runDiagnostics = () => {
@@ -53,7 +60,14 @@ export default function DiagnosePage() {
           isProtectedRoute: ['profile', 'settings', 'admin'].some(route => 
             typeof window !== 'undefined' && window.location.pathname.includes(route)
           )
-        }
+        },
+        
+        // Verificar cookies de autenticação
+        auth: {
+          authCookies: typeof window !== 'undefined' ? document.cookie.includes('sb-') : false,
+          cookieCount: typeof window !== 'undefined' ? document.cookie.split(';').length : 0,
+          hasSupabaseTokens: typeof window !== 'undefined' ? localStorage.getItem('sb-access-token') !== null : false,
+        },
       }
       
       setDiagnostics(results)
@@ -83,6 +97,27 @@ export default function DiagnosePage() {
         {condition ? trueText : falseText}
       </Badge>
     )
+  }
+
+  // Função para testar autenticação
+  const testAuthentication = async () => {
+    setIsTestingAuth(true)
+    try {
+      const result = {
+        sessionExists: !!session,
+        userExists: !!session?.user,
+        userEmail: session?.user?.email || null,
+        isLoading: session?.isLoading || false,
+        timestamp: new Date().toISOString()
+      }
+      setAuthTestResult(result)
+      console.log('[Diagnóstico] Teste de autenticação:', result)
+    } catch (error) {
+      console.error('[Diagnóstico] Erro no teste de autenticação:', error)
+      setAuthTestResult({ error: error instanceof Error ? error.message : 'Erro desconhecido' })
+    } finally {
+      setIsTestingAuth(false)
+    }
   }
 
   if (isLoading) {
@@ -215,6 +250,80 @@ export default function DiagnosePage() {
               trueText="Sim" 
               falseText="Não" 
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Autenticação */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Autenticação</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <StatusIcon condition={diagnostics.auth?.authCookies} />
+              <span>Cookies Supabase presentes</span>
+            </div>
+            <StatusBadge condition={diagnostics.auth?.authCookies} trueText="Presente" falseText="Ausente" />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <StatusIcon condition={diagnostics.auth?.hasSupabaseTokens} />
+              <span>Tokens de acesso</span>
+            </div>
+            <StatusBadge condition={diagnostics.auth?.hasSupabaseTokens} trueText="Presente" falseText="Ausente" />
+          </div>
+          
+          <div>
+            <div className="text-sm font-medium mb-2">Total de Cookies</div>
+            <div className="text-sm text-muted-foreground">
+              {diagnostics.auth?.cookieCount || 0} cookies no navegador
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">Teste de Autenticação</div>
+              <Button 
+                onClick={testAuthentication}
+                disabled={isTestingAuth}
+                size="sm"
+                variant="outline"
+              >
+                {isTestingAuth ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                    Testando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Testar Agora
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {authTestResult && (
+              <div className="p-3 bg-gray-900/50 rounded-md">
+                <div className="text-xs font-mono">
+                  <div><strong>Sessão:</strong> {authTestResult.sessionExists ? '✅ Presente' : '❌ Ausente'}</div>
+                  <div><strong>Usuário:</strong> {authTestResult.userExists ? '✅ Presente' : '❌ Ausente'}</div>
+                  {authTestResult.userEmail && (
+                    <div><strong>Email:</strong> {authTestResult.userEmail}</div>
+                  )}
+                  <div><strong>Carregando:</strong> {authTestResult.isLoading ? 'Sim' : 'Não'}</div>
+                  <div><strong>Timestamp:</strong> {authTestResult.timestamp}</div>
+                  {authTestResult.error && (
+                    <div className="text-red-400"><strong>Erro:</strong> {authTestResult.error}</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

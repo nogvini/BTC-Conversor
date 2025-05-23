@@ -6,13 +6,6 @@ export async function middleware(request: NextRequest) {
   
   console.log('[Middleware] Verificando rota protegida:', pathname);
 
-  // Crie um objeto de resposta inicial
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
   try {
     // Verificar se as variáveis de ambiente estão disponíveis
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,10 +13,11 @@ export async function middleware(request: NextRequest) {
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error('[Middleware] Variáveis Supabase não encontradas');
-      console.error('[Middleware] NEXT_PUBLIC_SUPABASE_URL:', !!supabaseUrl);
-      console.error('[Middleware] NEXT_PUBLIC_SUPABASE_ANON_KEY:', !!supabaseAnonKey);
       return NextResponse.redirect(new URL('/auth', request.url));
     }
+
+    // Criar resposta que será modificada
+    let response = NextResponse.next();
 
     const supabase = createServerClient(
       supabaseUrl,
@@ -34,16 +28,13 @@ export async function middleware(request: NextRequest) {
             return request.cookies.get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
+            // Definir cookie no request para leitura imediata
             request.cookies.set({
               name,
               value,
               ...options,
             });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            });
+            // Definir cookie na resposta para persistir no navegador
             response.cookies.set({
               name,
               value,
@@ -51,16 +42,13 @@ export async function middleware(request: NextRequest) {
             });
           },
           remove(name: string, options: CookieOptions) {
+            // Remover cookie do request
             request.cookies.set({
               name,
               value: '',
               ...options,
             });
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            });
+            // Remover cookie da resposta
             response.cookies.set({
               name,
               value: '',
@@ -71,38 +59,29 @@ export async function middleware(request: NextRequest) {
       }
     );
 
-    // Verificar sessão
-    console.log('[Middleware] Verificando sessão...');
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Obter o usuário (mais confiável que getSession para middleware)
+    console.log('[Middleware] Verificando usuário...');
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (sessionError) {
-      console.error('[Middleware] Erro de sessão:', sessionError.message);
-      console.error('[Middleware] Código do erro:', sessionError.status);
+    if (userError) {
+      console.log('[Middleware] Erro ao obter usuário:', userError.message);
       return NextResponse.redirect(new URL('/auth', request.url));
     }
 
-    // Se não há sessão, redirecionar para auth
-    if (!session) {
-      console.log('[Middleware] Nenhuma sessão encontrada, redirecionando para /auth');
+    // Se não há usuário autenticado, redirecionar para auth
+    if (!user) {
+      console.log('[Middleware] Nenhum usuário autenticado, redirecionando para /auth');
       return NextResponse.redirect(new URL('/auth', request.url));
     }
 
-    // Se há sessão, verificar se o usuário está válido
-    if (!session.user) {
-      console.log('[Middleware] Sessão sem usuário, redirecionando para /auth');
-      return NextResponse.redirect(new URL('/auth', request.url));
-    }
-
-    // Log da sessão válida
-    console.log('[Middleware] Sessão válida encontrada');
-    console.log('[Middleware] Usuário:', session.user.email);
+    // Log do usuário válido
+    console.log('[Middleware] Usuário autenticado encontrado:', user.email);
     console.log('[Middleware] Permitindo acesso a:', pathname);
     
     return response;
 
   } catch (error) {
     console.error('[Middleware] Erro crítico:', error);
-    console.error('[Middleware] Stack trace:', error instanceof Error ? error.stack : 'Sem stack trace');
     
     // Em caso de erro crítico, redirecionar para auth
     return NextResponse.redirect(new URL('/auth', request.url));
@@ -111,12 +90,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Proteger apenas rotas específicas que requerem autenticação
+    // Interceptar apenas rotas específicas que precisam de autenticação
     '/profile',
-    '/profile/(.*)',
-    '/settings',
-    '/settings/(.*)',
-    '/admin',
-    '/admin/(.*)'
+    '/settings', 
+    '/admin/:path*'
   ],
 }; 
