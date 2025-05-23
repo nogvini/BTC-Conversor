@@ -6,51 +6,15 @@ import type {
   LNMarketsApiResponse,
   LNMarketsClientConfig
 } from '@/components/types/ln-markets-types';
-
-// Importar SDK oficial da LN Markets
-let createRestClient: any;
-let createWebsocketClient: any;
-
-// Importação dinâmica para evitar problemas de SSR
-async function importLNMarketsSDK() {
-  if (typeof window !== 'undefined') {
-    // No browser, importar dinamicamente
-    try {
-      const sdk = await import('@ln-markets/api');
-      createRestClient = sdk.createRestClient;
-      createWebsocketClient = sdk.createWebsocketClient;
-      return sdk;
-    } catch (error) {
-      console.warn('[LN Markets] SDK oficial não disponível, usando implementação customizada');
-      return null;
-    }
-  }
-  return null;
-}
+import CryptoJS from 'crypto-js';
 
 /**
- * Implementação customizada de assinatura HMAC SHA256 para fallback
- * Baseada na documentação oficial: https://docs.lnmarkets.com/api/#signature
- */
-function generateSignatureCustom(timestamp: string, method: string, path: string, params: string, secret: string): string {
-  try {
-    // Usar crypto-js para compatibilidade com browser
-    const CryptoJS = require('crypto-js');
-    const message = timestamp + method.toUpperCase() + path + params;
-    return CryptoJS.HmacSHA256(message, secret).toString(CryptoJS.enc.Base64);
-  } catch (error) {
-    console.error('[LN Markets] Erro ao gerar assinatura:', error);
-    throw new Error('Falha na geração de assinatura HMAC');
-  }
-}
-
-/**
- * Cliente LN Markets otimizado usando SDK oficial quando disponível
+ * Cliente para API LN Markets
+ * Implementação customizada baseada na documentação oficial: https://docs.lnmarkets.com/api/
  */
 class LNMarketsClient {
   private credentials: LNMarketsCredentials;
   private baseUrl: string;
-  private officialClient: any = null;
 
   constructor(credentials: LNMarketsCredentials) {
     this.credentials = credentials;
@@ -61,33 +25,24 @@ class LNMarketsClient {
   }
 
   /**
-   * Inicializa o cliente oficial se disponível
+   * Gera assinatura HMAC SHA256 conforme documentação
+   * https://docs.lnmarkets.com/api/#signature
    */
-  private async initializeOfficialClient() {
-    if (this.officialClient) return this.officialClient;
-
+  private generateSignature(timestamp: string, method: string, path: string, params: string): string {
     try {
-      const sdk = await importLNMarketsSDK();
-      if (sdk && createRestClient) {
-        this.officialClient = createRestClient({
-          key: this.credentials.apiKey,
-          secret: this.credentials.secret,
-          passphrase: this.credentials.passphrase,
-          network: this.credentials.network
-        });
-        console.log('[LN Markets] SDK oficial inicializado com sucesso');
-        return this.officialClient;
-      }
+      const message = timestamp + method.toUpperCase() + path + params;
+      const signature = CryptoJS.HmacSHA256(message, this.credentials.secret);
+      return CryptoJS.enc.Base64.stringify(signature);
     } catch (error) {
-      console.warn('[LN Markets] Falha ao inicializar SDK oficial:', error);
+      console.error('[LN Markets] Erro ao gerar assinatura:', error);
+      throw new Error('Falha na geração de assinatura HMAC');
     }
-    return null;
   }
 
   /**
-   * Implementação customizada de requisição para fallback
+   * Executa requisição autenticada para a API
    */
-  private async makeCustomRequest<T>(
+  private async makeAuthenticatedRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
     data?: any
@@ -99,10 +54,15 @@ class LNMarketsClient {
       let params = '';
       let body: string | undefined;
 
-      // Processar parâmetros conforme documentação
-      if (method.match(/^(GET|DELETE)$/)) {
+      // Processar parâmetros conforme tipo de requisição
+      if (method === 'GET' || method === 'DELETE') {
         if (data) {
-          const searchParams = new URLSearchParams(data);
+          const searchParams = new URLSearchParams();
+          Object.keys(data).forEach(key => {
+            if (data[key] !== undefined && data[key] !== null) {
+              searchParams.append(key, data[key].toString());
+            }
+          });
           params = searchParams.toString();
         }
       } else {
@@ -112,7 +72,7 @@ class LNMarketsClient {
         }
       }
 
-      const signature = generateSignatureCustom(timestamp, method, path, params, this.credentials.secret);
+      const signature = this.generateSignature(timestamp, method, path, params);
 
       const headers: HeadersInit = {
         'LNM-ACCESS-KEY': this.credentials.apiKey,
@@ -125,11 +85,11 @@ class LNMarketsClient {
         headers['Content-Type'] = 'application/json';
       }
 
-      const finalUrl = method.match(/^(GET|DELETE)$/) && params
+      const finalUrl = (method === 'GET' || method === 'DELETE') && params
         ? `${this.baseUrl}${endpoint}?${params}`
         : `${this.baseUrl}${endpoint}`;
 
-      console.log(`[LN Markets Custom] ${method} ${endpoint}`);
+      console.log(`[LN Markets] ${method} ${endpoint}`);
 
       const response = await fetch(finalUrl, {
         method,
@@ -174,187 +134,130 @@ class LNMarketsClient {
   }
 
   /**
-   * Executa requisição usando SDK oficial ou implementação customizada
-   */
-  private async makeRequest<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
-    endpoint: string,
-    data?: any
-  ): Promise<LNMarketsApiResponse<T>> {
-    // Tentar usar SDK oficial primeiro
-    const officialClient = await this.initializeOfficialClient();
-    
-    if (officialClient) {
-      try {
-        let result;
-        const endpointKey = endpoint.replace('/', '').replace(/\//g, '_');
-        
-        // Mapear endpoints para métodos do SDK oficial
-        switch (endpoint) {
-          case '/futures/trades':
-            result = await officialClient.futuresGetTrades();
-            break;
-          case '/user/deposits':
-            result = await officialClient.userGetDeposits();
-            break;
-          case '/user/withdrawals':
-            result = await officialClient.userGetWithdrawals();
-            break;
-          case '/user':
-            result = await officialClient.userGetUser();
-            break;
-          default:
-            // Para endpoints não mapeados, usar implementação customizada
-            return this.makeCustomRequest<T>(method, endpoint, data);
-        }
-
-        return {
-          success: true,
-          data: result,
-        };
-      } catch (error: any) {
-        console.warn('[LN Markets] SDK oficial falhou, usando implementação customizada:', error.message);
-        return this.makeCustomRequest<T>(method, endpoint, data);
-      }
-    }
-
-    // Fallback para implementação customizada
-    return this.makeCustomRequest<T>(method, endpoint, data);
-  }
-
-  /**
-   * Obtém lista de trades (operações futuras)
+   * Busca trades/operações fechadas
    */
   async getTrades(): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
-    return this.makeRequest<LNMarketsTrade[]>('GET', '/futures/trades');
+    return this.makeAuthenticatedRequest<LNMarketsTrade[]>('GET', '/futures/trades');
   }
 
   /**
-   * Obtém lista de depósitos
+   * Busca histórico de depósitos
    */
   async getDeposits(): Promise<LNMarketsApiResponse<LNMarketsDeposit[]>> {
-    return this.makeRequest<LNMarketsDeposit[]>('GET', '/user/deposits');
+    return this.makeAuthenticatedRequest<LNMarketsDeposit[]>('GET', '/user/deposits');
   }
 
   /**
-   * Obtém lista de saques
+   * Busca histórico de saques
    */
   async getWithdrawals(): Promise<LNMarketsApiResponse<LNMarketsWithdrawal[]>> {
-    return this.makeRequest<LNMarketsWithdrawal[]>('GET', '/user/withdrawals');
+    return this.makeAuthenticatedRequest<LNMarketsWithdrawal[]>('GET', '/user/withdrawals');
   }
 
   /**
-   * Testa conexão com a API obtendo informações do usuário
+   * Testa a conexão com a API
    */
   async testConnection(): Promise<LNMarketsApiResponse<any>> {
-    return this.makeRequest('GET', '/user');
+    return this.makeAuthenticatedRequest('GET', '/user');
   }
 
   /**
-   * Obtém informações do usuário
+   * Busca informações do usuário
    */
   async getUserInfo(): Promise<LNMarketsApiResponse<any>> {
-    return this.makeRequest('GET', '/user');
+    return this.makeAuthenticatedRequest('GET', '/user');
   }
 }
 
 /**
- * Factory para criar cliente LN Markets
+ * Factory function para criar cliente LN Markets
  */
 export function createLNMarketsClient(credentials: LNMarketsCredentials): LNMarketsClient {
-  // Validar credenciais antes de criar cliente
-  if (!credentials.apiKey || !credentials.secret || !credentials.passphrase) {
-    throw new Error('Credenciais LN Markets incompletas. Verifique apiKey, secret e passphrase.');
+  if (!credentials.isConfigured) {
+    throw new Error('Credenciais LN Markets não configuradas');
   }
-
+  
   return new LNMarketsClient(credentials);
 }
 
 /**
- * Função para testar credenciais LN Markets
+ * Função para testar credenciais
  */
 export async function testLNMarketsCredentials(credentials: LNMarketsCredentials): Promise<boolean> {
   try {
     const client = createLNMarketsClient(credentials);
-    const result = await client.testConnection();
-    
-    if (result.success) {
-      console.log('[LN Markets] Credenciais validadas com sucesso');
-      return true;
-    } else {
-      console.error('[LN Markets] Erro ao validar credenciais:', result.error);
-      return false;
-    }
-  } catch (error: any) {
-    console.error('[LN Markets] Erro ao testar credenciais:', error.message);
+    const response = await client.testConnection();
+    return response.success;
+  } catch (error) {
+    console.error('[LN Markets] Erro ao testar credenciais:', error);
     return false;
   }
 }
 
 /**
- * Converte trade LN Markets para ProfitRecord
+ * Converte trade LN Markets para registro de lucro/perda
  */
 export function convertTradeToProfit(trade: LNMarketsTrade) {
   return {
-    id: trade.id,
-    originalId: trade.id,
-    date: new Date(trade.closed_ts * 1000).toISOString().split('T')[0], // Converter timestamp para data
-    amount: Math.abs(trade.pl) / 100000000, // Converter de satoshis para BTC
-    unit: 'BTC' as const,
+    id: `lnm_trade_${trade.id}`,
+    originalId: trade.id.toString(),
+    date: new Date(trade.closed_at || trade.updated_at).toISOString().split('T')[0],
+    amount: Math.abs(trade.pl),
+    unit: 'SATS' as const,
     isProfit: trade.pl > 0,
   };
 }
 
 /**
- * Converte depósito LN Markets para Investment
+ * Converte depósito LN Markets para investimento
  */
 export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
   return {
-    id: deposit.id,
-    originalId: deposit.id,
-    date: new Date(deposit.created_at * 1000).toISOString().split('T')[0], // Converter timestamp para data
-    amount: deposit.amount / 100000000, // Converter de satoshis para BTC
-    unit: 'BTC' as const,
+    id: `lnm_deposit_${deposit.id}`,
+    originalId: deposit.id.toString(),
+    date: new Date(deposit.created_at).toISOString().split('T')[0],
+    amount: deposit.amount,
+    unit: 'SATS' as const,
   };
 }
 
 /**
- * Converte saque LN Markets para WithdrawalRecord
+ * Converte saque LN Markets para registro de saque
  */
 export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
   return {
-    id: withdrawal.id,
-    originalId: withdrawal.id,
-    date: new Date(withdrawal.created_at * 1000).toISOString().split('T')[0], // Converter timestamp para data
-    amount: withdrawal.amount / 100000000, // Converter de satoshis para BTC
-    unit: 'BTC' as const,
-    fee: withdrawal.fee ? withdrawal.fee / 100000000 : undefined,
-    type: withdrawal.type,
+    id: `lnm_withdrawal_${withdrawal.id}`,
+    originalId: withdrawal.id.toString(),
+    date: new Date(withdrawal.created_at).toISOString().split('T')[0],
+    amount: withdrawal.amount,
+    unit: 'SATS' as const,
+    fee: withdrawal.fees || 0,
+    type: withdrawal.withdrawal_type === 'ln' ? 'lightning' : 'onchain' as const,
     txid: withdrawal.txid,
   };
 }
 
 /**
- * Função utilitária para verificar se as credenciais estão configuradas corretamente
+ * Valida credenciais LN Markets
  */
 export function validateLNMarketsCredentials(credentials: LNMarketsCredentials): string[] {
   const errors: string[] = [];
-
-  if (!credentials.apiKey || credentials.apiKey.trim().length === 0) {
+  
+  if (!credentials.apiKey?.trim()) {
     errors.push('API Key é obrigatória');
   }
-
-  if (!credentials.secret || credentials.secret.trim().length === 0) {
+  
+  if (!credentials.secret?.trim()) {
     errors.push('Secret é obrigatório');
   }
-
-  if (!credentials.passphrase || credentials.passphrase.trim().length === 0) {
+  
+  if (!credentials.passphrase?.trim()) {
     errors.push('Passphrase é obrigatória');
   }
-
-  if (!['mainnet', 'testnet'].includes(credentials.network)) {
+  
+  if (!credentials.network || !['mainnet', 'testnet'].includes(credentials.network)) {
     errors.push('Network deve ser "mainnet" ou "testnet"');
   }
-
+  
   return errors;
 } 
