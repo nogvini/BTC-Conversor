@@ -1,0 +1,3 @@
+# Este arquivo deveria ser um PNG de 192x192 pixels
+# Gere a partir do favicon.svg usando uma ferramenta online ou comando:
+# convert -background transparent favicon.svg -resize 192x192 favicon-192.png 

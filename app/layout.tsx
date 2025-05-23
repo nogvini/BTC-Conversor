@@ -10,6 +10,38 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Raid Bitcoin Toolkit",
   description: "Converta Bitcoin para diferentes moedas e acompanhe o mercado",
+  icons: {
+    icon: [
+      {
+        url: '/favicon.svg',
+        type: 'image/svg+xml',
+      },
+      {
+        url: '/favicon.ico',
+        type: 'image/x-icon',
+        sizes: '16x16 32x32',
+      },
+      {
+        url: '/favicon-192.png',
+        type: 'image/png',
+        sizes: '192x192',
+      },
+      {
+        url: '/favicon-512.png',
+        type: 'image/png',
+        sizes: '512x512',
+      }
+    ],
+    apple: [
+      {
+        url: '/favicon.svg',
+        type: 'image/svg+xml',
+      }
+    ],
+    shortcut: '/favicon.svg',
+  },
+  manifest: '/site.webmanifest',
+  themeColor: '#a855f7',
 }
 
 export default function RootLayout({
@@ -22,8 +54,11 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="only dark" />
-        <meta name="theme-color" content="#1e1b4b" />
+        <meta name="theme-color" content="#a855f7" />
         <meta name="force-rendering" content="webkit" />
+        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
       </head>
       <body className={inter.className}>
         <AuthProviderClient>
