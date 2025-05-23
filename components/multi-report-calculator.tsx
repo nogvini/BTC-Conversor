@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, ChevronLeft } from "lucide-react";
 import { ReportManager } from "@/components/report-manager";
@@ -13,10 +13,13 @@ interface MultiReportCalculatorProps {
   btcToUsd: number;
   brlToUsd: number;
   appData?: any;
+  key?: string | number;
 }
 
-export function MultiReportCalculator({ btcToUsd, brlToUsd, appData }: MultiReportCalculatorProps) {
+export function MultiReportCalculator({ btcToUsd, brlToUsd, appData, key }: MultiReportCalculatorProps) {
   const [isComparisonMode, setIsComparisonMode] = useState(false);
+  const lastUpdateRef = useRef<number>(0);
+  
   const {
     activeReport,
     activeReportId,
@@ -28,7 +31,16 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData }: MultiRepo
     updateReportData,
   } = useReports();
 
-  // Adaptar as funções para o formato esperado pelo ProfitCalculator
+  useEffect(() => {
+    if (activeReport) {
+      const now = Date.now();
+      if (now - lastUpdateRef.current > 100) {
+        lastUpdateRef.current = now;
+        console.log('[MultiReportCalculator] Relatório ativo atualizado:', activeReport.name);
+      }
+    }
+  }, [activeReport, activeReportId]);
+
   const handleAddInvestment = (date: string, amount: number, unit: CurrencyUnit) => {
     return addInvestment({ date, amount, unit });
   };
@@ -63,7 +75,7 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData }: MultiRepo
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" key={`multi-calc-${activeReportId || 'no-report'}-${key || 'default'}`}>
       {isComparisonMode ? (
         <ReportsComparison 
           onBack={() => setIsComparisonMode(false)} 
@@ -88,6 +100,7 @@ export function MultiReportCalculator({ btcToUsd, brlToUsd, appData }: MultiRepo
           
           {activeReport && isLoaded ? (
             <ProfitCalculator
+              key={`profit-calc-${activeReportId}-${activeReport.lastUpdated || 'no-date'}`}
               btcToUsd={btcToUsd}
               brlToUsd={brlToUsd}
               appData={appData}

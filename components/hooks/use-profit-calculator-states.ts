@@ -96,11 +96,6 @@ export const useProfitCalculatorStates = () => {
     source: null 
   });
 
-  // Estados para edição de relatórios
-  const [isEditingActiveReport, setIsEditingActiveReport] = useState(false);
-  const [editingActiveReportName, setEditingActiveReportName] = useState("");
-  const [editingActiveReportDescription, setEditingActiveReportDescription] = useState("");
-
   // Estados auxiliares
   const [toastDebounce, setToastDebounce] = useState(false);
 
@@ -170,11 +165,6 @@ export const useProfitCalculatorStates = () => {
     // Estados para preços históricos
     investmentDatePriceInfo, setInvestmentDatePriceInfo,
     profitDatePriceInfo, setProfitDatePriceInfo,
-
-    // Estados para edição de relatórios
-    isEditingActiveReport, setIsEditingActiveReport,
-    editingActiveReportName, setEditingActiveReportName,
-    editingActiveReportDescription, setEditingActiveReportDescription,
 
     // Estados auxiliares
     toastDebounce, setToastDebounce,

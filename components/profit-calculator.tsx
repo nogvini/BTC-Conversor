@@ -415,57 +415,6 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
-  // Funções para edição de relatórios
-  const startEditingActiveReport = () => {
-    if (!currentActiveReportObjectFromHook) return;
-    states.setEditingActiveReportName(currentActiveReportObjectFromHook.name);
-    states.setEditingActiveReportDescription(currentActiveReportObjectFromHook.description || "");
-    states.setIsEditingActiveReport(true);
-  };
-
-  const cancelEditingActiveReport = () => {
-    states.setIsEditingActiveReport(false);
-    states.setEditingActiveReportName("");
-    states.setEditingActiveReportDescription("");
-  };
-
-  const saveActiveReportChanges = () => {
-    if (!currentActiveReportObjectFromHook || !states.editingActiveReportName.trim()) {
-      toast({ 
-        title: "Erro", 
-        description: "Nome do relatório não pode estar vazio.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    // Preparar as atualizações
-    const updates: { name: string; description?: string } = {
-      name: states.editingActiveReportName.trim(),
-      description: states.editingActiveReportDescription.trim() || undefined
-    };
-
-    // Usar a função updateReport do hook para salvar as alterações
-    const success = updateReport(currentActiveReportObjectFromHook.id, updates);
-    
-    if (success) {
-      // Cancelar o modo de edição após salvar com sucesso
-      cancelEditingActiveReport();
-      
-      toast({
-        title: "Relatório Atualizado",
-        description: "As informações do relatório foram atualizadas com sucesso.",
-        variant: "default",
-      });
-    } else {
-      toast({
-        title: "Erro ao Salvar",
-        description: "Houve um problema ao salvar as alterações do relatório.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Calcular dados do resumo incluindo saques
   const reportSummaryData = useMemo(() => {
     if (!currentActiveReportObjectFromHook) return null;
@@ -554,172 +503,26 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
         {/* ABA IMPORTAR */}
         <TabsContent value="register">
           <div className="space-y-6">
-            {/* Cabeçalho do relatório ativo com edição */}
+            {/* Cabeçalho do relatório ativo - somente exibição */}
             {currentActiveReportObjectFromHook && reportSummaryData && (
               <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      {!states.isEditingActiveReport ? (
-                        <>
-                          <CardTitle className="text-xl mb-2 flex items-center">
-                            Resumo Geral do Relatório Ativo
-                          </CardTitle>
-                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                            Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
-                            {currentActiveReportObjectFromHook?.description && (
-                              <span className="block mt-1 text-sm">
-                                - {currentActiveReportObjectFromHook.description}
-                              </span>
-                            )}
-                          </CardDescription>
-                        </>
-                      ) : (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-purple-400 mb-1">
-                              Nome do Relatório
-                            </label>
-                            <input
-                              type="text"
-                              value={states.editingActiveReportName}
-                              onChange={(e) => states.setEditingActiveReportName(e.target.value)}
-                              className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white placeholder-purple-300/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                              placeholder="Digite o nome do relatório"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-purple-400 mb-1">
-                              Descrição (opcional)
-                            </label>
-                            <textarea
-                              value={states.editingActiveReportDescription}
-                              onChange={(e) => states.setEditingActiveReportDescription(e.target.value)}
-                              className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white placeholder-purple-300/50 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                              placeholder="Digite uma descrição para o relatório"
-                              rows={2}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-4">
-                      {!states.isEditingActiveReport ? (
-                        <Button
-                          onClick={startEditingActiveReport}
-                          variant="outline"
-                          size="sm"
-                          className="border-purple-600 text-purple-400 hover:bg-purple-600 hover:text-white"
-                        >
-                          Editar
-                        </Button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={saveActiveReportChanges}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            Salvar
-                          </Button>
-                          <Button
-                            onClick={cancelEditingActiveReport}
-                            variant="outline"
-                            size="sm"
-                            className="border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white"
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      )}
+                      <CardTitle className="text-xl mb-2 flex items-center">
+                        Resumo Geral do Relatório Ativo
+                      </CardTitle>
+                      <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                        Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
+                        {currentActiveReportObjectFromHook?.description && (
+                          <span className="block mt-1 text-sm">
+                            - {currentActiveReportObjectFromHook.description}
+                          </span>
+                        )}
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Cards de resumo */}
-                    <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 p-4 rounded-lg border border-blue-500/30">
-                      <div className="text-blue-400 text-sm font-medium">Total Investido</div>
-                      <div className="text-white text-lg font-bold">
-                        {reportSummaryData.totalInvestmentsBtc.toFixed(8)} BTC
-                      </div>
-                      <div className="text-blue-300 text-xs">
-                        {formatCurrency(
-                          reportSummaryData.totalInvestmentsBtc * states.currentRates.btcToUsd * 
-                          (states.displayCurrency === "BRL" ? states.currentRates.brlToUsd : 1), 
-                          states.displayCurrency
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-r from-green-500/20 to-green-600/20 p-4 rounded-lg border border-green-500/30">
-                      <div className="text-green-400 text-sm font-medium">Lucro Operacional</div>
-                      <div className="text-white text-lg font-bold">
-                        {reportSummaryData.operationalProfitBtc.toFixed(8)} BTC
-                      </div>
-                      <div className="text-green-300 text-xs">
-                        {formatCurrency(
-                          reportSummaryData.operationalProfitBtc * states.currentRates.btcToUsd * 
-                          (states.displayCurrency === "BRL" ? states.currentRates.brlToUsd : 1), 
-                          states.displayCurrency
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-r from-purple-500/20 to-purple-600/20 p-4 rounded-lg border border-purple-500/30">
-                      <div className="text-purple-400 text-sm font-medium">Lucro de Valorização</div>
-                      <div className="text-white text-lg font-bold">
-                        {formatCurrency(reportSummaryData.valuationProfitUsd, "USD")}
-                      </div>
-                      <div className="text-purple-300 text-xs">
-                        {states.displayCurrency === "BRL" 
-                          ? formatCurrency(reportSummaryData.valuationProfitUsd * states.currentRates.brlToUsd, "BRL")
-                          : "Valorização atual"
-                        }
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-r from-orange-500/20 to-orange-600/20 p-4 rounded-lg border border-orange-500/30">
-                      <div className="text-orange-400 text-sm font-medium">Preço Médio</div>
-                      <div className="text-white text-lg font-bold">
-                        {formatCurrency(reportSummaryData.averageBuyPriceUsd, "USD")}
-                      </div>
-                      <div className="text-orange-300 text-xs">
-                        {states.displayCurrency === "BRL" 
-                          ? formatCurrency(reportSummaryData.averageBuyPriceUsd * states.currentRates.brlToUsd, "BRL")
-                          : "Preço médio de compra"
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cards de saldo (mostrar apenas se houver saques) */}
-                  {reportSummaryData.hasWithdrawals && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div className="bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 p-4 rounded-lg border border-yellow-500/30">
-                        <div className="text-yellow-400 text-sm font-medium">Saldo Total</div>
-                        <div className="text-white text-lg font-bold">
-                          {reportSummaryData.totalBalanceBtc.toFixed(8)} BTC
-                        </div>
-                        <div className="text-yellow-300 text-xs">
-                          Sem débito dos saques
-                        </div>
-                      </div>
-
-                      <div className="bg-gradient-to-r from-red-500/20 to-red-600/20 p-4 rounded-lg border border-red-500/30">
-                        <div className="text-red-400 text-sm font-medium">Saldo Atual</div>
-                        <div className="text-white text-lg font-bold">
-                          {reportSummaryData.currentBalanceBtc.toFixed(8)} BTC
-                        </div>
-                        <div className="text-red-300 text-xs">
-                          Com débito dos saques
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
               </Card>
             )}
 

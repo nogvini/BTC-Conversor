@@ -1004,6 +1004,7 @@ export default function BitcoinConverter() {
                         </CardHeader>
                         <CardContent className="pt-4 md:pt-6">
                           <MultiReportCalculator
+                            key={`calculator-${forceRender}-${activeTab === 'calculator' ? Date.now() : 'inactive'}`}
                             btcToUsd={rates.BTC_USD} 
                             brlToUsd={rates.BRL_USD} 
                             appData={appData}
