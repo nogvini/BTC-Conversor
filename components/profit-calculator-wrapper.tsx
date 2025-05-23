@@ -62,6 +62,13 @@ export default function ProfitCalculatorWrapper(props: ProfitCalculatorWrapperPr
     );
   }
 
+  console.log("!!! [Wrapper] ANTES DE RENDERIZAR ProfitCalculator !!!");
+  console.log("!!! [Wrapper] props.btcToUsd:", props.btcToUsd);
+  console.log("!!! [Wrapper] props.brlToUsd:", props.brlToUsd);
+  console.log("!!! [Wrapper] collection ANTES de passar:", JSON.stringify(collection));
+  console.log("!!! [Wrapper] activeReportId ANTES de passar:", activeReportId);
+  console.log("!!! [Wrapper] reportsDataLoaded ANTES de passar:", reportsDataLoaded);
+
   console.log("[Wrapper] Dados verificados. Renderizando ProfitCalculator...");
   
   return (

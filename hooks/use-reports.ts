@@ -872,6 +872,7 @@ function generateRandomColor(): string {
 // interface OldReportsCollectionV1 { reports: OldReportV1[]; }
 
 export function migrateReportsCollection(persistedState: any): ReportsCollection {
+  console.log("!!! [migrateReportsCollection] INÍCIO DA FUNÇÃO !!!", persistedState); // NOVO LOG
   if (!persistedState || 
       !persistedState.collection || 
       // Verifica explicitamente se reports não é um array
@@ -949,6 +950,7 @@ export function loadActiveReportId(): string | null {
 
 // Fora do hook, para ser chamado na inicialização da aplicação:
 export const initializeReportsStore = () => {
+  console.log("!!! [initializeReportsStore] INÍCIO DA FUNÇÃO !!!"); // NOVO LOG
   console.log("[initializeReportsStore] Iniciando inicialização do store de relatórios...");
   const rawState = localStorage.getItem(STORAGE_KEYS.REPORTS_COLLECTION);
   let collectionToLoad: ReportsCollection = { reports: [] };
