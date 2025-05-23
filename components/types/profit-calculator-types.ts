@@ -77,9 +77,14 @@ export interface Report {
   description?: string;
   investments: Investment[];
   profits: ProfitRecord[];
-  withdrawals: WithdrawalRecord[]; // Adicionando saques
+  withdrawals: WithdrawalRecord[];
   color?: string;
   createdAt: string;
+  updatedAt: string;
+  
+  // NOVO: Associação com configuração LN Markets
+  associatedLNMarketsConfigId?: string; // ID da configuração LN Markets associada
+  associatedLNMarketsConfigName?: string; // Nome da configuração (cache para UI)
 }
 
 export interface ExportOptions {

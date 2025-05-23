@@ -50,6 +50,10 @@ export interface Report {
   color?: string; // Cor para identificação visual nos gráficos comparativos
   icon?: string; // Ícone opcional para identificação visual
   isActive?: boolean; // Indica se é o relatório atualmente selecionado
+  
+  // NOVO: Associação com configuração LN Markets
+  associatedLNMarketsConfigId?: string; // ID da configuração LN Markets associada
+  associatedLNMarketsConfigName?: string; // Nome da configuração (cache para UI)
 }
 
 // Interface para a coleção de relatórios

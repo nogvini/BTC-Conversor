@@ -1,128 +1,133 @@
-# 🚀 Instruções para Deploy no Vercel
+# 🚀 Instruções para Deploy no Vercel - ATUALIZADO
 
-## Problema 401 - Solução
+## ⚠️ Problema Identificado
 
-O erro 401 que vocês estão enfrentando é causado pela falta de configuração das variáveis de ambiente do Supabase no Vercel. Aqui está como resolver:
+Baseado nos logs mostrados, o usuário está **logado corretamente** (`usuarioLogado: true`, `nomeUsuario: "Raidzap lindão"`), mas **ainda há erro 401 no manifesto** e componentes. 
 
-## ✅ Passos para Corrigir
+**Causa:** O middleware estava interceptando TODOS os arquivos, incluindo estáticos.
 
-### 1. Configurar Variáveis de Ambiente no Vercel
+## ✅ Correções Aplicadas
 
-Acesse o [Dashboard do Vercel](https://vercel.com/dashboard) e vá para o projeto:
+### 1. **Middleware Simplificado**
+- ✅ Agora aplica **APENAS** às rotas que precisam de proteção
+- ✅ **Não interfere** com arquivos estáticos (manifesto, favicons, etc.)
+- ✅ Matcher específico: `/profile/:path*`, `/settings/:path*`, `/admin/:path*`
 
-1. **Clique no seu projeto** na dashboard
-2. **Vá para "Settings"** (configurações)
-3. **Clique em "Environment Variables"** (variáveis de ambiente)
-4. **Adicione as seguintes variáveis:**
+### 2. **Página de Diagnóstico**
+- ✅ Nova rota: `/diagnose` 
+- ✅ Verifica variáveis de ambiente em tempo real
+- ✅ Testa acesso ao manifesto
+- ✅ Mostra estado de autenticação completo
+
+## 🔧 Como Verificar a Correção
+
+### Teste a Página de Diagnóstico
+Acesse: `https://seu-dominio.vercel.app/diagnose`
+
+Esta página mostrará:
+- ✅ Status das variáveis de ambiente
+- ✅ Estado de autenticação atual  
+- ✅ Teste de acesso ao manifesto
+- ✅ Instruções específicas para correção
+
+## 📋 Passos para Configurar Vercel
+
+### 1. Configurar Variáveis de Ambiente
+
+**Dashboard Vercel:**
+1. Acesse [vercel.com/dashboard](https://vercel.com/dashboard)
+2. Clique no seu projeto
+3. **Settings** → **Environment Variables**
+4. Adicione:
 
 ```bash
-# Variáveis OBRIGATÓRIAS do Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://sua-url-supabase.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anonima-supabase
 ```
 
-### 2. Como Obter as Credenciais do Supabase
+### 2. Como Obter as Credenciais
 
-1. **Acesse o [Dashboard do Supabase](https://app.supabase.com/)**
-2. **Selecione seu projeto**
-3. **Vá para "Settings" → "API"**
-4. **Copie:**
-   - **Project URL** → Use como `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public** (chave pública) → Use como `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+**Dashboard Supabase:**
+1. Acesse [app.supabase.com](https://app.supabase.com/)
+2. Selecione seu projeto
+3. **Settings** → **API**
+4. Copie:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-### 3. Redeploy Após Configurar
+### 3. Redeploy
+Após adicionar as variáveis:
+- **Deployments** → Clique nos "..." → **Redeploy**
 
-Depois de adicionar as variáveis:
+## 🎯 Resultado Esperado
 
-1. **Volte para "Deployments"**
-2. **Clique nos "..." do último deploy**
-3. **Selecione "Redeploy"**
+Após as correções aplicadas:
 
-## 🔧 Verificações Adicionais
+### ✅ O que DEVE funcionar agora:
+- Manifesto carrega sem erro 401
+- ProfileMenu funciona normalmente
+- Páginas públicas acessíveis sem login
+- `/diagnose` mostra status completo
 
-### Middleware Atualizado
-O middleware foi corrigido para:
-- ✅ Ser mais tolerante a erros de conexão
-- ✅ Excluir arquivos estáticos (manifesto, favicons, etc.)
-- ✅ Não bloquear acesso em caso de falha crítica
+### 🔐 Rotas Protegidas (precisam login):
+- `/profile` - Perfil do usuário  
+- `/settings` - Configurações
+- `/admin` - Administração
 
-### Componentes Melhorados
-- ✅ `RequireAuth` com retry automático
-- ✅ Melhor tratamento de estados de carregamento
-- ✅ Fallbacks para funcionalidades básicas
-
-## 🏗️ Estrutura de Arquivos Importante
-
-```
-app/
-├── profile/page.tsx      # Página protegida
-├── settings/page.tsx     # Página protegida
-├── auth/page.tsx         # Página pública (login)
-├── layout.tsx           # Layout principal
-└── page.tsx             # Página inicial (pública)
-
-components/
-├── require-auth.tsx     # Proteção de rotas
-├── user-profile.tsx     # Componente de perfil
-└── user-settings.tsx    # Componente de configurações
-
-middleware.ts            # Proteção de rotas no servidor
-```
-
-## 🚨 Problemas Comuns
-
-### Erro: "Variáveis não encontradas"
-**Solução:** Certifique-se de que as variáveis começam com `NEXT_PUBLIC_`
-
-### Erro: "Manifesto 401"
-**Solução:** Já corrigido no middleware - arquivos estáticos são excluídos
-
-### Erro: "Sessão não encontrada"
-**Solução:** Verifique se o projeto Supabase está ativo e as credenciais estão corretas
-
-## 📱 Funcionalidades Sem Autenticação
-
-Estas páginas funcionam SEM login:
+### 📱 Rotas Públicas (funcionam sem login):
 - `/` - Página inicial
 - `/converter` - Conversor Bitcoin
-- `/calculator` - Calculadora
+- `/calculator` - Calculadora  
 - `/chart` - Gráficos
 - `/auth` - Login/Registro
+- `/diagnose` - **NOVA** - Diagnóstico do sistema
 
-## 🔐 Funcionalidades COM Autenticação
+## 🚨 Se o Problema Persistir
 
-Estas páginas PRECISAM de login:
-- `/profile` - Perfil do usuário
-- `/settings` - Configurações
+### 1. Verifique a Página de Diagnóstico
+```
+https://seu-dominio.vercel.app/diagnose
+```
 
-## 🆘 Se o Problema Persistir
+### 2. Verifique os Logs do Vercel
+- Dashboard → Projeto → **Functions** → Ver logs
+- Procure por `[Middleware]` nos logs
 
-1. **Verifique os logs do Vercel:**
-   - Dashboard → Projeto → Functions → Ver logs
+### 3. Logs Esperados (sem erro):
+```
+[Middleware] Verificando rota protegida: /profile
+[Middleware] Sessão válida, permitindo acesso a: /profile
+```
 
-2. **Teste localmente:**
-   ```bash
-   npm run dev
-   ```
+### 4. Se manifesto ainda der 401:
+Isso indica que as variáveis de ambiente não foram configuradas no Vercel.
 
-3. **Verifique no console do navegador:**
-   - F12 → Console → Procure por erros
+## 🛠️ Debug Adicional
 
-4. **Variáveis de ambiente locais (desenvolvimento):**
-   Crie um arquivo `.env.local` na raiz:
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=sua-url-aqui
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-aqui
-   ```
+### Middleware Atualizado:
+- **Antes:** Interceptava TODAS as rotas
+- **Agora:** Intercepta APENAS `/profile`, `/settings`, `/admin`
 
-## ✨ Resultado Esperado
+### ProfileMenu Melhorado:
+- ✅ Logs de debugging
+- ✅ Timeout aumentado (10s)
+- ✅ Retry reduzido (2 tentativas)
 
-Após seguir esses passos:
-- ✅ Páginas públicas funcionam normalmente
-- ✅ Páginas protegidas redirecionam para login se não autenticado
-- ✅ Usuários logados acessam perfil e configurações normalmente
-- ✅ Manifesto e arquivos estáticos carregam sem erro 401
+## 📞 Próximos Passos
+
+1. **Configurar as variáveis no Vercel** (principal causa)
+2. **Fazer redeploy**
+3. **Acessar `/diagnose`** para verificar status
+4. **Testar `/profile` e `/settings`**
 
 ---
 
-**💡 Dica:** Sempre redeploy após alterar variáveis de ambiente no Vercel! 
+## 🎉 Após Correção Completa
+
+Vocês devem ver:
+- ✅ Estado atual da autenticação: `usuarioLogado: true`
+- ✅ Manifesto carrega sem erro
+- ✅ ProfileMenu funciona perfeitamente
+- ✅ Todas as funcionalidades LN Markets disponíveis
+
+**💡 A página `/diagnose` é uma ferramenta permanente para monitorar o sistema!** 

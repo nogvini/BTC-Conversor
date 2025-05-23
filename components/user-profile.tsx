@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2 } from "lucide-react"
+import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2, Zap, Plus, Edit, Star, Badge } from "lucide-react"
 import { PageTransition } from "@/components/page-transition"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -21,12 +21,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 
 // Imports para LN Markets
-import type { LNMarketsCredentials } from "@/components/types/ln-markets-types"
+import type { LNMarketsCredentials, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "@/components/types/ln-markets-types"
 import { 
   storeLNMarketsCredentials, 
   retrieveLNMarketsCredentials, 
   removeLNMarketsCredentials,
-  maskSensitiveData 
+  maskSensitiveData,
+  retrieveLNMarketsMultipleConfigs,
+  addLNMarketsConfig,
+  updateLNMarketsConfig,
+  removeLNMarketsConfig,
+  setDefaultLNMarketsConfig,
+  testLNMarketsConnection
 } from "@/lib/encryption"
 import { testLNMarketsCredentials } from "@/lib/ln-markets-api"
 
@@ -84,6 +90,20 @@ export default function UserProfile() {
     apiPassphrase: false,
   })
   
+  // Estados para múltiplas configurações LN Markets
+  const [multipleConfigs, setMultipleConfigs] = useState<LNMarketsMultipleConfig | null>(null);
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
+  const [isAddingNewConfig, setIsAddingNewConfig] = useState(false);
+  const [newConfigForm, setNewConfigForm] = useState({
+    name: "",
+    description: "",
+    apiKey: "",
+    secret: "",
+    passphrase: "",
+    network: "mainnet" as "mainnet" | "testnet",
+    isActive: true
+  });
+  
   // Inicializar o formulário com valores vazios
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -123,6 +143,14 @@ export default function UserProfile() {
       setIsFormReady(true)
     }
   }, [user, profileForm])
+
+  // Effect para carregar múltiplas configurações
+  useEffect(() => {
+    if (user?.email) {
+      const configs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(configs);
+    }
+  }, [user?.email]);
 
   // Obter as iniciais do nome do usuário para o avatar
   const getInitials = () => {
@@ -277,6 +305,143 @@ export default function UserProfile() {
     }));
   };
 
+  // Funções para gerenciar configurações
+  const handleAddNewConfig = async () => {
+    if (!user?.email || !newConfigForm.name.trim()) {
+      toast({
+        title: "Erro",
+        description: "Nome da configuração é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar se todos os campos estão preenchidos
+    if (!newConfigForm.apiKey || !newConfigForm.secret || !newConfigForm.passphrase) {
+      toast({
+        title: "Erro",
+        description: "Todos os campos da API são obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newConfig = {
+      name: newConfigForm.name.trim(),
+      description: newConfigForm.description.trim() || undefined,
+      credentials: {
+        apiKey: newConfigForm.apiKey,
+        secret: newConfigForm.secret,
+        passphrase: newConfigForm.passphrase,
+        network: newConfigForm.network,
+        isConfigured: true
+      },
+      isActive: newConfigForm.isActive
+    };
+
+    const configId = addLNMarketsConfig(user.email, newConfig);
+    
+    if (configId) {
+      // Recarregar configurações
+      const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(updatedConfigs);
+      
+      // Resetar formulário
+      setNewConfigForm({
+        name: "",
+        description: "",
+        apiKey: "",
+        secret: "",
+        passphrase: "",
+        network: "mainnet",
+        isActive: true
+      });
+      setIsAddingNewConfig(false);
+      
+      toast({
+        title: "Configuração Adicionada",
+        description: `Configuração "${newConfig.name}" foi adicionada com sucesso.`,
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "Erro",
+        description: "Não foi possível adicionar a configuração.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateConfig = (configId: string, updates: Partial<LNMarketsAPIConfig>) => {
+    if (!user?.email) return;
+
+    const success = updateLNMarketsConfig(user.email, configId, updates);
+    
+    if (success) {
+      const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(updatedConfigs);
+      setEditingConfigId(null);
+      
+      toast({
+        title: "Configuração Atualizada",
+        description: "As alterações foram salvas com sucesso.",
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a configuração.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveConfig = (configId: string, configName: string) => {
+    if (!user?.email) return;
+
+    if (window.confirm(`Tem certeza que deseja remover a configuração "${configName}"?`)) {
+      const success = removeLNMarketsConfig(user.email, configId);
+      
+      if (success) {
+        const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
+        setMultipleConfigs(updatedConfigs);
+        
+        toast({
+          title: "Configuração Removida",
+          description: `Configuração "${configName}" foi removida com sucesso.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: "Não foi possível remover a configuração.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleSetDefaultConfig = (configId: string) => {
+    if (!user?.email) return;
+
+    const success = setDefaultLNMarketsConfig(user.email, configId);
+    
+    if (success) {
+      const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(updatedConfigs);
+      
+      toast({
+        title: "Configuração Padrão",
+        description: "Nova configuração padrão definida com sucesso.",
+        variant: "default",
+      });
+    }
+  };
+
+  const handleToggleConfigActive = (configId: string, isActive: boolean) => {
+    handleUpdateConfig(configId, { isActive, lastUsed: isActive ? new Date().toISOString() : undefined });
+  };
+
   // Se estiver carregando, mostrar um indicador
   if (isLoading) {
     return (
@@ -422,255 +587,267 @@ export default function UserProfile() {
           </CardContent>
         </Card>
 
-        {/* Seção LN Markets API */}
-        <Card className="bg-black/30 border border-purple-700/40">
+        {/* Seção LN Markets - Múltiplas Configurações */}
+        <Card className="bg-black/30 backdrop-blur-sm border border-purple-700/40">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Key className="h-5 w-5" />
-                  Configuração LN Markets API
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  Configurações LN Markets
                 </CardTitle>
                 <CardDescription>
-                  Configure suas credenciais para importação automática de dados
+                  Gerencie múltiplas contas da API LN Markets para importação de dados
                 </CardDescription>
               </div>
-              {lnMarketsCredentials?.isConfigured && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={handleRemoveCredentials}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Remover credenciais</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              <Button
+                onClick={() => setIsAddingNewConfig(true)}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Nova Configuração
+              </Button>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            {lnMarketsCredentials?.isConfigured ? (
+            {/* Lista de configurações existentes */}
+            {multipleConfigs && multipleConfigs.configs.length > 0 ? (
               <div className="space-y-4">
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription>
-                    ✅ Credenciais LN Markets configuradas e criptografadas
-                  </AlertDescription>
-                </Alert>
+                {multipleConfigs.configs.map((config) => (
+                  <div key={config.id} className="p-4 border border-purple-700/30 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <h3 className="font-medium text-white flex items-center gap-2">
+                            {config.name}
+                            {multipleConfigs.defaultConfigId === config.id && (
+                              <Badge variant="default" className="text-xs">Padrão</Badge>
+                            )}
+                            <Badge 
+                              variant={config.isActive ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {config.isActive ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </h3>
+                          {config.description && (
+                            <p className="text-sm text-purple-300">{config.description}</p>
+                          )}
+                          <p className="text-xs text-purple-400">
+                            Rede: {config.credentials.network} • 
+                            Criada: {new Date(config.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => handleToggleConfigActive(config.id, !config.isActive)}
+                          size="sm"
+                          variant="outline"
+                          className={config.isActive ? "border-red-500 text-red-400" : "border-green-500 text-green-400"}
+                        >
+                          {config.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        
+                        {multipleConfigs.defaultConfigId !== config.id && (
+                          <Button
+                            onClick={() => handleSetDefaultConfig(config.id)}
+                            size="sm"
+                            variant="outline"
+                            className="border-yellow-500 text-yellow-400"
+                          >
+                            <Star className="h-4 w-4" />
+                          </Button>
+                        )}
+                        
+                        <Button
+                          onClick={() => setEditingConfigId(config.id)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          onClick={() => handleRemoveConfig(config.id, config.name)}
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500 text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">API Key</Label>
-                    <p className="text-sm font-mono bg-black/50 p-2 rounded border">
-                      {maskSensitiveData(lnMarketsCredentials.apiKey)}
-                    </p>
+                    {/* Informações mascaradas da API */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span className="text-purple-400">API Key:</span>
+                        <p className="text-white font-mono">
+                          {maskSensitiveData(config.credentials.apiKey)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-purple-400">Secret:</span>
+                        <p className="text-white font-mono">
+                          {maskSensitiveData(config.credentials.secret)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-purple-400">Passphrase:</span>
+                        <p className="text-white font-mono">
+                          {maskSensitiveData(config.credentials.passphrase)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Rede</Label>
-                    <p className="text-sm bg-black/50 p-2 rounded border capitalize">
-                      {lnMarketsCredentials.network}
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={() => setShowLNMarketsForm(true)}
-                  className="w-full"
-                >
-                  Reconfigurar Credenciais
-                </Button>
+                ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                <Alert>
-                  <Key className="h-4 w-4" />
-                  <AlertDescription>
-                    Configure suas credenciais LN Markets para importar automaticamente trades, depósitos e saques.
-                  </AlertDescription>
-                </Alert>
-
-                <Button
-                  onClick={() => setShowLNMarketsForm(true)}
-                  className="w-full"
-                >
-                  <Key className="mr-2 h-4 w-4" />
-                  Configurar LN Markets API
-                </Button>
+              <div className="text-center py-8">
+                <Zap className="h-12 w-12 text-purple-400 mx-auto mb-3" />
+                <p className="text-purple-300">Nenhuma configuração LN Markets encontrada</p>
+                <p className="text-sm text-purple-400">Adicione sua primeira configuração para começar</p>
               </div>
             )}
 
-            {/* Formulário LN Markets */}
-            {showLNMarketsForm && (
-              <div className="mt-6 p-4 border border-purple-700/40 rounded-lg bg-black/20">
-                <Form {...lnMarketsForm}>
-                  <form onSubmit={lnMarketsForm.handleSubmit(handleSaveLNMarkets)} className="space-y-4">
-                    <FormField
-                      control={lnMarketsForm.control}
-                      name="apiKey"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>API Key</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showSensitiveFields.apiKey ? "text" : "password"}
-                                placeholder="Sua API Key"
-                                {...field}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full w-10"
-                                onClick={() => toggleSensitiveField('apiKey')}
-                              >
-                                {showSensitiveFields.apiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+            {/* Formulário para nova configuração */}
+            {isAddingNewConfig && (
+              <div className="p-4 border border-green-500/30 rounded-lg bg-green-500/5">
+                <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Nova Configuração LN Markets
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      Nome da Configuração *
+                    </label>
+                    <input
+                      type="text"
+                      value={newConfigForm.name}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                      placeholder="Ex: Conta Principal, Trading Account"
+                      required
                     />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      Rede
+                    </label>
+                    <select
+                      value={newConfigForm.network}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, network: e.target.value as "mainnet" | "testnet" }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                    >
+                      <option value="mainnet">Mainnet</option>
+                      <option value="testnet">Testnet</option>
+                    </select>
+                  </div>
+                </div>
 
-                    <FormField
-                      control={lnMarketsForm.control}
-                      name="apiSecret"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>API Secret</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showSensitiveFields.apiSecret ? "text" : "password"}
-                                placeholder="Seu API Secret"
-                                {...field}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full w-10"
-                                onClick={() => toggleSensitiveField('apiSecret')}
-                              >
-                                {showSensitiveFields.apiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-purple-400 mb-1">
+                    Descrição (opcional)
+                  </label>
+                  <textarea
+                    value={newConfigForm.description}
+                    onChange={(e) => setNewConfigForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white resize-none"
+                    rows={2}
+                    placeholder="Descrição da configuração..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      API Key *
+                    </label>
+                    <input
+                      type="text"
+                      value={newConfigForm.apiKey}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                      placeholder="Sua API Key"
+                      required
                     />
-
-                    <FormField
-                      control={lnMarketsForm.control}
-                      name="apiPassphrase"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>API Passphrase</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                type={showSensitiveFields.apiPassphrase ? "text" : "password"}
-                                placeholder="Sua API Passphrase"
-                                {...field}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full w-10"
-                                onClick={() => toggleSensitiveField('apiPassphrase')}
-                              >
-                                {showSensitiveFields.apiPassphrase ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      Secret *
+                    </label>
+                    <input
+                      type="password"
+                      value={newConfigForm.secret}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, secret: e.target.value }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                      placeholder="Seu Secret"
+                      required
                     />
-
-                    <FormField
-                      control={lnMarketsForm.control}
-                      name="network"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Rede</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione a rede" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="mainnet">Mainnet (Produção)</SelectItem>
-                              <SelectItem value="testnet">Testnet (Teste)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      Passphrase *
+                    </label>
+                    <input
+                      type="password"
+                      value={newConfigForm.passphrase}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, passphrase: e.target.value }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                      placeholder="Sua Passphrase"
+                      required
                     />
+                  </div>
+                </div>
 
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={lnMarketsForm.handleSubmit(handleTestCredentials)}
-                        disabled={isTestingCredentials}
-                        className="flex-1"
-                      >
-                        {isTestingCredentials ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Testando...
-                          </>
-                        ) : (
-                          <>
-                            <TestTube2 className="mr-2 h-4 w-4" />
-                            Testar
-                          </>
-                        )}
-                      </Button>
+                <div className="flex items-center gap-4 mt-4">
+                  <label className="flex items-center gap-2 text-sm text-purple-300">
+                    <input
+                      type="checkbox"
+                      checked={newConfigForm.isActive}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="rounded"
+                    />
+                    Configuração ativa
+                  </label>
+                </div>
 
-                      <Button
-                        type="submit"
-                        disabled={isSavingLNMarkets}
-                        className="flex-1"
-                      >
-                        {isSavingLNMarkets ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Salvando...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="mr-2 h-4 w-4" />
-                            Salvar
-                          </>
-                        )}
-                      </Button>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setShowLNMarketsForm(false)}
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
+                <div className="flex items-center gap-3 mt-6">
+                  <Button
+                    onClick={handleAddNewConfig}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Save className="h-4 w-4 mr-1" />
+                    Salvar Configuração
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      setIsAddingNewConfig(false);
+                      setNewConfigForm({
+                        name: "",
+                        description: "",
+                        apiKey: "",
+                        secret: "",
+                        passphrase: "",
+                        network: "mainnet",
+                        isActive: true
+                      });
+                    }}
+                    variant="outline"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

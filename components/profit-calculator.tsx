@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
 import { TrendingUp, Download, Upload, Wallet, Zap } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
@@ -25,8 +26,8 @@ import {
 } from "./utils/profit-calculator-utils";
 
 // Imports para LN Markets
-import type { LNMarketsCredentials, LNMarketsImportStats } from "./types/ln-markets-types";
-import { retrieveLNMarketsCredentials } from "@/lib/encryption";
+import type { LNMarketsCredentials, LNMarketsImportStats, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "./types/ln-markets-types";
+import { retrieveLNMarketsCredentials, retrieveLNMarketsMultipleConfigs, getLNMarketsConfig } from "@/lib/encryption";
 import { 
   createLNMarketsClient, 
   convertTradeToProfit, 
@@ -72,6 +73,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   const [isImportingWithdrawals, setIsImportingWithdrawals] = useState(false);
   const [importStats, setImportStats] = useState<LNMarketsImportStats | null>(null);
 
+  // NOVOS Estados para múltiplas configurações LN Markets
+  const [multipleConfigs, setMultipleConfigs] = useState<LNMarketsMultipleConfig | null>(null);
+  const [selectedConfigForImport, setSelectedConfigForImport] = useState<string | null>(null);
+  const [showConfigSelector, setShowConfigSelector] = useState(false);
+
   // Estados adicionais que não estão no hook customizado
   const [pendingInvestment, setPendingInvestment] = useState<any>(null);
   const [pendingProfit, setPendingProfit] = useState<any>(null);
@@ -105,6 +111,30 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       setLnMarketsCredentials(credentials);
     }
   }, [user?.email]);
+
+  // NOVO Effect para carregar múltiplas configurações LN Markets
+  useEffect(() => {
+    if (user?.email) {
+      const configs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(configs);
+      
+      // Se o relatório já tem uma configuração associada, verificar se ainda existe
+      if (currentActiveReportObjectFromHook?.associatedLNMarketsConfigId) {
+        const associatedConfig = configs?.configs.find(
+          c => c.id === currentActiveReportObjectFromHook.associatedLNMarketsConfigId
+        );
+        if (associatedConfig) {
+          setSelectedConfigForImport(associatedConfig.id);
+        } else {
+          // Configuração associada não existe mais, usar a padrão se disponível
+          setSelectedConfigForImport(configs?.defaultConfigId || null);
+        }
+      } else {
+        // Usar configuração padrão se disponível
+        setSelectedConfigForImport(configs?.defaultConfigId || null);
+      }
+    }
+  }, [user?.email, currentActiveReportObjectFromHook?.associatedLNMarketsConfigId]);
 
   // Effect para atualizar rates
   useEffect(() => {
@@ -200,10 +230,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
   // Funções para importação LN Markets
   const handleImportTrades = async () => {
-    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook) {
       toast({
         title: "Configuração necessária",
-        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
+        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
       return;
@@ -211,7 +243,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     setIsImportingTrades(true);
     try {
-      const client = createLNMarketsClient(lnMarketsCredentials);
+      const client = createLNMarketsClient(config.credentials);
       const response = await client.getTrades();
 
       if (!response.success || !response.data) {
@@ -245,7 +277,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
       toast({
         title: "Trades importados",
-        description: `${imported} trades importados, ${duplicated} duplicados ignorados`,
+        description: `${imported} trades importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
         variant: "default",
       });
     } catch (error: any) {
@@ -260,10 +292,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   const handleImportDeposits = async () => {
-    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook) {
       toast({
         title: "Configuração necessária",
-        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
+        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
       return;
@@ -271,7 +305,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     setIsImportingDeposits(true);
     try {
-      const client = createLNMarketsClient(lnMarketsCredentials);
+      const client = createLNMarketsClient(config.credentials);
       const response = await client.getDeposits();
 
       if (!response.success || !response.data) {
@@ -305,7 +339,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
       toast({
         title: "Depósitos importados",
-        description: `${imported} depósitos importados, ${duplicated} duplicados ignorados`,
+        description: `${imported} depósitos importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
         variant: "default",
       });
     } catch (error: any) {
@@ -320,10 +354,12 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
   };
 
   const handleImportWithdrawals = async () => {
-    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook) {
       toast({
         title: "Configuração necessária",
-        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
+        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
       return;
@@ -331,7 +367,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
     setIsImportingWithdrawals(true);
     try {
-      const client = createLNMarketsClient(lnMarketsCredentials);
+      const client = createLNMarketsClient(config.credentials);
       const response = await client.getWithdrawals();
 
       if (!response.success || !response.data) {
@@ -365,7 +401,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
       toast({
         title: "Saques importados",
-        description: `${imported} saques importados, ${duplicated} duplicados ignorados`,
+        description: `${imported} saques importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
         variant: "default",
       });
     } catch (error: any) {
@@ -469,6 +505,36 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       hasWithdrawals: withdrawals.length > 0,
     };
   }, [currentActiveReportObjectFromHook, states.currentRates, states.displayCurrency]);
+
+  // NOVAS Funções para múltiplas configurações
+  
+  // Função para associar configuração ao relatório atual
+  const handleAssociateConfigToReport = (configId: string) => {
+    if (!currentActiveReportObjectFromHook) return;
+    
+    const config = multipleConfigs?.configs.find(c => c.id === configId);
+    if (!config) return;
+
+    const success = updateReport(currentActiveReportObjectFromHook.id, {
+      associatedLNMarketsConfigId: configId,
+      associatedLNMarketsConfigName: config.name
+    });
+
+    if (success) {
+      setSelectedConfigForImport(configId);
+      toast({
+        title: "Configuração Associada",
+        description: `Relatório agora está associado à configuração "${config.name}".`,
+        variant: "default",
+      });
+    }
+  };
+
+  // Função para obter configuração atual para importação
+  const getCurrentImportConfig = (): LNMarketsAPIConfig | null => {
+    if (!selectedConfigForImport || !multipleConfigs) return null;
+    return multipleConfigs.configs.find(c => c.id === selectedConfigForImport && c.isActive) || null;
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
@@ -657,12 +723,130 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </Card>
             )}
 
+            {/* Seção de Configuração LN Markets Associada */}
+            {multipleConfigs && multipleConfigs.configs.length > 0 && (
+              <Card className="bg-black/30 border border-blue-700/40">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-blue-500" />
+                      Configuração LN Markets Associada
+                    </div>
+                    <Button
+                      onClick={() => setShowConfigSelector(!showConfigSelector)}
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-500 text-blue-400"
+                    >
+                      {showConfigSelector ? "Cancelar" : "Trocar"}
+                    </Button>
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedConfigForImport 
+                      ? `Dados serão importados da configuração associada`
+                      : "Nenhuma configuração associada - selecione uma para importar dados"
+                    }
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent>
+                  {!showConfigSelector ? (
+                    // Mostrar configuração atual
+                    <div>
+                      {selectedConfigForImport ? (
+                        (() => {
+                          const currentConfig = multipleConfigs.configs.find(c => c.id === selectedConfigForImport);
+                          return currentConfig ? (
+                            <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-500/5">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="font-medium text-white flex items-center gap-2">
+                                    {currentConfig.name}
+                                    <Badge variant={currentConfig.isActive ? "default" : "secondary"} className="text-xs">
+                                      {currentConfig.isActive ? "Ativa" : "Inativa"}
+                                    </Badge>
+                                    {multipleConfigs.defaultConfigId === currentConfig.id && (
+                                      <Badge variant="outline" className="text-xs">Padrão</Badge>
+                                    )}
+                                  </h3>
+                                  {currentConfig.description && (
+                                    <p className="text-sm text-blue-300">{currentConfig.description}</p>
+                                  )}
+                                  <p className="text-xs text-blue-400">
+                                    Rede: {currentConfig.credentials.network}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-red-400">
+                              Configuração associada não encontrada
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="text-center py-4 text-yellow-400">
+                          <Zap className="h-8 w-8 mx-auto mb-2" />
+                          <p>Nenhuma configuração associada</p>
+                          <p className="text-sm">Clique em "Trocar" para selecionar uma configuração</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Seletor de configuração
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-blue-400">Selecione uma configuração:</h4>
+                      {multipleConfigs.configs.map((config) => (
+                        <div key={config.id} className="p-3 border border-blue-500/30 rounded-lg hover:bg-blue-500/5 cursor-pointer"
+                             onClick={() => {
+                               handleAssociateConfigToReport(config.id);
+                               setShowConfigSelector(false);
+                             }}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-medium text-white flex items-center gap-2">
+                                {config.name}
+                                <Badge variant={config.isActive ? "default" : "secondary"} className="text-xs">
+                                  {config.isActive ? "Ativa" : "Inativa"}
+                                </Badge>
+                                {multipleConfigs.defaultConfigId === config.id && (
+                                  <Badge variant="outline" className="text-xs">Padrão</Badge>
+                                )}
+                              </h3>
+                              {config.description && (
+                                <p className="text-sm text-blue-300">{config.description}</p>
+                              )}
+                              <p className="text-xs text-blue-400">
+                                Rede: {config.credentials.network}
+                              </p>
+                            </div>
+                            {selectedConfigForImport === config.id && (
+                              <Badge variant="default" className="text-xs">Atual</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Status da configuração LN Markets */}
-            {!lnMarketsCredentials?.isConfigured && (
+            {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
               <Alert>
                 <Zap className="h-4 w-4" />
                 <AlertDescription>
                   Configure suas credenciais LN Markets no perfil para importar dados automaticamente.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {selectedConfigForImport && !getCurrentImportConfig() && (
+              <Alert variant="destructive">
+                <Zap className="h-4 w-4" />
+                <AlertDescription>
+                  A configuração associada está inativa. Ative-a no perfil ou selecione outra configuração.
                 </AlertDescription>
               </Alert>
             )}
@@ -673,17 +857,29 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="h-5 w-5" />
                   Importação LN Markets
+                  {selectedConfigForImport && (() => {
+                    const config = getCurrentImportConfig();
+                    return config ? (
+                      <Badge variant="outline" className="text-xs">
+                        {config.name}
+                      </Badge>
+                    ) : null;
+                  })()}
                 </CardTitle>
                 <CardDescription>
-                  Importe seus dados diretamente da API LN Markets
+                  {selectedConfigForImport 
+                    ? "Importe dados da configuração associada"
+                    : "Selecione uma configuração para importar dados"
+                  }
                 </CardDescription>
               </CardHeader>
+              
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Button
                     onClick={handleImportTrades}
-                    disabled={!lnMarketsCredentials?.isConfigured || isImportingTrades}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
+                    disabled={!getCurrentImportConfig() || isImportingTrades}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
                     <TrendingUp className="h-5 w-5" />
                     <span>
@@ -693,8 +889,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
                   <Button
                     onClick={handleImportDeposits}
-                    disabled={!lnMarketsCredentials?.isConfigured || isImportingDeposits}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    disabled={!getCurrentImportConfig() || isImportingDeposits}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
                   >
                     <Download className="h-5 w-5" />
                     <span>
@@ -704,8 +900,8 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
                   <Button
                     onClick={handleImportWithdrawals}
-                    disabled={!lnMarketsCredentials?.isConfigured || isImportingWithdrawals}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700"
+                    disabled={!getCurrentImportConfig() || isImportingWithdrawals}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
                   >
                     <Upload className="h-5 w-5" />
                     <span>
@@ -715,9 +911,11 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 </div>
 
                 {/* Estatísticas de importação */}
-                {importStats && (
+                {importStats && selectedConfigForImport && (
                   <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
-                    <h4 className="text-sm font-medium text-purple-400 mb-3">Última Importação</h4>
+                    <h4 className="text-sm font-medium text-purple-400 mb-3">
+                      Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                       {importStats.trades && (
                         <div>

@@ -29,6 +29,17 @@ export function ProfileMenu() {
   const [errorTimeout, setErrorTimeout] = useState<NodeJS.Timeout | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   
+  // Log de debugging
+  useEffect(() => {
+    console.log('[ProfileMenu] Estado atual:', {
+      isLoading,
+      hasUser: !!user,
+      hasError: !!error,
+      retryCount,
+      showError
+    });
+  }, [isLoading, user, error, retryCount, showError]);
+  
   // Efeito para mostrar erro após um período de carregamento
   useEffect(() => {
     // Limpar qualquer timeout existente
@@ -38,10 +49,11 @@ export function ProfileMenu() {
     }
     
     // Se estiver carregando, configurar um timeout para mostrar erro
-    if (isLoading) {
+    if (isLoading && !user) {
       const timeout = setTimeout(() => {
+        console.log('[ProfileMenu] Timeout de carregamento atingido, mostrando erro');
         setShowError(true)
-      }, 5000) // 5 segundos
+      }, 10000) // 10 segundos para ser mais tolerante
       
       setErrorTimeout(timeout)
     } else {
@@ -54,15 +66,15 @@ export function ProfileMenu() {
         clearTimeout(errorTimeout)
       }
     }
-  }, [isLoading])
+  }, [isLoading, user])
   
   // Efeito para iniciar tentativas de reconexão se houver erro
   useEffect(() => {
-    if (error && !isLoading && retryCount < 3) {
+    if (error && !isLoading && retryCount < 2) { // Reduzido para 2 tentativas
       const retryTimeout = setTimeout(() => {
-        console.log('Tentando reconectar automaticamente...')
+        console.log('[ProfileMenu] Tentando reconectar automaticamente, tentativa:', retryCount + 1)
         handleRetry()
-      }, 2000 * (retryCount + 1)) // Backoff exponencial
+      }, 3000 * (retryCount + 1)) // Backoff exponencial
       
       return () => clearTimeout(retryTimeout)
     }
@@ -70,6 +82,7 @@ export function ProfileMenu() {
   
   // Função para tentar reconectar
   const handleRetry = () => {
+    console.log('[ProfileMenu] Executando retry, count:', retryCount);
     setRetryCount(prev => prev + 1)
     retryConnection()
   }

@@ -1,10 +1,39 @@
 // Tipos para LN Markets API
 export interface LNMarketsCredentials {
   apiKey: string;
-  apiSecret: string;
-  apiPassphrase: string;
+  secret: string;
+  passphrase: string;
   network: 'mainnet' | 'testnet';
   isConfigured: boolean;
+}
+
+// NOVO: Configuração individual da API LN Markets
+export interface LNMarketsAPIConfig {
+  id: string; // UUID único
+  name: string; // Nome dado pelo usuário (ex: "Conta Principal", "Trading Account")
+  description?: string; // Descrição opcional
+  credentials: LNMarketsCredentials;
+  isActive: boolean; // Se a configuração está ativa
+  createdAt: string; // Data de criação
+  updatedAt: string; // Data da última atualização
+  lastUsed?: string; // Data do último uso
+}
+
+// NOVO: Gerenciador de múltiplas configurações
+export interface LNMarketsMultipleConfig {
+  configs: LNMarketsAPIConfig[];
+  defaultConfigId?: string; // ID da configuração padrão
+  lastUpdated: string;
+}
+
+// NOVO: Estado de importação por configuração
+export interface LNMarketsConfigImportStats {
+  configId: string;
+  configName: string;
+  trades: ImportCategoryStats;
+  deposits: ImportCategoryStats;
+  withdrawals: ImportCategoryStats;
+  lastImport?: string;
 }
 
 // Tipo para trade da LN Markets
