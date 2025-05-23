@@ -8,6 +8,8 @@ import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
+import { TrendingUp, Download, Upload, Wallet, Zap } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
@@ -22,7 +24,22 @@ import {
   calculateAverageBuyPriceForSummary
 } from "./utils/profit-calculator-utils";
 
+// Imports para LN Markets
+import type { LNMarketsCredentials, LNMarketsImportStats } from "./types/ln-markets-types";
+import { retrieveLNMarketsCredentials } from "@/lib/encryption";
+import { 
+  createLNMarketsClient, 
+  convertTradeToProfit, 
+  convertDepositToInvestment, 
+  convertWithdrawalToRecord 
+} from "@/lib/ln-markets-api";
+import { useAuth } from "@/hooks/use-auth";
+
 export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: ProfitCalculatorProps) {
+  // Hook de autenticação
+  const { session } = useAuth();
+  const { user } = session;
+
   // Hook de relatórios
   const {
     reports: allReportsFromHook,
@@ -33,17 +50,27 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     selectReport,
     addInvestment,
     addProfitRecord,
+    addWithdrawal,
     deleteInvestment,
     deleteProfitRecord,
+    deleteWithdrawal,
     updateReportData,
     updateReport,
     importData,
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
+    deleteAllWithdrawalsFromReport,
   } = useReports();
 
   // Hook de estados (FIXO - todos os hooks sempre no mesmo local e ordem)
   const states = useProfitCalculatorStates();
+
+  // Estados adicionais para LN Markets
+  const [lnMarketsCredentials, setLnMarketsCredentials] = useState<LNMarketsCredentials | null>(null);
+  const [isImportingTrades, setIsImportingTrades] = useState(false);
+  const [isImportingDeposits, setIsImportingDeposits] = useState(false);
+  const [isImportingWithdrawals, setIsImportingWithdrawals] = useState(false);
+  const [importStats, setImportStats] = useState<LNMarketsImportStats | null>(null);
 
   // Estados adicionais que não estão no hook customizado
   const [pendingInvestment, setPendingInvestment] = useState<any>(null);
@@ -70,6 +97,14 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       return () => window.removeEventListener('resize', checkScreenSize);
     }
   }, []);
+
+  // Effect para carregar credenciais LN Markets
+  useEffect(() => {
+    if (user?.email) {
+      const credentials = retrieveLNMarketsCredentials(user.email);
+      setLnMarketsCredentials(credentials);
+    }
+  }, [user?.email]);
 
   // Effect para atualizar rates
   useEffect(() => {
@@ -163,119 +198,185 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
-  // Função para adicionar investimento
-  const handleAddInvestmentButtonClick = () => {
-    if (!states.investmentAmount || isNaN(Number(states.investmentAmount)) || Number(states.investmentAmount) <= 0) {
+  // Funções para importação LN Markets
+  const handleImportTrades = async () => {
+    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
       toast({
-        title: "Valor inválido",
-        description: "Por favor, insira um valor válido maior que zero.",
+        title: "Configuração necessária",
+        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
       return;
     }
 
-    if (isFutureDate(states.investmentDate)) {
-      toast({
-        title: "Data inválida",
-        description: "Não é possível registrar aportes com data futura.",
-        variant: "destructive",
-      });
-      return;
-    }
+    setIsImportingTrades(true);
+    try {
+      const client = createLNMarketsClient(lnMarketsCredentials);
+      const response = await client.getTrades();
 
-    let targetReportId = activeReportIdFromHook;
-    if (!targetReportId) {
-      if (!allReportsFromHook || allReportsFromHook.length === 0) {
-        addReport("Relatório Padrão");
-        toast({ 
-          title: "Relatório Criado", 
-          description: "Um 'Relatório Padrão' foi criado. Tente adicionar o aporte novamente.", 
-          variant: "default" 
-        });
-        return;
-      } else if (allReportsFromHook.length > 0 && !activeReportIdFromHook) {
-        selectReport(allReportsFromHook[0].id);
-        targetReportId = allReportsFromHook[0].id;
-        toast({ 
-          title: "Relatório Ativado", 
-          description: `Relatório "${allReportsFromHook[0].name}" ativado. Tente adicionar o aporte novamente.`, 
-          variant: "default" 
-        });
-        return;
-      } else {
-        toast({ 
-          title: "Nenhum relatório ativo", 
-          description: "Por favor, selecione um relatório ou crie um novo.", 
-          variant: "destructive" 
-        });
-        return;
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Erro ao buscar trades");
       }
-    }
 
-    const newInvestmentBase = {
-      date: formatDateToUTC(states.investmentDate),
-      amount: Number(states.investmentAmount),
-      unit: states.investmentUnit,
-    };
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
 
-    const reportToUpdate = allReportsFromHook?.find(r => r.id === targetReportId);
-    if (!reportToUpdate) {
-      toast({ 
-        title: "Erro", 
-        description: "Relatório alvo não encontrado para adicionar aporte.", 
-        variant: "destructive" 
+      for (const trade of response.data) {
+        if (trade.closed && trade.pl !== 0) {
+          const profitRecord = convertTradeToProfit(trade);
+          const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        }
+      }
+
+      setImportStats(prev => ({
+        trades: { total: response.data?.length || 0, imported, duplicated, errors },
+        deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+      }));
+
+      toast({
+        title: "Trades importados",
+        description: `${imported} trades importados, ${duplicated} duplicados ignorados`,
+        variant: "default",
       });
-      return;
-    }
-
-    // Verificar duplicatas
-    const possibleDuplicates = reportToUpdate?.investments.filter(inv => 
-      inv.date === newInvestmentBase.date && 
-      inv.amount === newInvestmentBase.amount && 
-      inv.unit === newInvestmentBase.unit
-    ) || [];
-
-    if (possibleDuplicates.length > 0) {
-      setPendingInvestment({ ...newInvestmentBase, id: Date.now().toString() });
-      states.setDuplicateConfirmInfo({
-        type: 'investment',
-        date: newInvestmentBase.date,
-        amount: newInvestmentBase.amount,
-        unit: newInvestmentBase.unit
+    } catch (error: any) {
+      toast({
+        title: "Erro ao importar trades",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
       });
-      states.setShowConfirmDuplicateDialog(true);
-    } else {
-      confirmAddInvestment(newInvestmentBase);
+    } finally {
+      setIsImportingTrades(false);
     }
   };
 
-  // Função para confirmar adição de investimento
-  const confirmAddInvestment = async (investmentBaseData: any) => {
-    if (!activeReportIdFromHook) {
-      toast({ 
-        title: "Erro", 
-        description: "Nenhum relatório ativo para adicionar o aporte.", 
-        variant: "destructive" 
+  const handleImportDeposits = async () => {
+    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
+      toast({
+        title: "Configuração necessária",
+        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
+        variant: "destructive",
       });
       return;
     }
 
-    const success = addInvestment(investmentBaseData);
-    
-    if (success) {
-      states.setInvestmentAmount("");
-      states.setInvestmentDatePriceInfo({ 
-        price: null, 
-        loading: false, 
-        currency: states.displayCurrency, 
-        error: null, 
-        source: null 
+    setIsImportingDeposits(true);
+    try {
+      const client = createLNMarketsClient(lnMarketsCredentials);
+      const response = await client.getDeposits();
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Erro ao buscar depósitos");
+      }
+
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+
+      for (const deposit of response.data) {
+        if (deposit.status === 'confirmed') {
+          const investment = convertDepositToInvestment(deposit);
+          const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        }
+      }
+
+      setImportStats(prev => ({
+        trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        deposits: { total: response.data?.length || 0, imported, duplicated, errors },
+        withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+      }));
+
+      toast({
+        title: "Depósitos importados",
+        description: `${imported} depósitos importados, ${duplicated} duplicados ignorados`,
+        variant: "default",
       });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao importar depósitos",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingDeposits(false);
     }
-    
-    setPendingInvestment(null);
-    states.setDuplicateConfirmInfo(null);
-    states.setShowConfirmDuplicateDialog(false);
+  };
+
+  const handleImportWithdrawals = async () => {
+    if (!lnMarketsCredentials?.isConfigured || !currentActiveReportObjectFromHook) {
+      toast({
+        title: "Configuração necessária",
+        description: "Configure suas credenciais LN Markets no perfil e certifique-se de ter um relatório ativo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImportingWithdrawals(true);
+    try {
+      const client = createLNMarketsClient(lnMarketsCredentials);
+      const response = await client.getWithdrawals();
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Erro ao buscar saques");
+      }
+
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+
+      for (const withdrawal of response.data) {
+        if (withdrawal.status === 'confirmed') {
+          const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
+          const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        }
+      }
+
+      setImportStats(prev => ({
+        trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        withdrawals: { total: response.data?.length || 0, imported, duplicated, errors },
+      }));
+
+      toast({
+        title: "Saques importados",
+        description: `${imported} saques importados, ${duplicated} duplicados ignorados`,
+        variant: "default",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao importar saques",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingWithdrawals(false);
+    }
   };
 
   // Funções para edição de relatórios
@@ -329,14 +430,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
     }
   };
 
-  // Calcular dados do resumo
+  // Calcular dados do resumo incluindo saques
   const reportSummaryData = useMemo(() => {
     if (!currentActiveReportObjectFromHook) return null;
 
     const investments = currentActiveReportObjectFromHook.investments || [];
     const profits = currentActiveReportObjectFromHook.profits || [];
+    const withdrawals = currentActiveReportObjectFromHook.withdrawals || [];
 
     const totalInvestmentsBtc = investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0);
+    const totalWithdrawalsBtc = withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit), 0);
+    
     const { operationalProfitBtc } = calculateOperationalProfitForSummary(profits, convertToBtc);
     const { valuationProfitUsd } = calculateValuationProfitForSummary(
       investments, 
@@ -350,11 +454,19 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       convertToBtc
     );
 
+    // Saldo total (sem débito dos saques) e saldo atual (com débito dos saques)
+    const totalBalanceBtc = totalInvestmentsBtc + operationalProfitBtc;
+    const currentBalanceBtc = totalBalanceBtc - totalWithdrawalsBtc;
+
     return {
       totalInvestmentsBtc,
       operationalProfitBtc,
       valuationProfitUsd,
       averageBuyPriceUsd,
+      totalWithdrawalsBtc,
+      totalBalanceBtc,
+      currentBalanceBtc,
+      hasWithdrawals: withdrawals.length > 0,
     };
   }, [currentActiveReportObjectFromHook, states.currentRates, states.displayCurrency]);
 
@@ -363,7 +475,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
           <TabsTrigger value="register" className="text-white data-[state=active]:bg-purple-700">
-            Registrar
+            Importar
           </TabsTrigger>
           <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
             Histórico
@@ -373,7 +485,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
           </TabsTrigger>
         </TabsList>
 
-        {/* ABA REGISTRAR */}
+        {/* ABA IMPORTAR */}
         <TabsContent value="register">
           <div className="space-y-6">
             {/* Cabeçalho do relatório ativo com edição */}
@@ -516,22 +628,124 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       </div>
                     </div>
                   </div>
+
+                  {/* Cards de saldo (mostrar apenas se houver saques) */}
+                  {reportSummaryData.hasWithdrawals && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div className="bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 p-4 rounded-lg border border-yellow-500/30">
+                        <div className="text-yellow-400 text-sm font-medium">Saldo Total</div>
+                        <div className="text-white text-lg font-bold">
+                          {reportSummaryData.totalBalanceBtc.toFixed(8)} BTC
+                        </div>
+                        <div className="text-yellow-300 text-xs">
+                          Sem débito dos saques
+                        </div>
+                      </div>
+
+                      <div className="bg-gradient-to-r from-red-500/20 to-red-600/20 p-4 rounded-lg border border-red-500/30">
+                        <div className="text-red-400 text-sm font-medium">Saldo Atual</div>
+                        <div className="text-white text-lg font-bold">
+                          {reportSummaryData.currentBalanceBtc.toFixed(8)} BTC
+                        </div>
+                        <div className="text-red-300 text-xs">
+                          Com débito dos saques
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
 
-            {/* Formulário de registro simplificado */}
+            {/* Status da configuração LN Markets */}
+            {!lnMarketsCredentials?.isConfigured && (
+              <Alert>
+                <Zap className="h-4 w-4" />
+                <AlertDescription>
+                  Configure suas credenciais LN Markets no perfil para importar dados automaticamente.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Botões de importação LN Markets */}
             <Card className="bg-black/30 border border-purple-700/40">
               <CardHeader>
-                <CardTitle>Adicionar Novo Registro</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Importação LN Markets
+                </CardTitle>
                 <CardDescription>
-                  Registre novos aportes ou operações de trading
+                  Importe seus dados diretamente da API LN Markets
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-purple-400">
-                  Formulário de registro será implementado aqui...
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button
+                    onClick={handleImportTrades}
+                    disabled={!lnMarketsCredentials?.isConfigured || isImportingTrades}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <TrendingUp className="h-5 w-5" />
+                    <span>
+                      {isImportingTrades ? "Importando..." : "Importar Trades"}
+                    </span>
+                  </Button>
+
+                  <Button
+                    onClick={handleImportDeposits}
+                    disabled={!lnMarketsCredentials?.isConfigured || isImportingDeposits}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Download className="h-5 w-5" />
+                    <span>
+                      {isImportingDeposits ? "Importando..." : "Importar Depósitos"}
+                    </span>
+                  </Button>
+
+                  <Button
+                    onClick={handleImportWithdrawals}
+                    disabled={!lnMarketsCredentials?.isConfigured || isImportingWithdrawals}
+                    className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700"
+                  >
+                    <Upload className="h-5 w-5" />
+                    <span>
+                      {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
+                    </span>
+                  </Button>
                 </div>
+
+                {/* Estatísticas de importação */}
+                {importStats && (
+                  <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
+                    <h4 className="text-sm font-medium text-purple-400 mb-3">Última Importação</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                      {importStats.trades && (
+                        <div>
+                          <div className="text-green-400 font-medium">Trades</div>
+                          <div>Total: {importStats.trades.total}</div>
+                          <div>Importados: {importStats.trades.imported}</div>
+                          <div>Duplicados: {importStats.trades.duplicated}</div>
+                        </div>
+                      )}
+                      {importStats.deposits && (
+                        <div>
+                          <div className="text-blue-400 font-medium">Depósitos</div>
+                          <div>Total: {importStats.deposits.total}</div>
+                          <div>Importados: {importStats.deposits.imported}</div>
+                          <div>Duplicados: {importStats.deposits.duplicated}</div>
+                        </div>
+                      )}
+                      {importStats.withdrawals && (
+                        <div>
+                          <div className="text-red-400 font-medium">Saques</div>
+                          <div>Total: {importStats.withdrawals.total}</div>
+                          <div>Importados: {importStats.withdrawals.imported}</div>
+                          <div>Duplicados: {importStats.withdrawals.duplicated}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -543,12 +757,17 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             <CardHeader>
               <CardTitle>Histórico de Transações</CardTitle>
               <CardDescription>
-                Visualize e gerencie seus registros históricos
+                Visualize e gerencie seus registros históricos incluindo saques
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-8 text-purple-400">
                 Histórico será implementado aqui...
+                {reportSummaryData?.hasWithdrawals && (
+                  <p className="mt-2 text-sm">
+                    Incluindo análise de saldo total vs saldo atual
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

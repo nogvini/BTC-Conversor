@@ -5,6 +5,7 @@ import {
   Report, 
   Investment, 
   ProfitRecord, 
+  WithdrawalRecord,
   ReportCollection, 
   STORAGE_KEYS, 
   generateId, 
@@ -650,6 +651,173 @@ export function useReports() {
     });
     return true;
   }, []);
+
+  // NOVA FUNÇÃO: Adicionar um saque ao relatório ativo (ou especificado)
+  const addWithdrawal = useCallback((
+    withdrawalData: Omit<WithdrawalRecord, "id"> & { originalId?: string }, 
+    targetReportId?: string,
+    options?: { suppressToast?: boolean }
+  ): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
+    let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
+
+    setCollection(prevCollection => {
+      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      if (!reportIdToUpdate) {
+        result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
+        return prevCollection;
+      }
+
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
+      if (reportIndex === -1) {
+        result = { status: 'error', message: "Relatório não encontrado." };
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
+        return prevCollection;
+      }
+
+      const reportToUpdate = prevCollection.reports[reportIndex];
+
+      // Verificar se já existe um saque com o mesmo originalId
+      if (withdrawalData.originalId) {
+        const isDuplicate = reportToUpdate.withdrawals?.some(w => w.originalId === withdrawalData.originalId);
+        if (isDuplicate) {
+          result = { status: 'duplicate', originalId: withdrawalData.originalId, message: `Saque com ID original ${withdrawalData.originalId} já existe.` };
+          if (!options?.suppressToast) {
+            toast({ title: "Saque Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
+          }
+          return prevCollection; 
+        }
+      }
+
+      const newWithdrawalId = generateId();
+      const newWithdrawal: WithdrawalRecord = {
+        ...withdrawalData,
+        id: newWithdrawalId,
+      };
+
+      const updatedReport = {
+        ...reportToUpdate,
+        withdrawals: [...(reportToUpdate.withdrawals || []), newWithdrawal],
+      };
+
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
+      
+      result = { status: 'added', id: newWithdrawalId, message: "Novo saque registrado com sucesso." };
+      if (!options?.suppressToast) {
+        toast({ title: "Saque Adicionado", description: result.message, variant: "success" });
+      }
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+    return result;
+  }, []);
+
+  // NOVA FUNÇÃO: Deletar um saque específico
+  const deleteWithdrawal = useCallback((withdrawalId: string, targetReportId?: string) => {
+    setCollection(prevCollection => {
+      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      if (!reportIdToUpdate) {
+        toast({
+          title: "Erro",
+          description: "Nenhum relatório ativo ou alvo especificado.",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
+      if (reportIndex === -1) {
+        toast({
+          title: "Erro",
+          description: "Relatório não encontrado.",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      const reportToUpdate = prevCollection.reports[reportIndex];
+      const withdrawalIndex = reportToUpdate.withdrawals?.findIndex(w => w.id === withdrawalId) ?? -1;
+
+      if (withdrawalIndex === -1) {
+        toast({
+          title: "Saque não encontrado",
+          description: "O saque que você tentou excluir não foi encontrado",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      const updatedWithdrawals = [...(reportToUpdate.withdrawals || [])];
+      updatedWithdrawals.splice(withdrawalIndex, 1);
+
+      const updatedReport = {
+        ...reportToUpdate,
+        withdrawals: updatedWithdrawals,
+      };
+
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
+
+      toast({
+        title: "Saque excluído",
+        description: "O saque foi excluído com sucesso",
+        variant: "success",
+      });
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+
+    return true;
+  }, []);
+
+  // NOVA FUNÇÃO: Excluir todos os saques de um relatório
+  const deleteAllWithdrawalsFromReport = useCallback((reportId: string) => {
+    setCollection(prevCollection => {
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
+
+      if (reportIndex === -1) {
+        toast({
+          title: "Relatório não encontrado",
+          description: "Não foi possível encontrar o relatório para excluir os saques.",
+          variant: "destructive",
+          duration: 3000,
+        });
+        return prevCollection;
+      }
+
+      const updatedReports = [...prevCollection.reports];
+      const currentReport = { ...updatedReports[reportIndex] };
+
+      currentReport.withdrawals = [];
+      currentReport.updatedAt = new Date().toISOString();
+      updatedReports[reportIndex] = currentReport;
+
+      toast({
+        title: "Saques excluídos",
+        description: `Todos os saques do relatório "${currentReport.name}" foram excluídos.`,
+        duration: 3000,
+      });
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+    return true;
+  }, []);
   
   // Retornar as funções e dados necessários
   return {
@@ -668,11 +836,14 @@ export function useReports() {
     // Funções para gerenciamento de dados
     addInvestment,
     addProfitRecord,
+    addWithdrawal,
     deleteInvestment,
     deleteProfitRecord,
+    deleteWithdrawal,
     updateReportData,
     importData,
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
+    deleteAllWithdrawalsFromReport,
   };
 } 

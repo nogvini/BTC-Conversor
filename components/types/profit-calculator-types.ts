@@ -23,6 +23,22 @@ export interface ProfitRecord {
   isProfit: boolean;
 }
 
+// Nova interface para saques
+export interface WithdrawalRecord {
+  id: string;
+  originalId?: string;
+  date: string;
+  amount: number;
+  unit: CurrencyUnit;
+  fee?: number; // Taxa do saque
+  type?: 'onchain' | 'lightning'; // Tipo de saque
+  txid?: string; // ID da transação
+  // Campos para preço histórico
+  priceAtDate?: number;
+  priceAtDateCurrency?: DisplayCurrency;
+  priceAtDateSource?: string;
+}
+
 export interface AppData {
   currentPrice: {
     usd: number;
@@ -44,6 +60,8 @@ export interface MonthlyData {
   investmentTotalBtc: number;
   profits: ProfitRecord[];
   profitTotalBtc: number;
+  withdrawals: WithdrawalRecord[];
+  withdrawalTotalBtc: number;
 }
 
 export interface ImportStats {
@@ -59,6 +77,7 @@ export interface Report {
   description?: string;
   investments: Investment[];
   profits: ProfitRecord[];
+  withdrawals: WithdrawalRecord[]; // Adicionando saques
   color?: string;
   createdAt: string;
 }
@@ -75,6 +94,7 @@ export interface ExportOptions {
   includeSummarySection?: boolean;
   includeInvestmentsTableSection?: boolean;
   includeProfitsTableSection?: boolean;
+  includeWithdrawalsTableSection?: boolean; // Nova seção para saques
   pdfDarkMode?: boolean;
 }
 

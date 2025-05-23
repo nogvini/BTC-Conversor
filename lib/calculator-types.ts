@@ -21,6 +21,22 @@ export interface ProfitRecord {
   isProfit: boolean;
 }
 
+// Interface para registros de saque
+export interface WithdrawalRecord {
+  id: string;
+  originalId?: string;
+  date: string;
+  amount: number;
+  unit: CurrencyUnit;
+  fee?: number; // Taxa do saque
+  type?: 'onchain' | 'lightning'; // Tipo de saque
+  txid?: string; // ID da transação
+  // Campos para preço histórico
+  priceAtDate?: number;
+  priceAtDateCurrency?: DisplayCurrency;
+  priceAtDateSource?: string;
+}
+
 // Interface para dados de um relatório individual
 export interface Report {
   id: string;
@@ -30,6 +46,7 @@ export interface Report {
   updatedAt: string;
   investments: Investment[];
   profits: ProfitRecord[];
+  withdrawals: WithdrawalRecord[];
   color?: string; // Cor para identificação visual nos gráficos comparativos
   icon?: string; // Ícone opcional para identificação visual
   isActive?: boolean; // Indica se é o relatório atualmente selecionado
@@ -95,6 +112,7 @@ export function createNewReport(name: string, description?: string): Report {
     updatedAt: now,
     investments: [],
     profits: [],
+    withdrawals: [],
     color: getRandomColor(),
     isActive: true
   };
