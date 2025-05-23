@@ -7,9 +7,10 @@ const ENCRYPTION_KEY = 'btc-monitor-v1-encryption-key';
 /**
  * Criptografa dados sensíveis
  */
-export function encryptData(data: string): string {
+export function encryptData(data: string, userEmail?: string): string {
   try {
-    return CryptoJS.AES.encrypt(data, ENCRYPTION_KEY).toString();
+    const key = userEmail ? `${ENCRYPTION_KEY}_${hashUserEmail(userEmail)}` : ENCRYPTION_KEY;
+    return CryptoJS.AES.encrypt(data, key).toString();
   } catch (error) {
     console.error('Erro ao criptografar dados:', error);
     throw new Error('Falha na criptografia');
@@ -19,9 +20,10 @@ export function encryptData(data: string): string {
 /**
  * Descriptografa dados sensíveis
  */
-export function decryptData(encryptedData: string): string {
+export function decryptData(encryptedData: string, userEmail?: string): string {
   try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    const key = userEmail ? `${ENCRYPTION_KEY}_${hashUserEmail(userEmail)}` : ENCRYPTION_KEY;
+    const bytes = CryptoJS.AES.decrypt(encryptedData, key);
     return bytes.toString(CryptoJS.enc.Utf8);
   } catch (error) {
     console.error('Erro ao descriptografar dados:', error);
@@ -60,6 +62,13 @@ export function decryptLNMarketsCredentials(encryptedData: string): LNMarketsCre
  */
 export function generateCredentialsHash(userEmail: string): string {
   return CryptoJS.SHA256(userEmail + ENCRYPTION_KEY).toString();
+}
+
+/**
+ * Gera hash do email do usuário para uso como chave
+ */
+export function hashUserEmail(userEmail: string): string {
+  return CryptoJS.SHA256(userEmail).toString().substring(0, 16);
 }
 
 /**
