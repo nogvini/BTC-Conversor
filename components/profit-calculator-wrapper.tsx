@@ -1,7 +1,7 @@
 "use client";
 
 import { useReports } from "@/hooks/use-reports";
-import ProfitCalculator from "./profit-calculator";
+// import ProfitCalculator from "./profit-calculator"; // Comentado
 import { RefreshCw, AlertTriangle } from "lucide-react";
 
 interface ProfitCalculatorWrapperProps {
@@ -18,76 +18,52 @@ interface ProfitCalculatorWrapperProps {
 }
 
 export default function ProfitCalculatorWrapper(props: ProfitCalculatorWrapperProps) {
-  const {
-    collection,
-    activeReportId,
-    isLoaded: reportsDataLoaded,
-    addReport,
-    selectReport,
-    addInvestmentToReport,
-    addProfitRecordToReport,
-    deleteInvestmentFromReport,
-    deleteProfitRecordFromReport,
-    updateReportDetails,
-    importExternalDataToReport,
-    deleteAllInvestmentsFromReport,
-    deleteAllProfitsFromReport,
-    recalculateReportSummary
-  } = useReports();
+  console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] Componente Montado !!!", props);
+  
+  const { isLoaded: reportsDataLoaded, collection } = useReports();
 
-  console.log("[Wrapper] reportsDataLoaded:", reportsDataLoaded);
-  if (reportsDataLoaded) {
-    console.log("[Wrapper] collection.reports:", collection?.reports ? JSON.stringify(collection.reports.map(r => ({id: r.id, name: r.name, numInvestments: r.investments?.length, numProfits: r.profits?.length }))) : 'undefined/null');
-    console.log("[Wrapper] activeReportId:", activeReportId);
-  }
+  console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] reportsDataLoaded do hook:", reportsDataLoaded);
+  console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] collection do hook:", collection ? JSON.stringify(collection) : 'undefined/null');
 
   if (!reportsDataLoaded) {
-    console.log("[Wrapper] Renderizando estado de carregamento.");
+    console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] Renderizando estado de carregamento (reportsDataLoaded é false).");
     return (
       <div className="flex justify-center items-center h-64">
         <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
-        <span className="ml-2">Carregando dados dos relatórios...</span>
+        <span className="ml-2">Carregando... (Wrapper Simplificado)</span>
       </div>
     );
   }
-
+  
+  // Comentando a lógica de erro e a renderização do ProfitCalculator por enquanto
+  /*
   if (!collection || !collection.reports || !Array.isArray(collection.reports)) {
     console.error("[Wrapper] Erro crítico: reportsDataLoaded é true, mas collection.reports é inválido.", collection);
     return (
       <div className="flex flex-col justify-center items-center h-64 text-red-500">
         <AlertTriangle className="h-8 w-8 mb-2" />
-        <span>Erro ao carregar estrutura dos relatórios.</span>
-        <span>Por favor, verifique o console para mais detalhes.</span>
+        <span>Erro ao carregar estrutura dos relatórios. (Wrapper Simplificado)</span>
       </div>
     );
   }
+  */
 
-  console.log("!!! [Wrapper] ANTES DE RENDERIZAR ProfitCalculator !!!");
-  console.log("!!! [Wrapper] props.btcToUsd:", props.btcToUsd);
-  console.log("!!! [Wrapper] props.brlToUsd:", props.brlToUsd);
-  console.log("!!! [Wrapper] collection ANTES de passar:", JSON.stringify(collection));
-  console.log("!!! [Wrapper] activeReportId ANTES de passar:", activeReportId);
-  console.log("!!! [Wrapper] reportsDataLoaded ANTES de passar:", reportsDataLoaded);
-
-  console.log("[Wrapper] Dados verificados. Renderizando ProfitCalculator...");
+  console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] reportsDataLoaded é TRUE. Deveria tentar renderizar algo ou nada.");
+  console.log("!!! [Wrapper RADICALMENTE SIMPLIFICADO] collection.reports é array?", Array.isArray(collection?.reports));
   
+  // return <ProfitCalculator {...props} reportsCollection={collection} activeReportId={null} reportsDataLoaded={true} ... />; // Comentado
   return (
-    <ProfitCalculator 
-      {...props}
-      reportsCollection={collection}
-      activeReportId={activeReportId}
-      reportsDataLoaded={true}
-      addReport={addReport}
-      selectReport={selectReport}
-      addInvestmentToReport={addInvestmentToReport}
-      addProfitRecordToReport={addProfitRecordToReport}
-      deleteInvestmentFromReport={deleteInvestmentFromReport}
-      deleteProfitRecordFromReport={deleteProfitRecordFromReport}
-      updateReportDetails={updateReportDetails}
-      importExternalDataToReport={importExternalDataToReport}
-      deleteAllInvestmentsFromReport={deleteAllInvestmentsFromReport}
-      deleteAllProfitsFromReport={deleteAllProfitsFromReport}
-      recalculateReportSummary={recalculateReportSummary}
-    />
+    <div className="p-4 border border-dashed border-yellow-500">
+      <h2 className="text-yellow-500">ProfitCalculatorWrapper (Versão Radicalmente Simplificada)</h2>
+      <p>Props recebidas: {JSON.stringify(props)}</p>
+      <p>reportsDataLoaded: {String(reportsDataLoaded)}</p>
+      <p>Collection tem reports array? {String(Array.isArray(collection?.reports))}</p>
+      {collection?.reports && (
+        <p>Número de relatórios: {collection.reports.length}</p>
+      )}
+      {!Array.isArray(collection?.reports) && reportsDataLoaded && (
+        <p className="text-red-500 font-bold">ALERTA: collection.reports NÃO é um array, mas reportsDataLoaded é true!</p>
+      )}
+    </div>
   );
 } 
