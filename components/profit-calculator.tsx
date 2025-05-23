@@ -327,9 +327,19 @@ export default function ProfitCalculator({
 
   // Funções para importação LN Markets
   const handleImportTrades = async () => {
+    console.log('[handleImportTrades] Iniciando importação de trades');
+    
     const config = getCurrentImportConfig();
     
+    console.log('[handleImportTrades] Configuração obtida:', {
+      hasConfig: !!config,
+      configName: config?.name,
+      hasActiveReport: !!currentActiveReportObjectFromHook,
+      reportName: currentActiveReportObjectFromHook?.name
+    });
+    
     if (!config || !currentActiveReportObjectFromHook) {
+      console.log('[handleImportTrades] Configuração ou relatório ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -340,7 +350,22 @@ export default function ProfitCalculator({
 
     setIsImportingTrades(true);
     try {
+      console.log('[handleImportTrades] Fazendo requisição com credenciais:', {
+        hasApiKey: !!config.credentials.apiKey,
+        hasSecret: !!config.credentials.secret,
+        hasPassphrase: !!config.credentials.passphrase,
+        network: config.credentials.network,
+        isConfigured: config.credentials.isConfigured
+      });
+      
       const response = await fetchLNMarketsTrades(config.credentials);
+
+      console.log('[handleImportTrades] Resposta recebida:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: response.data?.length,
+        error: response.error
+      });
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar trades");
@@ -377,6 +402,7 @@ export default function ProfitCalculator({
         variant: "default",
       });
     } catch (error: any) {
+      console.error('[handleImportTrades] Erro durante importação:', error);
       toast({
         title: "Erro ao importar trades",
         description: error.message || "Erro desconhecido",
@@ -388,9 +414,19 @@ export default function ProfitCalculator({
   };
 
   const handleImportDeposits = async () => {
+    console.log('[handleImportDeposits] Iniciando importação de depósitos');
+    
     const config = getCurrentImportConfig();
     
+    console.log('[handleImportDeposits] Configuração obtida:', {
+      hasConfig: !!config,
+      configName: config?.name,
+      hasActiveReport: !!currentActiveReportObjectFromHook,
+      reportName: currentActiveReportObjectFromHook?.name
+    });
+    
     if (!config || !currentActiveReportObjectFromHook) {
+      console.log('[handleImportDeposits] Configuração ou relatório ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -401,7 +437,22 @@ export default function ProfitCalculator({
 
     setIsImportingDeposits(true);
     try {
+      console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
+        hasApiKey: !!config.credentials.apiKey,
+        hasSecret: !!config.credentials.secret,
+        hasPassphrase: !!config.credentials.passphrase,
+        network: config.credentials.network,
+        isConfigured: config.credentials.isConfigured
+      });
+      
       const response = await fetchLNMarketsDeposits(config.credentials);
+
+      console.log('[handleImportDeposits] Resposta recebida:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: response.data?.length,
+        error: response.error
+      });
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar depósitos");
@@ -438,6 +489,7 @@ export default function ProfitCalculator({
         variant: "default",
       });
     } catch (error: any) {
+      console.error('[handleImportDeposits] Erro durante importação:', error);
       toast({
         title: "Erro ao importar depósitos",
         description: error.message || "Erro desconhecido",
@@ -449,9 +501,19 @@ export default function ProfitCalculator({
   };
 
   const handleImportWithdrawals = async () => {
+    console.log('[handleImportWithdrawals] Iniciando importação de saques');
+    
     const config = getCurrentImportConfig();
     
+    console.log('[handleImportWithdrawals] Configuração obtida:', {
+      hasConfig: !!config,
+      configName: config?.name,
+      hasActiveReport: !!currentActiveReportObjectFromHook,
+      reportName: currentActiveReportObjectFromHook?.name
+    });
+    
     if (!config || !currentActiveReportObjectFromHook) {
+      console.log('[handleImportWithdrawals] Configuração ou relatório ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -462,7 +524,22 @@ export default function ProfitCalculator({
 
     setIsImportingWithdrawals(true);
     try {
+      console.log('[handleImportWithdrawals] Fazendo requisição com credenciais:', {
+        hasApiKey: !!config.credentials.apiKey,
+        hasSecret: !!config.credentials.secret,
+        hasPassphrase: !!config.credentials.passphrase,
+        network: config.credentials.network,
+        isConfigured: config.credentials.isConfigured
+      });
+      
       const response = await fetchLNMarketsWithdrawals(config.credentials);
+
+      console.log('[handleImportWithdrawals] Resposta recebida:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: response.data?.length,
+        error: response.error
+      });
 
       if (!response.success || !response.data) {
         throw new Error(response.error || "Erro ao buscar saques");
@@ -499,6 +576,7 @@ export default function ProfitCalculator({
         variant: "default",
       });
     } catch (error: any) {
+      console.error('[handleImportWithdrawals] Erro durante importação:', error);
       toast({
         title: "Erro ao importar saques",
         description: error.message || "Erro desconhecido",
@@ -575,8 +653,29 @@ export default function ProfitCalculator({
 
   // Função para obter configuração atual para importação
   const getCurrentImportConfig = (): LNMarketsAPIConfig | null => {
-    if (!selectedConfigForImport || !multipleConfigs) return null;
-    return multipleConfigs.configs.find(c => c.id === selectedConfigForImport && c.isActive) || null;
+    console.log('[getCurrentImportConfig] Verificando configuração:', {
+      selectedConfigForImport,
+      hasMultipleConfigs: !!multipleConfigs,
+      configsLength: multipleConfigs?.configs?.length || 0
+    });
+    
+    if (!selectedConfigForImport || !multipleConfigs) {
+      console.log('[getCurrentImportConfig] Faltam dados básicos');
+      return null;
+    }
+    
+    const config = multipleConfigs.configs.find(c => c.id === selectedConfigForImport && c.isActive);
+    
+    console.log('[getCurrentImportConfig] Resultado da busca:', {
+      configFound: !!config,
+      configId: config?.id,
+      configName: config?.name,
+      configIsActive: config?.isActive,
+      hasCredentials: !!config?.credentials,
+      credentialsKeys: config?.credentials ? Object.keys(config.credentials) : []
+    });
+    
+    return config || null;
   };
 
   return (

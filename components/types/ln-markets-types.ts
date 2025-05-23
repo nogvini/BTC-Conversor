@@ -53,55 +53,53 @@ export interface LNMarketsConfigImportStats {
 
 // Tipo para trade da LN Markets
 export interface LNMarketsTrade {
-  id: string;
+  id: number;
   uid: string;
   type: 'm' | 'l'; // market ou limit
   side: 'b' | 's'; // buy ou sell
   opening_fee: number;
   closing_fee: number;
-  maintenance_margin: number;
   quantity: number;
   margin: number;
   leverage: number;
   price: number;
   liquidation: number;
-  stoploss: number;
-  takeprofit: number;
-  exit_price: number;
+  stoploss?: number;
+  takeprofit?: number;
+  exit_price?: number;
   pl: number; // profit/loss
-  creation_ts: number;
-  market_filled_ts: number;
-  closed_ts: number;
+  created_at: string; // ISO date string
+  updated_at: string; // ISO date string
+  closed_at?: string; // ISO date string
   entry_price: number | null;
-  entry_margin: number | null;
   open: boolean;
   running: boolean;
   canceled: boolean;
   closed: boolean;
-  sum_carry_fees: number;
+  sum_carry_fees?: number;
 }
 
 // Tipo para depósito da LN Markets
 export interface LNMarketsDeposit {
-  id: string;
+  id: number;
   amount: number;
   status: string;
-  created_at: number;
-  updated_at: number;
+  created_at: string; // ISO date string
+  updated_at: string; // ISO date string
   txid?: string;
-  type: 'onchain' | 'lightning';
+  deposit_type?: string;
 }
 
 // Tipo para saque da LN Markets
 export interface LNMarketsWithdrawal {
-  id: string;
+  id: number;
   amount: number;
   status: string;
-  created_at: number;
-  updated_at: number;
+  created_at: string; // ISO date string
+  updated_at: string; // ISO date string
   txid?: string;
-  type: 'onchain' | 'lightning';
-  fee?: number;
+  withdrawal_type?: string;
+  fees?: number;
 }
 
 // Tipo para configuração do cliente LN Markets

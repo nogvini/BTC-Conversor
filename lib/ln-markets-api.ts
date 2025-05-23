@@ -31,8 +31,24 @@ class LNMarketsClient {
   private generateSignature(timestamp: string, method: string, path: string, params: string): string {
     try {
       const message = timestamp + method.toUpperCase() + path + params;
+      console.log('[LN Markets] Gerando assinatura:', {
+        timestamp,
+        method: method.toUpperCase(),
+        path,
+        params,
+        messageLength: message.length,
+        hasSecret: !!this.credentials.secret
+      });
+      
       const signature = CryptoJS.HmacSHA256(message, this.credentials.secret);
-      return CryptoJS.enc.Base64.stringify(signature);
+      const signatureBase64 = CryptoJS.enc.Base64.stringify(signature);
+      
+      console.log('[LN Markets] Assinatura gerada:', {
+        signatureLength: signatureBase64.length,
+        signaturePreview: signatureBase64.substring(0, 20) + '...'
+      });
+      
+      return signatureBase64;
     } catch (error) {
       console.error('[LN Markets] Erro ao gerar assinatura:', error);
       throw new Error('Falha na geração de assinatura HMAC');
@@ -54,6 +70,13 @@ class LNMarketsClient {
       let params = '';
       let body: string | undefined;
 
+      console.log('[LN Markets] Iniciando requisição:', {
+        method,
+        endpoint,
+        baseUrl: this.baseUrl,
+        hasData: !!data
+      });
+
       // Processar parâmetros conforme tipo de requisição
       if (method === 'GET' || method === 'DELETE') {
         if (data) {
@@ -72,6 +95,11 @@ class LNMarketsClient {
         }
       }
 
+      console.log('[LN Markets] Parâmetros processados:', {
+        params,
+        bodyLength: body?.length || 0
+      });
+
       const signature = this.generateSignature(timestamp, method, path, params);
 
       const headers: HeadersInit = {
@@ -89,12 +117,28 @@ class LNMarketsClient {
         ? `${this.baseUrl}${endpoint}?${params}`
         : `${this.baseUrl}${endpoint}`;
 
-      console.log(`[LN Markets] ${method} ${endpoint}`);
+      console.log('[LN Markets] Fazendo requisição:', {
+        url: finalUrl,
+        method,
+        hasBody: !!body,
+        headersPreview: {
+          'LNM-ACCESS-KEY': this.credentials.apiKey.substring(0, 8) + '...',
+          'LNM-ACCESS-TIMESTAMP': timestamp,
+          'Content-Type': headers['Content-Type']
+        }
+      });
 
       const response = await fetch(finalUrl, {
         method,
         headers,
         body,
+      });
+
+      console.log('[LN Markets] Resposta recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {
@@ -119,6 +163,13 @@ class LNMarketsClient {
       }
 
       const responseData = await response.json();
+      
+      console.log('[LN Markets] Dados da resposta:', {
+        hasData: !!responseData,
+        dataType: typeof responseData,
+        isArray: Array.isArray(responseData),
+        dataLength: Array.isArray(responseData) ? responseData.length : Object.keys(responseData || {}).length
+      });
       
       return {
         success: true,

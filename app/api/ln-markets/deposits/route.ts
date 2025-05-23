@@ -4,33 +4,68 @@ import type { LNMarketsCredentials } from '@/components/types/ln-markets-types';
 
 export async function POST(request: NextRequest) {
   try {
-    const { credentials } = await request.json();
+    console.log('[API LN Markets Deposits] Requisição recebida');
+    
+    const body = await request.json();
+    console.log('[API LN Markets Deposits] Body recebido:', {
+      hasCredentials: !!body.credentials,
+      credentialsKeys: body.credentials ? Object.keys(body.credentials) : []
+    });
+    
+    const { credentials } = body;
     
     if (!credentials) {
+      console.log('[API LN Markets Deposits] Erro: Credenciais não fornecidas');
       return NextResponse.json(
         { error: 'Credenciais LN Markets são obrigatórias' },
         { status: 400 }
       );
     }
 
-    // Validar credenciais
-    if (!credentials.apiKey || !credentials.secret || !credentials.passphrase) {
+    // Validar credenciais mais detalhadamente
+    const missingFields = [];
+    if (!credentials.apiKey) missingFields.push('apiKey');
+    if (!credentials.secret) missingFields.push('secret');
+    if (!credentials.passphrase) missingFields.push('passphrase');
+    if (!credentials.network) missingFields.push('network');
+    
+    if (missingFields.length > 0) {
+      console.log('[API LN Markets Deposits] Erro: Campos obrigatórios faltando:', missingFields);
       return NextResponse.json(
-        { error: 'Credenciais LN Markets incompletas' },
+        { error: `Credenciais LN Markets incompletas. Campos faltando: ${missingFields.join(', ')}` },
         { status: 400 }
       );
     }
 
     const lnCredentials: LNMarketsCredentials = {
-      ...credentials,
+      apiKey: credentials.apiKey,
+      secret: credentials.secret,
+      passphrase: credentials.passphrase,
+      network: credentials.network,
       isConfigured: true
     };
+
+    console.log('[API LN Markets Deposits] Credenciais validadas:', {
+      apiKey: lnCredentials.apiKey ? `${lnCredentials.apiKey.substring(0, 8)}...` : 'N/A',
+      network: lnCredentials.network,
+      hasSecret: !!lnCredentials.secret,
+      hasPassphrase: !!lnCredentials.passphrase
+    });
 
     // Criar cliente LN Markets
     const client = createLNMarketsClient(lnCredentials);
     
+    console.log('[API LN Markets Deposits] Cliente criado, fazendo requisição...');
+    
     // Buscar depósitos
     const response = await client.getDeposits();
+    
+    console.log('[API LN Markets Deposits] Resposta recebida:', {
+      success: response.success,
+      hasData: !!response.data,
+      dataLength: response.data ? (Array.isArray(response.data) ? response.data.length : 'não é array') : 0,
+      error: response.error
+    });
     
     if (response.success) {
       return NextResponse.json({
@@ -38,6 +73,7 @@ export async function POST(request: NextRequest) {
         data: response.data
       });
     } else {
+      console.log('[API LN Markets Deposits] Erro da API LN Markets:', response.error);
       return NextResponse.json(
         { 
           success: false,
@@ -47,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    console.error('[API LN Markets Deposits] Erro:', error);
+    console.error('[API LN Markets Deposits] Erro crítico:', error);
     return NextResponse.json(
       { 
         success: false,

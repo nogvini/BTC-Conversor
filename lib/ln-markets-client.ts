@@ -16,6 +16,14 @@ export class LNMarketsAPIClient {
     credentials: LNMarketsCredentials
   ): Promise<LNMarketsApiResponse<T>> {
     try {
+      console.log(`[LN Markets Client] Iniciando requisição para ${endpoint}`, {
+        hasApiKey: !!credentials.apiKey,
+        hasSecret: !!credentials.secret,
+        hasPassphrase: !!credentials.passphrase,
+        network: credentials.network,
+        isConfigured: credentials.isConfigured
+      });
+
       const response = await fetch(`/api/ln-markets${endpoint}`, {
         method: 'POST',
         headers: {
@@ -24,12 +32,24 @@ export class LNMarketsAPIClient {
         body: JSON.stringify({ credentials }),
       });
 
+      console.log(`[LN Markets Client] Resposta HTTP recebida ${endpoint}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       const data = await response.json();
+      
+      console.log(`[LN Markets Client] Dados parseados ${endpoint}:`, {
+        success: data.success,
+        hasData: !!data.data,
+        error: data.error
+      });
       
       if (!response.ok) {
         return {
           success: false,
-          error: data.error || `HTTP ${response.status}`,
+          error: data.error || `HTTP ${response.status}: ${response.statusText}`,
         };
       }
 
@@ -72,13 +92,16 @@ export const lnMarketsAPIClient = new LNMarketsAPIClient();
  * Funções de conveniência para manter compatibilidade com o código existente
  */
 export async function fetchLNMarketsTrades(credentials: LNMarketsCredentials) {
+  console.log('[fetchLNMarketsTrades] Iniciando busca de trades');
   return lnMarketsAPIClient.getTrades(credentials);
 }
 
 export async function fetchLNMarketsDeposits(credentials: LNMarketsCredentials) {
+  console.log('[fetchLNMarketsDeposits] Iniciando busca de depósitos');
   return lnMarketsAPIClient.getDeposits(credentials);
 }
 
 export async function fetchLNMarketsWithdrawals(credentials: LNMarketsCredentials) {
+  console.log('[fetchLNMarketsWithdrawals] Iniciando busca de saques');
   return lnMarketsAPIClient.getWithdrawals(credentials);
 } 
