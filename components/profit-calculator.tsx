@@ -4240,7 +4240,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
 
               {/* Resumo dos dados filtrados */}
               {showFilterOptions && selectedReportIdsForHistoryView.length > 0 && ( // MODIFICADO: verificar selectedReportIdsForHistoryView
-                <div className="px-6 pb-2">
+                <div className="px-0 pb-4">
                   {(() => {
                     // Cálculos para o resumo com base nos filtros atuais
                     const filteredInvestmentsForSummary = getFilteredInvestments();
@@ -4258,52 +4258,156 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       : 0;
 
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                          <div className="text-xs text-gray-400">Período Selecionado</div>
-                          <div className="text-lg font-semibold text-white">
-                            {historyFilterType === 'month' 
-                              ? format(filterMonth, "MMMM yyyy", { locale: ptBR }) 
-                              : customStartDate && customEndDate 
-                                ? `${format(customStartDate, "dd/MM/yy")} - ${format(customEndDate, "dd/MM/yy")}`
-                                : "Nenhum filtro aplicado"
-                            }
+                      <div className="mt-4 p-4 bg-black/20 border border-purple-700/30 rounded-md">
+                        <div className="flex items-center mb-3">
+                          <BarChart2 className="h-4 w-4 text-purple-400 mr-2" />
+                          <h4 className="text-sm font-medium text-purple-400">Resumo do Período Filtrado</h4>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-black/40 p-3 rounded-md border border-purple-700/30">
+                            <div className="flex items-center mb-1">
+                              <Calendar className="h-3 w-3 text-gray-400 mr-1" />
+                              <div className="text-xs text-gray-400">Período Selecionado</div>
+                            </div>
+                            <div className="text-sm font-semibold text-white">
+                              {historyFilterType === 'month' 
+                                ? format(filterMonth, "MMMM yyyy", { locale: ptBR }) 
+                                : customStartDate && customEndDate 
+                                  ? `${format(customStartDate, "dd/MM/yy")} - ${format(customEndDate, "dd/MM/yy")}`
+                                  : "Período completo"
+                              }
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {filteredInvestmentsForSummary.length + filteredProfitsForSummary.length} registros
+                            </div>
+                          </div>
+
+                          <div className="bg-black/40 p-3 rounded-md border border-purple-700/30">
+                            <div className="flex items-center mb-1">
+                              <Coins className="h-3 w-3 text-blue-400 mr-1" />
+                              <div className="text-xs text-gray-400">Aportes no Período</div>
+                            </div>
+                            <div className="text-sm font-semibold text-blue-400">
+                              {formatCryptoAmount(totalInvestmentsBtcForPeriod, "BTC")}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {formatBtcValueInCurrency(totalInvestmentsBtcForPeriod)}
+                            </div>
+                          </div>
+
+                          <div className="bg-black/40 p-3 rounded-md border border-purple-700/30">
+                            <div className="flex items-center mb-1">
+                              {totalNetProfitsBtcForPeriod >= 0 ? (
+                                <ArrowUpRight className="h-3 w-3 text-green-400 mr-1" />
+                              ) : (
+                                <ArrowDownRight className="h-3 w-3 text-red-400 mr-1" />
+                              )}
+                              <div className="text-xs text-gray-400">Lucro/Perda no Período</div>
+                            </div>
+                            <div className={`text-sm font-semibold ${totalNetProfitsBtcForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
+                              {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
+                              {formatCryptoAmount(totalNetProfitsBtcForPeriod, "BTC")}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
+                              {formatBtcValueInCurrency(totalNetProfitsBtcForPeriod)}
+                            </div>
+                          </div>
+
+                          <div className="bg-black/40 p-3 rounded-md border border-purple-700/30">
+                            <div className="flex items-center mb-1">
+                              <TrendingUp className="h-3 w-3 text-purple-400 mr-1" />
+                              <div className="text-xs text-gray-400">ROI do Período</div>
+                            </div>
+                            <div className={`text-sm font-semibold ${rendementForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
+                              {totalInvestmentsBtcForPeriod > 0 || totalNetProfitsBtcForPeriod !== 0 ? 
+                                `${rendementForPeriod >= 0 ? "+" : ""}${rendementForPeriod.toFixed(2)}%` : 
+                                "N/A"}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {totalInvestmentsBtcForPeriod > 0 ? "Retorno sobre aportes" : "Sem aportes no período"}
+                            </div>
                           </div>
                         </div>
-
-                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                          <div className="text-xs text-gray-400">Aporte total no período</div>
-                          <div className="text-lg font-semibold text-blue-400">
-                            {formatCryptoAmount(totalInvestmentsBtcForPeriod, "BTC")}
+                        
+                        {/* Informação adicional sobre relatórios selecionados */}
+                        <div className="mt-3 pt-3 border-t border-purple-700/20">
+                          <div className="text-xs text-gray-400 mb-1">
+                            Relatórios incluídos no filtro ({selectedReportIdsForHistoryView.length}):
                           </div>
-                          <div className="text-xs text-gray-400">
-                            {formatBtcValueInCurrency(totalInvestmentsBtcForPeriod)}
-                          </div>
-                        </div>
-
-                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                          <div className="text-xs text-gray-400">Lucro/Perda no período</div>
-                          <div className={`text-lg font-semibold ${totalNetProfitsBtcForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
-                            {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
-                            {formatCryptoAmount(totalNetProfitsBtcForPeriod, "BTC")}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {totalNetProfitsBtcForPeriod >= 0 ? "+" : ""}
-                            {formatBtcValueInCurrency(totalNetProfitsBtcForPeriod)}
-                          </div>
-                        </div>
-
-                        <div className="bg-black/30 p-3 rounded-md border border-purple-700/50">
-                          <div className="text-xs text-gray-400">Rendimento no período</div>
-                          <div className={`text-lg font-semibold ${rendementForPeriod >= 0 ? "text-green-500" : "text-red-500"}`}>
-                            {totalInvestmentsBtcForPeriod > 0 || totalNetProfitsBtcForPeriod !== 0 ? 
-                              `${rendementForPeriod.toFixed(2)}%` : 
-                              "N/A"}
+                          <div className="flex flex-wrap gap-1">
+                            {allReportsFromHook?.filter(r => selectedReportIdsForHistoryView.includes(r.id)).map(report => (
+                              <span 
+                                key={report.id} 
+                                className="text-xs px-2 py-0.5 rounded-sm whitespace-nowrap" 
+                                style={{backgroundColor: `${report.color}22`, color: report.color, border: `1px solid ${report.color}44`}}
+                              >
+                                {report.name}
+                              </span>
+                            ))}
                           </div>
                         </div>
                       </div>
                     );
                   })()}
+                </div>
+              )}
+              
+              {/* Ação de exportação relacionada aos filtros */}
+              {showFilterOptions && selectedReportIdsForHistoryView.length > 0 && (
+                <div className="px-0 pb-4">
+                  <div className="bg-blue-900/20 border border-blue-700/40 rounded-md p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center mb-1">
+                          <Download className="h-4 w-4 text-blue-400 mr-2" />
+                          <span className="text-sm font-medium text-blue-400">Exportar Dados Filtrados</span>
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          Exporte os dados do período e relatórios selecionados para Excel ou PDF
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // Configurar exportação com base nos filtros ativos
+                          setExportReportSelectionType('history');
+                          setManualSelectedReportIdsForExport(selectedReportIdsForHistoryView);
+                          
+                          if (historyFilterType === 'month') {
+                            setExportPeriodSelectionType('historyFilter');
+                            setExportSpecificMonthDate(filterMonth);
+                          } else if (historyFilterType === 'custom' && customStartDate && customEndDate) {
+                            setExportPeriodSelectionType('historyFilter');
+                            setExportCustomStartDateForRange(customStartDate);
+                            setExportCustomEndDateForRange(customEndDate);
+                          } else {
+                            setExportPeriodSelectionType('all');
+                          }
+                          
+                          setExportIncludeCharts(true);
+                          setExportIncludeSummarySection(true);
+                          setExportIncludeInvestmentsTableSection(true);
+                          setExportIncludeProfitsTableSection(true);
+                          setShowAdvancedExportDialog(true);
+                        }}
+                        disabled={isExporting}
+                        className="bg-blue-800 hover:bg-blue-700 border border-blue-600/80"
+                      >
+                        {isExporting ? (
+                          <>
+                            <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                            Exportando...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="mr-2 h-3 w-3" />
+                            Exportar Período
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
               
