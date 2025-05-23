@@ -3568,7 +3568,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       combinedTotalProfitBtc,
     };
   }, [getFilteredInvestments, getFilteredProfits, currentRates.btcToUsd, currentRates.brlToUsd, displayCurrency]);
-
+  
   if (!reportsDataLoaded) {
     return (
       <div className="flex justify-center items-center h-64">
