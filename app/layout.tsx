@@ -18,6 +18,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  console.log("!!!!!!!!!!!!!!!! ROOT LAYOUT EXECUTADO !!!!!!!!!!!!!!!!");
   return (
     <html lang="pt-BR" suppressHydrationWarning className="dark">
       <head>
@@ -29,7 +30,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProviderClient>
           <ThemeProvider>
-            <ReportsInitializer />
+            {/* <ReportsInitializer /> */ }
             <ClientAppHeader />
             <main className="pt-16">
               {children}
