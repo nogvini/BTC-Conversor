@@ -12,9 +12,18 @@ export async function middleware(request: NextRequest) {
   try {
     console.log('[Middleware] Iniciando middleware para:', request.nextUrl.pathname);
 
+    // Verificar se as variáveis de ambiente estão disponíveis
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('[Middleware] Variáveis de ambiente Supabase não encontradas, permitindo acesso sem verificação');
+      return response;
+    }
+
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabaseUrl,
+      supabaseAnonKey,
       {
         cookies: {
           get(name: string) {
@@ -65,26 +74,49 @@ export async function middleware(request: NextRequest) {
 
     // Importante: Atualizar a sessão para garantir que esteja disponível para Server Components
     // e para que as regras de autenticação funcionem corretamente.
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.warn('[Middleware] Erro ao obter sessão:', sessionError.message, '- Permitindo acesso');
+      return response;
+    }
+
     console.log('[Middleware] Sessão obtida (existe?):', !!session);
 
     // Lógica de proteção de rota (Exemplo)
     const { pathname } = request.nextUrl;
 
-    // Se o usuário não estiver logado e tentar acessar uma rota protegida (não /auth)
-    if (!session && !pathname.startsWith('/auth')) {
-      // E a rota não for pública (ex: landing page, /api)
-      // (você precisará definir suas rotas públicas)
-      const publicPaths = ['/', '/about', '/partners']; // Adicione suas rotas públicas aqui
-      const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/api'); // Exemplo
+    // Definir rotas públicas (que não precisam de autenticação)
+    const publicPaths = [
+      '/', 
+      '/about', 
+      '/partners',
+      '/auth',
+      '/converter',
+      '/calculator',
+      '/chart'
+    ];
+    
+    // Verificar se a rota atual é pública
+    const isPublicPath = publicPaths.includes(pathname) || 
+                        pathname.startsWith('/api') || 
+                        pathname.startsWith('/_next') ||
+                        pathname.startsWith('/favicon') ||
+                        pathname.includes('.');
 
-      if (!isPublicPath) {
-        console.log(`[Middleware] Usuário não autenticado tentando acessar rota protegida: ${pathname}. Redirecionando para /auth.`);
-        return NextResponse.redirect(new URL('/auth', request.url));
-      }
+    // Se for uma rota pública, permitir acesso
+    if (isPublicPath) {
+      console.log('[Middleware] Rota pública acessada:', pathname);
+      return response;
     }
 
-    // Se o usuário ESTIVER logado e tentar acessar /auth
+    // Se o usuário não estiver logado e tentar acessar uma rota protegida
+    if (!session) {
+      console.log(`[Middleware] Usuário não autenticado tentando acessar rota protegida: ${pathname}. Redirecionando para /auth.`);
+      return NextResponse.redirect(new URL('/auth', request.url));
+    }
+
+    // Se o usuário ESTIVER logado e tentar acessar /auth, redirecionar para home
     if (session && pathname.startsWith('/auth')) {
       console.log(`[Middleware] Usuário autenticado tentando acessar ${pathname}. Redirecionando para /.`);
       return NextResponse.redirect(new URL('/', request.url));
@@ -95,20 +127,17 @@ export async function middleware(request: NextRequest) {
 
   } catch (error) {
     console.error('[Middleware] Erro CRÍTICO no middleware:', error);
-    // Evite vazar detalhes do erro em produção, mas para depuração:
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no middleware';
-    // Retornar uma resposta de erro genérica para o cliente
-    return new NextResponse(
-      JSON.stringify({ success: false, error: 'Erro interno do servidor no middleware.', details: errorMessage }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    
+    // Em caso de erro crítico, permitir acesso em vez de bloquear
+    console.warn('[Middleware] Permitindo acesso devido a erro crítico');
+    return response;
   }
 }
 
 export const config = {
   matcher: [
-    // Aplicar a todas as rotas exceto arquivos estáticos e de imagem da API Next.js
-    // Isso garante que o middleware rode para todas as suas páginas e rotas de API se necessário.
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Aplicar middleware apenas às rotas que precisam de verificação de autenticação
+    // Excluir arquivos estáticos, API routes, Next.js internals, e arquivos públicos
+    '/((?!_next/static|_next/image|favicon|site\.webmanifest|.*\.ico|.*\.png|.*\.svg|.*\.jpg|.*\.jpeg|.*\.gif|.*\.webp|api/).*)',
   ],
 }; 
