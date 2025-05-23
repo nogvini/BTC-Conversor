@@ -26,10 +26,13 @@ import {
   ArrowUp,
   ArrowDown,
   CircleSlash2,
-  HelpCircle
+  HelpCircle,
+  Edit2,
+  X
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
@@ -3573,6 +3576,76 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
       </div>
     );
   }
+
+  // Estados para edição do relatório ativo
+  const [isEditingActiveReport, setIsEditingActiveReport] = useState(false);
+  const [editingActiveReportName, setEditingActiveReportName] = useState("");
+  const [editingActiveReportDescription, setEditingActiveReportDescription] = useState("");
+
+  // Função para iniciar edição do relatório ativo
+  const startEditingActiveReport = () => {
+    if (!currentActiveReportObjectFromHook) return;
+    setEditingActiveReportName(currentActiveReportObjectFromHook.name);
+    setEditingActiveReportDescription(currentActiveReportObjectFromHook.description || "");
+    setIsEditingActiveReport(true);
+  };
+
+  // Função para cancelar edição do relatório ativo
+  const cancelEditingActiveReport = () => {
+    setIsEditingActiveReport(false);
+    setEditingActiveReportName("");
+    setEditingActiveReportDescription("");
+  };
+
+  // Função para salvar alterações do relatório ativo
+  const saveActiveReportChanges = () => {
+    if (!currentActiveReportObjectFromHook || !editingActiveReportName.trim()) {
+      toast({ title: "Erro", description: "Nome do relatório não pode estar vazio.", variant: "destructive" });
+      return;
+    }
+
+    // Como não temos updateReport diretamente, vamos usar updateReportData apenas para os investimentos e profits
+    // e depois usar localStorage para os metadados do relatório
+    const success = updateReportData(
+      currentActiveReportObjectFromHook.id,
+      currentActiveReportObjectFromHook.investments,
+      currentActiveReportObjectFromHook.profits
+    );
+
+    // Atualizar os metadados do relatório manualmente
+    if (success) {
+      try {
+        const collection = JSON.parse(localStorage.getItem("bitcoin-calculator-reports-collection") || "{}");
+        if (collection.reports) {
+          const reportIndex = collection.reports.findIndex((r: any) => r.id === currentActiveReportObjectFromHook.id);
+          if (reportIndex !== -1) {
+            collection.reports[reportIndex].name = editingActiveReportName.trim();
+            collection.reports[reportIndex].description = editingActiveReportDescription.trim() || undefined;
+            collection.reports[reportIndex].updatedAt = new Date().toISOString();
+            collection.lastUpdated = new Date().toISOString();
+            
+            localStorage.setItem("bitcoin-calculator-reports-collection", JSON.stringify(collection));
+            
+            toast({ 
+              title: "Relatório Atualizado", 
+              description: `O relatório "${editingActiveReportName}" foi atualizado com sucesso.`, 
+              variant: "default" 
+            });
+            setIsEditingActiveReport(false);
+            setEditingActiveReportName("");
+            setEditingActiveReportDescription("");
+            
+            // Forçar re-render recarregando a página
+            window.location.reload();
+          }
+        }
+      } catch (error) {
+        toast({ title: "Erro", description: "Não foi possível atualizar o relatório.", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Erro", description: "Não foi possível atualizar o relatório.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="flex flex-col space-y-4">
