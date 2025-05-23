@@ -3621,8 +3621,9 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                 <p className="text-xs text-muted-foreground mt-1">Nenhum relatório. O primeiro registro criará um "Relatório Padrão".</p>
             )}
           </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Card de Registrar Investimento atualizado com estilo padrão */}
+            {/* Card de Registrar Investimento */}
             <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
               <CardHeader>
                 <CardTitle className="text-lg mb-1.5">Registrar Investimento</CardTitle>
@@ -3708,7 +3709,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               </CardContent>
             </Card>
 
-            {/* Card de Registrar Lucro/Perda atualizado com estilo padrão */}
+            {/* Card de Registrar Lucro/Perda */}
             <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
               <CardHeader>
                 <CardTitle className="text-lg mb-1.5">Registrar Lucro/Perda</CardTitle>
@@ -3770,44 +3771,39 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
                       <span className="text-red-500 flex items-center"><AlertTriangle className="h-3 w-3 mr-1" /> {profitDatePriceInfo.error}</span>
                     )}
                   </div>
-                  
-                  {/* Reorganizando os RadioGroups para ficarem lado a lado */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <Label className="block mb-2">Tipo</Label>
-                      <RadioGroup
-                        value={isProfit ? "profit" : "loss"}
-                        onValueChange={(value) => setIsProfit(value === "profit")}
-                        className="space-y-2"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="profit" id="type-profit" />
-                          <Label htmlFor="type-profit">Lucro</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="loss" id="type-loss" />
-                          <Label htmlFor="type-loss">Perda</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                    
-                    <div>
-                      <Label className="block mb-2">Unidade</Label>
-                      <RadioGroup
-                        value={profitUnit}
-                        onValueChange={(value) => setProfitUnit(value as CurrencyUnit)}
-                        className="space-y-2"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="BTC" id="profit-unit-btc" />
-                          <Label htmlFor="profit-unit-btc">BTC</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="SATS" id="profit-unit-sats" />
-                          <Label htmlFor="profit-unit-sats">Satoshis</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
+                  <div>
+                    <Label className="block mb-2">Tipo</Label>
+                    <RadioGroup
+                      value={isProfit ? "profit" : "loss"}
+                      onValueChange={(value) => setIsProfit(value === "profit")}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="profit" id="type-profit" />
+                        <Label htmlFor="type-profit" className="text-green-500">Lucro</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="loss" id="type-loss" />
+                        <Label htmlFor="type-loss" className="text-red-500">Perda</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <div>
+                    <Label className="block mb-2">Unidade</Label>
+                    <RadioGroup
+                      value={profitUnit}
+                      onValueChange={(value) => setProfitUnit(value as CurrencyUnit)}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="BTC" id="profit-unit-btc" />
+                        <Label htmlFor="profit-unit-btc">BTC</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="SATS" id="profit-unit-sats" />
+                        <Label htmlFor="profit-unit-sats">Satoshis</Label>
+                      </div>
+                    </RadioGroup>
                   </div>
                   
                   <Button onClick={handleAddProfitRecordButtonClick} className="bg-purple-800 hover:bg-purple-700 border border-purple-600/80">
@@ -3818,7 +3814,7 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
             </Card>
           </div>
           
-          {/* Card de Importação atualizado com estilo padrão */}
+          {/* Card de Importação */}
           <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
             <CardHeader>
               <CardTitle className="text-lg mb-1.5">Importação de Registros</CardTitle>
@@ -3828,121 +3824,130 @@ export default function ProfitCalculator({ btcToUsd, brlToUsd, appData }: Profit
               <ImportOptions />
             </CardContent>
           </Card>
-
-          {/* Card de Saldo Atual Estimado */}
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">Saldo Atual Estimado</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                <AnimatedCounter 
-                  value={reportSummaryData.balanceBtc || 0}
-                  prefix={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? "丰 " : "₿ "} 
-                  decimals={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? 0 : 8}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatBtcValueInCurrency(reportSummaryData.balanceBtc || 0)}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Card de ROI Simples */}
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">ROI (Operacional)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${(reportSummaryData.roiSimple || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter value={reportSummaryData.roiSimple || 0} suffix="%" decimals={2} />
-              </div>
-              <p className="text-xs text-muted-foreground">Retorno sobre Aportes (Operacional)</p>
-            </CardContent>
-          </Card>
-
-          {/* +++ NOVOS CARDS DE RESUMO +++ */}
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">Lucro de Operações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${(reportSummaryData.operationalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter 
-                  value={reportSummaryData.operationalProfitBtc || 0}
-                  prefix={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
-                  decimals={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? 0 : 8}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatBtcValueInCurrency(reportSummaryData.operationalProfitBtc || 0)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Soma dos lucros/perdas registrados</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">Lucro de Valorização (Hold)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${(reportSummaryData.valuationProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter 
-                  value={reportSummaryData.valuationProfitBtc || 0}
-                  prefix={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
-                  decimals={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? 0 : 8}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatBtcValueInCurrency(reportSummaryData.valuationProfitBtc || 0)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Valorização dos aportes contra preço atual</p>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">Preço Médio de Compra</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold text-blue-400`}>
-                <AnimatedCounter 
-                  value={reportSummaryData.averageBuyPriceUsd || 0} 
-                  prefix={displayCurrency === 'USD' ? '$' : 'R$'} // Ajustar prefixo se displayCurrency for BRL
-                  decimals={2} 
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Média ponderada do preço dos aportes em {displayCurrency}</p>
-               <p className="text-xs text-gray-500 mt-1">
-                  (Considera {reportSummaryData.totalActiveInvestments || 0} aportes)
-               </p>
-            </CardContent>
-          </Card>
-
-          {/* Card de Lucro Total Combinado */}
-          <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle className="text-lg mb-1.5">Lucro Total Combinado</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${(reportSummaryData.combinedTotalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter 
-                  value={reportSummaryData.combinedTotalProfitBtc || 0}
-                  prefix={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
-                  decimals={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? 0 : 8}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {formatBtcValueInCurrency(reportSummaryData.combinedTotalProfitBtc || 0)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Valorização + Lucros Operacionais</p>
-            </CardContent>
-          </Card>
-
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          {/* Card principal do Histórico atualizado com a borda correta */}
+          {/* Seção de Resumo - Movida da aba registrar para cá */}
+          <div className="mb-6">
+            <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+              <CardHeader>
+                <CardTitle className="text-xl mb-2 flex items-center">
+                  <PieChartIcon className="mr-2 h-5 w-5" />
+                  Resumo Geral do Relatório Ativo
+                </CardTitle>
+                <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                  Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {/* Saldo Atual Estimado */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <Coins className="h-4 w-4 text-purple-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">Saldo Atual Estimado</h3>
+                    </div>
+                    <div className="text-2xl font-bold">
+                      <AnimatedCounter 
+                        value={reportSummaryData.balanceBtc || 0}
+                        prefix={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? "丰 " : "₿ "} 
+                        decimals={reportSummaryData.balanceBtc < 0.01 && reportSummaryData.balanceBtc > -0.01 && reportSummaryData.balanceBtc !== 0 ? 0 : 8}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatBtcValueInCurrency(reportSummaryData.balanceBtc || 0)}
+                    </p>
+                  </div>
+
+                  {/* ROI Simples */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <TrendingUp className="h-4 w-4 text-purple-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">ROI (Operacional)</h3>
+                    </div>
+                    <div className={`text-2xl font-bold ${(reportSummaryData.roiSimple || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      <AnimatedCounter value={reportSummaryData.roiSimple || 0} suffix="%" decimals={2} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Retorno sobre Aportes</p>
+                  </div>
+
+                  {/* Lucro de Operações */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <ArrowUpRight className="h-4 w-4 text-green-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">Lucro de Operações</h3>
+                    </div>
+                    <div className={`text-2xl font-bold ${(reportSummaryData.operationalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      <AnimatedCounter 
+                        value={reportSummaryData.operationalProfitBtc || 0}
+                        prefix={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                        decimals={(reportSummaryData.operationalProfitBtc || 0) < 0.01 && (reportSummaryData.operationalProfitBtc || 0) > -0.01 && (reportSummaryData.operationalProfitBtc || 0) !== 0 ? 0 : 8}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatBtcValueInCurrency(reportSummaryData.operationalProfitBtc || 0)}
+                    </p>
+                  </div>
+
+                  {/* Lucro de Valorização */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <TrendingUp className="h-4 w-4 text-blue-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">Lucro de Valorização</h3>
+                    </div>
+                    <div className={`text-2xl font-bold ${(reportSummaryData.valuationProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      <AnimatedCounter 
+                        value={reportSummaryData.valuationProfitBtc || 0}
+                        prefix={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                        decimals={(reportSummaryData.valuationProfitBtc || 0) < 0.01 && (reportSummaryData.valuationProfitBtc || 0) > -0.01 && (reportSummaryData.valuationProfitBtc || 0) !== 0 ? 0 : 8}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatBtcValueInCurrency(reportSummaryData.valuationProfitBtc || 0)}
+                    </p>
+                  </div>
+
+                  {/* Preço Médio de Compra */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <DollarSign className="h-4 w-4 text-blue-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">Preço Médio de Compra</h3>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-400">
+                      <AnimatedCounter 
+                        value={reportSummaryData.averageBuyPriceUsd || 0} 
+                        prefix={displayCurrency === 'USD' ? '$' : 'R$'} 
+                        decimals={2} 
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {reportSummaryData.totalActiveInvestments || 0} aportes em {displayCurrency}
+                    </p>
+                  </div>
+
+                  {/* Lucro Total Combinado */}
+                  <div className="bg-black/40 p-4 rounded-lg border border-purple-700/30">
+                    <div className="flex items-center mb-2">
+                      <ArrowUp className="h-4 w-4 text-green-400 mr-2" />
+                      <h3 className="text-sm font-medium text-purple-400">Lucro Total Combinado</h3>
+                    </div>
+                    <div className={`text-2xl font-bold ${(reportSummaryData.combinedTotalProfitBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      <AnimatedCounter 
+                        value={reportSummaryData.combinedTotalProfitBtc || 0}
+                        prefix={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? "丰 " : "₿ "} 
+                        decimals={(reportSummaryData.combinedTotalProfitBtc || 0) < 0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) > -0.01 && (reportSummaryData.combinedTotalProfitBtc || 0) !== 0 ? 0 : 8}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatBtcValueInCurrency(reportSummaryData.combinedTotalProfitBtc || 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Card principal do Histórico */}
           <Card className="bg-black/30 border border-purple-700/40 shadow-xl shadow-purple-900/10 rounded-lg">
             <CardHeader>
               {/* Estilo do CardTitle atualizado */}
