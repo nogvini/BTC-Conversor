@@ -3,7 +3,8 @@ import type {
   LNMarketsTrade, 
   LNMarketsDeposit, 
   LNMarketsWithdrawal,
-  LNMarketsApiResponse 
+  LNMarketsApiResponse,
+  LNMarketsAPIConfig 
 } from '@/components/types/ln-markets-types';
 
 /**
@@ -89,19 +90,163 @@ export class LNMarketsAPIClient {
 export const lnMarketsAPIClient = new LNMarketsAPIClient();
 
 /**
- * Funções de conveniência para manter compatibilidade com o código existente
+ * Busca trades da LN Markets via API route usando configuração específica
  */
-export async function fetchLNMarketsTrades(credentials: LNMarketsCredentials) {
-  console.log('[fetchLNMarketsTrades] Iniciando busca de trades');
-  return lnMarketsAPIClient.getTrades(credentials);
+export async function fetchLNMarketsTrades(userEmail: string, configId: string) {
+  console.log('[LN Markets Client] Iniciando busca de trades:', { userEmail: userEmail.split('@')[0] + '@***', configId });
+  
+  try {
+    const response = await fetch('/api/ln-markets/trades', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userEmail,
+        configId
+      }),
+    });
+
+    console.log('[LN Markets Client] Resposta HTTP recebida /trades:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[LN Markets Client] Erro HTTP /trades:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('[LN Markets Client] Dados parseados /trades:', {
+      success: data.success,
+      hasData: data.hasData,
+      dataLength: data.data?.length,
+      error: data.error
+    });
+
+    return data;
+  } catch (error: any) {
+    console.error('[LN Markets Client] Erro na requisição /trades:', error);
+    return {
+      success: false,
+      error: error.message || 'Erro na comunicação com a API',
+      hasData: false
+    };
+  }
 }
 
-export async function fetchLNMarketsDeposits(credentials: LNMarketsCredentials) {
-  console.log('[fetchLNMarketsDeposits] Iniciando busca de depósitos');
-  return lnMarketsAPIClient.getDeposits(credentials);
+/**
+ * Busca depósitos da LN Markets via API route usando configuração específica
+ */
+export async function fetchLNMarketsDeposits(userEmail: string, configId: string) {
+  console.log('[LN Markets Client] Iniciando busca de depósitos:', { userEmail: userEmail.split('@')[0] + '@***', configId });
+  
+  try {
+    const response = await fetch('/api/ln-markets/deposits', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userEmail,
+        configId
+      }),
+    });
+
+    console.log('[LN Markets Client] Resposta HTTP recebida /deposits:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[LN Markets Client] Erro HTTP /deposits:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('[LN Markets Client] Dados parseados /deposits:', {
+      success: data.success,
+      hasData: data.hasData,
+      dataLength: data.data?.length,
+      error: data.error
+    });
+
+    return data;
+  } catch (error: any) {
+    console.error('[LN Markets Client] Erro na requisição /deposits:', error);
+    return {
+      success: false,
+      error: error.message || 'Erro na comunicação com a API',
+      hasData: false
+    };
+  }
 }
 
-export async function fetchLNMarketsWithdrawals(credentials: LNMarketsCredentials) {
-  console.log('[fetchLNMarketsWithdrawals] Iniciando busca de saques');
-  return lnMarketsAPIClient.getWithdrawals(credentials);
+/**
+ * Busca saques da LN Markets via API route usando configuração específica
+ */
+export async function fetchLNMarketsWithdrawals(userEmail: string, configId: string) {
+  console.log('[LN Markets Client] Iniciando busca de saques:', { userEmail: userEmail.split('@')[0] + '@***', configId });
+  
+  try {
+    const response = await fetch('/api/ln-markets/withdrawals', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userEmail,
+        configId
+      }),
+    });
+
+    console.log('[LN Markets Client] Resposta HTTP recebida /withdrawals:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[LN Markets Client] Erro HTTP /withdrawals:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('[LN Markets Client] Dados parseados /withdrawals:', {
+      success: data.success,
+      hasData: data.hasData,
+      dataLength: data.data?.length,
+      error: data.error
+    });
+
+    return data;
+  } catch (error: any) {
+    console.error('[LN Markets Client] Erro na requisição /withdrawals:', error);
+    return {
+      success: false,
+      error: error.message || 'Erro na comunicação com a API',
+      hasData: false
+    };
+  }
 } 

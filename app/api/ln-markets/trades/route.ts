@@ -1,93 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLNMarketsClient } from '@/lib/ln-markets-api';
-import type { LNMarketsCredentials } from '@/components/types/ln-markets-types';
+import { getLNMarketsConfig } from '@/lib/encryption';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[API LN Markets Trades] Requisição recebida');
+    console.log('[API /api/ln-markets/trades] Iniciando requisição');
     
     const body = await request.json();
-    console.log('[API LN Markets Trades] Body recebido:', {
-      hasCredentials: !!body.credentials,
-      credentialsKeys: body.credentials ? Object.keys(body.credentials) : []
-    });
-    
-    const { credentials } = body;
-    
-    if (!credentials) {
-      console.log('[API LN Markets Trades] Erro: Credenciais não fornecidas');
+    const { userEmail, configId } = body;
+
+    if (!userEmail) {
+      console.error('[API /api/ln-markets/trades] Email do usuário não fornecido');
       return NextResponse.json(
-        { error: 'Credenciais LN Markets são obrigatórias' },
+        { success: false, error: 'Email do usuário é obrigatório' },
         { status: 400 }
       );
     }
 
-    // Validar credenciais mais detalhadamente
-    const missingFields = [];
-    if (!credentials.key) missingFields.push('key');
-    if (!credentials.secret) missingFields.push('secret');
-    if (!credentials.passphrase) missingFields.push('passphrase');
-    if (!credentials.network) missingFields.push('network');
-    
-    if (missingFields.length > 0) {
-      console.log('[API LN Markets Trades] Erro: Campos obrigatórios faltando:', missingFields);
+    if (!configId) {
+      console.error('[API /api/ln-markets/trades] ID da configuração não fornecido');
       return NextResponse.json(
-        { error: `Credenciais LN Markets incompletas. Campos faltando: ${missingFields.join(', ')}` },
+        { success: false, error: 'ID da configuração é obrigatório' },
         { status: 400 }
       );
     }
 
-    const lnCredentials: LNMarketsCredentials = {
-      key: credentials.key,
-      secret: credentials.secret,
-      passphrase: credentials.passphrase,
-      network: credentials.network,
-      isConfigured: true
-    };
+    // Buscar configuração específica
+    const config = getLNMarketsConfig(userEmail, configId);
+    if (!config) {
+      console.error('[API /api/ln-markets/trades] Configuração não encontrada:', configId);
+      return NextResponse.json(
+        { success: false, error: 'Configuração LN Markets não encontrada' },
+        { status: 404 }
+      );
+    }
 
-    console.log('[API LN Markets Trades] Credenciais validadas:', {
-      key: lnCredentials.key ? `${lnCredentials.key.substring(0, 8)}...` : 'N/A',
-      network: lnCredentials.network,
-      hasSecret: !!lnCredentials.secret,
-      hasPassphrase: !!lnCredentials.passphrase
-    });
+    if (!config.isActive) {
+      console.error('[API /api/ln-markets/trades] Configuração inativa:', configId);
+      return NextResponse.json(
+        { success: false, error: 'Configuração está inativa' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[API /api/ln-markets/trades] Credenciais encontradas, criando cliente...');
 
     // Criar cliente LN Markets
-    const client = createLNMarketsClient(lnCredentials);
+    const client = createLNMarketsClient(config.credentials);
     
-    console.log('[API LN Markets Trades] Cliente criado, fazendo requisição...');
-    
-    // Buscar trades
-    const response = await client.getTrades();
-    
-    console.log('[API LN Markets Trades] Resposta recebida:', {
-      success: response.success,
-      hasData: !!response.data,
-      dataLength: response.data ? (Array.isArray(response.data) ? response.data.length : 'não é array') : 0,
-      error: response.error
-    });
-    
-    if (response.success) {
-      return NextResponse.json({
-        success: true,
-        data: response.data
-      });
-    } else {
-      console.log('[API LN Markets Trades] Erro da API LN Markets:', response.error);
+    // Buscar trades usando o método correto da biblioteca oficial
+    console.log('[API /api/ln-markets/trades] Buscando trades...');
+    const result = await client.getTrades();
+
+    if (!result.success) {
+      console.error('[API /api/ln-markets/trades] Erro na API LN Markets:', result.error);
       return NextResponse.json(
-        { 
-          success: false,
-          error: response.error || 'Erro ao buscar trades da LN Markets'
-        },
+        { success: false, error: result.error },
         { status: 400 }
       );
     }
+
+    console.log('[API /api/ln-markets/trades] Trades obtidos com sucesso:', {
+      hasData: !!result.data,
+      isArray: Array.isArray(result.data),
+      length: Array.isArray(result.data) ? result.data.length : 0
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result.data || [],
+      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0)
+    });
+
   } catch (error: any) {
-    console.error('[API LN Markets Trades] Erro crítico:', error);
+    console.error('[API /api/ln-markets/trades] Erro interno:', error);
     return NextResponse.json(
       { 
-        success: false,
-        error: error.message || 'Erro interno do servidor'
+        success: false, 
+        error: error.message || 'Erro interno do servidor' 
       },
       { status: 500 }
     );

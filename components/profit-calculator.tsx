@@ -355,8 +355,8 @@ export default function ProfitCalculator({
       reportName: currentActiveReportObjectFromHook?.name
     });
     
-    if (!config || !currentActiveReportObjectFromHook) {
-      console.log('[handleImportTrades] Configuração ou relatório ausente');
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      console.log('[handleImportTrades] Configuração, relatório ou usuário ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -375,7 +375,7 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      const response = await fetchLNMarketsTrades(config.credentials);
+      const response = await fetchLNMarketsTrades(user.email, config.id);
 
       console.log('[handleImportTrades] Resposta recebida:', {
         success: response.success,
@@ -442,8 +442,8 @@ export default function ProfitCalculator({
       reportName: currentActiveReportObjectFromHook?.name
     });
     
-    if (!config || !currentActiveReportObjectFromHook) {
-      console.log('[handleImportDeposits] Configuração ou relatório ausente');
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -462,7 +462,7 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      const response = await fetchLNMarketsDeposits(config.credentials);
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
 
       console.log('[handleImportDeposits] Resposta recebida:', {
         success: response.success,
@@ -529,8 +529,8 @@ export default function ProfitCalculator({
       reportName: currentActiveReportObjectFromHook?.name
     });
     
-    if (!config || !currentActiveReportObjectFromHook) {
-      console.log('[handleImportWithdrawals] Configuração ou relatório ausente');
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      console.log('[handleImportWithdrawals] Configuração, relatório ou usuário ausente');
       toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
@@ -549,7 +549,7 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      const response = await fetchLNMarketsWithdrawals(config.credentials);
+      const response = await fetchLNMarketsWithdrawals(user.email, config.id);
 
       console.log('[handleImportWithdrawals] Resposta recebida:', {
         success: response.success,

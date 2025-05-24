@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2, Zap, Plus, Edit, Star, Badge } from "lucide-react"
+import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2, Zap, Plus, Edit, Star } from "lucide-react"
 import { PageTransition } from "@/components/page-transition"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 
 // Imports para LN Markets
 import type { LNMarketsCredentials, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "@/components/types/ln-markets-types"
@@ -32,7 +33,7 @@ import {
   updateLNMarketsConfig,
   removeLNMarketsConfig,
   setDefaultLNMarketsConfig,
-  testLNMarketsConnection
+  getLNMarketsConfig
 } from "@/lib/encryption"
 import { testLNMarketsCredentials } from "@/lib/ln-markets-api"
 
