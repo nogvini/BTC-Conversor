@@ -10,13 +10,10 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Força o uso do Babel em vez do SWC
-    forceSwcTransforms: false,
     // Melhorar a manipulação de erros do not-found
     serverActions: {
       allowedOrigins: ['localhost:3000', 'vercel.app'],
     }
-    // A opção 'serverExternalPackages' não é mais suportada no Next.js 15.2.4
   },
   // Permitir páginas 404 personalizadas
   async redirects() {
@@ -35,7 +32,7 @@ const nextConfig = {
       },
     ];
   },
-  // Resolver o problema com o Supabase durante o build e adicionar polyfills
+  // Resolver o problema com o Supabase durante o build
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Quando estiver no servidor durante o build na Vercel,
@@ -45,20 +42,14 @@ const nextConfig = {
       }
     }
     
-    // Adicionar fallbacks para módulos de navegador
+    // Adicionar fallbacks básicos para módulos de navegador
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        zlib: false,
-        crypto: false,
-        path: false,
-        stream: false,
+        fs: false,
+        net: false,
+        tls: false,
       };
-    }
-    
-    // Em vez de transpilePackages, vamos adicionar o Recharts à lista de externals
-    if (isServer) {
-      config.externals = [...(config.externals || []), 'recharts'];
     }
 
     return config;
@@ -67,10 +58,6 @@ const nextConfig = {
     '@react-pdf/renderer',
     'ahooks'
   ],
-  env: {
-    NEXT_PUBLIC_SWC_MINIFY: 'false',
-    DISABLE_SWC: 'true'
-  },
 }
 
 module.exports = nextConfig 

@@ -35,7 +35,34 @@ import {
   setDefaultLNMarketsConfig,
   getLNMarketsConfig
 } from "@/lib/encryption"
-import { testLNMarketsCredentials } from "@/lib/ln-markets-api"
+
+// Função para testar credenciais via API route
+const testLNMarketsCredentials = async (credentials: LNMarketsCredentials): Promise<boolean> => {
+  try {
+    console.log('[User Profile] Testando credenciais via API...');
+    
+    const response = await fetch('/api/ln-markets/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ credentials }),
+    });
+
+    const data = await response.json();
+    
+    console.log('[User Profile] Resposta do teste:', {
+      ok: response.ok,
+      success: data.success,
+      error: data.error
+    });
+
+    return response.ok && data.success;
+  } catch (error) {
+    console.error('[User Profile] Erro ao testar credenciais:', error);
+    return false;
+  }
+};
 
 // CSS personalizado para responsividade
 const customStyles = `

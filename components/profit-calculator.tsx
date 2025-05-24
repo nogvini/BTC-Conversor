@@ -32,7 +32,7 @@ import {
   convertTradeToProfit, 
   convertDepositToInvestment, 
   convertWithdrawalToRecord 
-} from "@/lib/ln-markets-api";
+} from "@/lib/ln-markets-converters";
 import { 
   fetchLNMarketsTrades,
   fetchLNMarketsDeposits,
