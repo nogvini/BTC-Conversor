@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLNMarketsClient } from '@/lib/ln-markets-api';
-import { getLNMarketsConfig } from '@/lib/encryption';
+import { getLNMarketsConfig, retrieveLNMarketsMultipleConfigs } from '@/lib/encryption';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +8,13 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json();
     const { userEmail, configId } = body;
+
+    console.log('[API /api/ln-markets/withdrawals] Dados recebidos:', {
+      userEmail: userEmail?.split('@')[0] + '@***',
+      configId,
+      hasUserEmail: !!userEmail,
+      hasConfigId: !!configId
+    });
 
     if (!userEmail) {
       console.error('[API /api/ln-markets/withdrawals] Email do usuário não fornecido');
@@ -25,10 +32,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // DEBUG: Verificar todas as configurações disponíveis
+    const allConfigs = retrieveLNMarketsMultipleConfigs(userEmail);
+    console.log('[API /api/ln-markets/withdrawals] Configurações disponíveis:', {
+      hasConfigs: !!allConfigs,
+      configsCount: allConfigs?.configs?.length || 0,
+      configIds: allConfigs?.configs?.map(c => c.id) || [],
+      defaultConfigId: allConfigs?.defaultConfigId,
+      searchingForId: configId
+    });
+
     // Buscar configuração específica
     const config = getLNMarketsConfig(userEmail, configId);
+    
+    console.log('[API /api/ln-markets/withdrawals] Resultado da busca:', {
+      configFound: !!config,
+      configId: config?.id,
+      configName: config?.name,
+      configIsActive: config?.isActive,
+      hasCredentials: !!config?.credentials
+    });
+    
     if (!config) {
-      console.error('[API /api/ln-markets/withdrawals] Configuração não encontrada:', configId);
+      console.error('[API /api/ln-markets/withdrawals] Configuração não encontrada:', {
+        searchedId: configId,
+        availableIds: allConfigs?.configs?.map(c => c.id) || []
+      });
       return NextResponse.json(
         { success: false, error: 'Configuração LN Markets não encontrada' },
         { status: 404 }

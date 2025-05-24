@@ -673,7 +673,8 @@ export default function ProfitCalculator({
     console.log('[getCurrentImportConfig] Verificando configuração:', {
       selectedConfigForImport,
       hasMultipleConfigs: !!multipleConfigs,
-      configsLength: multipleConfigs?.configs?.length || 0
+      configsLength: multipleConfigs?.configs?.length || 0,
+      allConfigIds: multipleConfigs?.configs?.map(c => c.id) || []
     });
     
     if (!selectedConfigForImport || !multipleConfigs) {
@@ -693,6 +694,32 @@ export default function ProfitCalculator({
     });
     
     return config || null;
+  };
+
+  // NOVA Função de debug para verificar dados
+  const debugImportData = () => {
+    const config = getCurrentImportConfig();
+    console.log('[DEBUG] Estado atual da importação:', {
+      userEmail: user?.email,
+      selectedConfigForImport,
+      config: config ? {
+        id: config.id,
+        name: config.name,
+        isActive: config.isActive,
+        hasCredentials: !!config.credentials
+      } : null,
+      allConfigs: multipleConfigs?.configs?.map(c => ({
+        id: c.id,
+        name: c.name,
+        isActive: c.isActive
+      })) || []
+    });
+    
+    toast({
+      title: "Debug Info",
+      description: `Config selecionado: ${config?.name || 'Nenhum'}. Verifique o console.`,
+      variant: "default",
+    });
   };
 
   // NOVO: Função para forçar atualização (do MultiReportCalculator)
@@ -1057,6 +1084,18 @@ export default function ProfitCalculator({
                         <span>
                           {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
                         </span>
+                      </Button>
+                    </div>
+
+                    {/* Botão de Debug */}
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        onClick={debugImportData}
+                        variant="outline"
+                        size="sm"
+                        className="border-orange-500 text-orange-400"
+                      >
+                        🐛 Debug Config
                       </Button>
                     </div>
 
