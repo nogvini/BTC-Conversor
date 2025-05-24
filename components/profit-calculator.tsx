@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
-import { TrendingUp, Download, Upload, Wallet, Zap } from "lucide-react";
+import { TrendingUp, Download, Upload, Wallet, Zap, FileSpreadsheet, ChevronLeft } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,6 +40,11 @@ import {
 } from "@/lib/ln-markets-client";
 import { useAuth } from "@/hooks/use-auth";
 
+// Imports para o sistema de relatórios integrado
+import { ReportManager } from "@/components/report-manager";
+import { ReportsComparison } from "@/components/reports-comparison";
+import { DisplayCurrency, CurrencyUnit, Investment, ProfitRecord } from "@/lib/calculator-types";
+
 export default function ProfitCalculator({ 
   btcToUsd, 
   brlToUsd, 
@@ -55,6 +60,18 @@ export default function ProfitCalculator({
   // Hook de autenticação
   const { session } = useAuth();
   const { user } = session;
+
+  // NOVO: Estado para modo de comparação (integração do MultiReportCalculator)
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
+  
+  // NOVO: Refs para controle de sincronização (do MultiReportCalculator)
+  const lastUpdateRef = useRef<number>(0);
+  const lastActiveReportIdRef = useRef<string | null>(null);
+  const lastActiveReportDataRef = useRef<string | null>(null);
+  const forceUpdateCountRef = useRef<number>(0);
+  
+  // NOVO: Estado local para forçar re-renders (do MultiReportCalculator)
+  const [localForceUpdate, setLocalForceUpdate] = useState(0);
 
   // Hook de relatórios - com controle de sincronização
   const {
@@ -678,312 +695,451 @@ export default function ProfitCalculator({
     return config || null;
   };
 
+  // NOVO: Função para forçar atualização (do MultiReportCalculator)
+  const forceUpdate = useCallback(() => {
+    forceUpdateCountRef.current += 1;
+    setLocalForceUpdate(forceUpdateCountRef.current);
+    console.log('[ProfitCalculator] Forçando atualização:', forceUpdateCountRef.current);
+  }, []);
+
+  // NOVO: Effect principal para detectar mudanças no relatório ativo (do MultiReportCalculator)
+  useEffect(() => {
+    if (!reportsDataLoaded || !currentActiveReportObjectFromHook || !activeReportIdFromHook) {
+      return;
+    }
+
+    const now = Date.now();
+    const reportChanged = lastActiveReportIdRef.current !== activeReportIdFromHook;
+    
+    // Criar hash dos dados do relatório para detectar mudanças no conteúdo
+    const reportDataHash = JSON.stringify({
+      investments: currentActiveReportObjectFromHook.investments,
+      profits: currentActiveReportObjectFromHook.profits,
+      withdrawals: currentActiveReportObjectFromHook.withdrawals,
+      updatedAt: currentActiveReportObjectFromHook.updatedAt,
+      lastUpdated: currentActiveReportObjectFromHook.lastUpdated
+    });
+    
+    const dataChanged = lastActiveReportDataRef.current !== reportDataHash;
+    
+    // Detectar se houve mudança significativa
+    if (reportChanged || dataChanged || now - lastUpdateRef.current > 1000) {
+      console.log('[ProfitCalculator] Mudança detectada:', {
+        reportId: activeReportIdFromHook,
+        reportName: currentActiveReportObjectFromHook.name,
+        reportChanged,
+        dataChanged,
+        investmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        profitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
+        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Atualizar referências
+      lastUpdateRef.current = now;
+      lastActiveReportIdRef.current = activeReportIdFromHook;
+      lastActiveReportDataRef.current = reportDataHash;
+      
+      // Forçar atualização do componente
+      forceUpdate();
+    }
+  }, [
+    currentActiveReportObjectFromHook, 
+    activeReportIdFromHook, 
+    reportsDataLoaded,
+    currentActiveReportObjectFromHook?.investments, 
+    currentActiveReportObjectFromHook?.profits, 
+    currentActiveReportObjectFromHook?.withdrawals,
+    currentActiveReportObjectFromHook?.updatedAt,
+    currentActiveReportObjectFromHook?.lastUpdated,
+    forceUpdate
+  ]);
+
+  // NOVO: Handlers com sincronização automática (do MultiReportCalculator)
+  const handleAddInvestmentSynced = useCallback((date: string, amount: number, unit: CurrencyUnit) => {
+    const result = addInvestment({ date, amount, unit });
+    // Forçar atualização após adicionar investimento
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [addInvestment, forceUpdate]);
+
+  const handleAddProfitRecordSynced = useCallback((
+    date: string,
+    amount: number,
+    unit: CurrencyUnit,
+    isProfit: boolean
+  ) => {
+    const result = addProfitRecord({ date, amount, unit, isProfit });
+    // Forçar atualização após adicionar registro de lucro
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [addProfitRecord, forceUpdate]);
+
+  const handleDeleteInvestmentSynced = useCallback((id: string) => {
+    if (!activeReportIdFromHook) return false;
+    const result = deleteInvestment(activeReportIdFromHook, id);
+    // Forçar atualização após deletar investimento
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportIdFromHook, deleteInvestment, forceUpdate]);
+
+  const handleDeleteProfitSynced = useCallback((id: string) => {
+    if (!activeReportIdFromHook) return false;
+    const result = deleteProfitRecord(activeReportIdFromHook, id);
+    // Forçar atualização após deletar lucro
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportIdFromHook, deleteProfitRecord, forceUpdate]);
+
+  const handleUpdateAllInvestmentsSynced = useCallback((investments: Investment[]) => {
+    if (!activeReportIdFromHook) return false;
+    const result = updateReportData(activeReportIdFromHook, investments, undefined);
+    // Forçar atualização após atualizar investimentos
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportIdFromHook, updateReportData, forceUpdate]);
+
+  const handleUpdateAllProfitsSynced = useCallback((profits: ProfitRecord[]) => {
+    if (!activeReportIdFromHook) return false;
+    const result = updateReportData(activeReportIdFromHook, undefined, profits);
+    // Forçar atualização após atualizar lucros
+    setTimeout(forceUpdate, 100);
+    return result;
+  }, [activeReportIdFromHook, updateReportData, forceUpdate]);
+
   return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
-      <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
-          <TabsTrigger value="register" className="text-white data-[state=active]:bg-purple-700">
-            Importar
-          </TabsTrigger>
-          <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-            Histórico
-          </TabsTrigger>
-          <TabsTrigger value="chart" className="text-white data-[state=active]:bg-purple-700">
-            Gráficos
-          </TabsTrigger>
-        </TabsList>
+      {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
+      {isComparisonMode ? (
+        <ReportsComparison 
+          onBack={() => setIsComparisonMode(false)} 
+          btcToUsd={btcToUsd} 
+          brlToUsd={brlToUsd} 
+        />
+      ) : (
+        <>
+          {/* NOVO: Cabeçalho com gerenciador de relatórios */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
+            <ReportManager onCompare={() => setIsComparisonMode(true)} />
+            
+            <Button
+              variant="outline"
+              size="sm"
+              className="sm:ml-auto bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+              onClick={() => setIsComparisonMode(true)}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Comparar Relatórios
+            </Button>
+          </div>
 
-        {/* ABA IMPORTAR */}
-        <TabsContent value="register">
-          <div className="space-y-6">
-            {/* Cabeçalho do relatório ativo - somente exibição */}
-            {currentActiveReportObjectFromHook && reportSummaryData && (
-              <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-xl mb-2 flex items-center">
-                        Resumo Geral do Relatório Ativo
+          {/* Conteúdo principal do calculadora */}
+          <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
+              <TabsTrigger value="register" className="text-white data-[state=active]:bg-purple-700">
+                Importar
+              </TabsTrigger>
+              <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
+                Histórico
+              </TabsTrigger>
+              <TabsTrigger value="chart" className="text-white data-[state=active]:bg-purple-700">
+                Gráficos
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ABA IMPORTAR */}
+            <TabsContent value="register">
+              <div className="space-y-6">
+                {/* Cabeçalho do relatório ativo - somente exibição */}
+                {currentActiveReportObjectFromHook && reportSummaryData && (
+                  <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-xl mb-2 flex items-center">
+                            Resumo Geral do Relatório Ativo
+                          </CardTitle>
+                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
+                            Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
+                            {currentActiveReportObjectFromHook?.description && (
+                              <span className="block mt-1 text-sm">
+                                - {currentActiveReportObjectFromHook.description}
+                              </span>
+                            )}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                )}
+
+                {/* Seção de Configuração LN Markets Associada */}
+                {multipleConfigs && multipleConfigs.configs.length > 0 && (
+                  <Card className="bg-black/30 border border-blue-700/40">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-5 w-5 text-blue-500" />
+                          Configuração LN Markets Associada
+                        </div>
+                        <Button
+                          onClick={() => setShowConfigSelector(!showConfigSelector)}
+                          size="sm"
+                          variant="outline"
+                          className="border-blue-500 text-blue-400"
+                        >
+                          {showConfigSelector ? "Cancelar" : "Trocar"}
+                        </Button>
                       </CardTitle>
-                      <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                        Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
-                        {currentActiveReportObjectFromHook?.description && (
-                          <span className="block mt-1 text-sm">
-                            - {currentActiveReportObjectFromHook.description}
-                          </span>
-                        )}
+                      <CardDescription>
+                        {selectedConfigForImport 
+                          ? `Dados serão importados da configuração associada`
+                          : "Nenhuma configuração associada - selecione uma para importar dados"
+                        }
                       </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            )}
+                    </CardHeader>
 
-            {/* Seção de Configuração LN Markets Associada */}
-            {multipleConfigs && multipleConfigs.configs.length > 0 && (
-              <Card className="bg-black/30 border border-blue-700/40">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-blue-500" />
-                      Configuração LN Markets Associada
-                    </div>
-                    <Button
-                      onClick={() => setShowConfigSelector(!showConfigSelector)}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-500 text-blue-400"
-                    >
-                      {showConfigSelector ? "Cancelar" : "Trocar"}
-                    </Button>
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedConfigForImport 
-                      ? `Dados serão importados da configuração associada`
-                      : "Nenhuma configuração associada - selecione uma para importar dados"
-                    }
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent>
-                  {!showConfigSelector ? (
-                    // Mostrar configuração atual
-                    <div>
-                      {selectedConfigForImport ? (
-                        (() => {
-                          const currentConfig = multipleConfigs.configs.find(c => c.id === selectedConfigForImport);
-                          return currentConfig ? (
-                            <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-500/5">
+                    <CardContent>
+                      {!showConfigSelector ? (
+                        // Mostrar configuração atual
+                        <div>
+                          {selectedConfigForImport ? (
+                            (() => {
+                              const currentConfig = multipleConfigs.configs.find(c => c.id === selectedConfigForImport);
+                              return currentConfig ? (
+                                <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-500/5">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h3 className="font-medium text-white flex items-center gap-2">
+                                        {currentConfig.name}
+                                        <Badge variant={currentConfig.isActive ? "default" : "secondary"} className="text-xs">
+                                          {currentConfig.isActive ? "Ativa" : "Inativa"}
+                                        </Badge>
+                                        {multipleConfigs.defaultConfigId === currentConfig.id && (
+                                          <Badge variant="outline" className="text-xs">Padrão</Badge>
+                                        )}
+                                      </h3>
+                                      {currentConfig.description && (
+                                        <p className="text-sm text-blue-300">{currentConfig.description}</p>
+                                      )}
+                                      <p className="text-xs text-blue-400">
+                                        Rede: {currentConfig.credentials.network}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-4 text-red-400">
+                                  Configuração associada não encontrada
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <div className="text-center py-4 text-yellow-400">
+                              <Zap className="h-8 w-8 mx-auto mb-2" />
+                              <p>Nenhuma configuração associada</p>
+                              <p className="text-sm">Clique em "Trocar" para selecionar uma configuração</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // Seletor de configuração
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-blue-400">Selecione uma configuração:</h4>
+                          {multipleConfigs.configs.map((config) => (
+                            <div key={config.id} className="p-3 border border-blue-500/30 rounded-lg hover:bg-blue-500/5 cursor-pointer"
+                                 onClick={() => {
+                                   handleAssociateConfigToReport(config.id);
+                                   setShowConfigSelector(false);
+                                 }}>
                               <div className="flex items-center justify-between">
                                 <div>
                                   <h3 className="font-medium text-white flex items-center gap-2">
-                                    {currentConfig.name}
-                                    <Badge variant={currentConfig.isActive ? "default" : "secondary"} className="text-xs">
-                                      {currentConfig.isActive ? "Ativa" : "Inativa"}
+                                    {config.name}
+                                    <Badge variant={config.isActive ? "default" : "secondary"} className="text-xs">
+                                      {config.isActive ? "Ativa" : "Inativa"}
                                     </Badge>
-                                    {multipleConfigs.defaultConfigId === currentConfig.id && (
+                                    {multipleConfigs.defaultConfigId === config.id && (
                                       <Badge variant="outline" className="text-xs">Padrão</Badge>
                                     )}
                                   </h3>
-                                  {currentConfig.description && (
-                                    <p className="text-sm text-blue-300">{currentConfig.description}</p>
+                                  {config.description && (
+                                    <p className="text-sm text-blue-300">{config.description}</p>
                                   )}
                                   <p className="text-xs text-blue-400">
-                                    Rede: {currentConfig.credentials.network}
+                                    Rede: {config.credentials.network}
                                   </p>
                                 </div>
+                                {selectedConfigForImport === config.id && (
+                                  <Badge variant="default" className="text-xs">Atual</Badge>
+                                )}
                               </div>
                             </div>
-                          ) : (
-                            <div className="text-center py-4 text-red-400">
-                              Configuração associada não encontrada
-                            </div>
-                          );
-                        })()
-                      ) : (
-                        <div className="text-center py-4 text-yellow-400">
-                          <Zap className="h-8 w-8 mx-auto mb-2" />
-                          <p>Nenhuma configuração associada</p>
-                          <p className="text-sm">Clique em "Trocar" para selecionar uma configuração</p>
+                          ))}
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Status da configuração LN Markets */}
+                {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
+                  <Alert>
+                    <Zap className="h-4 w-4" />
+                    <AlertDescription>
+                      Configure suas credenciais LN Markets no perfil para importar dados automaticamente.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {selectedConfigForImport && !getCurrentImportConfig() && (
+                  <Alert variant="destructive">
+                    <Zap className="h-4 w-4" />
+                    <AlertDescription>
+                      A configuração associada está inativa. Ative-a no perfil ou selecione outra configuração.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Botões de importação LN Markets */}
+                <Card className="bg-black/30 border border-purple-700/40">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="h-5 w-5" />
+                      Importação LN Markets
+                      {selectedConfigForImport && (() => {
+                        const config = getCurrentImportConfig();
+                        return config ? (
+                          <Badge variant="outline" className="text-xs">
+                            {config.name}
+                          </Badge>
+                        ) : null;
+                      })()}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedConfigForImport 
+                        ? "Importe dados da configuração associada"
+                        : "Selecione uma configuração para importar dados"
+                      }
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Button
+                        onClick={handleImportTrades}
+                        disabled={!getCurrentImportConfig() || isImportingTrades}
+                        className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                      >
+                        <TrendingUp className="h-5 w-5" />
+                        <span>
+                          {isImportingTrades ? "Importando..." : "Importar Trades"}
+                        </span>
+                      </Button>
+
+                      <Button
+                        onClick={handleImportDeposits}
+                        disabled={!getCurrentImportConfig() || isImportingDeposits}
+                        className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        <Download className="h-5 w-5" />
+                        <span>
+                          {isImportingDeposits ? "Importando..." : "Importar Depósitos"}
+                        </span>
+                      </Button>
+
+                      <Button
+                        onClick={handleImportWithdrawals}
+                        disabled={!getCurrentImportConfig() || isImportingWithdrawals}
+                        className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                      >
+                        <Upload className="h-5 w-5" />
+                        <span>
+                          {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
+                        </span>
+                      </Button>
                     </div>
-                  ) : (
-                    // Seletor de configuração
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-blue-400">Selecione uma configuração:</h4>
-                      {multipleConfigs.configs.map((config) => (
-                        <div key={config.id} className="p-3 border border-blue-500/30 rounded-lg hover:bg-blue-500/5 cursor-pointer"
-                             onClick={() => {
-                               handleAssociateConfigToReport(config.id);
-                               setShowConfigSelector(false);
-                             }}>
-                          <div className="flex items-center justify-between">
+
+                    {/* Estatísticas de importação */}
+                    {importStats && selectedConfigForImport && (
+                      <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
+                        <h4 className="text-sm font-medium text-purple-400 mb-3">
+                          Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                          {importStats.trades && (
                             <div>
-                              <h3 className="font-medium text-white flex items-center gap-2">
-                                {config.name}
-                                <Badge variant={config.isActive ? "default" : "secondary"} className="text-xs">
-                                  {config.isActive ? "Ativa" : "Inativa"}
-                                </Badge>
-                                {multipleConfigs.defaultConfigId === config.id && (
-                                  <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                )}
-                              </h3>
-                              {config.description && (
-                                <p className="text-sm text-blue-300">{config.description}</p>
-                              )}
-                              <p className="text-xs text-blue-400">
-                                Rede: {config.credentials.network}
-                              </p>
+                              <div className="text-green-400 font-medium">Trades</div>
+                              <div>Total: {importStats.trades.total}</div>
+                              <div>Importados: {importStats.trades.imported}</div>
+                              <div>Duplicados: {importStats.trades.duplicated}</div>
                             </div>
-                            {selectedConfigForImport === config.id && (
-                              <Badge variant="default" className="text-xs">Atual</Badge>
-                            )}
-                          </div>
+                          )}
+                          {importStats.deposits && (
+                            <div>
+                              <div className="text-blue-400 font-medium">Depósitos</div>
+                              <div>Total: {importStats.deposits.total}</div>
+                              <div>Importados: {importStats.deposits.imported}</div>
+                              <div>Duplicados: {importStats.deposits.duplicated}</div>
+                            </div>
+                          )}
+                          {importStats.withdrawals && (
+                            <div>
+                              <div className="text-red-400 font-medium">Saques</div>
+                              <div>Total: {importStats.withdrawals.total}</div>
+                              <div>Importados: {importStats.withdrawals.imported}</div>
+                              <div>Duplicados: {importStats.withdrawals.duplicated}</div>
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* ABA HISTÓRICO */}
+            <TabsContent value="history">
+              <Card className="bg-black/30 border border-purple-700/40">
+                <CardHeader>
+                  <CardTitle>Histórico de Transações</CardTitle>
+                  <CardDescription>
+                    Visualize e gerencie seus registros históricos incluindo saques
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-purple-400">
+                    Histórico será implementado aqui...
+                    {reportSummaryData?.hasWithdrawals && (
+                      <p className="mt-2 text-sm">
+                        Incluindo análise de saldo total vs saldo atual
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
-            )}
+            </TabsContent>
 
-            {/* Status da configuração LN Markets */}
-            {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
-              <Alert>
-                <Zap className="h-4 w-4" />
-                <AlertDescription>
-                  Configure suas credenciais LN Markets no perfil para importar dados automaticamente.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {selectedConfigForImport && !getCurrentImportConfig() && (
-              <Alert variant="destructive">
-                <Zap className="h-4 w-4" />
-                <AlertDescription>
-                  A configuração associada está inativa. Ative-a no perfil ou selecione outra configuração.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Botões de importação LN Markets */}
-            <Card className="bg-black/30 border border-purple-700/40">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Importação LN Markets
-                  {selectedConfigForImport && (() => {
-                    const config = getCurrentImportConfig();
-                    return config ? (
-                      <Badge variant="outline" className="text-xs">
-                        {config.name}
-                      </Badge>
-                    ) : null;
-                  })()}
-                </CardTitle>
-                <CardDescription>
-                  {selectedConfigForImport 
-                    ? "Importe dados da configuração associada"
-                    : "Selecione uma configuração para importar dados"
-                  }
-                </CardDescription>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button
-                    onClick={handleImportTrades}
-                    disabled={!getCurrentImportConfig() || isImportingTrades}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                  >
-                    <TrendingUp className="h-5 w-5" />
-                    <span>
-                      {isImportingTrades ? "Importando..." : "Importar Trades"}
-                    </span>
-                  </Button>
-
-                  <Button
-                    onClick={handleImportDeposits}
-                    disabled={!getCurrentImportConfig() || isImportingDeposits}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    <Download className="h-5 w-5" />
-                    <span>
-                      {isImportingDeposits ? "Importando..." : "Importar Depósitos"}
-                    </span>
-                  </Button>
-
-                  <Button
-                    onClick={handleImportWithdrawals}
-                    disabled={!getCurrentImportConfig() || isImportingWithdrawals}
-                    className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
-                  >
-                    <Upload className="h-5 w-5" />
-                    <span>
-                      {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
-                    </span>
-                  </Button>
-                </div>
-
-                {/* Estatísticas de importação */}
-                {importStats && selectedConfigForImport && (
-                  <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
-                    <h4 className="text-sm font-medium text-purple-400 mb-3">
-                      Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                      {importStats.trades && (
-                        <div>
-                          <div className="text-green-400 font-medium">Trades</div>
-                          <div>Total: {importStats.trades.total}</div>
-                          <div>Importados: {importStats.trades.imported}</div>
-                          <div>Duplicados: {importStats.trades.duplicated}</div>
-                        </div>
-                      )}
-                      {importStats.deposits && (
-                        <div>
-                          <div className="text-blue-400 font-medium">Depósitos</div>
-                          <div>Total: {importStats.deposits.total}</div>
-                          <div>Importados: {importStats.deposits.imported}</div>
-                          <div>Duplicados: {importStats.deposits.duplicated}</div>
-                        </div>
-                      )}
-                      {importStats.withdrawals && (
-                        <div>
-                          <div className="text-red-400 font-medium">Saques</div>
-                          <div>Total: {importStats.withdrawals.total}</div>
-                          <div>Importados: {importStats.withdrawals.imported}</div>
-                          <div>Duplicados: {importStats.withdrawals.duplicated}</div>
-                        </div>
-                      )}
-                    </div>
+            {/* ABA GRÁFICOS */}
+            <TabsContent value="chart">
+              <Card className="bg-black/30 border border-purple-700/40">
+                <CardHeader>
+                  <CardTitle>Análise Gráfica</CardTitle>
+                  <CardDescription>
+                    Visualize seus dados em gráficos interativos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-purple-400">
+                    Gráficos serão implementados aqui...
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* ABA HISTÓRICO */}
-        <TabsContent value="history">
-          <Card className="bg-black/30 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle>Histórico de Transações</CardTitle>
-              <CardDescription>
-                Visualize e gerencie seus registros históricos incluindo saques
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-purple-400">
-                Histórico será implementado aqui...
-                {reportSummaryData?.hasWithdrawals && (
-                  <p className="mt-2 text-sm">
-                    Incluindo análise de saldo total vs saldo atual
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ABA GRÁFICOS */}
-        <TabsContent value="chart">
-          <Card className="bg-black/30 border border-purple-700/40">
-            <CardHeader>
-              <CardTitle>Análise Gráfica</CardTitle>
-              <CardDescription>
-                Visualize seus dados em gráficos interativos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-purple-400">
-                Gráficos serão implementados aqui...
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </div>
   );
 } 

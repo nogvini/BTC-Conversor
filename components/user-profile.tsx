@@ -36,6 +36,44 @@ import {
 } from "@/lib/encryption"
 import { testLNMarketsCredentials } from "@/lib/ln-markets-api"
 
+// CSS personalizado para responsividade
+const customStyles = `
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  
+  .config-card {
+    transition: all 0.3s ease;
+  }
+  
+  .config-card:hover {
+    border-color: rgb(147 51 234 / 0.6);
+    background-color: rgb(147 51 234 / 0.05);
+  }
+  
+  .config-field {
+    min-height: 60px;
+    transition: all 0.2s ease;
+  }
+  
+  .config-field:hover {
+    background-color: rgb(0 0 0 / 0.4);
+  }
+  
+  @media (max-width: 640px) {
+    .config-actions {
+      justify-content: center;
+    }
+    
+    .config-field {
+      min-height: 50px;
+    }
+  }
+`;
+
 // Esquema de validação para o perfil
 const profileSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres"),
@@ -44,9 +82,9 @@ const profileSchema = z.object({
 
 // Esquema de validação para credenciais LN Markets
 const lnMarketsSchema = z.object({
-  apiKey: z.string().min(10, "API Key deve ter pelo menos 10 caracteres"),
-  apiSecret: z.string().min(10, "API Secret deve ter pelo menos 10 caracteres"),
-  apiPassphrase: z.string().min(1, "API Passphrase é obrigatório"),
+  key: z.string().min(10, "API Key deve ter pelo menos 10 caracteres"),
+  secret: z.string().min(10, "API Secret deve ter pelo menos 10 caracteres"),
+  passphrase: z.string().min(1, "API Passphrase é obrigatório"),
   network: z.enum(['mainnet', 'testnet'], { 
     required_error: "Selecione uma rede" 
   }),
@@ -85,9 +123,9 @@ export default function UserProfile() {
   const [isTestingCredentials, setIsTestingCredentials] = useState(false)
   const [isSavingLNMarkets, setIsSavingLNMarkets] = useState(false)
   const [showSensitiveFields, setShowSensitiveFields] = useState({
-    apiKey: false,
-    apiSecret: false,
-    apiPassphrase: false,
+    key: false,
+    secret: false,
+    passphrase: false,
   })
   
   // Estados para múltiplas configurações LN Markets
@@ -97,7 +135,7 @@ export default function UserProfile() {
   const [newConfigForm, setNewConfigForm] = useState({
     name: "",
     description: "",
-    apiKey: "",
+    key: "",
     secret: "",
     passphrase: "",
     network: "mainnet" as "mainnet" | "testnet",
@@ -117,9 +155,9 @@ export default function UserProfile() {
   const lnMarketsForm = useForm<LNMarketsFormValues>({
     resolver: zodResolver(lnMarketsSchema),
     defaultValues: {
-      apiKey: "",
-      apiSecret: "",
-      apiPassphrase: "",
+      key: "",
+      secret: "",
+      passphrase: "",
       network: "mainnet",
     },
   })
@@ -259,9 +297,9 @@ export default function UserProfile() {
 
       // Limpar formulário
       lnMarketsForm.reset({
-        apiKey: "",
-        apiSecret: "",
-        apiPassphrase: "",
+        key: "",
+        secret: "",
+        passphrase: "",
         network: "mainnet",
       });
 
@@ -317,7 +355,7 @@ export default function UserProfile() {
     }
 
     // Validar se todos os campos estão preenchidos
-    if (!newConfigForm.apiKey || !newConfigForm.secret || !newConfigForm.passphrase) {
+    if (!newConfigForm.key || !newConfigForm.secret || !newConfigForm.passphrase) {
       toast({
         title: "Erro",
         description: "Todos os campos da API são obrigatórios.",
@@ -330,7 +368,7 @@ export default function UserProfile() {
       name: newConfigForm.name.trim(),
       description: newConfigForm.description.trim() || undefined,
       credentials: {
-        apiKey: newConfigForm.apiKey,
+        key: newConfigForm.key,
         secret: newConfigForm.secret,
         passphrase: newConfigForm.passphrase,
         network: newConfigForm.network,
@@ -350,7 +388,7 @@ export default function UserProfile() {
       setNewConfigForm({
         name: "",
         description: "",
-        apiKey: "",
+        key: "",
         secret: "",
         passphrase: "",
         network: "mainnet",
@@ -467,6 +505,7 @@ export default function UserProfile() {
 
   return (
     <PageTransition>
+      <style dangerouslySetInnerHTML={{ __html: customStyles }} />
       <div className="w-full max-w-4xl mx-auto space-y-6">
         {/* Seção do Perfil */}
         <Card className="bg-black/30 border border-purple-700/40">
@@ -616,38 +655,41 @@ export default function UserProfile() {
             {multipleConfigs && multipleConfigs.configs.length > 0 ? (
               <div className="space-y-4">
                 {multipleConfigs.configs.map((config) => (
-                  <div key={config.id} className="p-4 border border-purple-700/30 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <h3 className="font-medium text-white flex items-center gap-2">
+                  <div key={config.id} className="p-4 border border-purple-700/30 rounded-lg overflow-hidden config-card">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className="font-medium text-white truncate max-w-[200px]">
                             {config.name}
-                            {multipleConfigs.defaultConfigId === config.id && (
-                              <Badge variant="default" className="text-xs">Padrão</Badge>
-                            )}
-                            <Badge 
-                              variant={config.isActive ? "default" : "secondary"}
-                              className="text-xs"
-                            >
-                              {config.isActive ? "Ativa" : "Inativa"}
-                            </Badge>
                           </h3>
-                          {config.description && (
-                            <p className="text-sm text-purple-300">{config.description}</p>
+                          {multipleConfigs.defaultConfigId === config.id && (
+                            <Badge variant="default" className="text-xs shrink-0">Padrão</Badge>
                           )}
-                          <p className="text-xs text-purple-400">
-                            Rede: {config.credentials.network} • 
-                            Criada: {new Date(config.createdAt).toLocaleDateString()}
-                          </p>
+                          <Badge 
+                            variant={config.isActive ? "default" : "secondary"}
+                            className="text-xs shrink-0"
+                          >
+                            {config.isActive ? "Ativa" : "Inativa"}
+                          </Badge>
                         </div>
+                        {config.description && (
+                          <p className="text-sm text-purple-300 break-words line-clamp-2 mb-1">
+                            {config.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-purple-400 break-all">
+                          <span className="inline-block">Rede: {config.credentials.network}</span>
+                          <span className="hidden sm:inline"> • </span>
+                          <span className="block sm:inline">Criada: {new Date(config.createdAt).toLocaleDateString()}</span>
+                        </p>
                       </div>
                       
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0 config-actions">
                         <Button
                           onClick={() => handleToggleConfigActive(config.id, !config.isActive)}
                           size="sm"
                           variant="outline"
-                          className={config.isActive ? "border-red-500 text-red-400" : "border-green-500 text-green-400"}
+                          className={`${config.isActive ? "border-red-500 text-red-400" : "border-green-500 text-green-400"} min-w-[40px]`}
                         >
                           {config.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
@@ -657,7 +699,8 @@ export default function UserProfile() {
                             onClick={() => handleSetDefaultConfig(config.id)}
                             size="sm"
                             variant="outline"
-                            className="border-yellow-500 text-yellow-400"
+                            className="border-yellow-500 text-yellow-400 min-w-[40px]"
+                            title="Definir como padrão"
                           >
                             <Star className="h-4 w-4" />
                           </Button>
@@ -667,6 +710,8 @@ export default function UserProfile() {
                           onClick={() => setEditingConfigId(config.id)}
                           size="sm"
                           variant="outline"
+                          className="min-w-[40px]"
+                          title="Editar configuração"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -675,31 +720,32 @@ export default function UserProfile() {
                           onClick={() => handleRemoveConfig(config.id, config.name)}
                           size="sm"
                           variant="outline"
-                          className="border-red-500 text-red-400"
+                          className="border-red-500 text-red-400 min-w-[40px]"
+                          title="Remover configuração"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
 
-                    {/* Informações mascaradas da API */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                      <div>
-                        <span className="text-purple-400">API Key:</span>
-                        <p className="text-white font-mono">
-                          {maskSensitiveData(config.credentials.apiKey)}
+                    {/* Informações mascaradas da API - Layout responsivo melhorado */}
+                    <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-1 lg:grid-cols-3 gap-3">
+                      <div className="bg-black/20 p-3 rounded border border-purple-700/20 config-field">
+                        <span className="text-purple-400 text-xs font-medium block mb-1">API Key:</span>
+                        <p className="text-white font-mono text-xs break-all select-all">
+                          {maskSensitiveData(config.credentials.key, 6)}
                         </p>
                       </div>
-                      <div>
-                        <span className="text-purple-400">Secret:</span>
-                        <p className="text-white font-mono">
-                          {maskSensitiveData(config.credentials.secret)}
+                      <div className="bg-black/20 p-3 rounded border border-purple-700/20 config-field">
+                        <span className="text-purple-400 text-xs font-medium block mb-1">Secret:</span>
+                        <p className="text-white font-mono text-xs break-all select-all">
+                          {maskSensitiveData(config.credentials.secret, 6)}
                         </p>
                       </div>
-                      <div>
-                        <span className="text-purple-400">Passphrase:</span>
-                        <p className="text-white font-mono">
-                          {maskSensitiveData(config.credentials.passphrase)}
+                      <div className="bg-black/20 p-3 rounded border border-purple-700/20 config-field">
+                        <span className="text-purple-400 text-xs font-medium block mb-1">Passphrase:</span>
+                        <p className="text-white font-mono text-xs break-all select-all">
+                          {maskSensitiveData(config.credentials.passphrase, 4)}
                         </p>
                       </div>
                     </div>
@@ -772,8 +818,8 @@ export default function UserProfile() {
                     </label>
                     <input
                       type="text"
-                      value={newConfigForm.apiKey}
-                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                      value={newConfigForm.key}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, key: e.target.value }))}
                       className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
                       placeholder="Sua API Key"
                       required
@@ -836,7 +882,7 @@ export default function UserProfile() {
                       setNewConfigForm({
                         name: "",
                         description: "",
-                        apiKey: "",
+                        key: "",
                         secret: "",
                         passphrase: "",
                         network: "mainnet",

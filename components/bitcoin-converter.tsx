@@ -13,7 +13,6 @@ import { toast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import HistoricalRatesChart from "./historical-rates-chart"
 import ProfitCalculator from "./profit-calculator"
-import { MultiReportCalculator } from "./multi-report-calculator"
 import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
@@ -1015,7 +1014,7 @@ export default function BitcoinConverter() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-4 md:pt-6">
-                          <MultiReportCalculator
+                          <ProfitCalculator
                             key={`calculator-sync-${activeReportId || 'no-report'}-${activeReport?.lastUpdated || activeReport?.updatedAt || 'no-timestamp'}-${forceRender}`}
                             btcToUsd={rates.BTC_USD} 
                             brlToUsd={rates.BRL_USD} 

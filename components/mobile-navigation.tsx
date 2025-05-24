@@ -5,7 +5,7 @@ import { Menu, ArrowRightLeft, TrendingUp, Calculator, ChevronRight, UserCircle,
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 
 export interface MobileNavigationProps {
@@ -16,6 +16,7 @@ export interface MobileNavigationProps {
 export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationProps) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { session } = useAuth()
   const isAuthenticated = !!session.user
@@ -65,19 +66,19 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
               <NavItem 
                 icon={<Home className="h-5 w-5" />}
                 label="Home"
-                active={router.pathname === "/"}
+                active={pathname === "/"}
                 onClick={() => navigateToPage("/")}
               />
               <NavItem 
                 icon={<Info className="h-5 w-5" />}
                 label="Sobre Nós"
-                active={router.pathname === "/about"}
+                active={pathname === "/about"}
                 onClick={() => navigateToPage("/about")}
               />
               <NavItem 
                 icon={<Users className="h-5 w-5" />}
                 label="Parceiros"
-                active={router.pathname === "/partners"}
+                active={pathname === "/partners"}
                 onClick={() => navigateToPage("/partners")}
               />
 
@@ -90,20 +91,20 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
               <NavItem 
                 icon={<ArrowRightLeft className="h-5 w-5" />}
                 label="Conversor"
-                active={activeTab === "converter"}
-                onClick={() => navigateToTab("converter")}
+                active={pathname === "/converter"}
+                onClick={() => navigateToPage("/converter")}
               />
               <NavItem 
                 icon={<TrendingUp className="h-5 w-5" />}
                 label="Gráficos"
-                active={activeTab === "chart"}
-                onClick={() => navigateToTab("chart")}
+                active={pathname === "/chart"}
+                onClick={() => navigateToPage("/chart")}
               />
               <NavItem 
                 icon={<Calculator className="h-5 w-5" />}
                 label="Calculadora"
-                active={activeTab === "calculator"}
-                onClick={() => navigateToTab("calculator")}
+                active={pathname === "/calculator"}
+                onClick={() => navigateToPage("/calculator")}
               />
               
               {isAuthenticated && (
