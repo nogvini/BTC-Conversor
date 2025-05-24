@@ -351,7 +351,7 @@ export default function ProfitCalculator({
     setIsImportingTrades(true);
     try {
       console.log('[handleImportTrades] Fazendo requisição com credenciais:', {
-        hasApiKey: !!config.credentials.apiKey,
+        hasKey: !!config.credentials.key,
         hasSecret: !!config.credentials.secret,
         hasPassphrase: !!config.credentials.passphrase,
         network: config.credentials.network,
@@ -438,7 +438,7 @@ export default function ProfitCalculator({
     setIsImportingDeposits(true);
     try {
       console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
-        hasApiKey: !!config.credentials.apiKey,
+        hasKey: !!config.credentials.key,
         hasSecret: !!config.credentials.secret,
         hasPassphrase: !!config.credentials.passphrase,
         network: config.credentials.network,
@@ -525,7 +525,7 @@ export default function ProfitCalculator({
     setIsImportingWithdrawals(true);
     try {
       console.log('[handleImportWithdrawals] Fazendo requisição com credenciais:', {
-        hasApiKey: !!config.credentials.apiKey,
+        hasKey: !!config.credentials.key,
         hasSecret: !!config.credentials.secret,
         hasPassphrase: !!config.credentials.passphrase,
         network: config.credentials.network,

@@ -1,6 +1,6 @@
 // Tipos para LN Markets API
 export interface LNMarketsCredentials {
-  apiKey: string;
+  key: string;
   secret: string;
   passphrase: string;
   network: 'mainnet' | 'testnet';

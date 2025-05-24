@@ -11,6 +11,7 @@ import CryptoJS from 'crypto-js';
 /**
  * Cliente para API LN Markets
  * Implementação customizada baseada na documentação oficial: https://docs.lnmarkets.com/api/
+ * Referência: https://github.com/ln-markets/api-js/
  */
 class LNMarketsClient {
   private credentials: LNMarketsCredentials;
@@ -102,8 +103,9 @@ class LNMarketsClient {
 
       const signature = this.generateSignature(timestamp, method, path, params);
 
+      // Headers conforme documentação oficial da LN Markets
       const headers: HeadersInit = {
-        'LNM-ACCESS-KEY': this.credentials.apiKey,
+        'LNM-ACCESS-KEY': this.credentials.key,        // Mudança: agora usa 'key'
         'LNM-ACCESS-SIGNATURE': signature,
         'LNM-ACCESS-PASSPHRASE': this.credentials.passphrase,
         'LNM-ACCESS-TIMESTAMP': timestamp,
@@ -122,7 +124,7 @@ class LNMarketsClient {
         method,
         hasBody: !!body,
         headersPreview: {
-          'LNM-ACCESS-KEY': this.credentials.apiKey.substring(0, 8) + '...',
+          'LNM-ACCESS-KEY': this.credentials.key.substring(0, 8) + '...',    // Mudança: agora usa 'key'
           'LNM-ACCESS-TIMESTAMP': timestamp,
           'Content-Type': headers['Content-Type']
         }
@@ -186,6 +188,7 @@ class LNMarketsClient {
 
   /**
    * Busca trades/operações fechadas
+   * Conforme documentação: GET /v2/futures/trades
    */
   async getTrades(): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
     return this.makeAuthenticatedRequest<LNMarketsTrade[]>('GET', '/futures/trades');
@@ -193,6 +196,7 @@ class LNMarketsClient {
 
   /**
    * Busca histórico de depósitos
+   * Conforme documentação: GET /v2/user/deposits  
    */
   async getDeposits(): Promise<LNMarketsApiResponse<LNMarketsDeposit[]>> {
     return this.makeAuthenticatedRequest<LNMarketsDeposit[]>('GET', '/user/deposits');
@@ -200,6 +204,7 @@ class LNMarketsClient {
 
   /**
    * Busca histórico de saques
+   * Conforme documentação: GET /v2/user/withdrawals
    */
   async getWithdrawals(): Promise<LNMarketsApiResponse<LNMarketsWithdrawal[]>> {
     return this.makeAuthenticatedRequest<LNMarketsWithdrawal[]>('GET', '/user/withdrawals');
@@ -296,8 +301,8 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
 export function validateLNMarketsCredentials(credentials: LNMarketsCredentials): string[] {
   const errors: string[] = [];
   
-  if (!credentials.apiKey?.trim()) {
-    errors.push('API Key é obrigatória');
+  if (!credentials.key?.trim()) {
+    errors.push('Key é obrigatória');
   }
   
   if (!credentials.secret?.trim()) {

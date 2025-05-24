@@ -11,7 +11,7 @@ import type { LNMarketsCredentials } from "@/components/types/ln-markets-types";
 
 export default function TestLNMarketsPage() {
   const [credentials, setCredentials] = useState<LNMarketsCredentials>({
-    apiKey: "",
+    key: "",
     secret: "",
     passphrase: "",
     network: "testnet",
@@ -66,12 +66,12 @@ export default function TestLNMarketsPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="apiKey">API Key</Label>
+              <Label htmlFor="key">API Key</Label>
               <Input
-                id="apiKey"
+                id="key"
                 type="password"
-                value={credentials.apiKey}
-                onChange={(e) => setCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
+                value={credentials.key}
+                onChange={(e) => setCredentials(prev => ({ ...prev, key: e.target.value }))}
                 placeholder="Cole sua API Key aqui"
               />
             </div>

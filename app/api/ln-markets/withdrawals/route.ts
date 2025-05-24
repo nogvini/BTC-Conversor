@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Validar credenciais mais detalhadamente
     const missingFields = [];
-    if (!credentials.apiKey) missingFields.push('apiKey');
+    if (!credentials.key) missingFields.push('key');
     if (!credentials.secret) missingFields.push('secret');
     if (!credentials.passphrase) missingFields.push('passphrase');
     if (!credentials.network) missingFields.push('network');
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const lnCredentials: LNMarketsCredentials = {
-      apiKey: credentials.apiKey,
+      key: credentials.key,
       secret: credentials.secret,
       passphrase: credentials.passphrase,
       network: credentials.network,
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('[API LN Markets Withdrawals] Credenciais validadas:', {
-      apiKey: lnCredentials.apiKey ? `${lnCredentials.apiKey.substring(0, 8)}...` : 'N/A',
+      key: lnCredentials.key ? `${lnCredentials.key.substring(0, 8)}...` : 'N/A',
       network: lnCredentials.network,
       hasSecret: !!lnCredentials.secret,
       hasPassphrase: !!lnCredentials.passphrase

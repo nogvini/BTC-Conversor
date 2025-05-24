@@ -17,7 +17,7 @@ export class LNMarketsAPIClient {
   ): Promise<LNMarketsApiResponse<T>> {
     try {
       console.log(`[LN Markets Client] Iniciando requisição para ${endpoint}`, {
-        hasApiKey: !!credentials.apiKey,
+        hasKey: !!credentials.key,
         hasSecret: !!credentials.secret,
         hasPassphrase: !!credentials.passphrase,
         network: credentials.network,

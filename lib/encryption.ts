@@ -35,13 +35,15 @@ export function decryptData(encryptedData: string, userEmail?: string): string {
  * Criptografa credenciais LN Markets
  */
 export function encryptLNMarketsCredentials(credentials: LNMarketsCredentials): string {
-  try {
-    const dataString = JSON.stringify(credentials);
-    return encryptData(dataString);
-  } catch (error) {
-    console.error('Erro ao criptografar credenciais LN Markets:', error);
-    throw new Error('Falha ao criptografar credenciais');
-  }
+  const dataToEncrypt = {
+    key: credentials.key,
+    secret: credentials.secret,
+    passphrase: credentials.passphrase,
+    network: credentials.network,
+    isConfigured: credentials.isConfigured
+  };
+  
+  return CryptoJS.AES.encrypt(JSON.stringify(dataToEncrypt), ENCRYPTION_KEY).toString();
 }
 
 /**
@@ -49,7 +51,8 @@ export function encryptLNMarketsCredentials(credentials: LNMarketsCredentials): 
  */
 export function decryptLNMarketsCredentials(encryptedData: string): LNMarketsCredentials {
   try {
-    const decryptedString = decryptData(encryptedData);
+    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
     return JSON.parse(decryptedString);
   } catch (error) {
     console.error('Erro ao descriptografar credenciais LN Markets:', error);
@@ -168,7 +171,7 @@ export function saveLNMarketsMultipleConfigs(userEmail: string, multipleConfig: 
       ...config,
       credentials: {
         ...config.credentials,
-        apiKey: encryptData(config.credentials.apiKey, userEmail),
+        key: encryptData(config.credentials.key, userEmail),
         secret: encryptData(config.credentials.secret, userEmail),
         passphrase: encryptData(config.credentials.passphrase, userEmail),
       }
@@ -225,7 +228,7 @@ export function retrieveLNMarketsMultipleConfigs(userEmail: string): LNMarketsMu
       ...config,
       credentials: {
         ...config.credentials,
-        apiKey: decryptData(config.credentials.apiKey, userEmail),
+        key: decryptData(config.credentials.key, userEmail),
         secret: decryptData(config.credentials.secret, userEmail),
         passphrase: decryptData(config.credentials.passphrase, userEmail),
       }
