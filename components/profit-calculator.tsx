@@ -1037,6 +1037,20 @@ export default function ProfitCalculator({
     }
   };
 
+  // Função auxiliar para verificar se um depósito está confirmado
+  const isDepositConfirmed = (deposit: any): boolean => {
+    const confirmedStatuses = [
+      'confirmed', 'CONFIRMED', 
+      'complete', 'COMPLETE', 
+      'success', 'SUCCESS',
+      'settled', 'SETTLED',
+      'processed', 'PROCESSED',
+      'finalized', 'FINALIZED',
+      'done', 'DONE'
+    ];
+    return confirmedStatuses.includes(deposit.status);
+  };
+
   const handleImportDeposits = async () => {
     console.log('[handleImportDeposits] Iniciando importação de depósitos');
     
@@ -1150,13 +1164,8 @@ export default function ProfitCalculator({
           txid: deposit.txid
         });
 
-        // NOVO: Verificação mais flexível do status
-        const isConfirmed = deposit.status === 'confirmed' || 
-                           deposit.status === 'CONFIRMED' || 
-                           deposit.status === 'complete' || 
-                           deposit.status === 'COMPLETE' ||
-                           deposit.status === 'success' ||
-                           deposit.status === 'SUCCESS';
+        // NOVO: Verificação mais flexível do status usando função auxiliar
+        const isConfirmed = isDepositConfirmed(deposit);
         
         console.log('[handleImportDeposits] Verificação de status:', {
           originalStatus: deposit.status,
@@ -1296,7 +1305,7 @@ export default function ProfitCalculator({
           errors,
           skipped,
           processed: totalDeposits,
-          confirmedCount: deposits.filter(d => d.status === 'confirmed').length,
+          confirmedCount: deposits.filter(isDepositConfirmed).length,
           statusDistribution: deposits.reduce((acc, d) => {
             acc[d.status] = (acc[d.status] || 0) + 1;
             return acc;
@@ -1335,7 +1344,7 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Status aceitos: confirmed, CONFIRMED, complete, COMPLETE, success, SUCCESS
+              Status aceitos: confirmed, complete, success, settled, processed, finalized, done (case-insensitive)
             </div>
             {errors > 0 && (
               <div className="flex items-center gap-2">
@@ -1773,6 +1782,81 @@ export default function ProfitCalculator({
     }
   };
 
+  // NOVA Função para analisar status dos depósitos em tempo real
+  const analyzeDepositStatuses = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !user?.email) {
+      toast({
+        title: "❌ Erro na análise",
+        description: "Configuração ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro na análise",
+          description: response.error || "Erro ao buscar depósitos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const deposits = response.data;
+      const statusAnalysis = deposits.reduce((acc, d) => {
+        acc[d.status] = (acc[d.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const confirmedByOldLogic = deposits.filter(d => d.status === 'confirmed').length;
+      const confirmedByNewLogic = deposits.filter(isDepositConfirmed).length;
+      
+      console.log('[analyzeDepositStatuses] Análise completa:', {
+        totalDeposits: deposits.length,
+        statusDistribution: statusAnalysis,
+        confirmedByOldLogic,
+        confirmedByNewLogic,
+        difference: confirmedByNewLogic - confirmedByOldLogic,
+        allUniqueStatuses: Object.keys(statusAnalysis),
+        sampleDeposits: deposits.slice(0, 5).map(d => ({
+          id: d.id,
+          status: d.status,
+          amount: d.amount,
+          created_at: d.created_at,
+          isConfirmedByNewLogic: isDepositConfirmed(d)
+        }))
+      });
+
+      toast({
+        title: "🔍 Análise de Status",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div>Total: {deposits.length} depósitos</div>
+            <div>Confirmados (antiga lógica): {confirmedByOldLogic}</div>
+            <div>Confirmados (nova lógica): {confirmedByNewLogic}</div>
+            <div>Diferença: +{confirmedByNewLogic - confirmedByOldLogic}</div>
+            <div>Status únicos: {Object.keys(statusAnalysis).join(', ')}</div>
+            <div>Detalhes no console</div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+    } catch (error) {
+      console.error('[analyzeDepositStatuses] Erro:', error);
+      toast({
+        title: "❌ Erro na análise",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   // NOVA Função para testar conversão de depósitos
   const testDepositConversion = () => {
     if (!currentActiveReportObjectFromHook) {
@@ -1818,12 +1902,7 @@ export default function ProfitCalculator({
       try {
         console.log(`[testDepositConversion] Testando depósito ${index + 1}:`, deposit);
         
-        const isConfirmed = deposit.status === 'confirmed' || 
-                           deposit.status === 'CONFIRMED' || 
-                           deposit.status === 'complete' || 
-                           deposit.status === 'COMPLETE' ||
-                           deposit.status === 'success' ||
-                           deposit.status === 'SUCCESS';
+        const isConfirmed = isDepositConfirmed(deposit);
         
         console.log(`[testDepositConversion] Depósito ${index + 1} confirmado:`, isConfirmed);
         
@@ -1908,41 +1987,63 @@ export default function ProfitCalculator({
     
     console.log('[DEBUG] Estado completo da importação:', debugInfo);
     
-    // Teste específico de conexão com a API se houver configuração válida
-    if (config && config.credentials?.isConfigured) {
-      console.log('[DEBUG] Testando configuração selecionada...');
-      
-      // Simular uma requisição de teste
-      fetchLNMarketsDeposits(user?.email || '', config.id)
-        .then(response => {
-          console.log('[DEBUG] Teste de resposta da API /deposits:', response);
-          
-          if (response.success && response.data) {
-            console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
+          // Teste específico de conexão com a API se houver configuração válida
+      if (config && config.credentials?.isConfigured) {
+        console.log('[DEBUG] Testando configuração selecionada...');
+        
+        // Simular uma requisição de teste
+        fetchLNMarketsDeposits(user?.email || '', config.id)
+          .then(response => {
+            console.log('[DEBUG] Teste de resposta da API /deposits:', response);
             
-            // Testar conversão de um depósito
-            const firstConfirmedDeposit = response.data.find(d => d.status === 'confirmed');
-            if (firstConfirmedDeposit) {
-              try {
-                const testInvestment = convertDepositToInvestment(firstConfirmedDeposit);
-                console.log('[DEBUG] Teste de conversão bem-sucedido:', testInvestment);
-                
-                // Testar se já existe no relatório
-                const isDuplicate = currentActiveReportObjectFromHook?.investments?.some(
-                  inv => inv.originalId === testInvestment.originalId
-                );
-                console.log('[DEBUG] Depósito seria duplicado?', isDuplicate);
-                
-              } catch (conversionError) {
-                console.error('[DEBUG] Erro na conversão de teste:', conversionError);
+            if (response.success && response.data) {
+              console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
+              
+              // NOVO: Análise detalhada dos status
+              const statusAnalysis = response.data.reduce((acc, d) => {
+                acc[d.status] = (acc[d.status] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
+              
+              const confirmedByOldLogic = response.data.filter(d => d.status === 'confirmed').length;
+              const confirmedByNewLogic = response.data.filter(isDepositConfirmed).length;
+              
+              console.log('[DEBUG] Análise de status dos depósitos:', {
+                totalDeposits: response.data.length,
+                statusDistribution: statusAnalysis,
+                confirmedByOldLogic,
+                confirmedByNewLogic,
+                difference: confirmedByNewLogic - confirmedByOldLogic,
+                allUniqueStatuses: Object.keys(statusAnalysis),
+                confirmedStatuses: response.data.filter(isDepositConfirmed).map(d => d.status),
+                pendingStatuses: response.data.filter(d => !isDepositConfirmed(d)).map(d => d.status)
+              });
+              
+              // Testar conversão de um depósito confirmado
+              const firstConfirmedDeposit = response.data.find(isDepositConfirmed);
+              if (firstConfirmedDeposit) {
+                try {
+                  const testInvestment = convertDepositToInvestment(firstConfirmedDeposit);
+                  console.log('[DEBUG] Teste de conversão bem-sucedido:', testInvestment);
+                  
+                  // Testar se já existe no relatório
+                  const isDuplicate = currentActiveReportObjectFromHook?.investments?.some(
+                    inv => inv.originalId === testInvestment.originalId
+                  );
+                  console.log('[DEBUG] Depósito seria duplicado?', isDuplicate);
+                  
+                } catch (conversionError) {
+                  console.error('[DEBUG] Erro na conversão de teste:', conversionError);
+                }
+              } else {
+                console.log('[DEBUG] Nenhum depósito confirmado encontrado para teste');
               }
             }
-          }
-        })
-        .catch(error => {
-          console.error('[DEBUG] Erro no teste da API /deposits:', error);
-        });
-    }
+          })
+          .catch(error => {
+            console.error('[DEBUG] Erro no teste da API /deposits:', error);
+          });
+      }
     
     // Verificar localStorage
     try {
@@ -2770,6 +2871,14 @@ export default function ProfitCalculator({
                         >
                           🐛 Debug Info
                         </Button>
+                          <Button
+                            onClick={analyzeDepositStatuses}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-yellow-700/20 hover:bg-yellow-600/30 border-yellow-600/50"
+                          >
+                            🔍 Analisar Status
+                          </Button>
                           <Button
                             onClick={testAddInvestment}
                             variant="outline"
