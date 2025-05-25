@@ -2322,6 +2322,8 @@ export default function ProfitCalculator({
         return value >= 0.01 || value <= -0.01
           ? `₿${value.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 })}`
           : `丰${(value * 100000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+      default:
+        return `₿${value.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 })}`;
     }
   }, [chartDisplayUnit]);
 
@@ -2336,6 +2338,8 @@ export default function ProfitCalculator({
           return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
         case "btc":
           return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+        default:
+          return formatChartValue(value);
       }
     }
     return formatChartValue(value);
@@ -3599,6 +3603,8 @@ export default function ProfitCalculator({
                                       return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
                                     case "btc":
                                       return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                    default:
+                                      return formatChartValue(value);
                                   }
                                 }
                                 return formatChartValue(value);
@@ -3679,6 +3685,8 @@ export default function ProfitCalculator({
                                       return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
                                     case "btc":
                                       return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                    default:
+                                      return formatChartValue(value);
                                   }
                                 }
                                 return formatChartValue(value);
