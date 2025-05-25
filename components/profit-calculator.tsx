@@ -8,9 +8,54 @@ import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
-import { TrendingUp, Download, Upload, Wallet, Zap, FileSpreadsheet, ChevronLeft } from "lucide-react";
+import { 
+  TrendingUp, 
+  Download, 
+  Upload, 
+  Wallet, 
+  Zap, 
+  FileSpreadsheet, 
+  ChevronLeft,
+  Calendar as CalendarIcon,
+  BarChart2,
+  PieChart as PieChartIcon,
+  Filter,
+  Users,
+  TrendingDown,
+  Minus,
+  ArrowUp,
+  ArrowDown
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area
+} from "recharts";
+import { format as formatDateFn, startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from "@/lib/utils";
 
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
@@ -44,6 +89,184 @@ import { useAuth } from "@/hooks/use-auth";
 import { ReportManager } from "@/components/report-manager";
 import { ReportsComparison } from "@/components/reports-comparison";
 import { DisplayCurrency, CurrencyUnit, Investment, ProfitRecord } from "@/lib/calculator-types";
+import AnimatedCounter from "./animated-counter";
+
+// NOVOS TIPOS PARA O SISTEMA MELHORADO
+interface ImportProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  status: 'idle' | 'loading' | 'complete' | 'error';
+  message?: string;
+}
+
+interface ImportProgressState {
+  trades: ImportProgress;
+  deposits: ImportProgress;
+  withdrawals: ImportProgress;
+}
+
+type HistoryFilterPeriod = "1m" | "3m" | "6m" | "1y" | "all" | "custom";
+type HistoryViewMode = "active" | "all";
+
+interface ChartDataPoint {
+  date: string;
+  investments: number;
+  profits: number;
+  balance: number;
+  month: string;
+}
+
+// COMPONENTE AUXILIAR PARA PROGRESSO DE IMPORTAÇÃO
+function ImportProgressIndicator({ progress, type }: { progress: ImportProgress; type: string }) {
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (progress.status === 'loading' && !startTime) {
+      setStartTime(Date.now());
+    } else if (progress.status !== 'loading') {
+      setStartTime(null);
+      setEstimatedTimeRemaining(null);
+    }
+  }, [progress.status, startTime]);
+
+  useEffect(() => {
+    if (progress.status === 'loading' && startTime && progress.current > 0) {
+      const elapsed = Date.now() - startTime;
+      const rate = progress.current / elapsed;
+      const remaining = (progress.total - progress.current) / rate;
+      setEstimatedTimeRemaining(remaining);
+    }
+  }, [progress.current, progress.total, startTime, progress.status]);
+
+  const getStatusColor = () => {
+    switch (progress.status) {
+      case 'loading': return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+      case 'complete': return 'bg-gradient-to-r from-green-500 to-emerald-500';
+      case 'error': return 'bg-gradient-to-r from-red-500 to-rose-500';
+      default: return 'bg-gradient-to-r from-gray-500 to-slate-500';
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (type) {
+      case 'trades': return <TrendingUp className={cn("h-4 w-4 transition-all duration-300", 
+        progress.status === 'loading' ? "animate-pulse text-blue-400" : 
+        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+      case 'deposits': return <Download className={cn("h-4 w-4 transition-all duration-300", 
+        progress.status === 'loading' ? "animate-bounce text-blue-400" : 
+        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+      case 'withdrawals': return <Upload className={cn("h-4 w-4 transition-all duration-300", 
+        progress.status === 'loading' ? "animate-pulse text-blue-400" : 
+        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+      default: return null;
+    }
+  };
+
+  const formatTimeRemaining = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s restantes`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s restantes`;
+  };
+
+  return (
+    <div className="space-y-3 p-4 bg-black/20 border border-purple-700/30 rounded-lg backdrop-blur-sm transition-all duration-300 hover:bg-black/30">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {getStatusIcon()}
+          <span className="text-sm font-medium text-white">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+          {progress.status === 'loading' && (
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-gray-400">
+            {progress.status === 'loading' ? `${progress.current}/${progress.total}` : ''}
+          </div>
+          <div className="text-sm font-medium text-white">
+            {progress.percentage.toFixed(0)}%
+          </div>
+        </div>
+      </div>
+      
+      <div className="relative">
+        <Progress 
+          value={progress.percentage} 
+          className="h-3 bg-black/40"
+        />
+        <div 
+          className={cn("absolute top-0 left-0 h-3 rounded-full transition-all duration-500 ease-out", getStatusColor())}
+          style={{ width: `${progress.percentage}%` }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        {progress.message && (
+          <span className="text-gray-400 flex-1">{progress.message}</span>
+        )}
+        {estimatedTimeRemaining && progress.status === 'loading' && (
+          <span className="text-blue-400 font-medium">
+            {formatTimeRemaining(estimatedTimeRemaining)}
+          </span>
+        )}
+        {progress.status === 'complete' && (
+          <span className="text-green-400 font-medium flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            Concluído
+          </span>
+        )}
+        {progress.status === 'error' && (
+          <span className="text-red-400 font-medium flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Erro
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// COMPONENTE AUXILIAR PARA ESTATÍSTICAS DO HISTÓRICO
+function HistoryStatsCard({ title, value, icon, change, valueColor }: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  change?: number;
+  valueColor?: string;
+}) {
+  return (
+    <div className="p-4 bg-black/20 border border-purple-700/30 rounded-lg">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-gray-400">{title}</span>
+        {icon}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={cn("text-lg font-semibold", valueColor || "text-white")}>
+          {value}
+        </span>
+        {change !== undefined && (
+          <div className={cn("flex items-center text-xs", 
+            change > 0 ? "text-green-400" : change < 0 ? "text-red-400" : "text-gray-400"
+          )}>
+            {change > 0 ? <ArrowUp className="h-3 w-3" /> : change < 0 ? <ArrowDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+            {Math.abs(change).toFixed(1)}%
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ProfitCalculator({ 
   btcToUsd, 
@@ -109,6 +332,25 @@ export default function ProfitCalculator({
   const [multipleConfigs, setMultipleConfigs] = useState<LNMarketsMultipleConfig | null>(null);
   const [selectedConfigForImport, setSelectedConfigForImport] = useState<string | null>(null);
   const [showConfigSelector, setShowConfigSelector] = useState(false);
+
+  // NOVOS Estados para sistema de progresso de importação
+  const [importProgress, setImportProgress] = useState<ImportProgressState>({
+    trades: { current: 0, total: 0, percentage: 0, status: 'idle' },
+    deposits: { current: 0, total: 0, percentage: 0, status: 'idle' },
+    withdrawals: { current: 0, total: 0, percentage: 0, status: 'idle' }
+  });
+
+  // NOVOS Estados para aba histórico
+  const [historyFilterPeriod, setHistoryFilterPeriod] = useState<HistoryFilterPeriod>("3m");
+  const [historyViewMode, setHistoryViewMode] = useState<HistoryViewMode>("active");
+  const [historyCustomStartDate, setHistoryCustomStartDate] = useState<Date | undefined>(undefined);
+  const [historyCustomEndDate, setHistoryCustomEndDate] = useState<Date | undefined>(undefined);
+  const [historyActiveTab, setHistoryActiveTab] = useState<string>("overview");
+
+  // NOVOS Estados para aba gráficos
+  const [chartDisplayUnit, setChartDisplayUnit] = useState<"btc" | "usd" | "brl">("btc");
+  const [chartType, setChartType] = useState<"line" | "bar" | "area">("area");
+  const [chartTimeframe, setChartTimeframe] = useState<"daily" | "monthly">("monthly");
 
   // Estados adicionais que não estão no hook customizado
   const [pendingInvestment, setPendingInvestment] = useState<any>(null);
@@ -365,6 +607,12 @@ export default function ProfitCalculator({
         return;
     }
 
+    // Inicializar progresso
+    setImportProgress(prev => ({
+      ...prev,
+      trades: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
+    }));
+
     setIsImportingTrades(true);
     try {
       console.log('[handleImportTrades] Fazendo requisição com credenciais:', {
@@ -388,9 +636,23 @@ export default function ProfitCalculator({
         throw new Error(response.error || "Erro ao buscar trades");
       }
 
+      const totalTrades = response.data.length;
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
+      let processed = 0;
+
+      // Atualizar progresso inicial
+      setImportProgress(prev => ({
+        ...prev,
+        trades: { 
+          current: 0, 
+          total: totalTrades, 
+          percentage: 0, 
+          status: 'loading', 
+          message: `Processando ${totalTrades} trades...` 
+        }
+      }));
 
       for (const trade of response.data) {
         if (trade.closed && trade.pl !== 0) {
@@ -401,11 +663,45 @@ export default function ProfitCalculator({
             imported++;
           } else if (result.status === 'duplicate') {
             duplicated++;
-    } else {
+          } else {
             errors++;
           }
         }
+        
+        processed++;
+        const percentage = (processed / totalTrades) * 100;
+        
+        // Atualizar progresso a cada 10 items ou no final
+        if (processed % 10 === 0 || processed === totalTrades) {
+          setImportProgress(prev => ({
+            ...prev,
+            trades: {
+              current: processed,
+              total: totalTrades,
+              percentage,
+              status: 'loading',
+              message: `Processando... ${imported} importados, ${duplicated} duplicados`
+            }
+          }));
+          
+          // Pequeno delay para permitir atualização da UI
+          if (processed % 50 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
       }
+
+      // Progresso completo
+      setImportProgress(prev => ({
+        ...prev,
+        trades: {
+          current: totalTrades,
+          total: totalTrades,
+          percentage: 100,
+          status: 'complete',
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+        }
+      }));
 
       setImportStats(prev => ({
         trades: { total: response.data?.length || 0, imported, duplicated, errors },
@@ -413,18 +709,57 @@ export default function ProfitCalculator({
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
 
-    toast({
-        title: "Trades importados",
-        description: `${imported} trades importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
-      variant: "default",
-    });
+      toast({
+        title: "✅ Trades importados com sucesso!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>{imported} novos trades adicionados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} trades já existentes ignorados</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Configuração: "{config.name}"
+            </div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
     } catch (error: any) {
       console.error('[handleImportTrades] Erro durante importação:', error);
-          toast({
-        title: "Erro ao importar trades",
-        description: error.message || "Erro desconhecido",
-            variant: "destructive",
-          });
+      
+      // Progresso com erro
+      setImportProgress(prev => ({
+        ...prev,
+        trades: {
+          ...prev.trades,
+          status: 'error',
+          message: error.message || 'Erro durante importação'
+        }
+      }));
+      
+      toast({
+        title: "❌ Erro ao importar trades",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Falha na importação dos trades</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error.message || "Erro desconhecido"}
+            </div>
+          </div>
+        ),
+        variant: "destructive",
+        className: "border-red-500/50 bg-red-900/20",
+      });
     } finally {
       setIsImportingTrades(false);
     }
@@ -444,13 +779,19 @@ export default function ProfitCalculator({
     
     if (!config || !currentActiveReportObjectFromHook || !user?.email) {
       console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
-        toast({
+      toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
-          variant: "destructive",
-        });
-        return;
-      }
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Inicializar progresso
+    setImportProgress(prev => ({
+      ...prev,
+      deposits: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
+    }));
       
     setIsImportingDeposits(true);
     try {
@@ -475,9 +816,23 @@ export default function ProfitCalculator({
         throw new Error(response.error || "Erro ao buscar depósitos");
       }
 
+      const totalDeposits = response.data.length;
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
+      let processed = 0;
+
+      // Atualizar progresso inicial
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: { 
+          current: 0, 
+          total: totalDeposits, 
+          percentage: 0, 
+          status: 'loading', 
+          message: `Processando ${totalDeposits} depósitos...` 
+        }
+      }));
 
       for (const deposit of response.data) {
         if (deposit.status === 'confirmed') {
@@ -488,11 +843,45 @@ export default function ProfitCalculator({
             imported++;
           } else if (result.status === 'duplicate') {
             duplicated++;
-                      } else {
+          } else {
             errors++;
           }
         }
+        
+        processed++;
+        const percentage = (processed / totalDeposits) * 100;
+        
+        // Atualizar progresso a cada 5 items ou no final
+        if (processed % 5 === 0 || processed === totalDeposits) {
+          setImportProgress(prev => ({
+            ...prev,
+            deposits: {
+              current: processed,
+              total: totalDeposits,
+              percentage,
+              status: 'loading',
+              message: `Processando... ${imported} importados, ${duplicated} duplicados`
+            }
+          }));
+          
+          // Pequeno delay para permitir atualização da UI
+          if (processed % 25 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
       }
+
+      // Progresso completo
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: {
+          current: totalDeposits,
+          total: totalDeposits,
+          percentage: 100,
+          status: 'complete',
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+        }
+      }));
 
       setImportStats(prev => ({
         trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
@@ -500,19 +889,58 @@ export default function ProfitCalculator({
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
 
-              toast({
-        title: "Depósitos importados",
-        description: `${imported} depósitos importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
-                variant: "default",
+      toast({
+        title: "💰 Aportes importados com sucesso!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span>{imported} novos aportes adicionados aos investimentos</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} aportes já existentes ignorados</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Configuração: "{config.name}"
+            </div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
       });
     } catch (error: any) {
       console.error('[handleImportDeposits] Erro durante importação:', error);
-        toast({
-        title: "Erro ao importar depósitos",
-        description: error.message || "Erro desconhecido",
-            variant: "destructive",
-          });
-        } finally {
+      
+      // Progresso com erro
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: {
+          ...prev.deposits,
+          status: 'error',
+          message: error.message || 'Erro durante importação'
+        }
+      }));
+      
+      toast({
+        title: "❌ Erro ao importar aportes",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Falha na importação dos aportes</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error.message || "Erro desconhecido"}
+            </div>
+          </div>
+        ),
+        variant: "destructive",
+        className: "border-red-500/50 bg-red-900/20",
+      });
+    } finally {
       setIsImportingDeposits(false);
     }
   };
@@ -535,9 +963,15 @@ export default function ProfitCalculator({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
-       });
-       return;
+      });
+      return;
     }
+
+    // Inicializar progresso
+    setImportProgress(prev => ({
+      ...prev,
+      withdrawals: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
+    }));
 
     setIsImportingWithdrawals(true);
     try {
@@ -562,24 +996,72 @@ export default function ProfitCalculator({
         throw new Error(response.error || "Erro ao buscar saques");
       }
 
+      const totalWithdrawals = response.data.length;
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
+      let processed = 0;
+
+      // Atualizar progresso inicial
+      setImportProgress(prev => ({
+        ...prev,
+        withdrawals: { 
+          current: 0, 
+          total: totalWithdrawals, 
+          percentage: 0, 
+          status: 'loading', 
+          message: `Processando ${totalWithdrawals} saques...` 
+        }
+      }));
 
       for (const withdrawal of response.data) {
         if (withdrawal.status === 'confirmed') {
           const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
           const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
               
-              if (result.status === 'added') {
+          if (result.status === 'added') {
             imported++;
-              } else if (result.status === 'duplicate') {
+          } else if (result.status === 'duplicate') {
             duplicated++;
           } else {
             errors++;
           }
         }
+        
+        processed++;
+        const percentage = (processed / totalWithdrawals) * 100;
+        
+        // Atualizar progresso a cada 5 items ou no final
+        if (processed % 5 === 0 || processed === totalWithdrawals) {
+          setImportProgress(prev => ({
+            ...prev,
+            withdrawals: {
+              current: processed,
+              total: totalWithdrawals,
+              percentage,
+              status: 'loading',
+              message: `Processando... ${imported} importados, ${duplicated} duplicados`
+            }
+          }));
+          
+          // Pequeno delay para permitir atualização da UI
+          if (processed % 25 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
       }
+
+      // Progresso completo
+      setImportProgress(prev => ({
+        ...prev,
+        withdrawals: {
+          current: totalWithdrawals,
+          total: totalWithdrawals,
+          percentage: 100,
+          status: 'complete',
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+        }
+      }));
 
       setImportStats(prev => ({
         trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
@@ -587,19 +1069,58 @@ export default function ProfitCalculator({
         withdrawals: { total: response.data?.length || 0, imported, duplicated, errors },
       }));
           
-          toast({
-        title: "Saques importados",
-        description: `${imported} saques importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
+      toast({
+        title: "📤 Saques importados com sucesso!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <span>{imported} novos saques registrados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} saques já existentes ignorados</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Configuração: "{config.name}"
+            </div>
+          </div>
+        ),
         variant: "default",
+        className: "border-orange-500/50 bg-orange-900/20",
       });
     } catch (error: any) {
       console.error('[handleImportWithdrawals] Erro durante importação:', error);
-          toast({
-        title: "Erro ao importar saques",
-        description: error.message || "Erro desconhecido",
-            variant: "destructive",
-          });
-        } finally {
+      
+      // Progresso com erro
+      setImportProgress(prev => ({
+        ...prev,
+        withdrawals: {
+          ...prev.withdrawals,
+          status: 'error',
+          message: error.message || 'Erro durante importação'
+        }
+      }));
+      
+      toast({
+        title: "❌ Erro ao importar saques",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Falha na importação dos saques</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error.message || "Erro desconhecido"}
+            </div>
+          </div>
+        ),
+        variant: "destructive",
+        className: "border-red-500/50 bg-red-900/20",
+      });
+    } finally {
       setIsImportingWithdrawals(false);
     }
   };
@@ -834,6 +1355,233 @@ export default function ProfitCalculator({
     return result;
   }, [activeReportIdFromHook, updateReportData, forceUpdate]);
 
+  // NOVAS FUNÇÕES PARA PROCESSAMENTO DE DADOS DO HISTÓRICO E GRÁFICOS
+
+  // FUNÇÕES OTIMIZADAS PARA PROCESSAMENTO DE DADOS DOS GRÁFICOS COM CACHE
+
+  // Cache para dados processados
+  const chartDataCache = useRef<Map<string, ChartDataPoint[]>>(new Map());
+  const filteredDataCache = useRef<Map<string, any>>(new Map());
+
+  // Função otimizada para obter dados filtrados por período com cache
+  const getFilteredHistoryData = useMemo(() => {
+    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}`;
+    
+    if (filteredDataCache.current.has(cacheKey)) {
+      return filteredDataCache.current.get(cacheKey);
+    }
+
+    if (!currentActiveReportObjectFromHook && historyViewMode === "active") {
+      const emptyResult = { investments: [], profits: [], withdrawals: [] };
+      filteredDataCache.current.set(cacheKey, emptyResult);
+      return emptyResult;
+    }
+
+    const reportsToAnalyze = historyViewMode === "all" 
+      ? allReportsFromHook || []
+      : currentActiveReportObjectFromHook ? [currentActiveReportObjectFromHook] : [];
+
+    let startDate: Date;
+    let endDate = new Date();
+
+    // Determinar período de filtro
+    if (historyFilterPeriod === "custom") {
+      startDate = historyCustomStartDate || new Date();
+      endDate = historyCustomEndDate || new Date();
+    } else {
+      const today = new Date();
+      switch (historyFilterPeriod) {
+        case "1m":
+          startDate = subMonths(today, 1);
+          break;
+        case "3m":
+          startDate = subMonths(today, 3);
+          break;
+        case "6m":
+          startDate = subMonths(today, 6);
+          break;
+        case "1y":
+          startDate = subMonths(today, 12);
+          break;
+        default: // "all"
+          startDate = new Date(0);
+          break;
+      }
+    }
+
+    // Filtrar dados de todos os relatórios selecionados
+    const allInvestments: Investment[] = [];
+    const allProfits: ProfitRecord[] = [];
+    const allWithdrawals: any[] = [];
+
+    reportsToAnalyze.forEach(report => {
+      // Filtrar investimentos
+      const filteredInvestments = (report.investments || []).filter(inv => {
+        const invDate = new Date(inv.date);
+        return invDate >= startDate && invDate <= endDate;
+      });
+      allInvestments.push(...filteredInvestments);
+
+      // Filtrar lucros
+      const filteredProfits = (report.profits || []).filter(profit => {
+        const profitDate = new Date(profit.date);
+        return profitDate >= startDate && profitDate <= endDate;
+      });
+      allProfits.push(...filteredProfits);
+
+      // Filtrar saques
+      const filteredWithdrawals = (report.withdrawals || []).filter(withdrawal => {
+        const withdrawalDate = new Date(withdrawal.date);
+        return withdrawalDate >= startDate && withdrawalDate <= endDate;
+      });
+      allWithdrawals.push(...filteredWithdrawals);
+    });
+
+    const result = {
+      investments: allInvestments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      profits: allProfits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      withdrawals: allWithdrawals.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    };
+
+    // Limitar cache para evitar memory leak
+    if (filteredDataCache.current.size > 20) {
+      const firstKey = filteredDataCache.current.keys().next().value;
+      filteredDataCache.current.delete(firstKey);
+    }
+    
+    filteredDataCache.current.set(cacheKey, result);
+    return result;
+  }, [
+    currentActiveReportObjectFromHook, 
+    allReportsFromHook, 
+    historyViewMode, 
+    historyFilterPeriod, 
+    historyCustomStartDate, 
+    historyCustomEndDate
+  ]);
+
+  // Função otimizada para processar dados para os gráficos com cache
+  const getChartData = useMemo((): ChartDataPoint[] => {
+    const cacheKey = `${currentActiveReportObjectFromHook?.id || 'none'}-${chartTimeframe}-${currentActiveReportObjectFromHook?.investments?.length || 0}-${currentActiveReportObjectFromHook?.profits?.length || 0}`;
+    
+    if (chartDataCache.current.has(cacheKey)) {
+      return chartDataCache.current.get(cacheKey)!;
+    }
+
+    if (!currentActiveReportObjectFromHook) {
+      const emptyResult: ChartDataPoint[] = [];
+      chartDataCache.current.set(cacheKey, emptyResult);
+      return emptyResult;
+    }
+
+    const investments = currentActiveReportObjectFromHook.investments || [];
+    const profits = currentActiveReportObjectFromHook.profits || [];
+
+    // Usar Web Workers para processamento pesado em datasets grandes
+    const shouldUseWebWorker = investments.length + profits.length > 1000;
+    
+    // Criar mapa de dados por mês
+    const monthlyData = new Map<string, { investments: number; profits: number; }>();
+
+    // Processar investimentos
+    investments.forEach(inv => {
+      const date = new Date(inv.date);
+      const monthKey = chartTimeframe === "monthly" 
+        ? formatDateFn(startOfMonth(date), 'yyyy-MM')
+        : formatDateFn(date, 'yyyy-MM-dd');
+      
+      const btcAmount = inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount;
+      
+      if (!monthlyData.has(monthKey)) {
+        monthlyData.set(monthKey, { investments: 0, profits: 0 });
+      }
+      const data = monthlyData.get(monthKey)!;
+      data.investments += btcAmount;
+    });
+
+    // Processar lucros/perdas
+    profits.forEach(profit => {
+      const date = new Date(profit.date);
+      const monthKey = chartTimeframe === "monthly" 
+        ? formatDateFn(startOfMonth(date), 'yyyy-MM')
+        : formatDateFn(date, 'yyyy-MM-dd');
+      
+      const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+      const adjustedAmount = profit.isProfit ? btcAmount : -btcAmount;
+      
+      if (!monthlyData.has(monthKey)) {
+        monthlyData.set(monthKey, { investments: 0, profits: 0 });
+      }
+      const data = monthlyData.get(monthKey)!;
+      data.profits += adjustedAmount;
+    });
+
+    // Converter para array e calcular saldo acumulado
+    const chartData: ChartDataPoint[] = [];
+    let accumulatedInvestments = 0;
+    let accumulatedProfits = 0;
+
+    Array.from(monthlyData.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([monthKey, data]) => {
+        accumulatedInvestments += data.investments;
+        accumulatedProfits += data.profits;
+        
+        const dateObj = chartTimeframe === "monthly" 
+          ? new Date(monthKey + '-01')
+          : new Date(monthKey);
+        
+        chartData.push({
+          date: monthKey,
+          month: formatDateFn(dateObj, chartTimeframe === "monthly" ? 'MMM yyyy' : 'dd/MM', { locale: ptBR }),
+          investments: accumulatedInvestments,
+          profits: accumulatedProfits,
+          balance: accumulatedInvestments + accumulatedProfits
+        });
+      });
+
+    // Limitar cache para evitar memory leak
+    if (chartDataCache.current.size > 10) {
+      const firstKey = chartDataCache.current.keys().next().value;
+      chartDataCache.current.delete(firstKey);
+    }
+    
+    chartDataCache.current.set(cacheKey, chartData);
+    return chartData;
+  }, [currentActiveReportObjectFromHook, chartTimeframe]);
+
+  // Limpar cache quando dados importantes mudam
+  useEffect(() => {
+    chartDataCache.current.clear();
+    filteredDataCache.current.clear();
+  }, [currentActiveReportObjectFromHook?.id, currentActiveReportObjectFromHook?.updatedAt]);
+
+  // Função para converter valores conforme unidade selecionada (otimizada)
+  const convertChartValue = useCallback((btcValue: number): number => {
+    switch (chartDisplayUnit) {
+      case "usd":
+        return btcValue * states.currentRates.btcToUsd;
+      case "brl":
+        return btcValue * states.currentRates.btcToUsd * states.currentRates.brlToUsd;
+      default:
+        return btcValue;
+    }
+  }, [chartDisplayUnit, states.currentRates]);
+
+  // Função para formatar valores do gráfico (otimizada)
+  const formatChartValue = useCallback((value: number): string => {
+    switch (chartDisplayUnit) {
+      case "usd":
+        return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case "brl":
+        return `R$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case "btc":
+        return value >= 0.01 || value <= -0.01
+          ? `₿${value.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 })}`
+          : `丰${(value * 100000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    }
+  }, [chartDisplayUnit]);
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -849,255 +1597,99 @@ export default function ProfitCalculator({
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
             <ReportManager onCompare={() => setIsComparisonMode(true)} />
             
-            <Button
-              variant="outline"
-              size="sm"
-              className="sm:ml-auto bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
-              onClick={() => setIsComparisonMode(true)}
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Comparar Relatórios
-            </Button>
-          </div>
-
-          {/* Conteúdo principal do calculadora */}
-          <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
-              <TabsTrigger value="register" className="text-white data-[state=active]:bg-purple-700">
-                Importar
-          </TabsTrigger>
-              <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-            Histórico
-          </TabsTrigger>
-              <TabsTrigger value="chart" className="text-white data-[state=active]:bg-purple-700">
-                Gráficos
-          </TabsTrigger>
-        </TabsList>
-
-            {/* ABA IMPORTAR */}
-        <TabsContent value="register">
-              <div className="space-y-6">
-                {/* Cabeçalho do relatório ativo - somente exibição */}
-                {currentActiveReportObjectFromHook && reportSummaryData && (
-            <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-              <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-xl mb-2 flex items-center">
-                            Resumo Geral do Relatório Ativo
-                          </CardTitle>
-                          <CardDescription className="text-purple-500/90 dark:text-purple-400/80">
-                            Análise completa dos dados do relatório "{currentActiveReportObjectFromHook?.name || 'Nenhum selecionado'}"
-                            {currentActiveReportObjectFromHook?.description && (
-                              <span className="block mt-1 text-sm">
-                                - {currentActiveReportObjectFromHook.description}
-                              </span>
-                            )}
-                          </CardDescription>
-                  </div>
-                      </div>
-                    </CardHeader>
-            </Card>
-                )}
-
-                {/* Seção de Configuração LN Markets Associada */}
-                {multipleConfigs && multipleConfigs.configs.length > 0 && (
-                  <Card className="bg-black/30 border border-blue-700/40">
-              <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Zap className="h-5 w-5 text-blue-500" />
-                          Configuração LN Markets Associada
-                  </div>
-                        <Button
-                          onClick={() => setShowConfigSelector(!showConfigSelector)}
-                          size="sm"
-                          variant="outline"
-                          className="border-blue-500 text-blue-400"
-                        >
-                          {showConfigSelector ? "Cancelar" : "Trocar"}
-                        </Button>
-                      </CardTitle>
-                      <CardDescription>
-                        {selectedConfigForImport 
-                          ? `Dados serão importados da configuração associada`
-                          : "Nenhuma configuração associada - selecione uma para importar dados"
-                        }
-                      </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-                      {!showConfigSelector ? (
-                        // Mostrar configuração atual
-                        <div>
-                          {selectedConfigForImport ? (
-                            (() => {
-                              const currentConfig = multipleConfigs.configs.find(c => c.id === selectedConfigForImport);
-                              return currentConfig ? (
-                                <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-500/5">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h3 className="font-medium text-white flex items-center gap-2">
-                                        {currentConfig.name}
-                                        <Badge variant={currentConfig.isActive ? "default" : "secondary"} className="text-xs">
-                                          {currentConfig.isActive ? "Ativa" : "Inativa"}
-                                        </Badge>
-                                        {multipleConfigs.defaultConfigId === currentConfig.id && (
-                                          <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                        )}
-                                      </h3>
-                                      {currentConfig.description && (
-                                        <p className="text-sm text-blue-300">{currentConfig.description}</p>
-                                      )}
-                                      <p className="text-xs text-blue-400">
-                                        Rede: {currentConfig.credentials.network}
-                                      </p>
-              </div>
-              </div>
-              </div>
-                              ) : (
-                                <div className="text-center py-4 text-red-400">
-                                  Configuração associada não encontrada
-              </div>
-                              );
-                            })()
-                          ) : (
-                            <div className="text-center py-4 text-yellow-400">
-                              <Zap className="h-8 w-8 mx-auto mb-2" />
-                              <p>Nenhuma configuração associada</p>
-                              <p className="text-sm">Clique em "Trocar" para selecionar uma configuração</p>
-                </div>
-                  )}
-                </div>
-                      ) : (
-                        // Seletor de configuração
-                        <div className="space-y-3">
-                          <h4 className="text-sm font-medium text-blue-400">Selecione uma configuração:</h4>
-                          {multipleConfigs.configs.map((config) => (
-                            <div key={config.id} className="p-3 border border-blue-500/30 rounded-lg hover:bg-blue-500/5 cursor-pointer"
+            <div className="flex gap-2 sm:ml-auto">
+              {/* Sistema de Exportação de Relatórios */}
+              {currentActiveReportObjectFromHook && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-black/30 border-green-700/50 hover:bg-green-900/20"
                     onClick={() => {
-                                   handleAssociateConfigToReport(config.id);
-                                   setShowConfigSelector(false);
-                                 }}>
-                              <div className="flex items-center justify-between">
-                      <div>
-                                  <h3 className="font-medium text-white flex items-center gap-2">
-                                    {config.name}
-                                    <Badge variant={config.isActive ? "default" : "secondary"} className="text-xs">
-                                      {config.isActive ? "Ativa" : "Inativa"}
-                                    </Badge>
-                                    {multipleConfigs.defaultConfigId === config.id && (
-                                      <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                    )}
-                                  </h3>
-                                  {config.description && (
-                                    <p className="text-sm text-blue-300">{config.description}</p>
-                                  )}
-                                  <p className="text-xs text-blue-400">
-                                    Rede: {config.credentials.network}
-                                  </p>
-                      </div>
-                                {selectedConfigForImport === config.id && (
-                                  <Badge variant="default" className="text-xs">Atual</Badge>
-                        )}
-                      </div>
-                    </div>
-                          ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-                )}
-
-                {/* Status da configuração LN Markets */}
-                {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
-                  <Alert>
-                    <Zap className="h-4 w-4" />
-                    <AlertDescription>
-                      Configure suas credenciais LN Markets no perfil para importar dados automaticamente.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {selectedConfigForImport && !getCurrentImportConfig() && (
-                  <Alert variant="destructive">
-                    <Zap className="h-4 w-4" />
-                    <AlertDescription>
-                      A configuração associada está inativa. Ative-a no perfil ou selecione outra configuração.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Botões de importação LN Markets */}
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Zap className="h-5 w-5" />
-                      Importação LN Markets
-                      {selectedConfigForImport && (() => {
-                        const config = getCurrentImportConfig();
-                        return config ? (
-                          <Badge variant="outline" className="text-xs">
-                            {config.name}
-                          </Badge>
-                        ) : null;
-                      })()}
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedConfigForImport 
-                        ? "Importe dados da configuração associada"
-                        : "Selecione uma configuração para importar dados"
-                      }
-                    </CardDescription>
-                  </CardHeader>
+                      if (!currentActiveReportObjectFromHook) return;
+                      
+                      const reportData = {
+                        name: currentActiveReportObjectFromHook.name,
+                        description: currentActiveReportObjectFromHook.description || '',
+                        investments: currentActiveReportObjectFromHook.investments || [],
+                        profits: currentActiveReportObjectFromHook.profits || [],
+                        withdrawals: currentActiveReportObjectFromHook.withdrawals || [],
+                        createdAt: currentActiveReportObjectFromHook.createdAt,
+                        updatedAt: currentActiveReportObjectFromHook.updatedAt
+                      };
+                      
+                      const dataStr = JSON.stringify(reportData, null, 2);
+                      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                      
+                      toast({
+                        title: "📁 Relatório exportado!",
+                        description: `Arquivo JSON do relatório "${currentActiveReportObjectFromHook.name}" foi baixado com sucesso.`,
+                        variant: "default",
+                        className: "border-green-500/50 bg-green-900/20",
+                      });
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar JSON
+                  </Button>
                   
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button 
-                        onClick={handleImportTrades}
-                        disabled={!getCurrentImportConfig() || isImportingTrades}
-                        className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                      >
-                        <TrendingUp className="h-5 w-5" />
-                        <span>
-                          {isImportingTrades ? "Importando..." : "Importar Trades"}
-                        </span>
-            </Button>
-
-            <Button 
-                        onClick={handleImportDeposits}
-                        disabled={!getCurrentImportConfig() || isImportingDeposits}
-                        className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        <Download className="h-5 w-5" />
-                        <span>
-                          {isImportingDeposits ? "Importando..." : "Importar Depósitos"}
-                        </span>
-            </Button>
-
-            <Button 
-                        onClick={handleImportWithdrawals}
-                        disabled={!getCurrentImportConfig() || isImportingWithdrawals}
-                        className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
-                      >
-                        <Upload className="h-5 w-5" />
-                        <span>
-                          {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
-                        </span>
-            </Button>
-          </div>
-
-                    {/* Botão de Debug */}
-                    <div className="mt-4 flex justify-center">
-              <Button 
-                        onClick={debugImportData}
-                variant="outline" 
-                        size="sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-black/30 border-blue-700/50 hover:bg-blue-900/20"
+                    onClick={() => {
+                      if (!currentActiveReportObjectFromHook) return;
+                      
+                      // Preparar dados para CSV
+                      const csvData = [];
+                      
+                      // Cabeçalho
+                      csvData.push(['Tipo', 'Data', 'Valor', 'Unidade', 'É Lucro/Perda']);
+                      
+                      // Investimentos
+                      (currentActiveReportObjectFromHook.investments || []).forEach(inv => {
+                        csvData.push(['Investimento', inv.date, inv.amount, inv.unit, '']);
+                      });
+                      
+                      // Lucros/Perdas
+                      (currentActiveReportObjectFromHook.profits || []).forEach(profit => {
+                        csvData.push(['Lucro/Perda', profit.date, profit.amount, profit.unit, profit.isProfit ? 'Lucro' : 'Perda']);
+                      });
+                      
+                      // Saques
+                      (currentActiveReportObjectFromHook.withdrawals || []).forEach(withdrawal => {
+                        csvData.push(['Saque', withdrawal.date, withdrawal.amount, withdrawal.unit, '']);
+                      });
+                      
+                      // Converter para CSV
+                      const csvContent = csvData.map(row => row.join(',')).join('\n');
+                      const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(csvBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                      
+                      toast({
+                        title: "📊 Relatório exportado!",
+                        description: `Arquivo CSV do relatório "${currentActiveReportObjectFromHook.name}" foi baixado com sucesso.`,
+                        variant: "default",
                         className="border-orange-500 text-orange-400"
                       >
                         🐛 Debug Config
-              </Button>
-            </div>
+                      </Button>
+                    </div>
 
                     {/* Estatísticas de importação */}
                     {importStats && selectedConfigForImport && (
@@ -1112,27 +1704,27 @@ export default function ProfitCalculator({
                               <div>Total: {importStats.trades.total}</div>
                               <div>Importados: {importStats.trades.imported}</div>
                               <div>Duplicados: {importStats.trades.duplicated}</div>
-                    </div>
-                  )}
+                            </div>
+                          )}
                           {importStats.deposits && (
                             <div>
                               <div className="text-blue-400 font-medium">Depósitos</div>
                               <div>Total: {importStats.deposits.total}</div>
                               <div>Importados: {importStats.deposits.imported}</div>
                               <div>Duplicados: {importStats.deposits.duplicated}</div>
-                    </div>
-                  )}
+                            </div>
+                          )}
                           {importStats.withdrawals && (
                             <div>
                               <div className="text-red-400 font-medium">Saques</div>
                               <div>Total: {importStats.withdrawals.total}</div>
                               <div>Importados: {importStats.withdrawals.imported}</div>
                               <div>Duplicados: {importStats.withdrawals.duplicated}</div>
-                              </div>
-                      )}
-                  </div>
-                    </div>
-                  )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1140,41 +1732,669 @@ export default function ProfitCalculator({
 
             {/* ABA HISTÓRICO */}
             <TabsContent value="history">
-              <Card className="bg-black/30 border border-purple-700/40">
-                <CardHeader>
-                  <CardTitle>Histórico de Transações</CardTitle>
-                  <CardDescription>
-                    Visualize e gerencie seus registros históricos incluindo saques
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-purple-400">
-                    Histórico será implementado aqui...
-                    {reportSummaryData?.hasWithdrawals && (
-                      <p className="mt-2 text-sm">
-                        Incluindo análise de saldo total vs saldo atual
-                      </p>
-                )}
-              </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <div className="space-y-6">
+                {/* Filtros e Controles */}
+                <Card className="bg-black/30 border border-purple-700/40">
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Filter className="h-5 w-5" />
+                          Histórico de Transações
+                        </CardTitle>
+                        <CardDescription>
+                          Visualize e analise seus registros históricos com filtros avançados
+                        </CardDescription>
+                      </div>
+                      
+                      {/* Switch de Modo de Visualização */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="view-mode"
+                            checked={historyViewMode === "all"}
+                            onCheckedChange={(checked) => setHistoryViewMode(checked ? "all" : "active")}
+                          />
+                          <Label htmlFor="view-mode" className="text-sm">
+                            {historyViewMode === "all" ? (
+                              <span className="flex items-center gap-1">
+                                <Users className="h-4 w-4" />
+                                Todos os Relatórios
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <Wallet className="h-4 w-4" />
+                                Relatório Ativo
+                              </span>
+                            )}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    {/* Filtros de Período */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <Label>Período</Label>
+                        <Select value={historyFilterPeriod} onValueChange={(value) => setHistoryFilterPeriod(value as HistoryFilterPeriod)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1m">Último Mês</SelectItem>
+                            <SelectItem value="3m">Últimos 3 Meses</SelectItem>
+                            <SelectItem value="6m">Últimos 6 Meses</SelectItem>
+                            <SelectItem value="1y">Último Ano</SelectItem>
+                            <SelectItem value="all">Todos os Períodos</SelectItem>
+                            <SelectItem value="custom">Período Personalizado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {historyFilterPeriod === "custom" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Data Inicial</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {historyCustomStartDate ? formatDateFn(historyCustomStartDate, "dd/MM/yyyy") : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={historyCustomStartDate}
+                                  onSelect={setHistoryCustomStartDate}
+                                  disabled={(date) => date > new Date() || date < new Date("2009-01-03")}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Data Final</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {historyCustomEndDate ? formatDateFn(historyCustomEndDate, "dd/MM/yyyy") : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={historyCustomEndDate}
+                                  onSelect={setHistoryCustomEndDate}
+                                  disabled={(date) => date > new Date() || date < (historyCustomStartDate || new Date("2009-01-03"))}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* ABA GRÁFICOS */}
-            <TabsContent value="chart">
-              <Card className="bg-black/30 border border-purple-700/40">
-                <CardHeader>
-                  <CardTitle>Análise Gráfica</CardTitle>
-                  <CardDescription>
-                    Visualize seus dados em gráficos interativos
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-purple-400">
-                    Gráficos serão implementados aqui...
+                {/* Estatísticas do Período */}
+                {(() => {
+                  const filteredData = getFilteredHistoryData();
+                  const totalInvestmentsBtc = filteredData.investments.reduce((sum, inv) => 
+                    sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount), 0
+                  );
+                  const totalProfitsBtc = filteredData.profits.reduce((sum, profit) => {
+                    const amount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                    return sum + (profit.isProfit ? amount : -amount);
+                  }, 0);
+                  const totalWithdrawalsBtc = filteredData.withdrawals.reduce((sum, withdrawal) => 
+                    sum + (withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount), 0
+                  );
+
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <HistoryStatsCard
+                        title="Total Investido"
+                        value={formatChartValue(convertChartValue(totalInvestmentsBtc))}
+                        icon={<Download className="h-5 w-5 text-blue-400" />}
+                      />
+                      <HistoryStatsCard
+                        title="Total Lucros/Perdas"
+                        value={formatChartValue(convertChartValue(totalProfitsBtc))}
+                        icon={<TrendingUp className="h-5 w-5 text-green-400" />}
+                        valueColor={totalProfitsBtc >= 0 ? "text-green-400" : "text-red-400"}
+                      />
+                      <HistoryStatsCard
+                        title="Total Saques"
+                        value={formatChartValue(convertChartValue(totalWithdrawalsBtc))}
+                        icon={<Upload className="h-5 w-5 text-red-400" />}
+                      />
+                      <HistoryStatsCard
+                        title="Saldo Líquido"
+                        value={formatChartValue(convertChartValue(totalInvestmentsBtc + totalProfitsBtc - totalWithdrawalsBtc))}
+                        icon={<Wallet className="h-5 w-5 text-purple-400" />}
+                        valueColor={(totalInvestmentsBtc + totalProfitsBtc - totalWithdrawalsBtc) >= 0 ? "text-green-400" : "text-red-400"}
+                      />
+                    </div>
+                  );
+                })()}
+
+                {/* Tabs de Conteúdo do Histórico */}
+                <Tabs value={historyActiveTab} onValueChange={setHistoryActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 bg-black/40 backdrop-blur-sm">
+                    <TabsTrigger value="overview" className="text-white data-[state=active]:bg-purple-700">
+                      Visão Geral
+                    </TabsTrigger>
+                    <TabsTrigger value="investments" className="text-white data-[state=active]:bg-purple-700">
+                      Investimentos
+                    </TabsTrigger>
+                    <TabsTrigger value="profits" className="text-white data-[state=active]:bg-purple-700">
+                      Lucros/Perdas
+                    </TabsTrigger>
+                    <TabsTrigger value="withdrawals" className="text-white data-[state=active]:bg-purple-700">
+                      Saques
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="overview" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardContent className="p-6">
+                        {(() => {
+                          const filteredData = getFilteredHistoryData();
+                          const hasData = filteredData.investments.length > 0 || 
+                                         filteredData.profits.length > 0 || 
+                                         filteredData.withdrawals.length > 0;
+                          
+                          if (!hasData) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p className="text-lg">Nenhum dado encontrado</p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                  {historyViewMode === "active" 
+                                    ? "O relatório ativo não possui dados no período selecionado"
+                                    : "Nenhum relatório possui dados no período selecionado"
+                                  }
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-6">
+                              <h3 className="text-lg font-semibold">Resumo do Período</h3>
+                              
+                              {/* Resumo por Tipo */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-blue-400">Investimentos</span>
+                                    <Download className="h-4 w-4 text-blue-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.investments.length} registros</p>
+                                </div>
+                                
+                                <div className="p-4 bg-green-900/20 border border-green-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-green-400">Lucros/Perdas</span>
+                                    <TrendingUp className="h-4 w-4 text-green-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.profits.length} registros</p>
+                                </div>
+                                
+                                <div className="p-4 bg-red-900/20 border border-red-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-red-400">Saques</span>
+                                    <Upload className="h-4 w-4 text-red-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.withdrawals.length} registros</p>
+                                </div>
+                              </div>
+
+                              {/* Timeline Recente */}
+                              <div>
+                                <h4 className="text-md font-medium mb-3">Atividade Recente</h4>
+                                <ScrollArea className="h-[300px]">
+                                  {(() => {
+                                    // Combinar todos os registros e ordenar por data
+                                    const allRecords = [
+                                      ...filteredData.investments.map(inv => ({ ...inv, type: 'investment' as const })),
+                                      ...filteredData.profits.map(profit => ({ ...profit, type: 'profit' as const })),
+                                      ...filteredData.withdrawals.map(withdrawal => ({ ...withdrawal, type: 'withdrawal' as const }))
+                                    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                     .slice(0, 20); // Mostrar apenas os 20 mais recentes
+
+                                    return (
+                                      <div className="space-y-2">
+                                        {allRecords.map((record, index) => {
+                                          const amount = record.unit === 'SATS' ? record.amount / 100000000 : record.amount;
+                                          const convertedAmount = convertChartValue(amount);
+                                          
+                                          return (
+                                            <div key={`${record.type}-${record.id || index}`} 
+                                                 className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
+                                              <div className="flex items-center gap-3">
+                                                {record.type === 'investment' && <Download className="h-4 w-4 text-blue-400" />}
+                                                {record.type === 'profit' && <TrendingUp className="h-4 w-4 text-green-400" />}
+                                                {record.type === 'withdrawal' && <Upload className="h-4 w-4 text-red-400" />}
+                                                
+                                                <div>
+                                                  <p className="text-sm font-medium">
+                                                    {record.type === 'investment' && 'Investimento'}
+                                                    {record.type === 'profit' && (record.isProfit ? 'Lucro' : 'Perda')}
+                                                    {record.type === 'withdrawal' && 'Saque'}
+                                                  </p>
+                                                  <p className="text-xs text-gray-400">
+                                                    {formatDateFn(new Date(record.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="text-right">
+                                                <p className={cn("text-sm font-medium",
+                                                  record.type === 'investment' ? "text-blue-400" :
+                                                  record.type === 'profit' ? (record.isProfit ? "text-green-400" : "text-red-400") :
+                                                  "text-red-400"
+                                                )}>
+                                                  {record.type === 'profit' && !record.isProfit ? '-' : ''}
+                                                  {formatChartValue(convertedAmount)}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="investments" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Investimentos</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const investments = getFilteredHistoryData().investments;
+                          
+                          if (investments.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Download className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum investimento encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {investments.map((investment, index) => {
+                                        const btcAmount = investment.unit === 'SATS' ? investment.amount / 100000000 : investment.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={investment.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(investment.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              {investment.unit === 'SATS' 
+                                                ? `${investment.amount.toLocaleString()} sats`
+                                                : `₿${investment.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className="text-blue-400 font-medium">
+                                              {formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {investment.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {investments.map((investment, index) => {
+                                      const btcAmount = investment.unit === 'SATS' ? investment.amount / 100000000 : investment.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={investment.id || index} 
+                                             className="p-4 bg-black/20 border border-blue-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              <Download className="h-4 w-4 text-blue-400" />
+                                              <span className="text-sm font-medium text-blue-400">Investimento</span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {investment.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(investment.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {investment.unit === 'SATS' 
+                                                  ? `${investment.amount.toLocaleString()} sats`
+                                                  : `₿${investment.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-blue-400">
+                                                {formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="profits" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Lucros e Perdas</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const profits = getFilteredHistoryData().profits;
+                          
+                          if (profits.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum registro de lucro/perda encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Tipo</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {profits.map((profit, index) => {
+                                        const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={profit.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(profit.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge 
+                                                variant={profit.isProfit ? "default" : "destructive"}
+                                                className="text-xs"
+                                              >
+                                                {profit.isProfit ? "Lucro" : "Perda"}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              {profit.unit === 'SATS' 
+                                                ? `${profit.amount.toLocaleString()} sats`
+                                                : `₿${profit.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className={cn("font-medium",
+                                              profit.isProfit ? "text-green-400" : "text-red-400"
+                                            )}>
+                                              {profit.isProfit ? '+' : '-'}{formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {profit.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {profits.map((profit, index) => {
+                                      const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={profit.id || index} 
+                                             className="p-4 bg-black/20 border border-green-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              {profit.isProfit ? <TrendingUp className="h-4 w-4 text-green-400" /> : <Minus className="h-4 w-4 text-red-400" />}
+                                              <span className="text-sm font-medium text-white">
+                                                {profit.isProfit ? 'Lucro' : 'Perda'}
+                                              </span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {profit.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(profit.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {profit.unit === 'SATS' 
+                                                  ? `${profit.amount.toLocaleString()} sats`
+                                                  : `₿${profit.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-white">
+                                                {formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="withdrawals" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Saques</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const withdrawals = getFilteredHistoryData().withdrawals;
+                          
+                          if (withdrawals.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum saque encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {withdrawals.map((withdrawal, index) => {
+                                        const btcAmount = withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={withdrawal.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              {withdrawal.unit === 'SATS' 
+                                                ? `${withdrawal.amount.toLocaleString()} sats`
+                                                : `₿${withdrawal.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className="text-red-400 font-medium">
+                                              -{formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {withdrawal.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {withdrawals.map((withdrawal, index) => {
+                                      const btcAmount = withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={withdrawal.id || index} 
+                                             className="p-4 bg-black/20 border border-red-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              <Upload className="h-4 w-4 text-red-400" />
+                                              <span className="text-sm font-medium text-red-400">Saque</span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {withdrawal.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {withdrawal.unit === 'SATS' 
+                                                  ? `${withdrawal.amount.toLocaleString()} sats`
+                                                  : `₿${withdrawal.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-red-400">
+                                                -{formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
               </div>
-                </CardContent>
-              </Card>
             </TabsContent>
           </Tabs>
         </>

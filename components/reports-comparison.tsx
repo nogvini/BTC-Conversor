@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import { format, differenceInDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,7 +20,6 @@ import {
   ChevronLeft,
   PieChart as PieChartIcon,
   BarChart2,
-  TrendingUp,
   Sliders,
   ArrowUp,
   ArrowDown,
@@ -75,7 +72,6 @@ interface ReportsComparisonProps {
   brlToUsd: number;
 }
 
-type ChartType = "line" | "bar";
 type ComparisonMode = "accumulated" | "monthly";
 type DisplayUnit = "btc" | "usd" | "brl";
 
@@ -149,7 +145,6 @@ const formatTempoInvestimento = (dias: number): string => {
 export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsComparisonProps) {
   const { reports } = useReports();
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
-  const [chartType, setChartType] = useState<ChartType>("line");
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("accumulated");
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>("btc");
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
@@ -502,28 +497,6 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     };
   }, [reports, selectedReportIds, comparisonMode]); // CORRIGIDO: Removido minDate e maxDate das dependências
 
-  // Função para gerar linhas do gráfico
-  const generateChartLines = () => {
-    if (!comparisonData || selectedReportIds.length === 0) return null;
-    
-    return selectedReportIds.map(reportId => {
-      const color = getReportColor(reportId);
-      
-      return (
-        <Line
-          key={`balance_${reportId}`}
-          type="monotone"
-          dataKey={`balance_${reportId}`}
-          stroke={color}
-          strokeWidth={2}
-          dot={{ r: 4, fill: color }}
-          activeDot={{ r: 6, stroke: color, strokeWidth: 2 }}
-          name={reports.find(r => r.id === reportId)?.name || ""}
-        />
-      );
-    });
-  };
-
   // Função para gerar barras do gráfico
   const generateChartBars = () => {
     if (!comparisonData || selectedReportIds.length === 0) return null;
@@ -713,31 +686,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             <CardTitle className="text-lg">Configurações de Visualização</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Gráfico</Label>
-                <RadioGroup 
-                  value={chartType} 
-                  onValueChange={(v) => setChartType(v as ChartType)}
-                  className="flex flex-col space-y-1"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="line" id="chart-line" />
-                    <Label htmlFor="chart-line" className="flex items-center">
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Linha
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="bar" id="chart-bar" />
-                    <Label htmlFor="chart-bar" className="flex items-center">
-                      <BarChart2 className="h-4 w-4 mr-2" />
-                      Barras
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Modo de Comparação</Label>
                 <RadioGroup 
@@ -857,59 +806,31 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             ) : (
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  {chartType === "line" ? (
-                    <LineChart
-                      data={comparisonData.chartData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis 
-                        dataKey="month" 
-                        stroke="#888" 
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis 
-                        stroke="#888"
-                        tickFormatter={(value) => {
-                          const converted = convertFromBtc(value);
-                          if (displayUnit === "btc") {
-                            return value.toFixed(value < 0.1 ? 4 : 2);
-                          } else {
-                            return converted.toFixed(0);
-                          }
-                        }}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      {generateChartLines()}
-                    </LineChart>
-                  ) : (
-                    <BarChart
-                      data={comparisonData.chartData}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis 
-                        dataKey="month" 
-                        stroke="#888" 
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis 
-                        stroke="#888"
-                        tickFormatter={(value) => {
-                          const converted = convertFromBtc(value);
-                          if (displayUnit === "btc") {
-                            return value.toFixed(value < 0.1 ? 4 : 2);
-                          } else {
-                            return converted.toFixed(0);
-                          }
-                        }}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      {generateChartBars()}
-                    </BarChart>
-                  )}
+                  <BarChart
+                    data={comparisonData.chartData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="#888" 
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      stroke="#888"
+                      tickFormatter={(value) => {
+                        const converted = convertFromBtc(value);
+                        if (displayUnit === "btc") {
+                          return value.toFixed(value < 0.1 ? 4 : 2);
+                        } else {
+                          return converted.toFixed(0);
+                        }
+                      }}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    {generateChartBars()}
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
@@ -1422,4 +1343,4 @@ function StatCard({ title, value, unit, isProfit, btcToUsd, brlToUsd }: StatCard
   );
 }
 
-export default ReportsComparison; 
+export default ReportsComparison;
