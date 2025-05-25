@@ -281,8 +281,8 @@ export default function DiagnosePage() {
             <div className="text-sm text-muted-foreground">
               {diagnostics.auth?.cookieCount || 0} cookies no navegador
             </div>
-          </div>
-          
+        </div>
+        
           <Separator />
           
           <div className="space-y-3">
@@ -321,8 +321,8 @@ export default function DiagnosePage() {
                   {authTestResult.error && (
                     <div className="text-red-400"><strong>Erro:</strong> {authTestResult.error}</div>
                   )}
-                </div>
-              </div>
+        </div>
+      </div>
             )}
           </div>
         </CardContent>

@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
 import { useProfitCalculatorStates } from "./hooks/use-profit-calculator-states";
-import { 
+import {
   convertToBtc,
   formatCurrency,
   formatDateToUTC,
@@ -362,7 +362,7 @@ export default function ProfitCalculator({
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
-      return;
+        return;
     }
 
     setIsImportingTrades(true);
@@ -401,7 +401,7 @@ export default function ProfitCalculator({
             imported++;
           } else if (result.status === 'duplicate') {
             duplicated++;
-          } else {
+    } else {
             errors++;
           }
         }
@@ -413,18 +413,18 @@ export default function ProfitCalculator({
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
 
-      toast({
+    toast({
         title: "Trades importados",
         description: `${imported} trades importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
-        variant: "default",
-      });
+      variant: "default",
+    });
     } catch (error: any) {
       console.error('[handleImportTrades] Erro durante importação:', error);
-      toast({
+          toast({
         title: "Erro ao importar trades",
         description: error.message || "Erro desconhecido",
-        variant: "destructive",
-      });
+            variant: "destructive",
+          });
     } finally {
       setIsImportingTrades(false);
     }
@@ -444,14 +444,14 @@ export default function ProfitCalculator({
     
     if (!config || !currentActiveReportObjectFromHook || !user?.email) {
       console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
-      toast({
+        toast({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+          variant: "destructive",
+        });
+        return;
+      }
+      
     setIsImportingDeposits(true);
     try {
       console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
@@ -488,7 +488,7 @@ export default function ProfitCalculator({
             imported++;
           } else if (result.status === 'duplicate') {
             duplicated++;
-          } else {
+                      } else {
             errors++;
           }
         }
@@ -500,19 +500,19 @@ export default function ProfitCalculator({
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
 
-      toast({
+              toast({
         title: "Depósitos importados",
         description: `${imported} depósitos importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
-        variant: "default",
+                variant: "default",
       });
     } catch (error: any) {
       console.error('[handleImportDeposits] Erro durante importação:', error);
-      toast({
+        toast({
         title: "Erro ao importar depósitos",
         description: error.message || "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
+            variant: "destructive",
+          });
+        } finally {
       setIsImportingDeposits(false);
     }
   };
@@ -535,8 +535,8 @@ export default function ProfitCalculator({
         title: "Configuração necessária",
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
-      });
-      return;
+       });
+       return;
     }
 
     setIsImportingWithdrawals(true);
@@ -570,10 +570,10 @@ export default function ProfitCalculator({
         if (withdrawal.status === 'confirmed') {
           const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
           const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-          if (result.status === 'added') {
+              
+              if (result.status === 'added') {
             imported++;
-          } else if (result.status === 'duplicate') {
+              } else if (result.status === 'duplicate') {
             duplicated++;
           } else {
             errors++;
@@ -586,20 +586,20 @@ export default function ProfitCalculator({
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         withdrawals: { total: response.data?.length || 0, imported, duplicated, errors },
       }));
-
-      toast({
+          
+          toast({
         title: "Saques importados",
         description: `${imported} saques importados da configuração "${config.name}", ${duplicated} duplicados ignorados`,
         variant: "default",
       });
     } catch (error: any) {
       console.error('[handleImportWithdrawals] Erro durante importação:', error);
-      toast({
+          toast({
         title: "Erro ao importar saques",
         description: error.message || "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
+            variant: "destructive",
+          });
+        } finally {
       setIsImportingWithdrawals(false);
     }
   };
@@ -660,11 +660,11 @@ export default function ProfitCalculator({
 
     if (success) {
       setSelectedConfigForImport(configId);
-      toast({
+            toast({
         title: "Configuração Associada",
         description: `Relatório agora está associado à configuração "${config.name}".`,
-        variant: "default",
-      });
+              variant: "default",
+            });
     }
   };
 
@@ -714,8 +714,8 @@ export default function ProfitCalculator({
         isActive: c.isActive
       })) || []
     });
-    
-    toast({
+            
+            toast({
       title: "Debug Info",
       description: `Config selecionado: ${config?.name || 'Nenhum'}. Verifique o console.`,
       variant: "default",
@@ -834,7 +834,7 @@ export default function ProfitCalculator({
     return result;
   }, [activeReportIdFromHook, updateReportData, forceUpdate]);
 
-  return (
+    return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
       {isComparisonMode ? (
@@ -865,22 +865,22 @@ export default function ProfitCalculator({
             <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
               <TabsTrigger value="register" className="text-white data-[state=active]:bg-purple-700">
                 Importar
-              </TabsTrigger>
+          </TabsTrigger>
               <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-                Histórico
-              </TabsTrigger>
+            Histórico
+          </TabsTrigger>
               <TabsTrigger value="chart" className="text-white data-[state=active]:bg-purple-700">
                 Gráficos
-              </TabsTrigger>
-            </TabsList>
+          </TabsTrigger>
+        </TabsList>
 
             {/* ABA IMPORTAR */}
-            <TabsContent value="register">
+        <TabsContent value="register">
               <div className="space-y-6">
                 {/* Cabeçalho do relatório ativo - somente exibição */}
                 {currentActiveReportObjectFromHook && reportSummaryData && (
-                  <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
-                    <CardHeader>
+            <Card className="bg-black/30 rounded-lg shadow-xl shadow-purple-900/10 border border-purple-700/40">
+              <CardHeader>
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-xl mb-2 flex items-center">
@@ -894,21 +894,21 @@ export default function ProfitCalculator({
                               </span>
                             )}
                           </CardDescription>
-                        </div>
+                  </div>
                       </div>
                     </CardHeader>
-                  </Card>
+            </Card>
                 )}
 
                 {/* Seção de Configuração LN Markets Associada */}
                 {multipleConfigs && multipleConfigs.configs.length > 0 && (
                   <Card className="bg-black/30 border border-blue-700/40">
-                    <CardHeader>
+              <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Zap className="h-5 w-5 text-blue-500" />
                           Configuração LN Markets Associada
-                        </div>
+                  </div>
                         <Button
                           onClick={() => setShowConfigSelector(!showConfigSelector)}
                           size="sm"
@@ -924,9 +924,9 @@ export default function ProfitCalculator({
                           : "Nenhuma configuração associada - selecione uma para importar dados"
                         }
                       </CardDescription>
-                    </CardHeader>
+            </CardHeader>
 
-                    <CardContent>
+            <CardContent>
                       {!showConfigSelector ? (
                         // Mostrar configuração atual
                         <div>
@@ -952,13 +952,13 @@ export default function ProfitCalculator({
                                       <p className="text-xs text-blue-400">
                                         Rede: {currentConfig.credentials.network}
                                       </p>
-                                    </div>
-                                  </div>
-                                </div>
+              </div>
+              </div>
+              </div>
                               ) : (
                                 <div className="text-center py-4 text-red-400">
                                   Configuração associada não encontrada
-                                </div>
+              </div>
                               );
                             })()
                           ) : (
@@ -966,21 +966,21 @@ export default function ProfitCalculator({
                               <Zap className="h-8 w-8 mx-auto mb-2" />
                               <p>Nenhuma configuração associada</p>
                               <p className="text-sm">Clique em "Trocar" para selecionar uma configuração</p>
-                            </div>
-                          )}
-                        </div>
+                </div>
+                  )}
+                </div>
                       ) : (
                         // Seletor de configuração
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium text-blue-400">Selecione uma configuração:</h4>
                           {multipleConfigs.configs.map((config) => (
                             <div key={config.id} className="p-3 border border-blue-500/30 rounded-lg hover:bg-blue-500/5 cursor-pointer"
-                                 onClick={() => {
+                    onClick={() => {
                                    handleAssociateConfigToReport(config.id);
                                    setShowConfigSelector(false);
                                  }}>
                               <div className="flex items-center justify-between">
-                                <div>
+                      <div>
                                   <h3 className="font-medium text-white flex items-center gap-2">
                                     {config.name}
                                     <Badge variant={config.isActive ? "default" : "secondary"} className="text-xs">
@@ -996,17 +996,17 @@ export default function ProfitCalculator({
                                   <p className="text-xs text-blue-400">
                                     Rede: {config.credentials.network}
                                   </p>
-                                </div>
+                      </div>
                                 {selectedConfigForImport === config.id && (
                                   <Badge variant="default" className="text-xs">Atual</Badge>
-                                )}
-                              </div>
-                            </div>
+                        )}
+                      </div>
+                    </div>
                           ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
                 )}
 
                 {/* Status da configuração LN Markets */}
@@ -1053,7 +1053,7 @@ export default function ProfitCalculator({
                   
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Button
+            <Button 
                         onClick={handleImportTrades}
                         disabled={!getCurrentImportConfig() || isImportingTrades}
                         className="h-16 flex flex-col items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50"
@@ -1062,9 +1062,9 @@ export default function ProfitCalculator({
                         <span>
                           {isImportingTrades ? "Importando..." : "Importar Trades"}
                         </span>
-                      </Button>
+            </Button>
 
-                      <Button
+            <Button 
                         onClick={handleImportDeposits}
                         disabled={!getCurrentImportConfig() || isImportingDeposits}
                         className="h-16 flex flex-col items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
@@ -1073,9 +1073,9 @@ export default function ProfitCalculator({
                         <span>
                           {isImportingDeposits ? "Importando..." : "Importar Depósitos"}
                         </span>
-                      </Button>
+            </Button>
 
-                      <Button
+            <Button 
                         onClick={handleImportWithdrawals}
                         disabled={!getCurrentImportConfig() || isImportingWithdrawals}
                         className="h-16 flex flex-col items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
@@ -1084,20 +1084,20 @@ export default function ProfitCalculator({
                         <span>
                           {isImportingWithdrawals ? "Importando..." : "Importar Saques"}
                         </span>
-                      </Button>
-                    </div>
+            </Button>
+          </div>
 
                     {/* Botão de Debug */}
                     <div className="mt-4 flex justify-center">
-                      <Button
+              <Button 
                         onClick={debugImportData}
-                        variant="outline"
+                variant="outline" 
                         size="sm"
                         className="border-orange-500 text-orange-400"
                       >
                         🐛 Debug Config
-                      </Button>
-                    </div>
+              </Button>
+            </div>
 
                     {/* Estatísticas de importação */}
                     {importStats && selectedConfigForImport && (
@@ -1112,27 +1112,27 @@ export default function ProfitCalculator({
                               <div>Total: {importStats.trades.total}</div>
                               <div>Importados: {importStats.trades.imported}</div>
                               <div>Duplicados: {importStats.trades.duplicated}</div>
-                            </div>
-                          )}
+                    </div>
+                  )}
                           {importStats.deposits && (
                             <div>
                               <div className="text-blue-400 font-medium">Depósitos</div>
                               <div>Total: {importStats.deposits.total}</div>
                               <div>Importados: {importStats.deposits.imported}</div>
                               <div>Duplicados: {importStats.deposits.duplicated}</div>
-                            </div>
-                          )}
+                    </div>
+                  )}
                           {importStats.withdrawals && (
                             <div>
                               <div className="text-red-400 font-medium">Saques</div>
                               <div>Total: {importStats.withdrawals.total}</div>
                               <div>Importados: {importStats.withdrawals.imported}</div>
                               <div>Duplicados: {importStats.withdrawals.duplicated}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                              </div>
+                      )}
+                  </div>
+                    </div>
+                  )}
                   </CardContent>
                 </Card>
               </div>
@@ -1154,8 +1154,8 @@ export default function ProfitCalculator({
                       <p className="mt-2 text-sm">
                         Incluindo análise de saldo total vs saldo atual
                       </p>
-                    )}
-                  </div>
+                )}
+              </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1172,7 +1172,7 @@ export default function ProfitCalculator({
                 <CardContent>
                   <div className="text-center py-8 text-purple-400">
                     Gráficos serão implementados aqui...
-                  </div>
+              </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1181,4 +1181,4 @@ export default function ProfitCalculator({
       )}
     </div>
   );
-} 
+}

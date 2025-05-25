@@ -108,11 +108,23 @@ class LNMarketsClient {
   /**
    * Busca trades/operações fechadas
    * Usando método da biblioteca oficial - GET /v2/futures
+   * Parâmetro type: 'closed' para buscar apenas trades fechados
    */
   async getTrades(): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
     return this.executeWithErrorHandling(
-      () => this.client.futuresGetTrades(),
-      'getTrades'
+      () => this.client.futuresGetTrades({ type: 'closed' }),
+      'getTrades (closed)'
+    );
+  }
+
+  /**
+   * Busca trades por tipo específico
+   * @param type - Tipo de trade: 'running', 'open', ou 'closed'
+   */
+  async getTradesByType(type: 'running' | 'open' | 'closed'): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
+    return this.executeWithErrorHandling(
+      () => this.client.futuresGetTrades({ type }),
+      `getTrades (${type})`
     );
   }
 
