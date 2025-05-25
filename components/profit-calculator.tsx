@@ -1039,9 +1039,33 @@ export default function ProfitCalculator({
 
   // Função auxiliar para verificar se um depósito está confirmado
   const isDepositConfirmed = (deposit: any): boolean => {
-    // Se a API retorna isConfirmed: false, o depósito não está confirmado
-    // Se não retorna esse atributo, o depósito está confirmado
-    return deposit.isConfirmed !== false;
+    // Verificar diferentes atributos dependendo do tipo de depósito:
+    // 1. Depósitos on-chain: is_confirmed: true
+    // 2. Depósitos internos: success: true  
+    // 3. Depósitos não confirmados: isConfirmed: false
+    
+    // Se explicitamente não confirmado
+    if (deposit.isConfirmed === false) {
+      return false;
+    }
+    
+    // Se é depósito on-chain confirmado
+    if (deposit.is_confirmed === true) {
+      return true;
+    }
+    
+    // Se é depósito interno bem-sucedido
+    if (deposit.success === true) {
+      return true;
+    }
+    
+    // Se tem isConfirmed true (caso padrão antigo)
+    if (deposit.isConfirmed === true) {
+      return true;
+    }
+    
+    // Se nenhum indicador negativo, considerar confirmado (fallback)
+    return deposit.isConfirmed !== false && deposit.is_confirmed !== false && deposit.success !== false;
   };
 
   const handleImportDeposits = async () => {
@@ -1142,9 +1166,15 @@ export default function ProfitCalculator({
         console.log('[handleImportDeposits] Processando depósito:', {
           id: deposit.id,
           amount: deposit.amount,
+          type: deposit.type,
           status: deposit.status,
           created_at: deposit.created_at,
-          isConfirmedFromAPI: deposit.isConfirmed,
+          ts: deposit.ts,
+          // Diferentes atributos de confirmação
+          isConfirmed: deposit.isConfirmed,
+          is_confirmed: deposit.is_confirmed,
+          success: deposit.success,
+          // Resultado da lógica
           isConfirmedByLogic: isDepositConfirmed(deposit)
         });
 
@@ -1162,10 +1192,15 @@ export default function ProfitCalculator({
         const isConfirmed = isDepositConfirmed(deposit);
         
         console.log('[handleImportDeposits] Verificação de confirmação:', {
-          originalStatus: deposit.status,
-          isConfirmedFromAPI: deposit.isConfirmed,
+          type: deposit.type,
+          status: deposit.status,
+          // Todos os atributos de confirmação
+          isConfirmed: deposit.isConfirmed,
+          is_confirmed: deposit.is_confirmed,
+          success: deposit.success,
+          // Resultado
           isConfirmedByLogic: isConfirmed,
-          logic: 'deposit.isConfirmed !== false (se não tem isConfirmed ou é true, está confirmado)'
+          logic: 'is_confirmed=true OR success=true OR (isConfirmed≠false AND is_confirmed≠false AND success≠false)'
         });
 
         if (isConfirmed) {
@@ -1231,12 +1266,16 @@ export default function ProfitCalculator({
           skipped++;
           console.log('[handleImportDeposits] Depósito ignorado (não confirmado):', {
             id: deposit.id,
+            type: deposit.type,
             status: deposit.status,
             amount: deposit.amount,
             created_at: deposit.created_at,
-            deposit_type: deposit.deposit_type,
-            isConfirmedFromAPI: deposit.isConfirmed,
-            reason: 'deposit.isConfirmed === false'
+            ts: deposit.ts,
+            // Todos os atributos de confirmação
+            isConfirmed: deposit.isConfirmed,
+            is_confirmed: deposit.is_confirmed,
+            success: deposit.success,
+            reason: 'Nenhum atributo de confirmação positivo encontrado'
           });
         }
         
@@ -1331,7 +1370,7 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Lógica: Depósitos são confirmados quando isConfirmed ≠ false (undefined ou true)
+              Lógica: is_confirmed=true (on-chain) OU success=true (interno) OU outros atributos positivos
             </div>
             {errors > 0 && (
               <div className="flex items-center gap-2">
@@ -1800,10 +1839,14 @@ export default function ProfitCalculator({
         return acc;
       }, {} as Record<string, number>);
 
-      const isConfirmedAnalysis = deposits.reduce((acc, d) => {
-        const key = d.isConfirmed === false ? 'isConfirmed: false' : 
-                   d.isConfirmed === true ? 'isConfirmed: true' : 
-                   'isConfirmed: undefined';
+      const confirmationAnalysis = deposits.reduce((acc, d) => {
+        let key = '';
+        if (d.isConfirmed === false) key = 'isConfirmed: false';
+        else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
+        else if (d.success === true) key = 'success: true (internal)';
+        else if (d.isConfirmed === true) key = 'isConfirmed: true';
+        else key = 'sem atributos de confirmação';
+        
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
@@ -1814,17 +1857,21 @@ export default function ProfitCalculator({
       console.log('[analyzeDepositStatuses] Análise completa:', {
         totalDeposits: deposits.length,
         statusDistribution: statusAnalysis,
-        isConfirmedDistribution: isConfirmedAnalysis,
+        confirmationDistribution: confirmationAnalysis,
         confirmedByOldLogic,
         confirmedByNewLogic,
         difference: confirmedByNewLogic - confirmedByOldLogic,
         allUniqueStatuses: Object.keys(statusAnalysis),
         sampleDeposits: deposits.slice(0, 5).map(d => ({
           id: d.id,
+          type: d.type,
           status: d.status,
           amount: d.amount,
           created_at: d.created_at,
-          isConfirmedFromAPI: d.isConfirmed,
+          ts: d.ts,
+          isConfirmed: d.isConfirmed,
+          is_confirmed: d.is_confirmed,
+          success: d.success,
           isConfirmedByNewLogic: isDepositConfirmed(d)
         }))
       });
@@ -1835,9 +1882,9 @@ export default function ProfitCalculator({
           <div className="space-y-1 text-xs">
             <div>Total: {deposits.length} depósitos</div>
             <div>Confirmados (status='confirmed'): {confirmedByOldLogic}</div>
-            <div>Confirmados (isConfirmed≠false): {confirmedByNewLogic}</div>
+            <div>Confirmados (nova lógica): {confirmedByNewLogic}</div>
             <div>Diferença: +{confirmedByNewLogic - confirmedByOldLogic}</div>
-            <div>isConfirmed: {Object.keys(isConfirmedAnalysis).join(', ')}</div>
+            <div>Tipos: {Object.keys(confirmationAnalysis).join(', ')}</div>
             <div>Detalhes no console</div>
           </div>
         ),
@@ -1865,34 +1912,40 @@ export default function ProfitCalculator({
       return;
     }
 
-    // Criar um depósito de teste com diferentes valores de isConfirmed
+    // Criar depósitos de teste com diferentes tipos e atributos de confirmação
     const testDeposits = [
       {
         id: `test_deposit_${Date.now()}_1`,
-        amount: 100000, // 100k sats
+        amount: 69441,
+        type: 'bitcoin',
         status: 'confirmed',
-        created_at: new Date().toISOString(),
-        deposit_type: 'lightning',
-        txid: 'test_txid_1'
-        // isConfirmed: undefined (confirmado)
+        is_confirmed: true, // depósito on-chain confirmado
+        ts: Date.now(),
+        tx_id: 'test_tx_id_1'
       },
       {
         id: `test_deposit_${Date.now()}_2`,
-        amount: 50000, // 50k sats
-        status: 'complete',
-        isConfirmed: true, // explicitamente confirmado
-        created_at: new Date().toISOString(),
-        deposit_type: 'lightning',
-        txid: 'test_txid_2'
+        amount: 24779,
+        type: 'internal',
+        from_username: 'test_user',
+        success: true, // depósito interno bem-sucedido
+        ts: Date.now()
       },
       {
         id: `test_deposit_${Date.now()}_3`,
-        amount: 25000, // 25k sats
+        amount: 25000,
+        type: 'lightning',
         status: 'pending',
         isConfirmed: false, // explicitamente não confirmado
-        created_at: new Date().toISOString(),
-        deposit_type: 'lightning',
-        txid: 'test_txid_3'
+        created_at: new Date().toISOString()
+      },
+      {
+        id: `test_deposit_${Date.now()}_4`,
+        amount: 15000,
+        type: 'lightning',
+        status: 'confirmed',
+        isConfirmed: true, // confirmado tradicional
+        created_at: new Date().toISOString()
       }
     ];
 
@@ -1928,8 +1981,9 @@ export default function ProfitCalculator({
       title: "🧪 Teste de Conversão",
       description: (
         <div className="space-y-1 text-xs">
-          <div>Testou 3 depósitos com valores diferentes de isConfirmed</div>
-          <div>1: undefined (confirmado), 2: true (confirmado), 3: false (ignorado)</div>
+          <div>Testou 4 depósitos com diferentes tipos e confirmações</div>
+          <div>1: bitcoin (is_confirmed=true), 2: internal (success=true)</div>
+          <div>3: lightning (isConfirmed=false), 4: lightning (isConfirmed=true)</div>
           <div>Verifique o console para detalhes</div>
         </div>
       ),
@@ -2010,10 +2064,14 @@ export default function ProfitCalculator({
                 return acc;
               }, {} as Record<string, number>);
 
-              const isConfirmedAnalysis = response.data.reduce((acc, d) => {
-                const key = d.isConfirmed === false ? 'isConfirmed: false' : 
-                           d.isConfirmed === true ? 'isConfirmed: true' : 
-                           'isConfirmed: undefined';
+              const confirmationAnalysis = response.data.reduce((acc, d) => {
+                let key = '';
+                if (d.isConfirmed === false) key = 'isConfirmed: false';
+                else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
+                else if (d.success === true) key = 'success: true (internal)';
+                else if (d.isConfirmed === true) key = 'isConfirmed: true';
+                else key = 'sem atributos de confirmação';
+                
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
@@ -2024,20 +2082,26 @@ export default function ProfitCalculator({
               console.log('[DEBUG] Análise de confirmação dos depósitos:', {
                 totalDeposits: response.data.length,
                 statusDistribution: statusAnalysis,
-                isConfirmedDistribution: isConfirmedAnalysis,
+                confirmationDistribution: confirmationAnalysis,
                 confirmedByOldLogic,
                 confirmedByNewLogic,
                 difference: confirmedByNewLogic - confirmedByOldLogic,
                 allUniqueStatuses: Object.keys(statusAnalysis),
                 confirmedDeposits: response.data.filter(isDepositConfirmed).map(d => ({
                   id: d.id,
+                  type: d.type,
                   status: d.status,
-                  isConfirmed: d.isConfirmed
+                  isConfirmed: d.isConfirmed,
+                  is_confirmed: d.is_confirmed,
+                  success: d.success
                 })),
                 pendingDeposits: response.data.filter(d => !isDepositConfirmed(d)).map(d => ({
                   id: d.id,
+                  type: d.type,
                   status: d.status,
-                  isConfirmed: d.isConfirmed
+                  isConfirmed: d.isConfirmed,
+                  is_confirmed: d.is_confirmed,
+                  success: d.success
                 }))
               });
               
