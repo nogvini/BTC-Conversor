@@ -642,202 +642,15 @@ export default function ProfitCalculator({
       }
 
       const totalTrades = response.data.length;
-      let imported = 0;
-      let duplicated = 0;
-      let errors = 0;
-      let processed = 0;
-
-      // Atualizar progresso inicial
-      setImportProgress(prev => ({
-        ...prev,
-        trades: { 
-          current: 0, 
-          total: totalTrades, 
-          percentage: 0, 
-          status: 'loading', 
-          message: `Processando ${totalTrades} trades...` 
-        }
-      }));
-
-      for (const trade of response.data) {
-        if (trade.closed && trade.pl !== 0) {
-          const profitRecord = convertTradeToProfit(trade);
-          const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-          if (result.status === 'added') {
-            imported++;
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-          } else {
-            errors++;
-          }
-        }
-        
-        processed++;
-        const percentage = (processed / totalTrades) * 100;
-        
-        // Atualizar progresso a cada 10 items ou no final
-        if (processed % 10 === 0 || processed === totalTrades) {
-          setImportProgress(prev => ({
-            ...prev,
-            trades: {
-              current: processed,
-              total: totalTrades,
-              percentage,
-              status: 'loading',
-              message: `Processando... ${imported} importados, ${duplicated} duplicados`
-            }
-          }));
-          
-          // Pequeno delay para permitir atualização da UI
-          if (processed % 50 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-        }
-      }
-
-      // Progresso completo
-      setImportProgress(prev => ({
-        ...prev,
-        trades: {
-          current: totalTrades,
-          total: totalTrades,
-          percentage: 100,
-          status: 'complete',
-          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
-        }
-      }));
-
-      setImportStats(prev => ({
-        trades: { total: response.data?.length || 0, imported, duplicated, errors },
-        deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
-        withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
-      }));
-
-      toast({
-        title: "✅ Trades importados com sucesso!",
-        description: (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>{imported} novos trades adicionados</span>
-            </div>
-            {duplicated > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span>{duplicated} trades já existentes ignorados</span>
-              </div>
-            )}
-            <div className="text-xs text-gray-400 mt-2">
-              Configuração: "{config.name}"
-            </div>
-          </div>
-        ),
-        variant: "default",
-        className: "border-green-500/50 bg-green-900/20",
-      });
-    } catch (error: any) {
-      console.error('[handleImportTrades] Erro durante importação:', error);
       
-      // Progresso com erro
-      setImportProgress(prev => ({
-        ...prev,
-        trades: {
-          ...prev.trades,
-          status: 'error',
-          message: error.message || 'Erro durante importação'
-        }
-      }));
-      
-      toast({
-        title: "❌ Erro ao importar trades",
-        description: (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <span>Falha na importação dos trades</span>
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              {error.message || "Erro desconhecido"}
-            </div>
-          </div>
-        ),
-        variant: "destructive",
-        className: "border-red-500/50 bg-red-900/20",
-      });
-    } finally {
-      setIsImportingTrades(false);
-    }
-  };
-
-  const handleImportDeposits = async () => {
-    console.log('[handleImportDeposits] Iniciando importação de depósitos');
-    
-    const config = getCurrentImportConfig();
-    
-    console.log('[handleImportDeposits] Configuração obtida:', {
-      hasConfig: !!config,
-      configName: config?.name,
-      hasActiveReport: !!currentActiveReportObjectFromHook,
-      reportName: currentActiveReportObjectFromHook?.name,
-      reportId: currentActiveReportObjectFromHook?.id
-    });
-    
-    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
-      console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
-      toast({
-        title: "Configuração necessária",
-        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Inicializar progresso
-    setImportProgress(prev => ({
-      ...prev,
-      deposits: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
-    }));
-      
-    setIsImportingDeposits(true);
-    try {
-      console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
-        hasKey: !!config.credentials.key,
-        hasSecret: !!config.credentials.secret,
-        hasPassphrase: !!config.credentials.passphrase,
-        network: config.credentials.network,
-        isConfigured: config.credentials.isConfigured
+      // NOVO: Verificar estado atual do relatório antes de começar
+      console.log('[handleImportTrades] Estado do relatório antes da importação:', {
+        reportId: currentActiveReportObjectFromHook.id,
+        currentProfitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
+        existingProfitIds: currentActiveReportObjectFromHook.profits?.map(profit => profit.originalId) || [],
+        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null
       });
       
-      const response = await fetchLNMarketsDeposits(user.email, config.id);
-
-      console.log('[handleImportDeposits] Resposta recebida:', {
-        success: response.success,
-        hasData: !!response.data,
-        dataLength: response.data?.length,
-        error: response.error,
-        fullResponse: response
-      });
-
-      if (!response.success || !response.data) {
-        console.error('[handleImportDeposits] Falha na resposta da API:', response);
-        throw new Error(response.error || "Erro ao buscar depósitos");
-      }
-
-      const deposits = response.data;
-      const totalDeposits = deposits.length;
-      
-      console.log('[handleImportDeposits] Processando depósitos:', {
-        totalDeposits,
-        firstDeposit: deposits[0],
-        depositsStructure: deposits.map(d => ({
-          id: d.id,
-          amount: d.amount,
-          status: d.status,
-          created_at: d.created_at
-        }))
-      });
-
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
@@ -877,17 +690,41 @@ export default function ProfitCalculator({
               unit: investment.unit
             });
             
-            const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            // NOVO: Verificar se já existe antes de tentar adicionar
+            const existingInvestment = currentActiveReportObjectFromHook.investments?.find(
+              inv => inv.originalId === investment.originalId
+            );
             
-            console.log('[handleImportDeposits] Resultado da adição:', result);
-            
-            if (result.status === 'added') {
-              imported++;
-            } else if (result.status === 'duplicate') {
+            if (existingInvestment) {
+              console.log('[handleImportDeposits] Investimento já existe:', {
+                existingId: existingInvestment.id,
+                existingOriginalId: existingInvestment.originalId,
+                existingDate: existingInvestment.date,
+                existingAmount: existingInvestment.amount
+              });
               duplicated++;
             } else {
-              errors++;
-              console.error('[handleImportDeposits] Erro ao adicionar depósito:', result);
+              console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
+              
+              const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+              
+              console.log('[handleImportDeposits] Resultado da adição:', {
+                status: result.status,
+                id: result.id,
+                originalId: result.originalId,
+                message: result.message
+              });
+              
+              if (result.status === 'added') {
+                imported++;
+                console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
+              } else if (result.status === 'duplicate') {
+                duplicated++;
+                console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
+              } else {
+                errors++;
+                console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
+              }
             }
           } catch (conversionError) {
             console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
@@ -923,6 +760,14 @@ export default function ProfitCalculator({
           }
         }
       }
+
+      // NOVO: Verificar estado do relatório após a importação
+      console.log('[handleImportDeposits] Estado do relatório após a importação:', {
+        reportId: currentActiveReportObjectFromHook.id,
+        finalInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        newInvestmentIds: currentActiveReportObjectFromHook.investments?.slice(-imported).map(inv => inv.originalId) || [],
+        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
+      });
 
       // Progresso completo
       setImportProgress(prev => ({
@@ -2662,8 +2507,8 @@ export default function ProfitCalculator({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="area">Área</SelectItem>
-                            <SelectItem value="line">Linha</SelectItem>
-                            <SelectItem value="bar">Barras</SelectItem>
+                            <SelectItem value="line">Barras Comparativas</SelectItem>
+                            <SelectItem value="bar">Barras Empilhadas</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2745,21 +2590,19 @@ export default function ProfitCalculator({
                             </Label>
                           </div>
                           
-                          {chartType === "line" && (
-                            <div className="flex items-center space-x-2">
-                              <Switch
-                                id="show-balance"
-                                checked={chartVisibleSeries.balance}
-                                onCheckedChange={(checked) => 
-                                  setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
-                                }
-                              />
-                              <Label htmlFor="show-balance" className="text-sm flex items-center gap-2">
-                                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                                Saldo Total
-                              </Label>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="show-balance"
+                              checked={chartVisibleSeries.balance}
+                              onCheckedChange={(checked) => 
+                                setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
+                              }
+                            />
+                            <Label htmlFor="show-balance" className="text-sm flex items-center gap-2">
+                              <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                              Saldo Total
+                            </Label>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2848,21 +2691,24 @@ export default function ProfitCalculator({
                         )}
                         
                         {chartType === "line" && (
-                          <LineChart data={getChartData.map(point => ({
+                          <BarChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
                             profits: convertChartValue(point.profits),
                             balance: convertChartValue(point.balance)
                           }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                             <XAxis 
                               dataKey="month" 
                               stroke="#9CA3AF"
                               fontSize={12}
+                              tick={{ fontSize: 11 }}
+                              tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
                             />
                             <YAxis 
                               stroke="#9CA3AF"
                               fontSize={12}
+                              tick={{ fontSize: 10 }}
                               tickFormatter={formatChartValue}
                             />
                             <Tooltip 
@@ -2870,46 +2716,52 @@ export default function ProfitCalculator({
                                 backgroundColor: '#1F2937',
                                 border: '1px solid #374151',
                                 borderRadius: '8px',
-                                color: '#F3F4F6'
+                                color: '#F3F4F6',
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                               }}
-                              formatter={(value: number, name: string) => [
-                                formatChartValue(value),
-                                name === 'investments' ? 'Investimentos' :
-                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
-                              ]}
+                              formatter={(value: number, name: string) => {
+                                const formattedValue = formatChartValue(value);
+                                const formattedName = 
+                                  name === 'investments' ? 'Investimentos' :
+                                  name === 'profits' ? 'Lucros/Perdas' : 
+                                  name === 'balance' ? 'Saldo Total' : name;
+                                return [formattedValue, formattedName];
+                              }}
+                              labelFormatter={(label) => `Período: ${label}`}
                             />
-                            <Legend />
+                            <Legend 
+                              wrapperStyle={{ paddingTop: '20px' }}
+                              iconType="rect"
+                            />
                             {chartVisibleSeries.investments && (
-                              <Line 
-                                type="monotone" 
+                              <Bar 
                                 dataKey="investments" 
-                                stroke="#3B82F6" 
-                                strokeWidth={3}
+                                fill="#3B82F6" 
                                 name="Investimentos"
-                                dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={60}
                               />
                             )}
                             {chartVisibleSeries.profits && (
-                              <Line 
-                                type="monotone" 
+                              <Bar 
                                 dataKey="profits" 
-                                stroke="#10B981" 
-                                strokeWidth={3}
+                                fill="#10B981" 
                                 name="Lucros/Perdas"
-                                dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={60}
                               />
                             )}
                             {chartVisibleSeries.balance && (
-                              <Line 
-                                type="monotone" 
+                              <Bar 
                                 dataKey="balance" 
-                                stroke="#F59E0B" 
-                                strokeWidth={3}
+                                fill="#F59E0B" 
                                 name="Saldo Total"
-                                dot={{ fill: '#F59E0B', strokeWidth: 2, r: 4 }}
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={60}
+                                opacity={0.8}
                               />
                             )}
-                          </LineChart>
+                          </BarChart>
                         )}
                         
                         {chartType === "bar" && (
@@ -2919,15 +2771,18 @@ export default function ProfitCalculator({
                             profits: convertChartValue(point.profits),
                             balance: convertChartValue(point.balance)
                           }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                             <XAxis 
                               dataKey="month" 
                               stroke="#9CA3AF"
                               fontSize={12}
+                              tick={{ fontSize: 11 }}
+                              tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
                             />
                             <YAxis 
                               stroke="#9CA3AF"
                               fontSize={12}
+                              tick={{ fontSize: 10 }}
                               tickFormatter={formatChartValue}
                             />
                             <Tooltip 
@@ -2935,29 +2790,41 @@ export default function ProfitCalculator({
                                 backgroundColor: '#1F2937',
                                 border: '1px solid #374151',
                                 borderRadius: '8px',
-                                color: '#F3F4F6'
+                                color: '#F3F4F6',
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                               }}
-                              formatter={(value: number, name: string) => [
-                                formatChartValue(value),
-                                name === 'investments' ? 'Investimentos' :
-                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
-                              ]}
+                              formatter={(value: number, name: string) => {
+                                const formattedValue = formatChartValue(value);
+                                const formattedName = 
+                                  name === 'investments' ? 'Investimentos' :
+                                  name === 'profits' ? 'Lucros/Perdas' : 
+                                  name === 'balance' ? 'Saldo Total' : name;
+                                return [formattedValue, formattedName];
+                              }}
+                              labelFormatter={(label) => `Período: ${label}`}
                             />
-                            <Legend />
+                            <Legend 
+                              wrapperStyle={{ paddingTop: '20px' }}
+                              iconType="rect"
+                            />
                             {chartVisibleSeries.investments && (
                               <Bar 
                                 dataKey="investments" 
+                                stackId="stack"
                                 fill="#3B82F6" 
                                 name="Investimentos"
-                                radius={[2, 2, 0, 0]}
+                                radius={[0, 0, 0, 0]}
+                                maxBarSize={60}
                               />
                             )}
                             {chartVisibleSeries.profits && (
                               <Bar 
                                 dataKey="profits" 
+                                stackId="stack"
                                 fill="#10B981" 
                                 name="Lucros/Perdas"
-                                radius={[2, 2, 0, 0]}
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={60}
                               />
                             )}
                           </BarChart>
