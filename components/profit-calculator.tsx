@@ -1313,7 +1313,15 @@ export default function ProfitCalculator({
         name: currentActiveReportObjectFromHook.name,
         investmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
         profitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
-        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0
+        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0,
+        lastInvestments: currentActiveReportObjectFromHook.investments?.slice(-3).map(inv => ({
+          id: inv.id,
+          originalId: inv.originalId,
+          date: inv.date,
+          amount: inv.amount,
+          unit: inv.unit
+        })) || [],
+        recentInvestmentIds: currentActiveReportObjectFromHook.investments?.slice(-5).map(inv => inv.originalId) || []
       } : null,
       allConfigs: multipleConfigs?.configs?.map(c => ({
         id: c.id,
@@ -1326,7 +1334,13 @@ export default function ProfitCalculator({
         deposits: importProgress.deposits,
         withdrawals: importProgress.withdrawals
       },
-      lastImportStats: importStats
+      lastImportStats: importStats,
+      reportsHookState: {
+        allReportsCount: allReportsFromHook?.length || 0,
+        activeReportIdFromHook,
+        reportsDataLoaded,
+        allReportIds: allReportsFromHook?.map(r => r.id) || []
+      }
     };
     
     console.log('[DEBUG] Estado completo da importação:', debugInfo);
@@ -1339,10 +1353,48 @@ export default function ProfitCalculator({
       fetchLNMarketsDeposits(user?.email || '', config.id)
         .then(response => {
           console.log('[DEBUG] Teste de resposta da API /deposits:', response);
+          
+          if (response.success && response.data) {
+            console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
+            
+            // Testar conversão de um depósito
+            const firstConfirmedDeposit = response.data.find(d => d.status === 'confirmed');
+            if (firstConfirmedDeposit) {
+              try {
+                const testInvestment = convertDepositToInvestment(firstConfirmedDeposit);
+                console.log('[DEBUG] Teste de conversão bem-sucedido:', testInvestment);
+                
+                // Testar se já existe no relatório
+                const isDuplicate = currentActiveReportObjectFromHook?.investments?.some(
+                  inv => inv.originalId === testInvestment.originalId
+                );
+                console.log('[DEBUG] Depósito seria duplicado?', isDuplicate);
+                
+              } catch (conversionError) {
+                console.error('[DEBUG] Erro na conversão de teste:', conversionError);
+              }
+            }
+          }
         })
         .catch(error => {
           console.error('[DEBUG] Erro no teste da API /deposits:', error);
         });
+    }
+    
+    // Verificar localStorage
+    try {
+      const storedCollection = localStorage.getItem('bitcoinReportsCollection');
+      if (storedCollection) {
+        const parsed = JSON.parse(storedCollection);
+        console.log('[DEBUG] Dados no localStorage:', {
+          reportsCount: parsed.reports?.length || 0,
+          activeReportId: parsed.activeReportId,
+          lastUpdated: parsed.lastUpdated,
+          version: parsed.version
+        });
+      }
+    } catch (error) {
+      console.error('[DEBUG] Erro ao ler localStorage:', error);
     }
     
     toast({
@@ -1351,6 +1403,7 @@ export default function ProfitCalculator({
         <div className="space-y-1 text-xs">
           <div>Config: {config?.name || 'Nenhum'}</div>
           <div>Relatório: {currentActiveReportObjectFromHook?.name || 'Nenhum'}</div>
+          <div>Investimentos: {currentActiveReportObjectFromHook?.investments?.length || 0}</div>
           <div>Credenciais: {config?.credentials?.isConfigured ? '✅' : '❌'}</div>
           <div>Detalhes no console</div>
         </div>
@@ -2161,16 +2214,26 @@ export default function ProfitCalculator({
                         <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
                       )}
                       
-                      {/* DEBUG: Botão de debug apenas em desenvolvimento */}
+                      {/* DEBUG: Botões de debug apenas em desenvolvimento */}
                       {process.env.NODE_ENV === 'development' && (
-                        <Button
-                          onClick={debugImportData}
-                          variant="outline"
-                          size="sm"
-                          className="w-full mb-2 bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
-                        >
-                          🐛 Debug Info
-                        </Button>
+                        <div className="space-y-2 mb-2">
+                          <Button
+                            onClick={debugImportData}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
+                          >
+                            🐛 Debug Info
+                          </Button>
+                          <Button
+                            onClick={testAddInvestment}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
+                          >
+                            🧪 Testar AddInvestment
+                          </Button>
+                        </div>
                       )}
                       
                       <Button
@@ -3099,3 +3162,54 @@ export default function ProfitCalculator({
     </div>
   );
 }
+
+// NOVA Função para testar manualmente o addInvestment
+const testAddInvestment = () => {
+  if (!currentActiveReportObjectFromHook) {
+    toast({
+      title: "❌ Erro no teste",
+      description: "Nenhum relatório ativo encontrado",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const testInvestment = {
+    date: new Date().toISOString().split('T')[0],
+    amount: 100000, // 100k sats
+    unit: 'SATS' as const,
+    originalId: `test_${Date.now()}`
+  };
+
+  console.log('[testAddInvestment] Testando adição de investimento:', {
+    reportId: currentActiveReportObjectFromHook.id,
+    reportName: currentActiveReportObjectFromHook.name,
+    testInvestment,
+    currentInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0
+  });
+
+  try {
+    const result = addInvestment(testInvestment, currentActiveReportObjectFromHook.id, { suppressToast: false });
+    
+    console.log('[testAddInvestment] Resultado do teste:', result);
+    
+    toast({
+      title: result.status === 'added' ? "✅ Teste bem-sucedido" : "⚠️ Teste com problema",
+      description: (
+        <div className="space-y-1 text-xs">
+          <div>Status: {result.status}</div>
+          <div>ID: {result.id || 'N/A'}</div>
+          <div>Mensagem: {result.message}</div>
+        </div>
+      ),
+      variant: result.status === 'added' ? "default" : "destructive",
+    });
+  } catch (error) {
+    console.error('[testAddInvestment] Erro durante teste:', error);
+    toast({
+      title: "❌ Erro no teste",
+      description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+      variant: "destructive",
+    });
+  }
+};
