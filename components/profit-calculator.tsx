@@ -2325,7 +2325,31 @@ export default function ProfitCalculator({
     }
   }, [chartDisplayUnit]);
 
-    return (
+  // Função para formatar valores responsivos nos gráficos
+  const formatResponsiveChartValue = useCallback((value: number): string => {
+    if (isMobile) {
+      // Formato mais compacto para mobile
+      switch (chartDisplayUnit) {
+        case "usd":
+          return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
+        case "brl":
+          return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
+        case "btc":
+          return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+      }
+    }
+    return formatChartValue(value);
+  }, [chartDisplayUnit, isMobile, formatChartValue]);
+
+  // Função para formatar labels responsivos
+  const formatResponsiveLabel = useCallback((value: string): string => {
+    if (isMobile) {
+      return value.length > 6 ? `${value.substring(0, 6)}...` : value;
+    }
+    return value;
+  }, [isMobile]);
+
+  return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
       {isComparisonMode ? (
@@ -3554,7 +3578,7 @@ export default function ProfitCalculator({
                               tick={{ fontSize: 10 }}
                               interval="preserveStartEnd"
                               tickFormatter={(value) => {
-                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                if (isMobile) {
                                   return value.length > 6 ? `${value.substring(0, 6)}...` : value;
                                 }
                                 return value;
@@ -3564,9 +3588,9 @@ export default function ProfitCalculator({
                               stroke="#9CA3AF"
                               fontSize={10}
                               tick={{ fontSize: 9 }}
-                              width={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
+                              width={isMobile ? 60 : 80}
                               tickFormatter={(value) => {
-                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                if (isMobile) {
                                   // Formato mais compacto para mobile
                                   switch (chartDisplayUnit) {
                                     case "usd":
@@ -3634,7 +3658,7 @@ export default function ProfitCalculator({
                               tick={{ fontSize: 10 }}
                               interval="preserveStartEnd"
                               tickFormatter={(value) => {
-                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                if (isMobile) {
                                   return value.length > 6 ? `${value.substring(0, 6)}...` : value;
                                 }
                                 return value;
@@ -3644,9 +3668,9 @@ export default function ProfitCalculator({
                               stroke="#9CA3AF"
                               fontSize={10}
                               tick={{ fontSize: 9 }}
-                              width={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
+                              width={isMobile ? 60 : 80}
                               tickFormatter={(value) => {
-                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                if (isMobile) {
                                   // Formato mais compacto para mobile
                                   switch (chartDisplayUnit) {
                                     case "usd":
@@ -3837,16 +3861,16 @@ export default function ProfitCalculator({
                               labelLine={false}
                               label={({ name, percent }) => {
                                 // Responsivo: mostrar apenas porcentagem em telas pequenas
-                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                if (isMobile) {
                                   return `${(percent * 100).toFixed(0)}%`;
                                 }
                                 return `${name}: ${(percent * 100).toFixed(1)}%`;
                               }}
-                              outerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 50 : 70}
-                              innerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 20 : 30}
+                              outerRadius={isMobile ? 50 : 70}
+                              innerRadius={isMobile ? 20 : 30}
                               fill="#8884d8"
                               dataKey="value"
-                              fontSize={typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12}
+                              fontSize={isMobile ? 10 : 12}
                             >
                             </Pie>
                             <Tooltip 
