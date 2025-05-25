@@ -71,6 +71,7 @@ export interface LNMarketsTrade {
   created_at: string; // ISO date string
   updated_at: string; // ISO date string
   closed_at?: string; // ISO date string
+  ts?: number; // Timestamp preciso em milissegundos
   entry_price: number | null;
   open: boolean;
   running: boolean;
@@ -81,23 +82,34 @@ export interface LNMarketsTrade {
 
 // Tipo para depósito da LN Markets
 export interface LNMarketsDeposit {
-  id: number;
+  id: number | string;
   amount: number;
-  status: string;
-  created_at: string; // ISO date string
-  updated_at: string; // ISO date string
+  status?: string;
+  type?: string; // Tipo do depósito: 'bitcoin', 'internal', 'lightning'
+  created_at?: string; // ISO date string
+  updated_at?: string; // ISO date string
+  ts?: number; // Timestamp preciso em milissegundos
   txid?: string;
+  tx_id?: string; // ID da transação (formato alternativo)
   deposit_type?: string;
+  from_username?: string; // Para depósitos internos
+  // Diferentes atributos de confirmação
+  isConfirmed?: boolean; // Formato tradicional
+  is_confirmed?: boolean; // Formato on-chain
+  success?: boolean; // Formato interno
 }
 
 // Tipo para saque da LN Markets
 export interface LNMarketsWithdrawal {
-  id: number;
+  id: number | string;
   amount: number;
-  status: string;
-  created_at: string; // ISO date string
-  updated_at: string; // ISO date string
+  status?: string;
+  type?: string; // Tipo do saque: 'bitcoin', 'lightning'
+  created_at?: string; // ISO date string
+  updated_at?: string; // ISO date string
+  ts?: number; // Timestamp preciso em milissegundos
   txid?: string;
+  tx_id?: string; // ID da transação (formato alternativo)
   withdrawal_type?: string;
   fees?: number;
 }

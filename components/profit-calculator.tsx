@@ -725,15 +725,15 @@ export default function ProfitCalculator({
         });
 
         console.log(`[handleImportTrades] Resposta da página ${currentPage}:`, {
-          success: response.success,
-          hasData: !!response.data,
-          dataLength: response.data?.length,
-          error: response.error
-        });
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: response.data?.length,
+        error: response.error
+      });
 
-        if (!response.success || !response.data) {
+      if (!response.success || !response.data) {
           if (currentPage === 1) {
-            throw new Error(response.error || "Erro ao buscar trades");
+        throw new Error(response.error || "Erro ao buscar trades");
           } else {
             console.log(`[handleImportTrades] Erro na página ${currentPage}, parando busca:`, response.error);
             break;
@@ -847,7 +847,7 @@ export default function ProfitCalculator({
         
         if (trade.closed && trade.pl !== 0) {
           try {
-            const profitRecord = convertTradeToProfit(trade);
+          const profitRecord = convertTradeToProfit(trade);
             
             console.log('[handleImportTrades] Registro de lucro convertido:', {
               id: profitRecord.id,
@@ -875,7 +875,7 @@ export default function ProfitCalculator({
             } else {
               console.log('[handleImportTrades] Tentando adicionar novo registro de lucro...');
               
-              const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
               
               console.log('[handleImportTrades] Resultado da adição:', {
                 status: result.status,
@@ -883,15 +883,15 @@ export default function ProfitCalculator({
                 originalId: result.originalId,
                 message: result.message
               });
-              
-              if (result.status === 'added') {
-                imported++;
+          
+          if (result.status === 'added') {
+            imported++;
                 console.log('[handleImportTrades] ✅ Registro de lucro adicionado com sucesso:', result.id);
-              } else if (result.status === 'duplicate') {
-                duplicated++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
                 console.log('[handleImportTrades] ⚠️ Registro de lucro duplicado detectado:', result.originalId);
-              } else {
-                errors++;
+          } else {
+            errors++;
                 console.error('[handleImportTrades] ❌ Erro ao adicionar registro de lucro:', result);
               }
             }
@@ -1039,22 +1039,33 @@ export default function ProfitCalculator({
 
   // Função auxiliar para verificar se um depósito está confirmado
   const isDepositConfirmed = (deposit: any): boolean => {
-    // Lógica simplificada baseada nos atributos reais da API:
-    // 1. Depósitos on-chain (type: "bitcoin"): is_confirmed === true
-    // 2. Depósitos internos (type: "internal"): success === true
+    // Verificar diferentes atributos dependendo do tipo de depósito:
+    // 1. Depósitos on-chain: is_confirmed: true
+    // 2. Depósitos internos: success: true  
+    // 3. Depósitos não confirmados: isConfirmed: false
     
-    // Depósito on-chain confirmado
+    // Se explicitamente não confirmado
+    if (deposit.isConfirmed === false) {
+      return false;
+    }
+    
+    // Se é depósito on-chain confirmado
     if (deposit.is_confirmed === true) {
       return true;
     }
     
-    // Depósito interno bem-sucedido
+    // Se é depósito interno bem-sucedido
     if (deposit.success === true) {
       return true;
     }
     
-    // Todos os outros casos são considerados não confirmados
-    return false;
+    // Se tem isConfirmed true (caso padrão antigo)
+    if (deposit.isConfirmed === true) {
+      return true;
+    }
+    
+    // Se nenhum indicador negativo, considerar confirmado (fallback)
+    return deposit.isConfirmed !== false && deposit.is_confirmed !== false && deposit.success !== false;
   };
 
   const handleImportDeposits = async () => {
@@ -1132,7 +1143,7 @@ export default function ProfitCalculator({
         existingInvestmentIds: currentActiveReportObjectFromHook.investments?.map(inv => inv.originalId) || [],
         lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
       });
-      
+
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
@@ -1183,14 +1194,13 @@ export default function ProfitCalculator({
         console.log('[handleImportDeposits] Verificação de confirmação:', {
           type: deposit.type,
           status: deposit.status,
-          // Atributos de confirmação relevantes
+          // Todos os atributos de confirmação
+          isConfirmed: deposit.isConfirmed,
           is_confirmed: deposit.is_confirmed,
           success: deposit.success,
           // Resultado
           isConfirmedByLogic: isConfirmed,
-          logic: 'is_confirmed===true (on-chain) OR success===true (internal)',
-          validationRule: deposit.type === 'bitcoin' ? 'Checking is_confirmed' : 
-                         deposit.type === 'internal' ? 'Checking success' : 'Unknown type'
+          logic: 'is_confirmed=true OR success=true OR (isConfirmed≠false AND is_confirmed≠false AND success≠false)'
         });
 
         if (isConfirmed) {
@@ -1222,8 +1232,8 @@ export default function ProfitCalculator({
               console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
               
               // CORRIGIDO: Usar a função correta com os parâmetros adequados
-              const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-              
+            const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            
               console.log('[handleImportDeposits] Resultado da adição:', {
                 status: result.status,
                 id: result.id,
@@ -1236,15 +1246,15 @@ export default function ProfitCalculator({
                 // Aguardar um pouco para garantir que o estado foi atualizado
                 await new Promise(resolve => setTimeout(resolve, 50));
               }
-              
-              if (result.status === 'added') {
-                imported++;
+            
+            if (result.status === 'added') {
+              imported++;
                 console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
-              } else if (result.status === 'duplicate') {
-                duplicated++;
+            } else if (result.status === 'duplicate') {
+              duplicated++;
                 console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
-              } else {
-                errors++;
+            } else {
+              errors++;
                 console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
               }
             }
@@ -1261,12 +1271,11 @@ export default function ProfitCalculator({
             amount: deposit.amount,
             created_at: deposit.created_at,
             ts: deposit.ts,
-            // Atributos de confirmação relevantes
+            // Todos os atributos de confirmação
+            isConfirmed: deposit.isConfirmed,
             is_confirmed: deposit.is_confirmed,
             success: deposit.success,
-            reason: deposit.type === 'bitcoin' ? `is_confirmed=${deposit.is_confirmed} (expected true)` :
-                   deposit.type === 'internal' ? `success=${deposit.success} (expected true)` :
-                   `Unknown type "${deposit.type}" - no validation rule`
+            reason: 'Nenhum atributo de confirmação positivo encontrado'
           });
         }
         
@@ -1361,7 +1370,7 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Lógica: is_confirmed===true (bitcoin) OU success===true (internal) - apenas estes dois casos
+              Lógica: is_confirmed=true (on-chain) OU success=true (interno) OU outros atributos positivos
             </div>
             {errors > 0 && (
               <div className="flex items-center gap-2">
@@ -1480,16 +1489,16 @@ export default function ProfitCalculator({
         }
       }));
 
-            for (const withdrawal of response.data) {
+      for (const withdrawal of response.data) {
         console.log('[handleImportWithdrawals] Processando saque:', {
           id: withdrawal.id,
           amount: withdrawal.amount,
           status: withdrawal.status,
           created_at: withdrawal.created_at,
-          type: withdrawal.type,
-          note: 'Todos os saques são processados - sem validação de status'
+          isConfirmed: withdrawal.status === 'confirmed'
         });
         
+        // NOVO: Importar todos os saques independente do status
         try {
           const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
           
@@ -1498,10 +1507,11 @@ export default function ProfitCalculator({
             originalId: withdrawalRecord.originalId,
             date: withdrawalRecord.date,
             amount: withdrawalRecord.amount,
-            unit: withdrawalRecord.unit
+            unit: withdrawalRecord.unit,
+            originalStatus: withdrawal.status
           });
           
-          // Verificar se já existe antes de tentar adicionar (apenas duplicação por ID)
+          // Verificar se já existe antes de tentar adicionar
           const existingWithdrawal = currentActiveReportObjectFromHook.withdrawals?.find(
             w => w.originalId === withdrawalRecord.originalId
           );
@@ -1586,8 +1596,7 @@ export default function ProfitCalculator({
           duplicated, 
           errors,
           processed: totalWithdrawals,
-          // Todos os saques são processados - sem filtro de confirmação
-          confirmedCount: response.data?.length || 0,
+          confirmedCount: response.data?.length || 0, // Todos são processados agora
           statusDistribution: response.data?.reduce((acc, w) => {
             acc[w.status] = (acc[w.status] || 0) + 1;
             return acc;
@@ -1610,7 +1619,7 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Todos os saques são processados - sem validação de status
+              Política: Todos os saques são importados independente do status
             </div>
             <div className="text-xs text-gray-400">
               Configuração: "{config.name}"
@@ -1643,9 +1652,6 @@ export default function ProfitCalculator({
             </div>
             <div className="text-xs text-gray-400 mt-1">
               {error.message || "Erro desconhecido"}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              Nota: Todos os saques retornados pela API são processados
             </div>
           </div>
         ),
@@ -1833,17 +1839,11 @@ export default function ProfitCalculator({
 
       const confirmationAnalysis = deposits.reduce((acc, d) => {
         let key = '';
-        if (d.type === 'bitcoin' && d.is_confirmed === true) {
-          key = 'bitcoin: is_confirmed=true ✅';
-        } else if (d.type === 'bitcoin' && d.is_confirmed !== true) {
-          key = `bitcoin: is_confirmed=${d.is_confirmed} ❌`;
-        } else if (d.type === 'internal' && d.success === true) {
-          key = 'internal: success=true ✅';
-        } else if (d.type === 'internal' && d.success !== true) {
-          key = `internal: success=${d.success} ❌`;
-        } else {
-          key = `${d.type || 'unknown'}: sem validação`;
-        }
+        if (d.isConfirmed === false) key = 'isConfirmed: false';
+        else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
+        else if (d.success === true) key = 'success: true (internal)';
+        else if (d.isConfirmed === true) key = 'isConfirmed: true';
+        else key = 'sem atributos de confirmação';
         
         acc[key] = (acc[key] || 0) + 1;
         return acc;
@@ -1910,47 +1910,40 @@ export default function ProfitCalculator({
       return;
     }
 
-    // Criar depósitos de teste baseados nos exemplos reais da API
+    // Criar depósitos de teste com diferentes tipos e atributos de confirmação
     const testDeposits = [
       {
         id: `test_deposit_${Date.now()}_1`,
         amount: 69441,
         type: 'bitcoin',
-        is_confirmed: true, // ✅ depósito on-chain confirmado
+        status: 'confirmed',
+        is_confirmed: true, // depósito on-chain confirmado
         ts: Date.now(),
         tx_id: 'test_tx_id_1'
       },
       {
         id: `test_deposit_${Date.now()}_2`,
-        amount: 321790,
-        type: 'bitcoin',
-        is_confirmed: true, // ✅ outro depósito on-chain confirmado
-        ts: Date.now(),
-        tx_id: 'test_tx_id_2'
-      },
-      {
-        id: `test_deposit_${Date.now()}_3`,
         amount: 24779,
         type: 'internal',
         from_username: 'test_user',
-        success: true, // ✅ depósito interno bem-sucedido
+        success: true, // depósito interno bem-sucedido
         ts: Date.now()
+      },
+      {
+        id: `test_deposit_${Date.now()}_3`,
+        amount: 25000,
+        type: 'lightning',
+        status: 'pending',
+        isConfirmed: false, // explicitamente não confirmado
+        created_at: new Date().toISOString()
       },
       {
         id: `test_deposit_${Date.now()}_4`,
-        amount: 50000,
-        type: 'bitcoin',
-        is_confirmed: false, // ❌ depósito on-chain não confirmado
-        ts: Date.now(),
-        tx_id: 'test_tx_id_4'
-      },
-      {
-        id: `test_deposit_${Date.now()}_5`,
-        amount: 30000,
-        type: 'internal',
-        from_username: 'test_user2',
-        success: false, // ❌ depósito interno falhado
-        ts: Date.now()
+        amount: 15000,
+        type: 'lightning',
+        status: 'confirmed',
+        isConfirmed: true, // confirmado tradicional
+        created_at: new Date().toISOString()
       }
     ];
 
@@ -1986,10 +1979,9 @@ export default function ProfitCalculator({
       title: "🧪 Teste de Conversão",
       description: (
         <div className="space-y-1 text-xs">
-          <div>Testou 5 depósitos baseados em exemplos reais</div>
-          <div>✅ 2 bitcoin (is_confirmed=true), 1 internal (success=true)</div>
-          <div>❌ 1 bitcoin (is_confirmed=false), 1 internal (success=false)</div>
-          <div>Esperado: 3 confirmados, 2 ignorados</div>
+          <div>Testou 4 depósitos com diferentes tipos e confirmações</div>
+          <div>1: bitcoin (is_confirmed=true), 2: internal (success=true)</div>
+          <div>3: lightning (isConfirmed=false), 4: lightning (isConfirmed=true)</div>
           <div>Verifique o console para detalhes</div>
         </div>
       ),
@@ -2052,14 +2044,14 @@ export default function ProfitCalculator({
     
     console.log('[DEBUG] Estado completo da importação:', debugInfo);
     
-          // Teste específico de conexão com a API se houver configuração válida
-      if (config && config.credentials?.isConfigured) {
-        console.log('[DEBUG] Testando configuração selecionada...');
-        
-        // Simular uma requisição de teste
-        fetchLNMarketsDeposits(user?.email || '', config.id)
-          .then(response => {
-            console.log('[DEBUG] Teste de resposta da API /deposits:', response);
+    // Teste específico de conexão com a API se houver configuração válida
+    if (config && config.credentials?.isConfigured) {
+      console.log('[DEBUG] Testando configuração selecionada...');
+      
+      // Simular uma requisição de teste
+      fetchLNMarketsDeposits(user?.email || '', config.id)
+        .then(response => {
+          console.log('[DEBUG] Teste de resposta da API /deposits:', response);
             
             if (response.success && response.data) {
               console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
@@ -2072,17 +2064,11 @@ export default function ProfitCalculator({
 
               const confirmationAnalysis = response.data.reduce((acc, d) => {
                 let key = '';
-                if (d.type === 'bitcoin' && d.is_confirmed === true) {
-                  key = 'bitcoin: is_confirmed=true ✅';
-                } else if (d.type === 'bitcoin' && d.is_confirmed !== true) {
-                  key = `bitcoin: is_confirmed=${d.is_confirmed} ❌`;
-                } else if (d.type === 'internal' && d.success === true) {
-                  key = 'internal: success=true ✅';
-                } else if (d.type === 'internal' && d.success !== true) {
-                  key = `internal: success=${d.success} ❌`;
-                } else {
-                  key = `${d.type || 'unknown'}: sem validação`;
-                }
+                if (d.isConfirmed === false) key = 'isConfirmed: false';
+                else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
+                else if (d.success === true) key = 'success: true (internal)';
+                else if (d.isConfirmed === true) key = 'isConfirmed: true';
+                else key = 'sem atributos de confirmação';
                 
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
@@ -2137,10 +2123,10 @@ export default function ProfitCalculator({
                 console.log('[DEBUG] Nenhum depósito confirmado encontrado para teste');
               }
             }
-          })
-          .catch(error => {
-            console.error('[DEBUG] Erro no teste da API /deposits:', error);
-          });
+        })
+        .catch(error => {
+          console.error('[DEBUG] Erro no teste da API /deposits:', error);
+        });
       }
     
     // Verificar localStorage
@@ -2552,7 +2538,7 @@ export default function ProfitCalculator({
     return value;
   }, [isMobile]);
 
-  return (
+    return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
       {isComparisonMode ? (
@@ -2578,10 +2564,10 @@ export default function ProfitCalculator({
                     onClick={() => {
                       // Função de exportação Excel simplificada
                       console.log('Exportação Excel temporariamente desabilitada para corrigir build');
-                      toast({
+                        toast({
                         title: "🚧 Funcionalidade Temporariamente Indisponível",
                         description: "A exportação Excel será reativada em breve.",
-                        variant: "default",
+                          variant: "default",
                       });
                     }}
                     disabled={states.isExporting}
@@ -2650,7 +2636,7 @@ export default function ProfitCalculator({
                 <h4 className="text-sm font-medium text-purple-400 flex items-center gap-2">
                   📊 Última Importação 
                   <span className="text-gray-400">({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})</span>
-                </h4>
+              </h4>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2694,15 +2680,15 @@ export default function ProfitCalculator({
                         <div className="flex justify-between">
                           <span className="text-gray-400">Erros:</span>
                           <span className="text-red-400">{importStats.trades.errors}</span>
-                        </div>
-                      )}
+                  </div>
+                )}
                       {importStats.trades.pagesSearched && (
                         <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-green-700/30">
                           {importStats.trades.pagesSearched} páginas • {importStats.trades.stoppedReason === 'emptyPages' ? '🎯 Otimizado' : 
                            importStats.trades.stoppedReason === 'duplicates' ? '⚠️ Duplicatas' : 
                            importStats.trades.stoppedReason === 'maxPages' ? '📄 Limite' : '✅ Completo'}
-                        </div>
-                      )}
+                  </div>
+                )}
                     </div>
                   </div>
                 )}
@@ -2711,7 +2697,7 @@ export default function ProfitCalculator({
                     <div className="text-blue-400 font-medium mb-2 flex items-center gap-2">
                       <Download className="h-3 w-3" />
                       Depósitos
-                    </div>
+              </div>
                     <div className="space-y-1">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Total:</span>
@@ -2757,8 +2743,8 @@ export default function ProfitCalculator({
                         <span className="text-white">{importStats.withdrawals.total}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Processados:</span>
-                        <span className="text-orange-400">{importStats.withdrawals.total}</span>
+                        <span className="text-gray-400">Confirmados:</span>
+                        <span className="text-orange-400">{importStats.withdrawals.confirmedCount || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Importados:</span>
@@ -2774,11 +2760,8 @@ export default function ProfitCalculator({
                           <span className="text-red-400">{importStats.withdrawals.errors}</span>
                         </div>
                       )}
-                      <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
-                        Todos os saques são processados - sem validação de status
-                      </div>
                       {importStats.withdrawals.statusDistribution && Object.keys(importStats.withdrawals.statusDistribution).length > 1 && (
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
                           Status: {Object.entries(importStats.withdrawals.statusDistribution).map(([status, count]) => 
                             `${status}(${count})`
                           ).join(', ')}
@@ -2841,8 +2824,8 @@ export default function ProfitCalculator({
                   return null;
                 })()}
               </div>
-             </div>
-           )}
+            </div>
+          )}
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
@@ -3415,9 +3398,9 @@ export default function ProfitCalculator({
                       Configurações do Gráfico
                     </CardTitle>
                   </CardHeader>
-                                    <CardContent>
+                  <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                        <div className="space-y-2">
+                      <div className="space-y-2">
                           <Label className="text-sm font-medium">Tipo de Gráfico</Label>
                         <Select value={chartType} onValueChange={(value: "line" | "bar" | "area") => setChartType(value)}>
                           <SelectTrigger className="h-10">
@@ -3466,7 +3449,7 @@ export default function ProfitCalculator({
                               states.usingFallbackRates ? "bg-yellow-400" : "bg-green-400"
                             )}></div>
                             <span className="font-medium">BTC/USD: ${states.currentRates.btcToUsd.toLocaleString()}</span>
-                          </div>
+                        </div>
                           <div className="text-gray-400">USD/BRL: R${states.currentRates.brlToUsd.toFixed(2)}</div>
                           {states.usingFallbackRates && (
                             <div className="text-yellow-400 text-xs flex items-center gap-1">
@@ -3610,26 +3593,26 @@ export default function ProfitCalculator({
                             />
                             <Legend />
                             {chartVisibleSeries.investments && (
-                              <Area 
-                                type="monotone" 
-                                dataKey="investments" 
-                                stackId="1"
-                                stroke="#3B82F6" 
-                                fill="#3B82F6" 
-                                fillOpacity={0.6}
-                                name="Investimentos"
-                              />
+                            <Area 
+                              type="monotone" 
+                              dataKey="investments" 
+                              stackId="1"
+                              stroke="#3B82F6" 
+                              fill="#3B82F6" 
+                              fillOpacity={0.6}
+                              name="Investimentos"
+                            />
                             )}
                             {chartVisibleSeries.profits && (
-                              <Area 
-                                type="monotone" 
-                                dataKey="profits" 
-                                stackId="1"
-                                stroke="#10B981" 
-                                fill="#10B981" 
-                                fillOpacity={0.6}
-                                name="Lucros/Perdas"
-                              />
+                            <Area 
+                              type="monotone" 
+                              dataKey="profits" 
+                              stackId="1"
+                              stroke="#10B981" 
+                              fill="#10B981" 
+                              fillOpacity={0.6}
+                              name="Lucros/Perdas"
+                            />
                             )}
                           </AreaChart>
                         )}
@@ -3762,7 +3745,7 @@ export default function ProfitCalculator({
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
                                 const formattedName = 
-                                  name === 'investments' ? 'Investimentos' :
+                                name === 'investments' ? 'Investimentos' :
                                   name === 'profits' ? 'Lucros/Perdas' : 
                                   name === 'balance' ? 'Saldo Total' : name;
                                 return [formattedValue, formattedName];
@@ -3774,24 +3757,24 @@ export default function ProfitCalculator({
                               iconType="rect"
                             />
                             {chartVisibleSeries.investments && (
-                              <Bar 
-                                dataKey="investments" 
+                            <Bar 
+                              dataKey="investments" 
                                 stackId="stack"
-                                fill="#3B82F6" 
-                                name="Investimentos"
+                              fill="#3B82F6" 
+                              name="Investimentos"
                                 radius={[0, 0, 0, 0]}
                                 maxBarSize={60}
-                              />
+                            />
                             )}
                             {chartVisibleSeries.profits && (
-                              <Bar 
-                                dataKey="profits" 
+                            <Bar 
+                              dataKey="profits" 
                                 stackId="stack"
-                                fill="#10B981" 
-                                name="Lucros/Perdas"
+                              fill="#10B981" 
+                              name="Lucros/Perdas"
                                 radius={[4, 4, 0, 0]}
                                 maxBarSize={60}
-                              />
+                            />
                             )}
                           </BarChart>
                         )}
@@ -3825,8 +3808,8 @@ export default function ProfitCalculator({
                         </div>
                       ) : (
                         <div className="h-[250px] sm:h-[300px] w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
                             <Pie
                               data={[
                                 {
@@ -3983,7 +3966,7 @@ export default function ProfitCalculator({
                       <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-blue-700/30">
                         <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
                         <span className="truncate text-xs sm:text-sm">Investimentos</span>
-                      </div>
+                    </div>
                       <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-green-700/30">
                         <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
                         <span className="truncate text-xs sm:text-sm">Lucros/Perdas</span>
