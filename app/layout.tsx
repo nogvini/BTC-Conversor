@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -41,6 +41,11 @@ export const metadata: Metadata = {
     shortcut: '/favicon.svg',
   },
   manifest: '/site.webmanifest',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
   themeColor: '#a855f7',
 }
 
@@ -52,9 +57,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning className="dark">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="only dark" />
-        <meta name="theme-color" content="#a855f7" />
         <meta name="force-rendering" content="webkit" />
         <link rel="manifest" href="/site.webmanifest" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
