@@ -2446,22 +2446,6 @@ export default function ProfitCalculator({
 
           {/* Estatísticas de importação melhoradas */}
           {importStats && selectedConfigForImport && (
-            // Verificar se as estatísticas são da configuração atual
-            (() => {
-              try {
-                const savedStats = localStorage.getItem(`importStats_${user?.email}`);
-                if (savedStats) {
-                  const parsedStats = JSON.parse(savedStats);
-                  // Se a configuração mudou, não mostrar estatísticas antigas
-                  if (parsedStats.configId && parsedStats.configId !== selectedConfigForImport) {
-                    return null;
-                  }
-                }
-              } catch (error) {
-                // Ignorar erro e continuar
-              }
-              return true;
-            })() && (
             <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-medium text-purple-400 flex items-center gap-2">
@@ -2656,7 +2640,7 @@ export default function ProfitCalculator({
                 })()}
               </div>
              </div>
-           ))
+           )}
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
