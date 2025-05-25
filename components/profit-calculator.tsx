@@ -655,7 +655,285 @@ export default function ProfitCalculator({
       let duplicated = 0;
       let errors = 0;
       let processed = 0;
-      let skipped = 0; // Novos contadores para depósitos não confirmados
+
+      // Atualizar progresso inicial
+      setImportProgress(prev => ({
+        ...prev,
+        trades: { 
+          current: 0, 
+          total: totalTrades, 
+          percentage: 0, 
+          status: 'loading', 
+          message: `Processando ${totalTrades} trades...` 
+        }
+      }));
+
+      for (const trade of response.data) {
+        console.log('[handleImportTrades] Processando trade:', {
+          id: trade.id,
+          uid: trade.uid,
+          closed: trade.closed,
+          pl: trade.pl,
+          side: trade.side,
+          quantity: trade.quantity
+        });
+        
+        if (trade.closed && trade.pl !== 0) {
+          try {
+            const profitRecord = convertTradeToProfit(trade);
+            
+            console.log('[handleImportTrades] Registro de lucro convertido:', {
+              id: profitRecord.id,
+              originalId: profitRecord.originalId,
+              date: profitRecord.date,
+              amount: profitRecord.amount,
+              unit: profitRecord.unit,
+              isProfit: profitRecord.isProfit
+            });
+            
+            // NOVO: Verificar se já existe antes de tentar adicionar
+            const existingProfit = currentActiveReportObjectFromHook.profits?.find(
+              profit => profit.originalId === profitRecord.originalId
+            );
+            
+            if (existingProfit) {
+              console.log('[handleImportTrades] Registro de lucro já existe:', {
+                existingId: existingProfit.id,
+                existingOriginalId: existingProfit.originalId,
+                existingDate: existingProfit.date,
+                existingAmount: existingProfit.amount,
+                existingIsProfit: existingProfit.isProfit
+              });
+              duplicated++;
+            } else {
+              console.log('[handleImportTrades] Tentando adicionar novo registro de lucro...');
+              
+              const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+              
+              console.log('[handleImportTrades] Resultado da adição:', {
+                status: result.status,
+                id: result.id,
+                originalId: result.originalId,
+                message: result.message
+              });
+              
+              if (result.status === 'added') {
+                imported++;
+                console.log('[handleImportTrades] ✅ Registro de lucro adicionado com sucesso:', result.id);
+              } else if (result.status === 'duplicate') {
+                duplicated++;
+                console.log('[handleImportTrades] ⚠️ Registro de lucro duplicado detectado:', result.originalId);
+              } else {
+                errors++;
+                console.error('[handleImportTrades] ❌ Erro ao adicionar registro de lucro:', result);
+              }
+            }
+          } catch (conversionError) {
+            console.error('[handleImportTrades] Erro na conversão do trade:', conversionError);
+            errors++;
+          }
+        } else {
+          console.log('[handleImportTrades] Trade ignorado (não fechado ou PL zero):', {
+            id: trade.id,
+            closed: trade.closed,
+            pl: trade.pl
+          });
+        }
+        
+        processed++;
+        const percentage = (processed / totalTrades) * 100;
+        
+        // Atualizar progresso a cada 10 items ou no final
+        if (processed % 10 === 0 || processed === totalTrades) {
+          setImportProgress(prev => ({
+            ...prev,
+            trades: {
+              current: processed,
+              total: totalTrades,
+              percentage,
+              status: 'loading',
+              message: `Processando... ${imported} importados, ${duplicated} duplicados`
+            }
+          }));
+          
+          // Pequeno delay para permitir atualização da UI
+          if (processed % 50 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
+      }
+
+      // NOVO: Verificar estado do relatório após a importação
+      console.log('[handleImportTrades] Estado do relatório após a importação:', {
+        reportId: currentActiveReportObjectFromHook.id,
+        finalProfitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
+        newProfitIds: currentActiveReportObjectFromHook.profits?.slice(-imported).map(profit => profit.originalId) || [],
+        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null
+      });
+
+      // Progresso completo
+      setImportProgress(prev => ({
+        ...prev,
+        trades: {
+          current: totalTrades,
+          total: totalTrades,
+          percentage: 100,
+          status: 'complete',
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+        }
+      }));
+
+      setImportStats(prev => ({
+        trades: { total: response.data?.length || 0, imported, duplicated, errors },
+        deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+      }));
+
+      console.log('[handleImportTrades] Importação concluída:', {
+        totalProcessed: processed,
+        imported,
+        duplicated,
+        errors,
+        configName: config.name
+      });
+
+      toast({
+        title: "✅ Trades importados com sucesso!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>{imported} novos trades adicionados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} trades já existentes ignorados</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Configuração: "{config.name}"
+            </div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
+    } catch (error: any) {
+      console.error('[handleImportTrades] Erro durante importação:', error);
+      
+      // Progresso com erro
+      setImportProgress(prev => ({
+        ...prev,
+        trades: {
+          ...prev.trades,
+          status: 'error',
+          message: error.message || 'Erro durante importação'
+        }
+      }));
+      
+      toast({
+        title: "❌ Erro ao importar trades",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Falha na importação dos trades</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error.message || "Erro desconhecido"}
+            </div>
+          </div>
+        ),
+        variant: "destructive",
+        className: "border-red-500/50 bg-red-900/20",
+      });
+    } finally {
+      setIsImportingTrades(false);
+    }
+  };
+
+  const handleImportDeposits = async () => {
+    console.log('[handleImportDeposits] Iniciando importação de depósitos');
+    
+    const config = getCurrentImportConfig();
+    
+    console.log('[handleImportDeposits] Configuração obtida:', {
+      hasConfig: !!config,
+      configName: config?.name,
+      hasActiveReport: !!currentActiveReportObjectFromHook,
+      reportName: currentActiveReportObjectFromHook?.name,
+      reportId: currentActiveReportObjectFromHook?.id
+    });
+    
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
+      toast({
+        title: "Configuração necessária",
+        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Inicializar progresso
+    setImportProgress(prev => ({
+      ...prev,
+      deposits: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
+    }));
+      
+    setIsImportingDeposits(true);
+    try {
+      console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
+        hasKey: !!config.credentials.key,
+        hasSecret: !!config.credentials.secret,
+        hasPassphrase: !!config.credentials.passphrase,
+        network: config.credentials.network,
+        isConfigured: config.credentials.isConfigured
+      });
+      
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+
+      console.log('[handleImportDeposits] Resposta recebida:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: response.data?.length,
+        error: response.error,
+        fullResponse: response
+      });
+
+      if (!response.success || !response.data) {
+        console.error('[handleImportDeposits] Falha na resposta da API:', response);
+        throw new Error(response.error || "Erro ao buscar depósitos");
+      }
+
+      const deposits = response.data;
+      const totalDeposits = deposits.length;
+      
+      console.log('[handleImportDeposits] Processando depósitos:', {
+        totalDeposits,
+        firstDeposit: deposits[0],
+        depositsStructure: deposits.map(d => ({
+          id: d.id,
+          amount: d.amount,
+          status: d.status,
+          created_at: d.created_at
+        }))
+      });
+
+      // NOVO: Verificar estado atual do relatório antes de começar
+      console.log('[handleImportDeposits] Estado do relatório antes da importação:', {
+        reportId: currentActiveReportObjectFromHook.id,
+        currentInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        existingInvestmentIds: currentActiveReportObjectFromHook.investments?.map(inv => inv.originalId) || [],
+        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
+      });
+      
+             let imported = 0;
+       let duplicated = 0;
+       let errors = 0;
+       let processed = 0;
+       let skipped = 0; // Novos contadores para depósitos não confirmados
 
       // Atualizar progresso inicial
       setImportProgress(prev => ({
@@ -668,6 +946,201 @@ export default function ProfitCalculator({
           message: `Processando ${totalDeposits} depósitos...` 
         }
       }));
+
+      for (const deposit of deposits) {
+        console.log('[handleImportDeposits] Processando depósito:', {
+          id: deposit.id,
+          amount: deposit.amount,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          isConfirmed: deposit.status === 'confirmed'
+        });
+
+        if (deposit.status === 'confirmed') {
+          try {
+            const investment = convertDepositToInvestment(deposit);
+            
+            console.log('[handleImportDeposits] Investimento convertido:', {
+              id: investment.id,
+              originalId: investment.originalId,
+              date: investment.date,
+              amount: investment.amount,
+              unit: investment.unit
+            });
+            
+            // NOVO: Verificar se já existe antes de tentar adicionar
+            const existingInvestment = currentActiveReportObjectFromHook.investments?.find(
+              inv => inv.originalId === investment.originalId
+            );
+            
+            if (existingInvestment) {
+              console.log('[handleImportDeposits] Investimento já existe:', {
+                existingId: existingInvestment.id,
+                existingOriginalId: existingInvestment.originalId,
+                existingDate: existingInvestment.date,
+                existingAmount: existingInvestment.amount
+              });
+              duplicated++;
+            } else {
+              console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
+              
+              const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+              
+              console.log('[handleImportDeposits] Resultado da adição:', {
+                status: result.status,
+                id: result.id,
+                originalId: result.originalId,
+                message: result.message
+              });
+              
+              if (result.status === 'added') {
+                imported++;
+                console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
+              } else if (result.status === 'duplicate') {
+                duplicated++;
+                console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
+              } else {
+                errors++;
+                console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
+              }
+            }
+          } catch (conversionError) {
+            console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
+            errors++;
+          }
+        } else {
+          skipped++;
+          console.log('[handleImportDeposits] Depósito ignorado (não confirmado):', {
+            id: deposit.id,
+            status: deposit.status
+          });
+        }
+        
+        processed++;
+        const percentage = (processed / totalDeposits) * 100;
+        
+        // Atualizar progresso a cada 5 items ou no final
+        if (processed % 5 === 0 || processed === totalDeposits) {
+          setImportProgress(prev => ({
+            ...prev,
+            deposits: {
+              current: processed,
+              total: totalDeposits,
+              percentage,
+              status: 'loading',
+              message: `Processando... ${imported} importados, ${duplicated} duplicados, ${skipped} ignorados`
+            }
+          }));
+          
+          // Pequeno delay para permitir atualização da UI
+          if (processed % 25 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
+      }
+
+      // NOVO: Verificar estado do relatório após a importação
+      console.log('[handleImportDeposits] Estado do relatório após a importação:', {
+        reportId: currentActiveReportObjectFromHook.id,
+        finalInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        newInvestmentIds: currentActiveReportObjectFromHook.investments?.slice(-imported).map(inv => inv.originalId) || [],
+        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
+      });
+
+      // Progresso completo
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: {
+          current: totalDeposits,
+          total: totalDeposits,
+          percentage: 100,
+          status: 'complete',
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${skipped} ignorados, ${errors} erros`
+        }
+      }));
+
+      setImportStats(prev => ({
+        trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+        deposits: { total: deposits.length, imported, duplicated, errors },
+        withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
+      }));
+
+      console.log('[handleImportDeposits] Importação concluída:', {
+        totalProcessed: processed,
+        imported,
+        duplicated,
+        skipped,
+        errors,
+        configName: config.name
+      });
+
+      toast({
+        title: "💰 Aportes importados com sucesso!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span>{imported} novos aportes adicionados aos investimentos</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} aportes já existentes ignorados</span>
+              </div>
+            )}
+            {skipped > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                <span>{skipped} depósitos não confirmados ignorados</span>
+              </div>
+            )}
+            {errors > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{errors} erros durante processamento</span>
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Configuração: "{config.name}"
+            </div>
+          </div>
+        ),
+        variant: imported > 0 ? "default" : "destructive",
+        className: imported > 0 ? "border-blue-500/50 bg-blue-900/20" : "border-yellow-500/50 bg-yellow-900/20",
+      });
+    } catch (error: any) {
+      console.error('[handleImportDeposits] Erro durante importação:', error);
+      
+      // Progresso com erro
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: {
+          ...prev.deposits,
+          status: 'error',
+          message: error.message || 'Erro durante importação'
+        }
+      }));
+      
+      toast({
+        title: "❌ Erro ao importar aportes",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span>Falha na importação dos aportes</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error.message || "Erro desconhecido"}
+            </div>
+          </div>
+        ),
+        variant: "destructive",
+        className: "border-red-500/50 bg-red-900/20",
+      });
+    } finally {
+      setIsImportingDeposits(false);
+    }
+  };
 
       for (const deposit of deposits) {
         console.log('[handleImportDeposits] Processando depósito:', {
@@ -1134,6 +1607,57 @@ export default function ProfitCalculator({
     });
     
     return config || null;
+  };
+
+  // NOVA Função para testar manualmente o addInvestment
+  const testAddInvestment = () => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro no teste",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const testInvestment = {
+      date: new Date().toISOString().split('T')[0],
+      amount: 100000, // 100k sats
+      unit: 'SATS' as const,
+      originalId: `test_${Date.now()}`
+    };
+
+    console.log('[testAddInvestment] Testando adição de investimento:', {
+      reportId: currentActiveReportObjectFromHook.id,
+      reportName: currentActiveReportObjectFromHook.name,
+      testInvestment,
+      currentInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0
+    });
+
+    try {
+      const result = addInvestment(testInvestment, currentActiveReportObjectFromHook.id, { suppressToast: false });
+      
+      console.log('[testAddInvestment] Resultado do teste:', result);
+      
+      toast({
+        title: result.status === 'added' ? "✅ Teste bem-sucedido" : "⚠️ Teste com problema",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div>Status: {result.status}</div>
+            <div>ID: {result.id || 'N/A'}</div>
+            <div>Mensagem: {result.message}</div>
+          </div>
+        ),
+        variant: result.status === 'added' ? "default" : "destructive",
+      });
+    } catch (error) {
+      console.error('[testAddInvestment] Erro durante teste:', error);
+      toast({
+        title: "❌ Erro no teste",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
   };
 
   // NOVA Função de debug para verificar dados
@@ -3029,54 +3553,3 @@ export default function ProfitCalculator({
     </div>
   );
 }
-
-// NOVA Função para testar manualmente o addInvestment
-const testAddInvestment = () => {
-  if (!currentActiveReportObjectFromHook) {
-    toast({
-      title: "❌ Erro no teste",
-      description: "Nenhum relatório ativo encontrado",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  const testInvestment = {
-    date: new Date().toISOString().split('T')[0],
-    amount: 100000, // 100k sats
-    unit: 'SATS' as const,
-    originalId: `test_${Date.now()}`
-  };
-
-  console.log('[testAddInvestment] Testando adição de investimento:', {
-    reportId: currentActiveReportObjectFromHook.id,
-    reportName: currentActiveReportObjectFromHook.name,
-    testInvestment,
-    currentInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0
-  });
-
-  try {
-    const result = addInvestment(testInvestment, currentActiveReportObjectFromHook.id, { suppressToast: false });
-    
-    console.log('[testAddInvestment] Resultado do teste:', result);
-    
-    toast({
-      title: result.status === 'added' ? "✅ Teste bem-sucedido" : "⚠️ Teste com problema",
-      description: (
-        <div className="space-y-1 text-xs">
-          <div>Status: {result.status}</div>
-          <div>ID: {result.id || 'N/A'}</div>
-          <div>Mensagem: {result.message}</div>
-        </div>
-      ),
-      variant: result.status === 'added' ? "default" : "destructive",
-    });
-  } catch (error) {
-    console.error('[testAddInvestment] Erro durante teste:', error);
-    toast({
-      title: "❌ Erro no teste",
-      description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-      variant: "destructive",
-    });
-  }
-};
