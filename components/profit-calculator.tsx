@@ -774,7 +774,8 @@ export default function ProfitCalculator({
       hasConfig: !!config,
       configName: config?.name,
       hasActiveReport: !!currentActiveReportObjectFromHook,
-      reportName: currentActiveReportObjectFromHook?.name
+      reportName: currentActiveReportObjectFromHook?.name,
+      reportId: currentActiveReportObjectFromHook?.id
     });
     
     if (!config || !currentActiveReportObjectFromHook || !user?.email) {
@@ -809,18 +810,34 @@ export default function ProfitCalculator({
         success: response.success,
         hasData: !!response.data,
         dataLength: response.data?.length,
-        error: response.error
+        error: response.error,
+        fullResponse: response
       });
 
       if (!response.success || !response.data) {
+        console.error('[handleImportDeposits] Falha na resposta da API:', response);
         throw new Error(response.error || "Erro ao buscar depósitos");
       }
 
-      const totalDeposits = response.data.length;
+      const deposits = response.data;
+      const totalDeposits = deposits.length;
+      
+      console.log('[handleImportDeposits] Processando depósitos:', {
+        totalDeposits,
+        firstDeposit: deposits[0],
+        depositsStructure: deposits.map(d => ({
+          id: d.id,
+          amount: d.amount,
+          status: d.status,
+          created_at: d.created_at
+        }))
+      });
+
       let imported = 0;
       let duplicated = 0;
       let errors = 0;
       let processed = 0;
+      let skipped = 0; // Novos contadores para depósitos não confirmados
 
       // Atualizar progresso inicial
       setImportProgress(prev => ({
@@ -834,18 +851,49 @@ export default function ProfitCalculator({
         }
       }));
 
-      for (const deposit of response.data) {
+      for (const deposit of deposits) {
+        console.log('[handleImportDeposits] Processando depósito:', {
+          id: deposit.id,
+          amount: deposit.amount,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          isConfirmed: deposit.status === 'confirmed'
+        });
+
         if (deposit.status === 'confirmed') {
-          const investment = convertDepositToInvestment(deposit);
-          const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-          if (result.status === 'added') {
-            imported++;
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-          } else {
+          try {
+            const investment = convertDepositToInvestment(deposit);
+            
+            console.log('[handleImportDeposits] Investimento convertido:', {
+              id: investment.id,
+              originalId: investment.originalId,
+              date: investment.date,
+              amount: investment.amount,
+              unit: investment.unit
+            });
+            
+            const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            
+            console.log('[handleImportDeposits] Resultado da adição:', result);
+            
+            if (result.status === 'added') {
+              imported++;
+            } else if (result.status === 'duplicate') {
+              duplicated++;
+            } else {
+              errors++;
+              console.error('[handleImportDeposits] Erro ao adicionar depósito:', result);
+            }
+          } catch (conversionError) {
+            console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
             errors++;
           }
+        } else {
+          skipped++;
+          console.log('[handleImportDeposits] Depósito ignorado (não confirmado):', {
+            id: deposit.id,
+            status: deposit.status
+          });
         }
         
         processed++;
@@ -860,7 +908,7 @@ export default function ProfitCalculator({
               total: totalDeposits,
               percentage,
               status: 'loading',
-              message: `Processando... ${imported} importados, ${duplicated} duplicados`
+              message: `Processando... ${imported} importados, ${duplicated} duplicados, ${skipped} ignorados`
             }
           }));
           
@@ -879,15 +927,24 @@ export default function ProfitCalculator({
           total: totalDeposits,
           percentage: 100,
           status: 'complete',
-          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${skipped} ignorados, ${errors} erros`
         }
       }));
 
       setImportStats(prev => ({
         trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
-        deposits: { total: response.data?.length || 0, imported, duplicated, errors },
+        deposits: { total: deposits.length, imported, duplicated, errors },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
+
+      console.log('[handleImportDeposits] Importação concluída:', {
+        totalProcessed: processed,
+        imported,
+        duplicated,
+        skipped,
+        errors,
+        configName: config.name
+      });
 
       toast({
         title: "💰 Aportes importados com sucesso!",
@@ -903,13 +960,25 @@ export default function ProfitCalculator({
                 <span>{duplicated} aportes já existentes ignorados</span>
               </div>
             )}
+            {skipped > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                <span>{skipped} depósitos não confirmados ignorados</span>
+              </div>
+            )}
+            {errors > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{errors} erros durante processamento</span>
+              </div>
+            )}
             <div className="text-xs text-gray-400 mt-2">
               Configuração: "{config.name}"
             </div>
           </div>
         ),
-        variant: "default",
-        className: "border-blue-500/50 bg-blue-900/20",
+        variant: imported > 0 ? "default" : "destructive",
+        className: imported > 0 ? "border-blue-500/50 bg-blue-900/20" : "border-yellow-500/50 bg-yellow-900/20",
       });
     } catch (error: any) {
       console.error('[handleImportDeposits] Erro durante importação:', error);
@@ -1220,26 +1289,69 @@ export default function ProfitCalculator({
   // NOVA Função de debug para verificar dados
   const debugImportData = () => {
     const config = getCurrentImportConfig();
-    console.log('[DEBUG] Estado atual da importação:', {
+    
+    const debugInfo = {
       userEmail: user?.email,
       selectedConfigForImport,
+      hasMultipleConfigs: !!multipleConfigs,
       config: config ? {
         id: config.id,
         name: config.name,
         isActive: config.isActive,
-        hasCredentials: !!config.credentials
+        hasCredentials: !!config.credentials,
+        credentialsValid: !!(config.credentials?.key && config.credentials?.secret && config.credentials?.passphrase && config.credentials?.network),
+        network: config.credentials?.network,
+        isConfigured: config.credentials?.isConfigured
+      } : null,
+      activeReport: currentActiveReportObjectFromHook ? {
+        id: currentActiveReportObjectFromHook.id,
+        name: currentActiveReportObjectFromHook.name,
+        investmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        profitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
+        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0
       } : null,
       allConfigs: multipleConfigs?.configs?.map(c => ({
         id: c.id,
         name: c.name,
-        isActive: c.isActive
-      })) || []
-    });
-            
-            toast({
-      title: "Debug Info",
-      description: `Config selecionado: ${config?.name || 'Nenhum'}. Verifique o console.`,
+        isActive: c.isActive,
+        hasValidCredentials: !!(c.credentials?.key && c.credentials?.secret && c.credentials?.passphrase && c.credentials?.network)
+      })) || [],
+      importProgress: {
+        trades: importProgress.trades,
+        deposits: importProgress.deposits,
+        withdrawals: importProgress.withdrawals
+      },
+      lastImportStats: importStats
+    };
+    
+    console.log('[DEBUG] Estado completo da importação:', debugInfo);
+    
+    // Teste específico de conexão com a API se houver configuração válida
+    if (config && config.credentials?.isConfigured) {
+      console.log('[DEBUG] Testando configuração selecionada...');
+      
+      // Simular uma requisição de teste
+      fetchLNMarketsDeposits(user?.email || '', config.id)
+        .then(response => {
+          console.log('[DEBUG] Teste de resposta da API /deposits:', response);
+        })
+        .catch(error => {
+          console.error('[DEBUG] Erro no teste da API /deposits:', error);
+        });
+    }
+    
+    toast({
+      title: "🐛 Debug Info",
+      description: (
+        <div className="space-y-1 text-xs">
+          <div>Config: {config?.name || 'Nenhum'}</div>
+          <div>Relatório: {currentActiveReportObjectFromHook?.name || 'Nenhum'}</div>
+          <div>Credenciais: {config?.credentials?.isConfigured ? '✅' : '❌'}</div>
+          <div>Detalhes no console</div>
+        </div>
+      ),
       variant: "default",
+      className: "border-purple-500/50 bg-purple-900/20",
     });
   };
 
@@ -1848,6 +1960,19 @@ export default function ProfitCalculator({
                       {importProgress.deposits.status !== 'idle' && (
                         <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
                       )}
+                      
+                      {/* DEBUG: Botão de debug apenas em desenvolvimento */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <Button
+                          onClick={debugImportData}
+                          variant="outline"
+                          size="sm"
+                          className="w-full mb-2 bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
+                        >
+                          🐛 Debug Info
+                        </Button>
+                      )}
+                      
                       <Button
                         onClick={handleImportDeposits}
                         disabled={isImportingDeposits || !selectedConfigForImport}
