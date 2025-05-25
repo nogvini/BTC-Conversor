@@ -1,136 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLNMarketsClient } from '@/lib/ln-markets-api';
-import { getLNMarketsConfig, retrieveLNMarketsMultipleConfigs } from '@/lib/encryption';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('[API /api/ln-markets/deposits] Iniciando requisição');
     
     const body = await request.json();
-    const { userEmail, configId } = body;
+    const { credentials } = body;
 
     console.log('[API /api/ln-markets/deposits] Dados recebidos:', {
-      userEmail: userEmail?.split('@')[0] + '@***',
-      configId,
-      hasUserEmail: !!userEmail,
-      hasConfigId: !!configId,
-      userEmailType: typeof userEmail,
-      configIdType: typeof configId,
-      userEmailLength: userEmail?.length,
-      configIdLength: configId?.length
+      hasCredentials: !!credentials,
+      credentialsKeys: credentials ? Object.keys(credentials) : [],
+      hasKey: !!credentials?.key,
+      hasSecret: !!credentials?.secret,
+      hasPassphrase: !!credentials?.passphrase,
+      network: credentials?.network,
+      isConfigured: credentials?.isConfigured
     });
 
-    if (!userEmail) {
-      console.error('[API /api/ln-markets/deposits] Email do usuário não fornecido');
+    if (!credentials) {
+      console.error('[API /api/ln-markets/deposits] Credenciais não fornecidas');
       return NextResponse.json(
-        { success: false, error: 'Email do usuário é obrigatório' },
+        { success: false, error: 'Credenciais LN Markets são obrigatórias' },
         { status: 400 }
       );
     }
 
-    if (!configId) {
-      console.error('[API /api/ln-markets/deposits] ID da configuração não fornecido');
+    // Validar credenciais
+    if (!credentials.key || !credentials.secret || !credentials.passphrase || !credentials.network) {
+      console.error('[API /api/ln-markets/deposits] Credenciais incompletas');
       return NextResponse.json(
-        { success: false, error: 'ID da configuração é obrigatório' },
+        { success: false, error: 'Credenciais LN Markets incompletas' },
         { status: 400 }
       );
     }
 
-    // DEBUG: Testar se a função getLNMarketsConfig funciona
-    console.log('[API /api/ln-markets/deposits] Testando getLNMarketsConfig...');
-    try {
-      const config = getLNMarketsConfig(userEmail, configId);
-      
-      console.log('[API /api/ln-markets/deposits] getLNMarketsConfig resultado:', {
-        configFound: !!config,
-        configId: config?.id,
-        configName: config?.name,
-        configIsActive: config?.isActive,
-        hasCredentials: !!config?.credentials,
-        configKeys: config ? Object.keys(config) : [],
-        credentialsKeys: config?.credentials ? Object.keys(config.credentials) : []
-      });
-      
-      if (!config) {
-        console.error('[API /api/ln-markets/deposits] getLNMarketsConfig retornou null/undefined');
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: 'Configuração LN Markets não encontrada',
-            debug: {
-              userEmail: userEmail?.split('@')[0] + '@***',
-              configId,
-              attemptedFunction: 'getLNMarketsConfig'
-            }
-          },
-          { status: 404 }
-        );
-      }
-
-      if (!config.isActive) {
-        console.error('[API /api/ln-markets/deposits] Configuração inativa:', configId);
-        return NextResponse.json(
-          { success: false, error: 'Configuração está inativa' },
-          { status: 400 }
-        );
-      }
-
-      console.log('[API /api/ln-markets/deposits] Credenciais encontradas, criando cliente...');
-
-      // Criar cliente LN Markets
-      const client = createLNMarketsClient(config.credentials);
-      
-      // Buscar depósitos usando o método correto da biblioteca oficial
-      console.log('[API /api/ln-markets/deposits] Buscando depósitos...');
-      const result = await client.getDeposits();
-
-      if (!result.success) {
-        console.error('[API /api/ln-markets/deposits] Erro na API LN Markets:', result.error);
-        return NextResponse.json(
-          { success: false, error: result.error },
-          { status: 400 }
-        );
-      }
-
-      console.log('[API /api/ln-markets/deposits] Depósitos obtidos com sucesso:', {
-        hasData: !!result.data,
-        isArray: Array.isArray(result.data),
-        length: Array.isArray(result.data) ? result.data.length : 0
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: result.data || [],
-        hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0)
-      });
-
-    } catch (getConfigError) {
-      console.error('[API /api/ln-markets/deposits] Erro ao executar getLNMarketsConfig:', getConfigError);
+    if (!credentials.isConfigured) {
+      console.error('[API /api/ln-markets/deposits] Credenciais não configuradas');
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Erro interno ao buscar configuração: ' + getConfigError.message,
-          debug: {
-            userEmail: userEmail?.split('@')[0] + '@***',
-            configId,
-            errorMessage: getConfigError.message
-          }
-        },
-        { status: 500 }
+        { success: false, error: 'Credenciais LN Markets não estão configuradas' },
+        { status: 400 }
       );
     }
+
+    console.log('[API /api/ln-markets/deposits] Credenciais validadas, criando cliente...');
+
+    // Criar cliente LN Markets
+    const client = createLNMarketsClient(credentials);
+    
+    // Buscar depósitos usando o método correto da biblioteca oficial
+    console.log('[API /api/ln-markets/deposits] Buscando depósitos...');
+    const result = await client.getDeposits();
+
+    if (!result.success) {
+      console.error('[API /api/ln-markets/deposits] Erro na API LN Markets:', result.error);
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: 400 }
+      );
+    }
+
+    console.log('[API /api/ln-markets/deposits] Depósitos obtidos com sucesso:', {
+      hasData: !!result.data,
+      isArray: Array.isArray(result.data),
+      length: Array.isArray(result.data) ? result.data.length : 0
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result.data || [],
+      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0)
+    });
 
   } catch (error: any) {
     console.error('[API /api/ln-markets/deposits] Erro interno:', error);
     return NextResponse.json(
       { 
         success: false, 
-        error: error.message || 'Erro interno do servidor',
-        debug: {
-          errorType: error.constructor.name,
-          errorMessage: error.message,
-          stack: error.stack?.split('\n').slice(0, 3)
-        }
+        error: error.message || 'Erro interno do servidor'
       },
       { status: 500 }
     );
