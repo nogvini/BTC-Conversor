@@ -65,6 +65,7 @@ import { useReports } from "@/hooks/use-reports";
 import { Report, ReportComparison, Investment, ProfitRecord } from "@/lib/calculator-types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import AnimatedCounter from "./animated-counter";
+import { convertToBtc } from "./utils/profit-calculator-utils";
 
 interface ReportsComparisonProps {
   onBack: () => void;
@@ -273,12 +274,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           });
 
           const totalInvestmentsBtc = investmentsUntilMonth.reduce((sum, inv) => {
-            return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+            return sum + convertToBtc(inv.amount, inv.unit);
           }, 0);
           
           const totalProfitsBtc = profitsUntilMonth.reduce((sum, prof) => {
-            const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
-            return sum + (prof.isProfit ? amount : -amount);
+            const btcAmount = convertToBtc(prof.amount, prof.unit);
+            return sum + (prof.isProfit ? btcAmount : -btcAmount);
           }, 0);
           
           dataPoint[`investments_${reportId}`] = totalInvestmentsBtc;
@@ -302,12 +303,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           });
           
           const monthInvestmentsBtc = investmentsInMonth.reduce((sum, inv) => {
-            return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+            return sum + convertToBtc(inv.amount, inv.unit);
           }, 0);
           
           const monthProfitsBtc = profitsInMonth.reduce((sum, prof) => {
-            const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
-            return sum + (prof.isProfit ? amount : -amount);
+            const btcAmount = convertToBtc(prof.amount, prof.unit);
+            return sum + (prof.isProfit ? btcAmount : -btcAmount);
           }, 0);
           
           dataPoint[`investments_${reportId}`] = monthInvestmentsBtc;
@@ -330,12 +331,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       const reportProfitsData = currentReportData.profits || []; // Renomeado
       
       const totalInvestmentsBtc = reportInvestments.reduce((sum, inv) => {
-        return sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount);
+        return sum + convertToBtc(inv.amount, inv.unit);
       }, 0);
       
       const totalProfitsBtc = reportProfitsData.reduce((sum, prof) => {
-        const amount = prof.unit === 'SATS' ? prof.amount / 100000000 : prof.amount;
-        return sum + (prof.isProfit ? amount : -amount);
+        const btcAmount = convertToBtc(prof.amount, prof.unit);
+        return sum + (prof.isProfit ? btcAmount : -btcAmount);
       }, 0);
       
       const finalBalanceBtc = totalInvestmentsBtc + totalProfitsBtc;
@@ -555,12 +556,12 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
     // Calcular totais para cada relatório
     const reportSummaries = reports.map(report => {
       const totalInvestmentsBtc = report.investments?.reduce(
-        (total, inv) => total + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount),
+        (total, inv) => total + convertToBtc(inv.amount, inv.unit),
         0
       ) || 0;
 
       const totalProfitsBtc = report.profits?.reduce((total, profit) => {
-        const btcAmount = (profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount); // Corrected: profit.unit, profit.amount
+        const btcAmount = convertToBtc(profit.amount, profit.unit);
         return profit.isProfit ? total + btcAmount : total - btcAmount;
       }, 0) || 0;
 

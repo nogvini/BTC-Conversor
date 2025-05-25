@@ -351,6 +351,11 @@ export default function ProfitCalculator({
   const [chartDisplayUnit, setChartDisplayUnit] = useState<"btc" | "usd" | "brl">("btc");
   const [chartType, setChartType] = useState<"line" | "bar" | "area">("area");
   const [chartTimeframe, setChartTimeframe] = useState<"daily" | "monthly">("monthly");
+  const [chartVisibleSeries, setChartVisibleSeries] = useState({
+    investments: true,
+    profits: true,
+    balance: true
+  });
 
   // Estados adicionais que não estão no hook customizado
   const [pendingInvestment, setPendingInvestment] = useState<any>(null);
@@ -1586,6 +1591,16 @@ export default function ProfitCalculator({
       return emptyResult;
     }
 
+    // Verificar se há dados suficientes para gerar gráfico
+    const hasInvestments = currentActiveReportObjectFromHook.investments && currentActiveReportObjectFromHook.investments.length > 0;
+    const hasProfits = currentActiveReportObjectFromHook.profits && currentActiveReportObjectFromHook.profits.length > 0;
+    
+    if (!hasInvestments && !hasProfits) {
+      const emptyResult: ChartDataPoint[] = [];
+      chartDataCache.current.set(cacheKey, emptyResult);
+      return emptyResult;
+    }
+
     const investments = currentActiveReportObjectFromHook.investments || [];
     const profits = currentActiveReportObjectFromHook.profits || [];
 
@@ -1710,13 +1725,250 @@ export default function ProfitCalculator({
             <ReportManager onCompare={() => setIsComparisonMode(true)} />
             
             <div className="flex gap-2 sm:ml-auto">
-              {/* Sistema de Exportação de Relatórios */}
+              {/* Sistema de Exportação de Relatórios Robusto */}
               {currentActiveReportObjectFromHook && (
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="bg-black/30 border-green-700/50 hover:bg-green-900/20"
+                    onClick={async () => {
+                      if (!currentActiveReportObjectFromHook) return;
+                      
+                      try {
+                        states.setIsExporting(true);
+                        
+                        // Importar ExcelJS dinamicamente
+                        const ExcelJS = await import('exceljs');
+                        
+                        // Criar workbook
+                        const workbook = new ExcelJS.Workbook();
+                        workbook.creator = "Raid Bitcoin Toolkit";
+                        workbook.lastModifiedBy = "Raid Bitcoin Toolkit";
+                        workbook.created = new Date();
+                        
+                        // Obter dados do relatório
+                        const investments = currentActiveReportObjectFromHook.investments || [];
+                        const profits = currentActiveReportObjectFromHook.profits || [];
+                        const withdrawals = currentActiveReportObjectFromHook.withdrawals || [];
+                        
+                        // Calcular totais
+                        const totalInvestmentsBtc = investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0);
+                        const totalWithdrawalsBtc = withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit), 0);
+                        const { operationalProfitBtc } = calculateOperationalProfitForSummary(profits, convertToBtc);
+                        const totalBalanceBtc = totalInvestmentsBtc + operationalProfitBtc;
+                        const currentBalanceBtc = totalBalanceBtc - totalWithdrawalsBtc;
+                        
+                        // Planilha de Resumo
+                        const summarySheet = workbook.addWorksheet('Resumo', {
+                          properties: { tabColor: { argb: 'FFD700' } }
+                        });
+                        
+                        summarySheet.columns = [
+                          { header: 'Métrica', key: 'metric', width: 35 },
+                          { header: 'Valor', key: 'value', width: 20 },
+                          { header: 'Valor (BTC)', key: 'btcValue', width: 20 },
+                          { header: 'Valor (USD)', key: 'usdValue', width: 20 },
+                          { header: 'Valor (BRL)', key: 'brlValue', width: 20 }
+                        ];
+                        
+                        summarySheet.getRow(1).font = { bold: true };
+                        summarySheet.getRow(1).fill = {
+                          type: 'pattern',
+                          pattern: 'solid',
+                          fgColor: { argb: '4F4F6F' }
+                        };
+                        
+                        summarySheet.addRow({
+                          metric: 'Relatório',
+                          value: currentActiveReportObjectFromHook.name,
+                          btcValue: '-',
+                          usdValue: '-',
+                          brlValue: '-'
+                        });
+                        
+                        summarySheet.addRow({
+                          metric: 'Data de Exportação',
+                          value: formatDateFn(new Date(), "dd/MM/yyyy HH:mm"),
+                          btcValue: '-',
+                          usdValue: '-',
+                          brlValue: '-'
+                        });
+                        
+                        summarySheet.addRow({});
+                        
+                        const investmentsRow = summarySheet.addRow({
+                          metric: 'Total de Investimentos',
+                          value: '-',
+                          btcValue: totalInvestmentsBtc.toFixed(8),
+                          usdValue: `$${(totalInvestmentsBtc * states.currentRates.btcToUsd).toFixed(2)}`,
+                          brlValue: `R$${(totalInvestmentsBtc * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)}`
+                        });
+                        investmentsRow.font = { bold: true };
+                        
+                        const profitsRow = summarySheet.addRow({
+                          metric: 'Total de Lucros/Perdas',
+                          value: '-',
+                          btcValue: operationalProfitBtc.toFixed(8),
+                          usdValue: `$${(operationalProfitBtc * states.currentRates.btcToUsd).toFixed(2)}`,
+                          brlValue: `R$${(operationalProfitBtc * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)}`
+                        });
+                        profitsRow.font = { bold: true, color: { argb: operationalProfitBtc >= 0 ? '00B050' : 'FF0000' } };
+                        
+                        if (withdrawals.length > 0) {
+                          summarySheet.addRow({
+                            metric: 'Total de Saques',
+                            value: '-',
+                            btcValue: totalWithdrawalsBtc.toFixed(8),
+                            usdValue: `$${(totalWithdrawalsBtc * states.currentRates.btcToUsd).toFixed(2)}`,
+                            brlValue: `R$${(totalWithdrawalsBtc * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)}`
+                          });
+                          
+                          const currentBalanceRow = summarySheet.addRow({
+                            metric: 'Saldo Atual (após saques)',
+                            value: '-',
+                            btcValue: currentBalanceBtc.toFixed(8),
+                            usdValue: `$${(currentBalanceBtc * states.currentRates.btcToUsd).toFixed(2)}`,
+                            brlValue: `R$${(currentBalanceBtc * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)}`
+                          });
+                          currentBalanceRow.font = { bold: true };
+                        }
+                        
+                        // Planilha de Investimentos
+                        if (investments.length > 0) {
+                          const investmentsSheet = workbook.addWorksheet('Investimentos');
+                          investmentsSheet.columns = [
+                            { header: 'Data', key: 'date', width: 15 },
+                            { header: 'Valor', key: 'amount', width: 15 },
+                            { header: 'Unidade', key: 'unit', width: 10 },
+                            { header: 'Valor (BTC)', key: 'btcAmount', width: 20 },
+                            { header: 'Valor (USD)', key: 'usdAmount', width: 15 },
+                            { header: 'Valor (BRL)', key: 'brlAmount', width: 15 }
+                          ];
+                          
+                          investments.forEach(inv => {
+                            const btcAmount = convertToBtc(inv.amount, inv.unit);
+                            investmentsSheet.addRow({
+                              date: formatDateFn(new Date(inv.date), "dd/MM/yyyy"),
+                              amount: inv.amount,
+                              unit: inv.unit,
+                              btcAmount: btcAmount.toFixed(8),
+                              usdAmount: (btcAmount * states.currentRates.btcToUsd).toFixed(2),
+                              brlAmount: (btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)
+                            });
+                          });
+                        }
+                        
+                        // Planilha de Lucros/Perdas
+                        if (profits.length > 0) {
+                          const profitsSheet = workbook.addWorksheet('Lucros e Perdas');
+                          profitsSheet.columns = [
+                            { header: 'Data', key: 'date', width: 15 },
+                            { header: 'Tipo', key: 'type', width: 10 },
+                            { header: 'Valor', key: 'amount', width: 15 },
+                            { header: 'Unidade', key: 'unit', width: 10 },
+                            { header: 'Valor (BTC)', key: 'btcAmount', width: 20 },
+                            { header: 'Valor (USD)', key: 'usdAmount', width: 15 },
+                            { header: 'Valor (BRL)', key: 'brlAmount', width: 15 }
+                          ];
+                          
+                          profits.forEach(profit => {
+                            const btcAmount = convertToBtc(profit.amount, profit.unit);
+                            const row = profitsSheet.addRow({
+                              date: formatDateFn(new Date(profit.date), "dd/MM/yyyy"),
+                              type: profit.isProfit ? 'Lucro' : 'Perda',
+                              amount: profit.amount,
+                              unit: profit.unit,
+                              btcAmount: btcAmount.toFixed(8),
+                              usdAmount: (btcAmount * states.currentRates.btcToUsd).toFixed(2),
+                              brlAmount: (btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)
+                            });
+                            
+                            // Colorir linha baseado no tipo
+                            const color = profit.isProfit ? '00B050' : 'FF0000';
+                            row.getCell('type').font = { color: { argb: color } };
+                            row.getCell('btcAmount').font = { color: { argb: color } };
+                            row.getCell('usdAmount').font = { color: { argb: color } };
+                            row.getCell('brlAmount').font = { color: { argb: color } };
+                          });
+                        }
+                        
+                        // Planilha de Saques (se houver)
+                        if (withdrawals.length > 0) {
+                          const withdrawalsSheet = workbook.addWorksheet('Saques');
+                          withdrawalsSheet.columns = [
+                            { header: 'Data', key: 'date', width: 15 },
+                            { header: 'Valor', key: 'amount', width: 15 },
+                            { header: 'Unidade', key: 'unit', width: 10 },
+                            { header: 'Valor (BTC)', key: 'btcAmount', width: 20 },
+                            { header: 'Valor (USD)', key: 'usdAmount', width: 15 },
+                            { header: 'Valor (BRL)', key: 'brlAmount', width: 15 }
+                          ];
+                          
+                          withdrawals.forEach(withdrawal => {
+                            const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
+                            withdrawalsSheet.addRow({
+                              date: formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy"),
+                              amount: withdrawal.amount,
+                              unit: withdrawal.unit,
+                              btcAmount: btcAmount.toFixed(8),
+                              usdAmount: (btcAmount * states.currentRates.btcToUsd).toFixed(2),
+                              brlAmount: (btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd).toFixed(2)
+                            });
+                          });
+                        }
+                        
+                        // Gerar e baixar arquivo
+                        const buffer = await workbook.xlsx.writeBuffer();
+                        const blob = new Blob([buffer], { 
+                          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `relatorio-completo-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${formatDateFn(new Date(), "yyyy-MM-dd")}.xlsx`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        
+                        toast({
+                          title: "📊 Relatório Excel Exportado!",
+                          description: `Relatório completo do "${currentActiveReportObjectFromHook.name}" foi exportado com múltiplas planilhas e análises detalhadas.`,
+                          variant: "default",
+                          className: "border-green-500/50 bg-green-900/20",
+                        });
+                        
+                      } catch (error) {
+                        console.error('Erro ao exportar Excel:', error);
+                        toast({
+                          title: "❌ Erro na exportação",
+                          description: "Falha ao gerar arquivo Excel. Tente novamente.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        states.setIsExporting(false);
+                      }
+                    }}
+                    disabled={states.isExporting}
+                  >
+                    {states.isExporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel Completo
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-black/30 border-blue-700/50 hover:bg-blue-900/20"
                     onClick={() => {
                       if (!currentActiveReportObjectFromHook) return;
                       
@@ -1735,74 +1987,22 @@ export default function ProfitCalculator({
                       const url = URL.createObjectURL(dataBlob);
                       const link = document.createElement('a');
                       link.href = url;
-                      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+                      link.download = `relatorio-backup-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${formatDateFn(new Date(), "yyyy-MM-dd")}.json`;
                       document.body.appendChild(link);
                       link.click();
                       document.body.removeChild(link);
                       URL.revokeObjectURL(url);
                       
                       toast({
-                        title: "📁 Relatório exportado!",
-                        description: `Arquivo JSON do relatório "${currentActiveReportObjectFromHook.name}" foi baixado com sucesso.`,
-                        variant: "default",
-                        className: "border-green-500/50 bg-green-900/20",
-                      });
-                    }}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Exportar JSON
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-black/30 border-blue-700/50 hover:bg-blue-900/20"
-                    onClick={() => {
-                      if (!currentActiveReportObjectFromHook) return;
-                      
-                      // Preparar dados para CSV
-                      const csvData = [];
-                      
-                      // Cabeçalho
-                      csvData.push(['Tipo', 'Data', 'Valor', 'Unidade', 'É Lucro/Perda']);
-                      
-                      // Investimentos
-                      (currentActiveReportObjectFromHook.investments || []).forEach(inv => {
-                        csvData.push(['Investimento', inv.date, inv.amount, inv.unit, '']);
-                      });
-                      
-                      // Lucros/Perdas
-                      (currentActiveReportObjectFromHook.profits || []).forEach(profit => {
-                        csvData.push(['Lucro/Perda', profit.date, profit.amount, profit.unit, profit.isProfit ? 'Lucro' : 'Perda']);
-                      });
-                      
-                      // Saques
-                      (currentActiveReportObjectFromHook.withdrawals || []).forEach(withdrawal => {
-                        csvData.push(['Saque', withdrawal.date, withdrawal.amount, withdrawal.unit, '']);
-                      });
-                      
-                      // Converter para CSV
-                      const csvContent = csvData.map(row => row.join(',')).join('\n');
-                      const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(csvBlob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                      
-                      toast({
-                        title: "📊 Relatório exportado!",
-                        description: `Arquivo CSV do relatório "${currentActiveReportObjectFromHook.name}" foi baixado com sucesso.`,
+                        title: "💾 Backup JSON Exportado!",
+                        description: `Backup completo do relatório "${currentActiveReportObjectFromHook.name}" foi salvo.`,
                         variant: "default",
                         className: "border-blue-500/50 bg-blue-900/20",
                       });
                     }}
                   >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Exportar CSV
+                    <Download className="h-4 w-4 mr-2" />
+                    Backup JSON
                   </Button>
                 </div>
               )}
@@ -1911,24 +2111,24 @@ export default function ProfitCalculator({
                 {/* Cards de Importação LN Markets */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Card Trades */}
-                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors">
+                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors flex flex-col min-h-[280px]">
                     <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-green-400">
                         <TrendingUp className="h-5 w-5" />
                         Trades
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="min-h-[2.5rem] flex items-center">
                         Importar histórico de trades fechados com lucro/prejuízo
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
                       {importProgress.trades.status !== 'idle' && (
                         <ImportProgressIndicator progress={importProgress.trades} type="trades" />
                       )}
                       <Button
                         onClick={handleImportTrades}
                         disabled={isImportingTrades || !selectedConfigForImport}
-                        className="w-full bg-green-700 hover:bg-green-600"
+                        className="w-full bg-green-700 hover:bg-green-600 mt-auto"
                       >
                         {isImportingTrades ? (
                           <>
@@ -1946,17 +2146,17 @@ export default function ProfitCalculator({
                   </Card>
 
                   {/* Card Depósitos */}
-                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors">
+                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors flex flex-col min-h-[280px]">
                     <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-blue-400">
                         <Download className="h-5 w-5" />
                         Aportes
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="min-h-[2.5rem] flex items-center">
                         Importar depósitos confirmados como investimentos
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
                       {importProgress.deposits.status !== 'idle' && (
                         <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
                       )}
@@ -1976,7 +2176,7 @@ export default function ProfitCalculator({
                       <Button
                         onClick={handleImportDeposits}
                         disabled={isImportingDeposits || !selectedConfigForImport}
-                        className="w-full bg-blue-700 hover:bg-blue-600"
+                        className="w-full bg-blue-700 hover:bg-blue-600 mt-auto"
                       >
                         {isImportingDeposits ? (
                           <>
@@ -1994,24 +2194,24 @@ export default function ProfitCalculator({
                   </Card>
 
                   {/* Card Saques */}
-                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors">
+                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors flex flex-col min-h-[280px]">
                     <CardHeader className="pb-3">
                       <CardTitle className="flex items-center gap-2 text-orange-400">
                         <Upload className="h-5 w-5" />
                         Saques
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="min-h-[2.5rem] flex items-center">
                         Importar saques confirmados
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
                       {importProgress.withdrawals.status !== 'idle' && (
                         <ImportProgressIndicator progress={importProgress.withdrawals} type="withdrawals" />
                       )}
                       <Button
                         onClick={handleImportWithdrawals}
                         disabled={isImportingWithdrawals || !selectedConfigForImport}
-                        className="w-full bg-orange-700 hover:bg-orange-600"
+                        className="w-full bg-orange-700 hover:bg-orange-600 mt-auto"
                       >
                         {isImportingWithdrawals ? (
                           <>
@@ -2034,31 +2234,860 @@ export default function ProfitCalculator({
             {/* ABA HISTÓRICO */}
             <TabsContent value="history">
               <div className="space-y-6">
+                {/* Controles de Filtro */}
                 <Card className="bg-black/30 border border-purple-700/40">
-                  <CardContent className="py-8">
-                    <div className="text-center text-purple-400">
-                      <BarChart2 className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">Aba Histórico</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Funcionalidade completa será implementada em breve
-                      </p>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Filter className="h-5 w-5" />
+                      Filtros e Período
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Período</Label>
+                        <Select value={historyFilterPeriod} onValueChange={(value: HistoryFilterPeriod) => setHistoryFilterPeriod(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1m">Último mês</SelectItem>
+                            <SelectItem value="3m">Últimos 3 meses</SelectItem>
+                            <SelectItem value="6m">Últimos 6 meses</SelectItem>
+                            <SelectItem value="1y">Último ano</SelectItem>
+                            <SelectItem value="all">Todo período</SelectItem>
+                            <SelectItem value="custom">Personalizado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Modo de Visualização</Label>
+                        <Select value={historyViewMode} onValueChange={(value: HistoryViewMode) => setHistoryViewMode(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Relatório Ativo</SelectItem>
+                            <SelectItem value="all">Todos os Relatórios</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Unidade de Exibição</Label>
+                        <Select value={states.displayCurrency.code} onValueChange={(value) => {
+                          states.setDisplayCurrency(value === "USD" ? { code: "USD", symbol: "$" } : { code: "BRL", symbol: "R$" });
+                        }}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="BRL">BRL (R$)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                    
+                    {historyFilterPeriod === "custom" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <Label>Data Inicial</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {historyCustomStartDate ? formatDateFn(historyCustomStartDate, "dd/MM/yyyy") : "Selecionar data"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarComponent
+                                mode="single"
+                                selected={historyCustomStartDate}
+                                onSelect={setHistoryCustomStartDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Data Final</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {historyCustomEndDate ? formatDateFn(historyCustomEndDate, "dd/MM/yyyy") : "Selecionar data"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarComponent
+                                mode="single"
+                                selected={historyCustomEndDate}
+                                onSelect={setHistoryCustomEndDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
+
+                {/* Estatísticas do Período */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <HistoryStatsCard
+                    title="Total Investido"
+                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
+                    icon={<TrendingDown className="h-4 w-4 text-blue-400" />}
+                    valueColor="text-blue-400"
+                  />
+                  
+                  <HistoryStatsCard
+                    title="Lucros/Perdas"
+                    value={formatCurrency(getFilteredHistoryData.profits.reduce((sum, profit) => {
+                      const btcAmount = convertToBtc(profit.amount, profit.unit);
+                      const value = profit.isProfit ? btcAmount : -btcAmount;
+                      return sum + (value * states.currentRates.btcToUsd);
+                    }, 0), states.displayCurrency.code)}
+                    icon={<TrendingUp className="h-4 w-4 text-green-400" />}
+                    valueColor={getFilteredHistoryData.profits.reduce((sum, profit) => {
+                      const btcAmount = convertToBtc(profit.amount, profit.unit);
+                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                    }, 0) >= 0 ? "text-green-400" : "text-red-400"}
+                  />
+                  
+                  <HistoryStatsCard
+                    title="Saques"
+                    value={formatCurrency(getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
+                    icon={<Upload className="h-4 w-4 text-orange-400" />}
+                    valueColor="text-orange-400"
+                  />
+                  
+                  <HistoryStatsCard
+                    title="Transações"
+                    value={`${getFilteredHistoryData.investments.length + getFilteredHistoryData.profits.length + getFilteredHistoryData.withdrawals.length}`}
+                    icon={<Users className="h-4 w-4 text-purple-400" />}
+                    valueColor="text-purple-400"
+                  />
+                </div>
+
+                {/* Tabelas de Dados */}
+                <Tabs value={historyActiveTab} onValueChange={setHistoryActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 bg-black/40">
+                    <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+                    <TabsTrigger value="investments">Investimentos</TabsTrigger>
+                    <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
+                    <TabsTrigger value="withdrawals">Saques</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="overview" className="mt-4">
+                    <Card className="bg-black/30 border border-purple-700/40">
+                      <CardHeader>
+                        <CardTitle>Resumo do Período</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-400 mb-2">Distribuição por Tipo</h4>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span>Investimentos:</span>
+                                  <span className="text-blue-400">{getFilteredHistoryData.investments.length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Lucros:</span>
+                                  <span className="text-green-400">{getFilteredHistoryData.profits.filter(p => p.isProfit).length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Perdas:</span>
+                                  <span className="text-red-400">{getFilteredHistoryData.profits.filter(p => !p.isProfit).length}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Saques:</span>
+                                  <span className="text-orange-400">{getFilteredHistoryData.withdrawals.length}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-400 mb-2">Valores Totais (BTC)</h4>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span>Total Investido:</span>
+                                  <span className="text-blue-400">
+                                    ₿{getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0).toFixed(8)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Lucro/Perda:</span>
+                                  <span className={getFilteredHistoryData.profits.reduce((sum, profit) => {
+                                    const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                    return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                  }, 0) >= 0 ? "text-green-400" : "text-red-400"}>
+                                    ₿{getFilteredHistoryData.profits.reduce((sum, profit) => {
+                                      const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                    }, 0).toFixed(8)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Total Sacado:</span>
+                                  <span className="text-orange-400">
+                                    ₿{getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit), 0).toFixed(8)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="investments" className="mt-4">
+                    <Card className="bg-black/30 border border-purple-700/40">
+                      <CardHeader>
+                        <CardTitle>Investimentos no Período</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[400px]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Data</TableHead>
+                                <TableHead>Valor</TableHead>
+                                <TableHead>Unidade</TableHead>
+                                <TableHead>Valor (BTC)</TableHead>
+                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getFilteredHistoryData.investments.map((investment) => {
+                                const btcAmount = convertToBtc(investment.amount, investment.unit);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                
+                                return (
+                                  <TableRow key={investment.id}>
+                                    <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>{investment.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{investment.unit}</TableCell>
+                                    <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
+                                    <TableCell>{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="profits" className="mt-4">
+                    <Card className="bg-black/30 border border-purple-700/40">
+                      <CardHeader>
+                        <CardTitle>Lucros e Perdas no Período</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[400px]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Data</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Valor</TableHead>
+                                <TableHead>Unidade</TableHead>
+                                <TableHead>Valor (BTC)</TableHead>
+                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getFilteredHistoryData.profits.map((profit) => {
+                                const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                
+                                return (
+                                  <TableRow key={profit.id}>
+                                    <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={profit.isProfit ? "default" : "destructive"}>
+                                        {profit.isProfit ? "Lucro" : "Perda"}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>{profit.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{profit.unit}</TableCell>
+                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                      ₿{btcAmount.toFixed(8)}
+                                    </TableCell>
+                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                      {states.displayCurrency.symbol}{currencyValue.toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="withdrawals" className="mt-4">
+                    <Card className="bg-black/30 border border-purple-700/40">
+                      <CardHeader>
+                        <CardTitle>Saques no Período</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[400px]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Data</TableHead>
+                                <TableHead>Valor</TableHead>
+                                <TableHead>Unidade</TableHead>
+                                <TableHead>Valor (BTC)</TableHead>
+                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getFilteredHistoryData.withdrawals.map((withdrawal) => {
+                                const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                
+                                return (
+                                  <TableRow key={withdrawal.id}>
+                                    <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{withdrawal.unit}</TableCell>
+                                    <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
+                                    <TableCell className="text-orange-400">{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
               </div>
             </TabsContent>
 
             {/* ABA GRÁFICOS */}
             <TabsContent value="charts">
               <div className="space-y-6">
+                {/* Controles do Gráfico */}
                 <Card className="bg-black/30 border border-purple-700/40">
-                  <CardContent className="py-8">
-                    <div className="text-center text-purple-400">
-                      <PieChartIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">Aba Gráficos</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Funcionalidade completa será implementada em breve
-                      </p>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PieChartIcon className="h-5 w-5" />
+                      Configurações do Gráfico
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label>Tipo de Gráfico</Label>
+                        <Select value={chartType} onValueChange={(value: "line" | "bar" | "area") => setChartType(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="area">Área</SelectItem>
+                            <SelectItem value="line">Linha</SelectItem>
+                            <SelectItem value="bar">Barras</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Unidade de Exibição</Label>
+                        <Select value={chartDisplayUnit} onValueChange={(value: "btc" | "usd" | "brl") => setChartDisplayUnit(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="btc">Bitcoin (₿)</SelectItem>
+                            <SelectItem value="usd">Dólares ($)</SelectItem>
+                            <SelectItem value="brl">Reais (R$)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Período</Label>
+                        <Select value={chartTimeframe} onValueChange={(value: "daily" | "monthly") => setChartTimeframe(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monthly">Mensal</SelectItem>
+                            <SelectItem value="daily">Diário</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Cotação Atual</Label>
+                        <div className="text-sm bg-black/40 p-2 rounded border border-purple-700/30">
+                          <div className="flex items-center gap-2">
+                            <div className={cn("w-2 h-2 rounded-full", 
+                              states.usingFallbackRates ? "bg-yellow-400" : "bg-green-400"
+                            )}></div>
+                            <span>BTC/USD: ${states.currentRates.btcToUsd.toLocaleString()}</span>
+                          </div>
+                          <div>USD/BRL: R${states.currentRates.brlToUsd.toFixed(2)}</div>
+                          {states.usingFallbackRates && (
+                            <div className="text-xs text-yellow-400 mt-1">
+                              Usando cotação cache
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Controles de Séries Visíveis */}
+                      <div className="mt-4 pt-4 border-t border-purple-700/30">
+                        <Label className="text-sm font-medium mb-3 block">Séries Visíveis</Label>
+                        <div className="flex flex-wrap gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="show-investments"
+                              checked={chartVisibleSeries.investments}
+                              onCheckedChange={(checked) => 
+                                setChartVisibleSeries(prev => ({ ...prev, investments: checked }))
+                              }
+                            />
+                            <Label htmlFor="show-investments" className="text-sm flex items-center gap-2">
+                              <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                              Investimentos
+                            </Label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="show-profits"
+                              checked={chartVisibleSeries.profits}
+                              onCheckedChange={(checked) => 
+                                setChartVisibleSeries(prev => ({ ...prev, profits: checked }))
+                              }
+                            />
+                            <Label htmlFor="show-profits" className="text-sm flex items-center gap-2">
+                              <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                              Lucros/Perdas
+                            </Label>
+                          </div>
+                          
+                          {chartType === "line" && (
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id="show-balance"
+                                checked={chartVisibleSeries.balance}
+                                onCheckedChange={(checked) => 
+                                  setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
+                                }
+                              />
+                              <Label htmlFor="show-balance" className="text-sm flex items-center gap-2">
+                                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                                Saldo Total
+                              </Label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Gráfico de Evolução */}
+                <Card className="bg-black/30 border border-purple-700/40">
+                  <CardHeader>
+                    <CardTitle>Evolução Patrimonial</CardTitle>
+                    <CardDescription>
+                      Acompanhe a evolução dos seus investimentos e lucros ao longo do tempo
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {getChartData.length === 0 ? (
+                      <div className="h-[400px] w-full flex items-center justify-center">
+                        <div className="text-center space-y-4">
+                          <div className="text-gray-400 text-lg">📊</div>
+                          <div className="text-gray-400">
+                            Nenhum dado disponível para exibir gráficos
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Adicione investimentos ou lucros/perdas para visualizar os gráficos
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-[400px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        {chartType === "area" && (
+                          <AreaChart data={getChartData.map(point => ({
+                            ...point,
+                            investments: convertChartValue(point.investments),
+                            profits: convertChartValue(point.profits),
+                            balance: convertChartValue(point.balance)
+                          }))}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                            />
+                            <YAxis 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                              tickFormatter={formatChartValue}
+                            />
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: '#1F2937',
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                color: '#F3F4F6'
+                              }}
+                              formatter={(value: number, name: string) => [
+                                formatChartValue(value),
+                                name === 'investments' ? 'Investimentos' :
+                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
+                              ]}
+                            />
+                            <Legend />
+                            {chartVisibleSeries.investments && (
+                              <Area 
+                                type="monotone" 
+                                dataKey="investments" 
+                                stackId="1"
+                                stroke="#3B82F6" 
+                                fill="#3B82F6" 
+                                fillOpacity={0.6}
+                                name="Investimentos"
+                              />
+                            )}
+                            {chartVisibleSeries.profits && (
+                              <Area 
+                                type="monotone" 
+                                dataKey="profits" 
+                                stackId="1"
+                                stroke="#10B981" 
+                                fill="#10B981" 
+                                fillOpacity={0.6}
+                                name="Lucros/Perdas"
+                              />
+                            )}
+                          </AreaChart>
+                        )}
+                        
+                        {chartType === "line" && (
+                          <LineChart data={getChartData.map(point => ({
+                            ...point,
+                            investments: convertChartValue(point.investments),
+                            profits: convertChartValue(point.profits),
+                            balance: convertChartValue(point.balance)
+                          }))}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                            />
+                            <YAxis 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                              tickFormatter={formatChartValue}
+                            />
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: '#1F2937',
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                color: '#F3F4F6'
+                              }}
+                              formatter={(value: number, name: string) => [
+                                formatChartValue(value),
+                                name === 'investments' ? 'Investimentos' :
+                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
+                              ]}
+                            />
+                            <Legend />
+                            {chartVisibleSeries.investments && (
+                              <Line 
+                                type="monotone" 
+                                dataKey="investments" 
+                                stroke="#3B82F6" 
+                                strokeWidth={3}
+                                name="Investimentos"
+                                dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                              />
+                            )}
+                            {chartVisibleSeries.profits && (
+                              <Line 
+                                type="monotone" 
+                                dataKey="profits" 
+                                stroke="#10B981" 
+                                strokeWidth={3}
+                                name="Lucros/Perdas"
+                                dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                              />
+                            )}
+                            {chartVisibleSeries.balance && (
+                              <Line 
+                                type="monotone" 
+                                dataKey="balance" 
+                                stroke="#F59E0B" 
+                                strokeWidth={3}
+                                name="Saldo Total"
+                                dot={{ fill: '#F59E0B', strokeWidth: 2, r: 4 }}
+                              />
+                            )}
+                          </LineChart>
+                        )}
+                        
+                        {chartType === "bar" && (
+                          <BarChart data={getChartData.map(point => ({
+                            ...point,
+                            investments: convertChartValue(point.investments),
+                            profits: convertChartValue(point.profits),
+                            balance: convertChartValue(point.balance)
+                          }))}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                            />
+                            <YAxis 
+                              stroke="#9CA3AF"
+                              fontSize={12}
+                              tickFormatter={formatChartValue}
+                            />
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: '#1F2937',
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                color: '#F3F4F6'
+                              }}
+                              formatter={(value: number, name: string) => [
+                                formatChartValue(value),
+                                name === 'investments' ? 'Investimentos' :
+                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
+                              ]}
+                            />
+                            <Legend />
+                            {chartVisibleSeries.investments && (
+                              <Bar 
+                                dataKey="investments" 
+                                fill="#3B82F6" 
+                                name="Investimentos"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            )}
+                            {chartVisibleSeries.profits && (
+                              <Bar 
+                                dataKey="profits" 
+                                fill="#10B981" 
+                                name="Lucros/Perdas"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            )}
+                          </BarChart>
+                        )}
+                      </ResponsiveContainer>
+                    </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Gráficos de Pizza - Distribuição */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Gráfico de Pizza - Investimentos vs Lucros */}
+                  <Card className="bg-black/30 border border-purple-700/40">
+                    <CardHeader>
+                      <CardTitle>Composição do Patrimônio</CardTitle>
+                      <CardDescription>
+                        Distribuição entre investimentos e lucros/perdas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {!currentActiveReportObjectFromHook || 
+                       ((!currentActiveReportObjectFromHook.investments || currentActiveReportObjectFromHook.investments.length === 0) &&
+                        (!currentActiveReportObjectFromHook.profits || currentActiveReportObjectFromHook.profits.length === 0)) ? (
+                        <div className="h-[300px] w-full flex items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <div className="text-gray-400 text-lg">🥧</div>
+                            <div className="text-gray-400 text-sm">
+                              Sem dados para composição
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-[300px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                            <Pie
+                              data={[
+                                {
+                                  name: 'Investimentos',
+                                  value: convertChartValue(
+                                    (currentActiveReportObjectFromHook?.investments || [])
+                                      .reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0)
+                                  ),
+                                  fill: '#3B82F6'
+                                },
+                                {
+                                  name: 'Lucros/Perdas',
+                                  value: Math.abs(convertChartValue(
+                                    (currentActiveReportObjectFromHook?.profits || [])
+                                      .reduce((sum, profit) => {
+                                        const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                        return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                      }, 0)
+                                  )),
+                                  fill: '#10B981'
+                                }
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: '#1F2937',
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                color: '#F3F4F6'
+                              }}
+                              formatter={(value: number) => formatChartValue(value)}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Estatísticas Resumidas */}
+                  <Card className="bg-black/30 border border-purple-700/40">
+                    <CardHeader>
+                      <CardTitle>Estatísticas do Período</CardTitle>
+                      <CardDescription>
+                        Métricas principais dos investimentos
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {!reportSummaryData ? (
+                          <div className="text-center py-8">
+                            <div className="text-gray-400 text-sm">
+                              Nenhum relatório ativo selecionado
+                            </div>
+                          </div>
+                        ) : reportSummaryData.totalInvestmentsBtc === 0 && reportSummaryData.operationalProfitBtc === 0 ? (
+                          <div className="text-center py-8">
+                            <div className="text-gray-400 text-sm">
+                              Adicione investimentos ou lucros/perdas para ver as estatísticas
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-400">Total Investido:</span>
+                              <span className="text-blue-400 font-medium">
+                                {formatChartValue(convertChartValue(reportSummaryData.totalInvestmentsBtc))}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-400">Lucro/Perda Operacional:</span>
+                              <span className={`font-medium ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {formatChartValue(convertChartValue(reportSummaryData.operationalProfitBtc))}
+                              </span>
+                            </div>
+                            
+                            {reportSummaryData.hasWithdrawals && (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Total Sacado:</span>
+                                  <span className="text-orange-400 font-medium">
+                                    {formatChartValue(convertChartValue(reportSummaryData.totalWithdrawalsBtc))}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Saldo Atual:</span>
+                                  <span className="text-purple-400 font-medium">
+                                    {formatChartValue(convertChartValue(reportSummaryData.currentBalanceBtc))}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                            
+                            <div className="border-t border-purple-700/30 pt-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-400">ROI:</span>
+                                <span className={`font-bold ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {reportSummaryData.totalInvestmentsBtc > 0 
+                                    ? `${((reportSummaryData.operationalProfitBtc / reportSummaryData.totalInvestmentsBtc) * 100).toFixed(2)}%`
+                                    : '0.00%'
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {reportSummaryData.averageBuyPriceUsd > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-400">Preço Médio de Compra:</span>
+                                <span className="text-yellow-400 font-medium">
+                                  ${reportSummaryData.averageBuyPriceUsd.toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {reportSummaryData.valuationProfitUsd !== 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-400">Lucro de Valorização:</span>
+                                <span className={`font-medium ${reportSummaryData.valuationProfitUsd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  ${reportSummaryData.valuationProfitUsd.toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Informações sobre os Dados */}
+                <Card className="bg-black/30 border border-purple-700/40">
+                  <CardContent className="py-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span>Investimentos</span>
+                      <div className="w-2 h-2 bg-green-400 rounded-full ml-4"></div>
+                      <span>Lucros/Perdas</span>
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full ml-4"></div>
+                      <span>Saldo Total</span>
+                      <div className="w-2 h-2 bg-orange-400 rounded-full ml-4"></div>
+                      <span>Saques</span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500">
+                      * Valores baseados na cotação atual: ${states.currentRates.btcToUsd.toLocaleString()} USD/BTC
+                      {states.usingFallbackRates && (
+                        <span className="ml-2 text-yellow-400">(usando cotação cache)</span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
