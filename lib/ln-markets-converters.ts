@@ -87,6 +87,29 @@ function parseTimestamp(timestamp: string | number | undefined | null, context: 
 }
 
 /**
+ * Função auxiliar para selecionar a melhor data disponível com prioridade criteriosa
+ */
+function selectBestTimestamp(
+  possibleFields: Record<string, string | number | undefined | null>,
+  priorityOrder: string[],
+  context: string
+): { timestamp: string | number | undefined; source: string } {
+  console.log(`[selectBestTimestamp] ${context}: Campos disponíveis:`, possibleFields);
+  console.log(`[selectBestTimestamp] ${context}: Ordem de prioridade:`, priorityOrder);
+  
+  for (const fieldName of priorityOrder) {
+    const value = possibleFields[fieldName];
+    if (value !== undefined && value !== null && value !== '') {
+      console.log(`[selectBestTimestamp] ${context}: Selecionado campo '${fieldName}' com valor:`, value);
+      return { timestamp: value, source: fieldName };
+    }
+  }
+  
+  console.warn(`[selectBestTimestamp] ${context}: Nenhum campo de data válido encontrado, usando data atual`);
+  return { timestamp: Date.now(), source: 'fallback_current_time' };
+}
+
+/**
  * Converte trade LN Markets para registro de lucro/perda
  */
 export function convertTradeToProfit(trade: LNMarketsTrade) {
@@ -115,22 +138,15 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
   console.log('[convertTradeToProfit] Campos de data encontrados:', possibleDateFields);
 
   // Prioridade criteriosa: closed_at (se fechado) > ts > updated_at > created_at
-  let timestampToUse: string | number | undefined;
-  let dateSource: string;
+  const priorityOrder = trade.closed && trade.closed_at 
+    ? ['closed_at', 'ts', 'updated_at', 'created_at']
+    : ['ts', 'closed_at', 'updated_at', 'created_at'];
 
-  if (trade.closed && trade.closed_at) {
-    timestampToUse = trade.closed_at;
-    dateSource = 'closed_at';
-  } else if (trade.ts) {
-    timestampToUse = trade.ts;
-    dateSource = 'ts';
-  } else if (trade.updated_at) {
-    timestampToUse = trade.updated_at;
-    dateSource = 'updated_at';
-  } else if (trade.created_at) {
-    timestampToUse = trade.created_at;
-    dateSource = 'created_at';
-  }
+  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
+    possibleDateFields,
+    priorityOrder,
+    'convertTradeToProfit'
+  );
 
   console.log('[convertTradeToProfit] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
 
@@ -144,9 +160,22 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     tradeStatus: trade.closed ? 'fechado' : 'aberto'
   });
 
+  // Validar e criar ID único
+  const tradeIdentifier = trade.uid || trade.id;
+  if (!tradeIdentifier) {
+    console.error('[convertTradeToProfit] Trade sem identificador válido:', trade);
+    throw new Error('Trade deve ter uid ou id válido');
+  }
+
+  // Validar valor do PL
+  if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
+    console.error('[convertTradeToProfit] Valor PL inválido:', trade.pl);
+    throw new Error('Trade deve ter valor PL válido');
+  }
+
   const result = {
-    id: `lnm_trade_${trade.uid || trade.id}`, // Usar uid se disponível, senão id
-    originalId: (trade.uid || trade.id).toString(),
+    id: `lnm_trade_${tradeIdentifier}`, // Usar uid se disponível, senão id
+    originalId: `trade_${tradeIdentifier}`, // Prefixo para evitar conflitos
     date: tradeDate.toISOString().split('T')[0],
     amount: Math.abs(trade.pl),
     unit: 'SATS' as const,
@@ -215,20 +244,12 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
 
   console.log('[convertDepositToInvestment] Campos de data encontrados:', possibleDateFields);
 
-  let timestampToUse: string | number | undefined;
-  let dateSource: string;
-
   // Prioridade: ts > created_at > updated_at
-  if (deposit.ts) {
-    timestampToUse = deposit.ts;
-    dateSource = 'ts';
-  } else if (deposit.created_at) {
-    timestampToUse = deposit.created_at;
-    dateSource = 'created_at';
-  } else if (deposit.updated_at) {
-    timestampToUse = deposit.updated_at;
-    dateSource = 'updated_at';
-  }
+  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
+    possibleDateFields,
+    ['ts', 'created_at', 'updated_at'],
+    'convertDepositToInvestment'
+  );
 
   console.log('[convertDepositToInvestment] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
 
@@ -244,7 +265,7 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
   
   const result = {
     id: `lnm_deposit_${deposit.id}`,
-    originalId: deposit.id.toString(),
+    originalId: `deposit_${deposit.id}`, // Prefixo para evitar conflitos
     date: depositDate.toISOString().split('T')[0],
     amount: deposit.amount,
     unit: 'SATS' as const,
@@ -311,20 +332,12 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
 
   console.log('[convertWithdrawalToRecord] Campos de data encontrados:', possibleDateFields);
 
-  let timestampToUse: string | number | undefined;
-  let dateSource: string;
-
   // Prioridade: ts > created_at > updated_at
-  if (withdrawal.ts) {
-    timestampToUse = withdrawal.ts;
-    dateSource = 'ts';
-  } else if (withdrawal.created_at) {
-    timestampToUse = withdrawal.created_at;
-    dateSource = 'created_at';
-  } else if (withdrawal.updated_at) {
-    timestampToUse = withdrawal.updated_at;
-    dateSource = 'updated_at';
-  }
+  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
+    possibleDateFields,
+    ['ts', 'created_at', 'updated_at'],
+    'convertWithdrawalToRecord'
+  );
 
   console.log('[convertWithdrawalToRecord] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
 
@@ -349,7 +362,7 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
   
   const result = {
     id: `lnm_withdrawal_${withdrawal.id}`,
-    originalId: withdrawal.id.toString(),
+    originalId: `withdrawal_${withdrawal.id}`, // Prefixo para evitar conflitos
     date: withdrawalDate.toISOString().split('T')[0],
     amount: withdrawal.amount,
     unit: 'SATS' as const,

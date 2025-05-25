@@ -858,42 +858,26 @@ export default function ProfitCalculator({
               isProfit: profitRecord.isProfit
             });
             
-            // NOVO: Verificar se já existe antes de tentar adicionar
-            const existingProfit = currentActiveReportObjectFromHook.profits?.find(
-              profit => profit.originalId === profitRecord.originalId
-            );
+            console.log('[handleImportTrades] Tentando adicionar novo registro de lucro...');
             
-            if (existingProfit) {
-              console.log('[handleImportTrades] Registro de lucro já existe:', {
-                existingId: existingProfit.id,
-                existingOriginalId: existingProfit.originalId,
-                existingDate: existingProfit.date,
-                existingAmount: existingProfit.amount,
-                existingIsProfit: existingProfit.isProfit
-              });
+            const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            
+            console.log('[handleImportTrades] Resultado da adição:', {
+              status: result.status,
+              id: result.id,
+              originalId: result.originalId,
+              message: result.message
+            });
+        
+            if (result.status === 'added') {
+              imported++;
+              console.log('[handleImportTrades] ✅ Registro de lucro adicionado com sucesso:', result.id);
+            } else if (result.status === 'duplicate') {
               duplicated++;
+              console.log('[handleImportTrades] ⚠️ Registro de lucro duplicado detectado:', result.originalId);
             } else {
-              console.log('[handleImportTrades] Tentando adicionar novo registro de lucro...');
-              
-          const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-              
-              console.log('[handleImportTrades] Resultado da adição:', {
-                status: result.status,
-                id: result.id,
-                originalId: result.originalId,
-                message: result.message
-              });
-          
-          if (result.status === 'added') {
-            imported++;
-                console.log('[handleImportTrades] ✅ Registro de lucro adicionado com sucesso:', result.id);
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-                console.log('[handleImportTrades] ⚠️ Registro de lucro duplicado detectado:', result.originalId);
-          } else {
-            errors++;
-                console.error('[handleImportTrades] ❌ Erro ao adicionar registro de lucro:', result);
-              }
+              errors++;
+              console.error('[handleImportTrades] ❌ Erro ao adicionar registro de lucro:', result);
             }
           } catch (conversionError) {
             console.error('[handleImportTrades] Erro na conversão do trade:', conversionError);
@@ -934,8 +918,9 @@ export default function ProfitCalculator({
       console.log('[handleImportTrades] Estado do relatório após a importação:', {
         reportId: currentActiveReportObjectFromHook.id,
         finalProfitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
-        newProfitIds: currentActiveReportObjectFromHook.profits?.slice(-imported).map(profit => profit.originalId) || [],
-        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null
+        newProfitIds: currentActiveReportObjectFromHook.profits?.slice(-Math.max(imported, 5)).map(profit => profit.originalId) || [],
+        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null,
+        importStats: { imported, duplicated, errors, processed }
       });
 
       // Progresso completo
@@ -1215,48 +1200,26 @@ export default function ProfitCalculator({
               unit: investment.unit
             });
             
-            // NOVO: Verificar se já existe antes de tentar adicionar
-            const existingInvestment = currentActiveReportObjectFromHook.investments?.find(
-              inv => inv.originalId === investment.originalId
-            );
+            console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
             
-            if (existingInvestment) {
-              console.log('[handleImportDeposits] Investimento já existe:', {
-                existingId: existingInvestment.id,
-                existingOriginalId: existingInvestment.originalId,
-                existingDate: existingInvestment.date,
-                existingAmount: existingInvestment.amount
-              });
-              duplicated++;
-            } else {
-              console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
-              
-              // CORRIGIDO: Usar a função correta com os parâmetros adequados
             const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-            
-              console.log('[handleImportDeposits] Resultado da adição:', {
-                status: result.status,
-                id: result.id,
-                originalId: result.originalId,
-                message: result.message
-              });
-              
-              // NOVO: Forçar atualização do estado após adicionar
-              if (result.status === 'added') {
-                // Aguardar um pouco para garantir que o estado foi atualizado
-                await new Promise(resolve => setTimeout(resolve, 50));
-              }
-            
+          
+            console.log('[handleImportDeposits] Resultado da adição:', {
+              status: result.status,
+              id: result.id,
+              originalId: result.originalId,
+              message: result.message
+            });
+          
             if (result.status === 'added') {
               imported++;
-                console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
+              console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
             } else if (result.status === 'duplicate') {
               duplicated++;
-                console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
+              console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
             } else {
               errors++;
-                console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
-              }
+              console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
             }
           } catch (conversionError) {
             console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
@@ -1306,8 +1269,9 @@ export default function ProfitCalculator({
       console.log('[handleImportDeposits] Estado do relatório após a importação:', {
         reportId: currentActiveReportObjectFromHook.id,
         finalInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
-        newInvestmentIds: currentActiveReportObjectFromHook.investments?.slice(-imported).map(inv => inv.originalId) || [],
-        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
+        newInvestmentIds: currentActiveReportObjectFromHook.investments?.slice(-Math.max(imported, 5)).map(inv => inv.originalId) || [],
+        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null,
+        importStats: { imported, duplicated, skipped, errors, processed }
       });
 
       // Progresso completo
@@ -1511,41 +1475,26 @@ export default function ProfitCalculator({
             originalStatus: withdrawal.status
           });
           
-          // Verificar se já existe antes de tentar adicionar
-          const existingWithdrawal = currentActiveReportObjectFromHook.withdrawals?.find(
-            w => w.originalId === withdrawalRecord.originalId
-          );
+          console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
           
-          if (existingWithdrawal) {
-            console.log('[handleImportWithdrawals] Saque já existe:', {
-              existingId: existingWithdrawal.id,
-              existingOriginalId: existingWithdrawal.originalId
-            });
+          const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          console.log('[handleImportWithdrawals] Resultado da adição:', {
+            status: result.status,
+            id: result.id,
+            originalId: result.originalId,
+            message: result.message
+          });
+          
+          if (result.status === 'added') {
+            imported++;
+            console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
+          } else if (result.status === 'duplicate') {
             duplicated++;
+            console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
           } else {
-            console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
-            
-            const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-            
-            console.log('[handleImportWithdrawals] Resultado da adição:', {
-              status: result.status,
-              id: result.id,
-              originalId: result.originalId,
-              message: result.message
-            });
-            
-            if (result.status === 'added') {
-              imported++;
-              console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
-              // Aguardar um pouco para garantir que o estado foi atualizado
-              await new Promise(resolve => setTimeout(resolve, 50));
-            } else if (result.status === 'duplicate') {
-              duplicated++;
-              console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
-            } else {
-              errors++;
-              console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
-            }
+            errors++;
+            console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
           }
         } catch (conversionError) {
           console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
@@ -1804,6 +1753,56 @@ export default function ProfitCalculator({
         variant: "destructive",
       });
     }
+  };
+
+  // NOVA Função para verificar integridade dos dados após importação
+  const verifyImportIntegrity = () => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro na verificação",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const report = currentActiveReportObjectFromHook;
+    const stats = {
+      investments: {
+        total: report.investments?.length || 0,
+        withOriginalId: report.investments?.filter(inv => inv.originalId).length || 0,
+        lnMarketsImports: report.investments?.filter(inv => inv.originalId?.startsWith('deposit_')).length || 0,
+        recentIds: report.investments?.slice(-5).map(inv => inv.originalId) || []
+      },
+      profits: {
+        total: report.profits?.length || 0,
+        withOriginalId: report.profits?.filter(p => p.originalId).length || 0,
+        lnMarketsImports: report.profits?.filter(p => p.originalId?.startsWith('trade_')).length || 0,
+        recentIds: report.profits?.slice(-5).map(p => p.originalId) || []
+      },
+      withdrawals: {
+        total: report.withdrawals?.length || 0,
+        withOriginalId: report.withdrawals?.filter(w => w.originalId).length || 0,
+        lnMarketsImports: report.withdrawals?.filter(w => w.originalId?.startsWith('withdrawal_')).length || 0,
+        recentIds: report.withdrawals?.slice(-5).map(w => w.originalId) || []
+      }
+    };
+
+    console.log('[verifyImportIntegrity] Estatísticas do relatório:', stats);
+
+    toast({
+      title: "🔍 Verificação de Integridade",
+      description: (
+        <div className="space-y-1 text-xs">
+          <div>Investimentos: {stats.investments.total} (LN: {stats.investments.lnMarketsImports})</div>
+          <div>Lucros/Perdas: {stats.profits.total} (LN: {stats.profits.lnMarketsImports})</div>
+          <div>Saques: {stats.withdrawals.total} (LN: {stats.withdrawals.lnMarketsImports})</div>
+          <div>Detalhes no console</div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-blue-500/50 bg-blue-900/20",
+    });
   };
 
   // NOVA Função para analisar status dos depósitos em tempo real
@@ -2962,6 +2961,14 @@ export default function ProfitCalculator({
                             className="w-full bg-yellow-700/20 hover:bg-yellow-600/30 border-yellow-600/50"
                           >
                             🔍 Analisar Status
+                          </Button>
+                          <Button
+                            onClick={verifyImportIntegrity}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
+                          >
+                            🔍 Verificar Dados
                           </Button>
                           <Button
                             onClick={testAddInvestment}
