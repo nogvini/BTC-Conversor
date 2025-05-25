@@ -1039,33 +1039,22 @@ export default function ProfitCalculator({
 
   // Função auxiliar para verificar se um depósito está confirmado
   const isDepositConfirmed = (deposit: any): boolean => {
-    // Verificar diferentes atributos dependendo do tipo de depósito:
-    // 1. Depósitos on-chain: is_confirmed: true
-    // 2. Depósitos internos: success: true  
-    // 3. Depósitos não confirmados: isConfirmed: false
+    // Lógica simplificada baseada nos atributos reais da API:
+    // 1. Depósitos on-chain (type: "bitcoin"): is_confirmed === true
+    // 2. Depósitos internos (type: "internal"): success === true
     
-    // Se explicitamente não confirmado
-    if (deposit.isConfirmed === false) {
-      return false;
-    }
-    
-    // Se é depósito on-chain confirmado
+    // Depósito on-chain confirmado
     if (deposit.is_confirmed === true) {
       return true;
     }
     
-    // Se é depósito interno bem-sucedido
+    // Depósito interno bem-sucedido
     if (deposit.success === true) {
       return true;
     }
     
-    // Se tem isConfirmed true (caso padrão antigo)
-    if (deposit.isConfirmed === true) {
-      return true;
-    }
-    
-    // Se nenhum indicador negativo, considerar confirmado (fallback)
-    return deposit.isConfirmed !== false && deposit.is_confirmed !== false && deposit.success !== false;
+    // Todos os outros casos são considerados não confirmados
+    return false;
   };
 
   const handleImportDeposits = async () => {
@@ -1194,13 +1183,14 @@ export default function ProfitCalculator({
         console.log('[handleImportDeposits] Verificação de confirmação:', {
           type: deposit.type,
           status: deposit.status,
-          // Todos os atributos de confirmação
-          isConfirmed: deposit.isConfirmed,
+          // Atributos de confirmação relevantes
           is_confirmed: deposit.is_confirmed,
           success: deposit.success,
           // Resultado
           isConfirmedByLogic: isConfirmed,
-          logic: 'is_confirmed=true OR success=true OR (isConfirmed≠false AND is_confirmed≠false AND success≠false)'
+          logic: 'is_confirmed===true (on-chain) OR success===true (internal)',
+          validationRule: deposit.type === 'bitcoin' ? 'Checking is_confirmed' : 
+                         deposit.type === 'internal' ? 'Checking success' : 'Unknown type'
         });
 
         if (isConfirmed) {
@@ -1271,11 +1261,12 @@ export default function ProfitCalculator({
             amount: deposit.amount,
             created_at: deposit.created_at,
             ts: deposit.ts,
-            // Todos os atributos de confirmação
-            isConfirmed: deposit.isConfirmed,
+            // Atributos de confirmação relevantes
             is_confirmed: deposit.is_confirmed,
             success: deposit.success,
-            reason: 'Nenhum atributo de confirmação positivo encontrado'
+            reason: deposit.type === 'bitcoin' ? `is_confirmed=${deposit.is_confirmed} (expected true)` :
+                   deposit.type === 'internal' ? `success=${deposit.success} (expected true)` :
+                   `Unknown type "${deposit.type}" - no validation rule`
           });
         }
         
@@ -1370,7 +1361,7 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Lógica: is_confirmed=true (on-chain) OU success=true (interno) OU outros atributos positivos
+              Lógica: is_confirmed===true (bitcoin) OU success===true (internal) - apenas estes dois casos
             </div>
             {errors > 0 && (
               <div className="flex items-center gap-2">
@@ -1489,72 +1480,66 @@ export default function ProfitCalculator({
         }
       }));
 
-      for (const withdrawal of response.data) {
+            for (const withdrawal of response.data) {
         console.log('[handleImportWithdrawals] Processando saque:', {
           id: withdrawal.id,
           amount: withdrawal.amount,
           status: withdrawal.status,
           created_at: withdrawal.created_at,
-          isConfirmed: withdrawal.status === 'confirmed'
+          type: withdrawal.type,
+          note: 'Todos os saques são processados - sem validação de status'
         });
         
-        if (withdrawal.status === 'confirmed') {
-          try {
-            const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
+        try {
+          const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
+          
+          console.log('[handleImportWithdrawals] Saque convertido:', {
+            id: withdrawalRecord.id,
+            originalId: withdrawalRecord.originalId,
+            date: withdrawalRecord.date,
+            amount: withdrawalRecord.amount,
+            unit: withdrawalRecord.unit
+          });
+          
+          // Verificar se já existe antes de tentar adicionar (apenas duplicação por ID)
+          const existingWithdrawal = currentActiveReportObjectFromHook.withdrawals?.find(
+            w => w.originalId === withdrawalRecord.originalId
+          );
+          
+          if (existingWithdrawal) {
+            console.log('[handleImportWithdrawals] Saque já existe:', {
+              existingId: existingWithdrawal.id,
+              existingOriginalId: existingWithdrawal.originalId
+            });
+            duplicated++;
+          } else {
+            console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
             
-            console.log('[handleImportWithdrawals] Saque convertido:', {
-              id: withdrawalRecord.id,
-              originalId: withdrawalRecord.originalId,
-              date: withdrawalRecord.date,
-              amount: withdrawalRecord.amount,
-              unit: withdrawalRecord.unit
+            const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            
+            console.log('[handleImportWithdrawals] Resultado da adição:', {
+              status: result.status,
+              id: result.id,
+              originalId: result.originalId,
+              message: result.message
             });
             
-            // NOVO: Verificar se já existe antes de tentar adicionar
-            const existingWithdrawal = currentActiveReportObjectFromHook.withdrawals?.find(
-              w => w.originalId === withdrawalRecord.originalId
-            );
-            
-            if (existingWithdrawal) {
-              console.log('[handleImportWithdrawals] Saque já existe:', {
-                existingId: existingWithdrawal.id,
-                existingOriginalId: existingWithdrawal.originalId
-              });
+            if (result.status === 'added') {
+              imported++;
+              console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
+              // Aguardar um pouco para garantir que o estado foi atualizado
+              await new Promise(resolve => setTimeout(resolve, 50));
+            } else if (result.status === 'duplicate') {
               duplicated++;
+              console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
             } else {
-              console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
-              
-              const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-              
-              console.log('[handleImportWithdrawals] Resultado da adição:', {
-                status: result.status,
-                id: result.id,
-                originalId: result.originalId,
-                message: result.message
-              });
-              
-              if (result.status === 'added') {
-                imported++;
-                console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
-                // Aguardar um pouco para garantir que o estado foi atualizado
-                await new Promise(resolve => setTimeout(resolve, 50));
-              } else if (result.status === 'duplicate') {
-                duplicated++;
-                console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
-              } else {
-                errors++;
-                console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
-              }
+              errors++;
+              console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
             }
-          } catch (conversionError) {
-            console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
-            errors++;
           }
-        } else {
-          console.log('[handleImportWithdrawals] Saque ignorado (não confirmado):', {
-            id: withdrawal.id,
-            status: withdrawal.status
-          });
+        } catch (conversionError) {
+          console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
+          errors++;
         }
         
         processed++;
@@ -1601,7 +1586,8 @@ export default function ProfitCalculator({
           duplicated, 
           errors,
           processed: totalWithdrawals,
-          confirmedCount: response.data?.filter(w => w.status === 'confirmed').length || 0,
+          // Todos os saques são processados - sem filtro de confirmação
+          confirmedCount: response.data?.length || 0,
           statusDistribution: response.data?.reduce((acc, w) => {
             acc[w.status] = (acc[w.status] || 0) + 1;
             return acc;
@@ -1624,6 +1610,9 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
+              Todos os saques são processados - sem validação de status
+            </div>
+            <div className="text-xs text-gray-400">
               Configuração: "{config.name}"
             </div>
           </div>
@@ -1654,6 +1643,9 @@ export default function ProfitCalculator({
             </div>
             <div className="text-xs text-gray-400 mt-1">
               {error.message || "Erro desconhecido"}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Nota: Todos os saques retornados pela API são processados
             </div>
           </div>
         ),
@@ -1841,11 +1833,17 @@ export default function ProfitCalculator({
 
       const confirmationAnalysis = deposits.reduce((acc, d) => {
         let key = '';
-        if (d.isConfirmed === false) key = 'isConfirmed: false';
-        else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
-        else if (d.success === true) key = 'success: true (internal)';
-        else if (d.isConfirmed === true) key = 'isConfirmed: true';
-        else key = 'sem atributos de confirmação';
+        if (d.type === 'bitcoin' && d.is_confirmed === true) {
+          key = 'bitcoin: is_confirmed=true ✅';
+        } else if (d.type === 'bitcoin' && d.is_confirmed !== true) {
+          key = `bitcoin: is_confirmed=${d.is_confirmed} ❌`;
+        } else if (d.type === 'internal' && d.success === true) {
+          key = 'internal: success=true ✅';
+        } else if (d.type === 'internal' && d.success !== true) {
+          key = `internal: success=${d.success} ❌`;
+        } else {
+          key = `${d.type || 'unknown'}: sem validação`;
+        }
         
         acc[key] = (acc[key] || 0) + 1;
         return acc;
@@ -1912,40 +1910,47 @@ export default function ProfitCalculator({
       return;
     }
 
-    // Criar depósitos de teste com diferentes tipos e atributos de confirmação
+    // Criar depósitos de teste baseados nos exemplos reais da API
     const testDeposits = [
       {
         id: `test_deposit_${Date.now()}_1`,
         amount: 69441,
         type: 'bitcoin',
-        status: 'confirmed',
-        is_confirmed: true, // depósito on-chain confirmado
+        is_confirmed: true, // ✅ depósito on-chain confirmado
         ts: Date.now(),
         tx_id: 'test_tx_id_1'
       },
       {
         id: `test_deposit_${Date.now()}_2`,
-        amount: 24779,
-        type: 'internal',
-        from_username: 'test_user',
-        success: true, // depósito interno bem-sucedido
-        ts: Date.now()
+        amount: 321790,
+        type: 'bitcoin',
+        is_confirmed: true, // ✅ outro depósito on-chain confirmado
+        ts: Date.now(),
+        tx_id: 'test_tx_id_2'
       },
       {
         id: `test_deposit_${Date.now()}_3`,
-        amount: 25000,
-        type: 'lightning',
-        status: 'pending',
-        isConfirmed: false, // explicitamente não confirmado
-        created_at: new Date().toISOString()
+        amount: 24779,
+        type: 'internal',
+        from_username: 'test_user',
+        success: true, // ✅ depósito interno bem-sucedido
+        ts: Date.now()
       },
       {
         id: `test_deposit_${Date.now()}_4`,
-        amount: 15000,
-        type: 'lightning',
-        status: 'confirmed',
-        isConfirmed: true, // confirmado tradicional
-        created_at: new Date().toISOString()
+        amount: 50000,
+        type: 'bitcoin',
+        is_confirmed: false, // ❌ depósito on-chain não confirmado
+        ts: Date.now(),
+        tx_id: 'test_tx_id_4'
+      },
+      {
+        id: `test_deposit_${Date.now()}_5`,
+        amount: 30000,
+        type: 'internal',
+        from_username: 'test_user2',
+        success: false, // ❌ depósito interno falhado
+        ts: Date.now()
       }
     ];
 
@@ -1981,9 +1986,10 @@ export default function ProfitCalculator({
       title: "🧪 Teste de Conversão",
       description: (
         <div className="space-y-1 text-xs">
-          <div>Testou 4 depósitos com diferentes tipos e confirmações</div>
-          <div>1: bitcoin (is_confirmed=true), 2: internal (success=true)</div>
-          <div>3: lightning (isConfirmed=false), 4: lightning (isConfirmed=true)</div>
+          <div>Testou 5 depósitos baseados em exemplos reais</div>
+          <div>✅ 2 bitcoin (is_confirmed=true), 1 internal (success=true)</div>
+          <div>❌ 1 bitcoin (is_confirmed=false), 1 internal (success=false)</div>
+          <div>Esperado: 3 confirmados, 2 ignorados</div>
           <div>Verifique o console para detalhes</div>
         </div>
       ),
@@ -2066,11 +2072,17 @@ export default function ProfitCalculator({
 
               const confirmationAnalysis = response.data.reduce((acc, d) => {
                 let key = '';
-                if (d.isConfirmed === false) key = 'isConfirmed: false';
-                else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
-                else if (d.success === true) key = 'success: true (internal)';
-                else if (d.isConfirmed === true) key = 'isConfirmed: true';
-                else key = 'sem atributos de confirmação';
+                if (d.type === 'bitcoin' && d.is_confirmed === true) {
+                  key = 'bitcoin: is_confirmed=true ✅';
+                } else if (d.type === 'bitcoin' && d.is_confirmed !== true) {
+                  key = `bitcoin: is_confirmed=${d.is_confirmed} ❌`;
+                } else if (d.type === 'internal' && d.success === true) {
+                  key = 'internal: success=true ✅';
+                } else if (d.type === 'internal' && d.success !== true) {
+                  key = `internal: success=${d.success} ❌`;
+                } else {
+                  key = `${d.type || 'unknown'}: sem validação`;
+                }
                 
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
@@ -2745,8 +2757,8 @@ export default function ProfitCalculator({
                         <span className="text-white">{importStats.withdrawals.total}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Confirmados:</span>
-                        <span className="text-orange-400">{importStats.withdrawals.confirmedCount || 0}</span>
+                        <span className="text-gray-400">Processados:</span>
+                        <span className="text-orange-400">{importStats.withdrawals.total}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Importados:</span>
@@ -2762,8 +2774,11 @@ export default function ProfitCalculator({
                           <span className="text-red-400">{importStats.withdrawals.errors}</span>
                         </div>
                       )}
+                      <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
+                        Todos os saques são processados - sem validação de status
+                      </div>
                       {importStats.withdrawals.statusDistribution && Object.keys(importStats.withdrawals.statusDistribution).length > 1 && (
-                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
+                        <div className="text-xs text-gray-500 mt-1">
                           Status: {Object.entries(importStats.withdrawals.statusDistribution).map(([status, count]) => 
                             `${status}(${count})`
                           ).join(', ')}
