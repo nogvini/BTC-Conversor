@@ -71,7 +71,39 @@ import {
 } from "./utils/profit-calculator-utils";
 
 // Imports para LN Markets
-import type { LNMarketsCredentials, LNMarketsImportStats, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "./types/ln-markets-types";
+import type { LNMarketsCredentials, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "./types/ln-markets-types";
+
+// Tipo atualizado para estatísticas de importação
+interface LNMarketsImportStats {
+  trades?: {
+    total: number;
+    imported: number;
+    duplicated: number;
+    errors: number;
+    processed?: number;
+    pagesSearched?: number;
+    stoppedReason?: 'emptyPages' | 'duplicates' | 'maxPages' | 'noMoreData';
+  };
+  deposits?: {
+    total: number;
+    imported: number;
+    duplicated: number;
+    errors: number;
+    skipped?: number;
+    processed?: number;
+    confirmedCount?: number;
+    statusDistribution?: Record<string, number>;
+  };
+  withdrawals?: {
+    total: number;
+    imported: number;
+    duplicated: number;
+    errors: number;
+    processed?: number;
+    confirmedCount?: number;
+    statusDistribution?: Record<string, number>;
+  };
+}
 import { retrieveLNMarketsCredentials, retrieveLNMarketsMultipleConfigs, getLNMarketsConfig } from "@/lib/encryption";
 import { 
   convertTradeToProfit, 
@@ -470,8 +502,39 @@ export default function ProfitCalculator({
     if (user?.email) {
       const credentials = retrieveLNMarketsCredentials(user.email);
       setLnMarketsCredentials(credentials);
+      
+      // Carregar estatísticas de importação do localStorage
+      try {
+        const savedStats = localStorage.getItem(`importStats_${user.email}`);
+        if (savedStats) {
+          const parsedStats = JSON.parse(savedStats);
+          // Verificar se as estatísticas não são muito antigas (24 horas)
+          const statsAge = Date.now() - (parsedStats.timestamp || 0);
+          if (statsAge < 24 * 60 * 60 * 1000) {
+            setImportStats(parsedStats.data);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar estatísticas de importação:', error);
+      }
     }
   }, [user?.email]);
+
+  // Effect para salvar estatísticas de importação no localStorage
+  useEffect(() => {
+    if (user?.email && importStats) {
+      try {
+        const dataToSave = {
+          data: importStats,
+          timestamp: Date.now(),
+          configId: selectedConfigForImport
+        };
+        localStorage.setItem(`importStats_${user.email}`, JSON.stringify(dataToSave));
+      } catch (error) {
+        console.error('Erro ao salvar estatísticas de importação:', error);
+      }
+    }
+  }, [importStats, user?.email, selectedConfigForImport]);
 
   // NOVO Effect para carregar múltiplas configurações LN Markets
   useEffect(() => {
@@ -888,7 +951,17 @@ export default function ProfitCalculator({
       }));
 
       setImportStats(prev => ({
-        trades: { total: allTrades.length, imported, duplicated, errors },
+        trades: { 
+          total: allTrades.length, 
+          imported, 
+          duplicated, 
+          errors,
+          processed: totalTrades,
+          pagesSearched: currentPage - 1,
+          stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
+                        consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
+                        currentPage > maxPages ? 'maxPages' : 'noMoreData'
+        },
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
@@ -1040,11 +1113,11 @@ export default function ProfitCalculator({
         lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
       });
       
-             let imported = 0;
-       let duplicated = 0;
-       let errors = 0;
-       let processed = 0;
-       let skipped = 0; // Novos contadores para depósitos não confirmados
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+      let processed = 0;
+      let skipped = 0; // Contador para depósitos não confirmados
 
       // Atualizar progresso inicial
       setImportProgress(prev => ({
@@ -1216,7 +1289,19 @@ export default function ProfitCalculator({
 
       setImportStats(prev => ({
         trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
-        deposits: { total: deposits.length, imported, duplicated, errors },
+        deposits: { 
+          total: deposits.length, 
+          imported, 
+          duplicated, 
+          errors,
+          skipped,
+          processed: totalDeposits,
+          confirmedCount: deposits.filter(d => d.status === 'confirmed').length,
+          statusDistribution: deposits.reduce((acc, d) => {
+            acc[d.status] = (acc[d.status] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>)
+        },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
 
@@ -1475,7 +1560,18 @@ export default function ProfitCalculator({
       setImportStats(prev => ({
         trades: prev?.trades || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
-        withdrawals: { total: response.data?.length || 0, imported, duplicated, errors },
+        withdrawals: { 
+          total: response.data?.length || 0, 
+          imported, 
+          duplicated, 
+          errors,
+          processed: totalWithdrawals,
+          confirmedCount: response.data?.filter(w => w.status === 'confirmed').length || 0,
+          statusDistribution: response.data?.reduce((acc, w) => {
+            acc[w.status] = (acc[w.status] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>) || {}
+        },
       }));
           
       toast({
@@ -2529,40 +2625,219 @@ export default function ProfitCalculator({
             </div>
           </div>
 
-          {/* Estatísticas de importação */}
+          {/* Estatísticas de importação melhoradas */}
           {importStats && selectedConfigForImport && (
+            // Verificar se as estatísticas são da configuração atual
+            (() => {
+              try {
+                const savedStats = localStorage.getItem(`importStats_${user?.email}`);
+                if (savedStats) {
+                  const parsedStats = JSON.parse(savedStats);
+                  // Se a configuração mudou, não mostrar estatísticas antigas
+                  if (parsedStats.configId && parsedStats.configId !== selectedConfigForImport) {
+                    return null;
+                  }
+                }
+              } catch (error) {
+                // Ignorar erro e continuar
+              }
+              return true;
+            })() && (
             <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
-              <h4 className="text-sm font-medium text-purple-400 mb-3">
-                Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
-              </h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-purple-400 flex items-center gap-2">
+                  📊 Última Importação 
+                  <span className="text-gray-400">({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})</span>
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setImportStats(null);
+                    if (user?.email) {
+                      localStorage.removeItem(`importStats_${user.email}`);
+                    }
+                    toast({
+                      title: "🗑️ Estatísticas Limpas",
+                      description: "Histórico de importação foi removido.",
+                      variant: "default",
+                    });
+                  }}
+                  className="text-xs text-gray-400 hover:text-white h-6 px-2"
+                >
+                  Limpar
+                </Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                {importStats.trades && (
-                  <div>
-                    <div className="text-green-400 font-medium">Trades</div>
-                    <div>Total: {importStats.trades.total}</div>
-                    <div>Importados: {importStats.trades.imported}</div>
-                    <div>Duplicados: {importStats.trades.duplicated}</div>
+                {importStats.trades && importStats.trades.total > 0 && (
+                  <div className="p-3 bg-green-900/20 rounded border border-green-700/30">
+                    <div className="text-green-400 font-medium mb-2 flex items-center gap-2">
+                      <TrendingUp className="h-3 w-3" />
+                      Trades
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Analisados:</span>
+                        <span className="text-white">{importStats.trades.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Importados:</span>
+                        <span className="text-green-400">{importStats.trades.imported}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Duplicados:</span>
+                        <span className="text-yellow-400">{importStats.trades.duplicated}</span>
+                      </div>
+                      {importStats.trades.errors > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Erros:</span>
+                          <span className="text-red-400">{importStats.trades.errors}</span>
+                        </div>
+                      )}
+                      {importStats.trades.pagesSearched && (
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-green-700/30">
+                          {importStats.trades.pagesSearched} páginas • {importStats.trades.stoppedReason === 'emptyPages' ? '🎯 Otimizado' : 
+                           importStats.trades.stoppedReason === 'duplicates' ? '⚠️ Duplicatas' : 
+                           importStats.trades.stoppedReason === 'maxPages' ? '📄 Limite' : '✅ Completo'}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-                {importStats.deposits && (
-                  <div>
-                    <div className="text-blue-400 font-medium">Depósitos</div>
-                    <div>Total: {importStats.deposits.total}</div>
-                    <div>Importados: {importStats.deposits.imported}</div>
-                    <div>Duplicados: {importStats.deposits.duplicated}</div>
+                {importStats.deposits && importStats.deposits.total > 0 && (
+                  <div className="p-3 bg-blue-900/20 rounded border border-blue-700/30">
+                    <div className="text-blue-400 font-medium mb-2 flex items-center gap-2">
+                      <Download className="h-3 w-3" />
+                      Depósitos
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Total:</span>
+                        <span className="text-white">{importStats.deposits.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Confirmados:</span>
+                        <span className="text-blue-400">{importStats.deposits.confirmedCount || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Importados:</span>
+                        <span className="text-green-400">{importStats.deposits.imported}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Duplicados:</span>
+                        <span className="text-yellow-400">{importStats.deposits.duplicated}</span>
+                      </div>
+                      {importStats.deposits.skipped > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Ignorados:</span>
+                          <span className="text-gray-500">{importStats.deposits.skipped}</span>
+                        </div>
+                      )}
+                      {importStats.deposits.statusDistribution && (
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-blue-700/30">
+                          Status: {Object.entries(importStats.deposits.statusDistribution).map(([status, count]) => 
+                            `${status}(${count})`
+                          ).join(', ')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-                {importStats.withdrawals && (
-                  <div>
-                    <div className="text-red-400 font-medium">Saques</div>
-                    <div>Total: {importStats.withdrawals.total}</div>
-                    <div>Importados: {importStats.withdrawals.imported}</div>
-                    <div>Duplicados: {importStats.withdrawals.duplicated}</div>
+                {importStats.withdrawals && importStats.withdrawals.total > 0 && (
+                  <div className="p-3 bg-orange-900/20 rounded border border-orange-700/30">
+                    <div className="text-orange-400 font-medium mb-2 flex items-center gap-2">
+                      <Upload className="h-3 w-3" />
+                      Saques
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Total:</span>
+                        <span className="text-white">{importStats.withdrawals.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Confirmados:</span>
+                        <span className="text-orange-400">{importStats.withdrawals.confirmedCount || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Importados:</span>
+                        <span className="text-green-400">{importStats.withdrawals.imported}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Duplicados:</span>
+                        <span className="text-yellow-400">{importStats.withdrawals.duplicated}</span>
+                      </div>
+                      {importStats.withdrawals.errors > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Erros:</span>
+                          <span className="text-red-400">{importStats.withdrawals.errors}</span>
+                        </div>
+                      )}
+                      {importStats.withdrawals.statusDistribution && Object.keys(importStats.withdrawals.statusDistribution).length > 1 && (
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
+                          Status: {Object.entries(importStats.withdrawals.statusDistribution).map(([status, count]) => 
+                            `${status}(${count})`
+                          ).join(', ')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+              
+                            {/* Resumo geral */}
+              <div className="mt-4 pt-3 border-t border-purple-700/30">
+                <div className="text-xs text-gray-400 flex flex-wrap gap-4 mb-2">
+                  <span>
+                    ✅ Total importado: {(importStats.trades?.imported || 0) + (importStats.deposits?.imported || 0) + (importStats.withdrawals?.imported || 0)}
+                  </span>
+                  <span>
+                    ⚠️ Total duplicado: {(importStats.trades?.duplicated || 0) + (importStats.deposits?.duplicated || 0) + (importStats.withdrawals?.duplicated || 0)}
+                  </span>
+                  {((importStats.trades?.errors || 0) + (importStats.deposits?.errors || 0) + (importStats.withdrawals?.errors || 0)) > 0 && (
+                    <span>
+                      ❌ Total erros: {(importStats.trades?.errors || 0) + (importStats.deposits?.errors || 0) + (importStats.withdrawals?.errors || 0)}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Timestamp da última importação */}
+                {(() => {
+                  try {
+                    const savedStats = localStorage.getItem(`importStats_${user?.email}`);
+                    if (savedStats) {
+                      const parsedStats = JSON.parse(savedStats);
+                      if (parsedStats.timestamp) {
+                        const lastImportDate = new Date(parsedStats.timestamp);
+                        const now = new Date();
+                        const diffMinutes = Math.floor((now.getTime() - lastImportDate.getTime()) / (1000 * 60));
+                        
+                        let timeAgo = '';
+                        if (diffMinutes < 1) {
+                          timeAgo = 'agora mesmo';
+                        } else if (diffMinutes < 60) {
+                          timeAgo = `${diffMinutes} min atrás`;
+                        } else if (diffMinutes < 1440) {
+                          timeAgo = `${Math.floor(diffMinutes / 60)}h atrás`;
+                        } else {
+                          timeAgo = formatDateFn(lastImportDate, "dd/MM/yyyy HH:mm");
+                        }
+                        
+                        return (
+                          <div className="text-xs text-gray-500 flex items-center gap-2">
+                            <span>🕒</span>
+                            <span>Última importação: {timeAgo}</span>
+                          </div>
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    // Ignorar erro
+                  }
+                  return null;
+                })()}
+              </div>
+             </div>
+           ))
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
