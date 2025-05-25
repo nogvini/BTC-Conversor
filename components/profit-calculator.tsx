@@ -692,16 +692,19 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      // OTIMIZADO: Sistema robusto de importação com retry e validação
+      // CORRIGIDO: Sistema robusto de importação com detecção de parada inteligente
       let allTrades: any[] = [];
       let currentOffset = 0;
       let hasMoreData = true;
       let consecutiveEmptyPages = 0;
+      let consecutiveUnproductivePages = 0; // NOVO: Páginas sem trades válidos
       let totalDuplicatesFound = 0;
       const batchSize = 100;
       const maxConsecutiveEmptyPages = 3;
+      const maxConsecutiveUnproductivePages = 5; // NOVO: Máximo de páginas sem trades válidos
       const maxRetries = 3;
-      const maxTotalTrades = 5000; // Limite de segurança
+      const maxTotalTrades = 2000; // REDUZIDO: Limite mais conservador
+      const maxOffsetLimit = 10000; // NOVO: Limite absoluto de offset
       
       console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
@@ -717,7 +720,7 @@ export default function ProfitCalculator({
         sampleIds: Array.from(existingTradeIds).slice(0, 5)
       });
       
-      while (hasMoreData && allTrades.length < maxTotalTrades && consecutiveEmptyPages < maxConsecutiveEmptyPages) {
+      while (hasMoreData && allTrades.length < maxTotalTrades && consecutiveEmptyPages < maxConsecutiveEmptyPages && consecutiveUnproductivePages < maxConsecutiveUnproductivePages && currentOffset < maxOffsetLimit) {
         console.log(`[handleImportTrades] Buscando lote: offset=${currentOffset}, limit=${batchSize}`);
         
         // Atualizar progresso
@@ -778,8 +781,9 @@ export default function ProfitCalculator({
 
         const pageData = response.data;
         
-        // OTIMIZADO: Verificar se a página está vazia
+        // CORRIGIDO: Verificar se a página está vazia ou se a API indica fim dos dados
         const isEmpty = response.isEmpty || pageData.length === 0;
+        const isLastPage = pageData.length < batchSize; // API retornou menos que o solicitado
         
         if (isEmpty) {
           consecutiveEmptyPages++;
@@ -791,6 +795,12 @@ export default function ProfitCalculator({
           }
         } else {
           consecutiveEmptyPages = 0; // Reset contador se encontrou dados
+        }
+        
+        // NOVO: Verificar se chegamos ao fim dos dados da API
+        if (isLastPage) {
+          console.log(`[handleImportTrades] Última página detectada: ${pageData.length} trades (menos que ${batchSize}). Parando busca.`);
+          hasMoreData = false;
         }
         
                  // NOVO: Validar e filtrar trades válidos antes de adicionar
@@ -818,8 +828,19 @@ export default function ProfitCalculator({
         
         console.log(`[handleImportTrades] Lote offset=${currentOffset}: ${pageData.length} trades brutos, ${validTrades.length} válidos, ${pageData.length - validTrades.length} filtrados`);
         
-        // Adicionar apenas trades válidos
-        if (validTrades.length > 0) {
+        // NOVO: Verificar se a página foi produtiva (trouxe trades válidos)
+        if (validTrades.length === 0 && pageData.length > 0) {
+          consecutiveUnproductivePages++;
+          console.log(`[handleImportTrades] Página improdutiva (sem trades válidos). Consecutivas: ${consecutiveUnproductivePages}`);
+          
+          if (consecutiveUnproductivePages >= maxConsecutiveUnproductivePages) {
+            console.log(`[handleImportTrades] Encontradas ${consecutiveUnproductivePages} páginas improdutivas consecutivas. Parando busca.`);
+            break;
+          }
+        } else if (validTrades.length > 0) {
+          consecutiveUnproductivePages = 0; // Reset contador se encontrou trades válidos
+          
+          // Adicionar apenas trades válidos
           allTrades.push(...validTrades);
           
           // Adicionar IDs ao Set para próximas verificações
@@ -829,27 +850,51 @@ export default function ProfitCalculator({
           });
         }
         
-        // Se retornou menos dados que o esperado, pode ser a última página
-        if (pageData.length < batchSize) {
-          console.log(`[handleImportTrades] Lote offset=${currentOffset} com ${pageData.length} trades (menos que ${batchSize}). Última página.`);
-          hasMoreData = false;
-        }
-        
         currentOffset += batchSize;
         
-        // Pequeno delay entre requisições para não sobrecarregar a API
-        if (hasMoreData && allTrades.length < maxTotalTrades) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // NOVO: Monitorar progresso da busca
+        monitorSearchProgress(
+          currentOffset, 
+          allTrades, 
+          totalDuplicatesFound, 
+          consecutiveEmptyPages, 
+          consecutiveUnproductivePages,
+          maxOffsetLimit,
+          maxTotalTrades
+        );
+        
+        // NOVO: Verificar múltiplas condições de parada antes de continuar
+        if (!hasMoreData) {
+          console.log(`[handleImportTrades] Parando: hasMoreData = false`);
+          break;
         }
+        
+        if (allTrades.length >= maxTotalTrades) {
+          console.log(`[handleImportTrades] Parando: limite de trades atingido (${allTrades.length}/${maxTotalTrades})`);
+          break;
+        }
+        
+        if (currentOffset >= maxOffsetLimit) {
+          console.log(`[handleImportTrades] Parando: limite de offset atingido (${currentOffset}/${maxOffsetLimit})`);
+          break;
+        }
+        
+        // Pequeno delay entre requisições para não sobrecarregar a API
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       console.log('[handleImportTrades] Busca paginada concluída:', {
         totalTradesFound: allTrades.length,
         totalDuplicatesSkipped: totalDuplicatesFound,
-        offsetsSearched: currentOffset / batchSize,
+        offsetsSearched: Math.ceil(currentOffset / batchSize),
         consecutiveEmptyPages,
+        consecutiveUnproductivePages,
+        finalOffset: currentOffset,
         stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
-                      allTrades.length >= maxTotalTrades ? 'maxLimit' : 'noMoreData'
+                      consecutiveUnproductivePages >= maxConsecutiveUnproductivePages ? 'unproductivePages' :
+                      allTrades.length >= maxTotalTrades ? 'maxTradesLimit' :
+                      currentOffset >= maxOffsetLimit ? 'maxOffsetLimit' :
+                      !hasMoreData ? 'apiEndOfData' : 'unknown'
       });
 
              // Como já validamos os trades durante a busca, todos são válidos para processamento
@@ -967,7 +1012,10 @@ export default function ProfitCalculator({
           processed: totalTrades,
           pagesSearched: Math.ceil(currentOffset / batchSize),
           stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
-                        allTrades.length >= maxTotalTrades ? 'maxLimit' : 'noMoreData'
+                        consecutiveUnproductivePages >= maxConsecutiveUnproductivePages ? 'unproductivePages' :
+                        allTrades.length >= maxTotalTrades ? 'maxTradesLimit' :
+                        currentOffset >= maxOffsetLimit ? 'maxOffsetLimit' :
+                        !hasMoreData ? 'apiEndOfData' : 'unknown'
         },
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
@@ -997,10 +1045,19 @@ export default function ProfitCalculator({
             )}
             <div className="text-xs text-gray-400 mt-2">
               <div>Configuração: "{config.name}"</div>
-              <div>Busca otimizada: {allTrades.length} trades analisados</div>
+              <div>Busca otimizada: {allTrades.length} trades analisados em {Math.ceil(currentOffset / batchSize)} páginas</div>
               <div>Processamento em lotes: {Math.ceil(totalTrades / processingBatchSize)} lotes</div>
               {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
-                <div className="text-blue-400">🎯 Busca otimizada: parou ao encontrar páginas vazias</div>
+                <div className="text-blue-400">🎯 Parou: {consecutiveEmptyPages} páginas vazias consecutivas</div>
+              )}
+              {consecutiveUnproductivePages >= maxConsecutiveUnproductivePages && (
+                <div className="text-yellow-400">⚠️ Parou: {consecutiveUnproductivePages} páginas improdutivas consecutivas</div>
+              )}
+              {allTrades.length >= maxTotalTrades && (
+                <div className="text-orange-400">🛑 Parou: limite de {maxTotalTrades} trades atingido</div>
+              )}
+              {currentOffset >= maxOffsetLimit && (
+                <div className="text-red-400">🚫 Parou: limite de offset {maxOffsetLimit} atingido</div>
               )}
             </div>
           </div>
@@ -2040,6 +2097,44 @@ export default function ProfitCalculator({
   };
 
   // NOVA Função de debug para verificar dados
+  // NOVA Função para monitorar progresso da busca
+  const monitorSearchProgress = (
+    currentOffset: number, 
+    allTrades: any[], 
+    totalDuplicates: number, 
+    consecutiveEmpty: number, 
+    consecutiveUnproductive: number,
+    maxOffsetLimit: number,
+    maxTotalTrades: number
+  ) => {
+    const progress = {
+      offset: currentOffset,
+      tradesFound: allTrades.length,
+      duplicatesSkipped: totalDuplicates,
+      consecutiveEmpty,
+      consecutiveUnproductive,
+      offsetProgress: (currentOffset / maxOffsetLimit) * 100,
+      tradesProgress: (allTrades.length / maxTotalTrades) * 100
+    };
+    
+    console.log('[monitorSearchProgress] Status da busca:', progress);
+    
+    // Alertar se estiver próximo dos limites
+    if (progress.offsetProgress > 80) {
+      console.warn('[monitorSearchProgress] ⚠️ Próximo do limite de offset!');
+    }
+    
+    if (progress.tradesProgress > 80) {
+      console.warn('[monitorSearchProgress] ⚠️ Próximo do limite de trades!');
+    }
+    
+    if (consecutiveUnproductive >= 3) {
+      console.warn('[monitorSearchProgress] ⚠️ Muitas páginas improdutivas consecutivas!');
+    }
+    
+    return progress;
+  };
+
   // NOVA Função para testar a importação otimizada
   const testOptimizedImport = async () => {
     if (!currentActiveReportObjectFromHook) {
