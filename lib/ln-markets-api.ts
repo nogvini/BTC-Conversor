@@ -109,10 +109,15 @@ class LNMarketsClient {
    * Busca trades/operações fechadas
    * Usando método da biblioteca oficial - GET /v2/futures
    * Parâmetro type: 'closed' para buscar apenas trades fechados
+   * @param options - Opções de paginação (limit, offset)
    */
-  async getTrades(): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
+  async getTrades(options?: { limit?: number; offset?: number }): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
     return this.executeWithErrorHandling(
-      () => this.client.futuresGetTrades({ type: 'closed' }),
+      () => this.client.futuresGetTrades({ 
+        type: 'closed',
+        limit: options?.limit || 100,
+        from: options?.offset || 0
+      }),
       'getTrades (closed)'
     );
   }

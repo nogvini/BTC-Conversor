@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     console.log('[API /api/ln-markets/trades] Iniciando requisição');
     
     const body = await request.json();
-    const { credentials } = body;
+    const { credentials, options } = body;
 
     console.log('[API /api/ln-markets/trades] Dados recebidos:', {
       hasCredentials: !!credentials,
@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
       hasSecret: !!credentials?.secret,
       hasPassphrase: !!credentials?.passphrase,
       network: credentials?.network,
-      isConfigured: credentials?.isConfigured
+      isConfigured: credentials?.isConfigured,
+      options: options || 'none'
     });
 
     if (!credentials) {
@@ -49,8 +50,8 @@ export async function POST(request: NextRequest) {
     const client = createLNMarketsClient(credentials);
     
     // Buscar trades usando o método correto da biblioteca oficial
-    console.log('[API /api/ln-markets/trades] Buscando trades...');
-    const result = await client.getTrades();
+    console.log('[API /api/ln-markets/trades] Buscando trades...', { options });
+    const result = await client.getTrades(options);
 
     if (!result.success) {
       console.error('[API /api/ln-markets/trades] Erro na API LN Markets:', result.error);

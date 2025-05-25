@@ -92,8 +92,11 @@ export const lnMarketsAPIClient = new LNMarketsAPIClient();
 
 /**
  * Busca trades da LN Markets via API route usando configuração específica
+ * @param userEmail - Email do usuário
+ * @param configId - ID da configuração
+ * @param options - Opções de paginação (limit, offset)
  */
-export async function fetchLNMarketsTrades(userEmail: string, configId: string) {
+export async function fetchLNMarketsTrades(userEmail: string, configId: string, options?: { limit?: number; offset?: number }) {
   try {
     console.log('[LN Markets Client] Iniciando busca de trades...', { userEmail: userEmail.split('@')[0] + '@***', configId });
     
@@ -116,7 +119,8 @@ export async function fetchLNMarketsTrades(userEmail: string, configId: string) 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        credentials: config.credentials // Enviar credenciais completas
+        credentials: config.credentials, // Enviar credenciais completas
+        options: options // Enviar opções de paginação
       }),
     });
 

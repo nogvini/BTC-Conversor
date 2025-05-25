@@ -591,7 +591,7 @@ export default function ProfitCalculator({
 
   // Funções para importação LN Markets
   const handleImportTrades = async () => {
-    console.log('[handleImportTrades] Iniciando importação de trades');
+    console.log('[handleImportTrades] Iniciando importação robusta de trades');
     
     const config = getCurrentImportConfig();
     
@@ -615,7 +615,7 @@ export default function ProfitCalculator({
     // Inicializar progresso
     setImportProgress(prev => ({
       ...prev,
-      trades: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
+      trades: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Iniciando busca robusta...' }
     }));
 
     setIsImportingTrades(true);
@@ -628,20 +628,99 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      const response = await fetchLNMarketsTrades(user.email, config.id);
+      // NOVO: Sistema robusto de importação com paginação
+      let allTrades: any[] = [];
+      let currentPage = 1;
+      let hasMoreData = true;
+      let consecutiveDuplicates = 0;
+      const maxConsecutiveDuplicates = 50; // Parar se encontrar 50 duplicatas consecutivas
+      const maxPages = 20; // Limite de segurança
+      
+      console.log('[handleImportTrades] Iniciando busca paginada...');
+      
+      while (hasMoreData && currentPage <= maxPages && consecutiveDuplicates < maxConsecutiveDuplicates) {
+        console.log(`[handleImportTrades] Buscando página ${currentPage}...`);
+        
+        // Atualizar progresso
+        setImportProgress(prev => ({
+          ...prev,
+          trades: { 
+            current: allTrades.length, 
+            total: allTrades.length + 100, // Estimativa
+            percentage: Math.min((allTrades.length / (allTrades.length + 100)) * 100, 95), 
+            status: 'loading', 
+            message: `Buscando página ${currentPage}... (${allTrades.length} trades encontrados)` 
+          }
+        }));
+        
+        // Fazer requisição para a página atual
+        const response = await fetchLNMarketsTrades(user.email, config.id, {
+          limit: 100,
+          offset: (currentPage - 1) * 100
+        });
 
-      console.log('[handleImportTrades] Resposta recebida:', {
-        success: response.success,
-        hasData: !!response.data,
-        dataLength: response.data?.length,
-        error: response.error
+        console.log(`[handleImportTrades] Resposta da página ${currentPage}:`, {
+          success: response.success,
+          hasData: !!response.data,
+          dataLength: response.data?.length,
+          error: response.error
+        });
+
+        if (!response.success || !response.data) {
+          if (currentPage === 1) {
+            throw new Error(response.error || "Erro ao buscar trades");
+          } else {
+            console.log(`[handleImportTrades] Erro na página ${currentPage}, parando busca:`, response.error);
+            break;
+          }
+        }
+
+        const pageData = response.data;
+        
+        // Se a página retornou menos dados que o esperado, é a última página
+        if (pageData.length < 100) {
+          hasMoreData = false;
+        }
+        
+        // Verificar duplicatas na página atual
+        let pageDuplicates = 0;
+        for (const trade of pageData) {
+          const isDuplicate = currentActiveReportObjectFromHook.profits?.some(
+            profit => profit.originalId === `trade_${trade.id || trade.uid}`
+          );
+          
+          if (isDuplicate) {
+            pageDuplicates++;
+          }
+        }
+        
+        console.log(`[handleImportTrades] Página ${currentPage}: ${pageData.length} trades, ${pageDuplicates} duplicatas`);
+        
+        // Se toda a página é duplicata, incrementar contador
+        if (pageDuplicates === pageData.length && pageData.length > 0) {
+          consecutiveDuplicates += pageData.length;
+          console.log(`[handleImportTrades] Página ${currentPage} totalmente duplicada. Consecutivas: ${consecutiveDuplicates}`);
+        } else {
+          consecutiveDuplicates = 0; // Reset contador se encontrou dados novos
+        }
+        
+        allTrades.push(...pageData);
+        currentPage++;
+        
+        // Pequeno delay entre requisições para não sobrecarregar a API
+        if (hasMoreData && currentPage <= maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      console.log('[handleImportTrades] Busca paginada concluída:', {
+        totalTrades: allTrades.length,
+        pagesSearched: currentPage - 1,
+        stoppedReason: consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
+                      currentPage > maxPages ? 'maxPages' : 'noMoreData'
       });
 
-      if (!response.success || !response.data) {
-        throw new Error(response.error || "Erro ao buscar trades");
-      }
-
-      const totalTrades = response.data.length;
+      const totalTrades = allTrades.length;
       
       // NOVO: Verificar estado atual do relatório antes de começar
       console.log('[handleImportTrades] Estado do relatório antes da importação:', {
@@ -668,7 +747,7 @@ export default function ProfitCalculator({
         }
       }));
 
-      for (const trade of response.data) {
+      for (const trade of allTrades) {
         console.log('[handleImportTrades] Processando trade:', {
           id: trade.id,
           uid: trade.uid,
@@ -784,7 +863,7 @@ export default function ProfitCalculator({
       }));
 
       setImportStats(prev => ({
-        trades: { total: response.data?.length || 0, imported, duplicated, errors },
+        trades: { total: allTrades.length, imported, duplicated, errors },
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
       }));
@@ -812,7 +891,11 @@ export default function ProfitCalculator({
               </div>
             )}
             <div className="text-xs text-gray-400 mt-2">
-              Configuração: "{config.name}"
+              <div>Configuração: "{config.name}"</div>
+              <div>Busca robusta: {allTrades.length} trades analisados em {currentPage - 1} páginas</div>
+              {consecutiveDuplicates >= maxConsecutiveDuplicates && (
+                <div className="text-yellow-400">⚠️ Busca interrompida por duplicatas consecutivas</div>
+              )}
             </div>
           </div>
         ),
@@ -984,6 +1067,7 @@ export default function ProfitCalculator({
             } else {
               console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
               
+              // CORRIGIDO: Usar a função correta com os parâmetros adequados
               const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
               
               console.log('[handleImportDeposits] Resultado da adição:', {
@@ -992,6 +1076,12 @@ export default function ProfitCalculator({
                 originalId: result.originalId,
                 message: result.message
               });
+              
+              // NOVO: Forçar atualização do estado após adicionar
+              if (result.status === 'added') {
+                // Aguardar um pouco para garantir que o estado foi atualizado
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
               
               if (result.status === 'added') {
                 imported++;
@@ -1212,17 +1302,71 @@ export default function ProfitCalculator({
       }));
 
       for (const withdrawal of response.data) {
+        console.log('[handleImportWithdrawals] Processando saque:', {
+          id: withdrawal.id,
+          amount: withdrawal.amount,
+          status: withdrawal.status,
+          created_at: withdrawal.created_at,
+          isConfirmed: withdrawal.status === 'confirmed'
+        });
+        
         if (withdrawal.status === 'confirmed') {
-          const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
-          const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          try {
+            const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
+            
+            console.log('[handleImportWithdrawals] Saque convertido:', {
+              id: withdrawalRecord.id,
+              originalId: withdrawalRecord.originalId,
+              date: withdrawalRecord.date,
+              amount: withdrawalRecord.amount,
+              unit: withdrawalRecord.unit
+            });
+            
+            // NOVO: Verificar se já existe antes de tentar adicionar
+            const existingWithdrawal = currentActiveReportObjectFromHook.withdrawals?.find(
+              w => w.originalId === withdrawalRecord.originalId
+            );
+            
+            if (existingWithdrawal) {
+              console.log('[handleImportWithdrawals] Saque já existe:', {
+                existingId: existingWithdrawal.id,
+                existingOriginalId: existingWithdrawal.originalId
+              });
+              duplicated++;
+            } else {
+              console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
               
-          if (result.status === 'added') {
-            imported++;
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-          } else {
+              const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+              
+              console.log('[handleImportWithdrawals] Resultado da adição:', {
+                status: result.status,
+                id: result.id,
+                originalId: result.originalId,
+                message: result.message
+              });
+              
+              if (result.status === 'added') {
+                imported++;
+                console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
+                // Aguardar um pouco para garantir que o estado foi atualizado
+                await new Promise(resolve => setTimeout(resolve, 50));
+              } else if (result.status === 'duplicate') {
+                duplicated++;
+                console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
+              } else {
+                errors++;
+                console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
+              }
+            }
+          } catch (conversionError) {
+            console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
             errors++;
           }
+        } else {
+          console.log('[handleImportWithdrawals] Saque ignorado (não confirmado):', {
+            id: withdrawal.id,
+            status: withdrawal.status
+          });
         }
         
         processed++;
@@ -3215,8 +3359,14 @@ export default function ProfitCalculator({
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                              outerRadius={80}
+                              label={({ name, percent }) => {
+                                // Responsivo: mostrar apenas porcentagem em telas pequenas
+                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                  return `${(percent * 100).toFixed(1)}%`;
+                                }
+                                return `${name}: ${(percent * 100).toFixed(1)}%`;
+                              }}
+                              outerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
                               fill="#8884d8"
                               dataKey="value"
                             >
@@ -3329,23 +3479,41 @@ export default function ProfitCalculator({
                   </Card>
                 </div>
 
-                {/* Informações sobre os Dados */}
+                {/* Informações sobre os Dados - Responsivo */}
                 <Card className="bg-black/30 border border-purple-700/40">
                   <CardContent className="py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                      <span>Investimentos</span>
-                      <div className="w-2 h-2 bg-green-400 rounded-full ml-4"></div>
-                      <span>Lucros/Perdas</span>
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full ml-4"></div>
-                      <span>Saldo Total</span>
-                      <div className="w-2 h-2 bg-orange-400 rounded-full ml-4"></div>
-                      <span>Saques</span>
+                    {/* Legenda responsiva */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-400 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate">Investimentos</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate">Lucros/Perdas</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate">Saldo Total</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate">Saques</span>
+                      </div>
                     </div>
-                    <div className="mt-2 text-xs text-gray-500">
-                      * Valores baseados na cotação atual: ${states.currentRates.btcToUsd.toLocaleString()} USD/BTC
+                    
+                    {/* Informações da cotação - responsivo */}
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                        <span>* Valores baseados na cotação atual:</span>
+                        <span className="font-medium text-gray-400">
+                          ${states.currentRates.btcToUsd.toLocaleString()} USD/BTC
+                        </span>
+                      </div>
                       {states.usingFallbackRates && (
-                        <span className="ml-2 text-yellow-400">(usando cotação cache)</span>
+                        <div className="text-yellow-400 text-xs">
+                          ⚠️ Usando cotação em cache
+                        </div>
                       )}
                     </div>
                   </CardContent>
