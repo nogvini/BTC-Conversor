@@ -1685,258 +1685,715 @@ export default function ProfitCalculator({
                         title: "📊 Relatório exportado!",
                         description: `Arquivo CSV do relatório "${currentActiveReportObjectFromHook.name}" foi baixado com sucesso.`,
                         variant: "default",
-                        className: "border-blue-500/50 bg-blue-900/20",
-                      });
-                    }}
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Exportar CSV
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+                        className="border-orange-500 text-orange-400"
+                      >
+                        🐛 Debug Config
+                      </Button>
+                    </div>
 
-          {/* Estatísticas de importação */}
-          {importStats && selectedConfigForImport && (
-            <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
-              <h4 className="text-sm font-medium text-purple-400 mb-3">
-                Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                {importStats.trades && (
-                  <div>
-                    <div className="text-green-400 font-medium">Trades</div>
-                    <div>Total: {importStats.trades.total}</div>
-                    <div>Importados: {importStats.trades.imported}</div>
-                    <div>Duplicados: {importStats.trades.duplicated}</div>
-                  </div>
-                )}
-                {importStats.deposits && (
-                  <div>
-                    <div className="text-blue-400 font-medium">Depósitos</div>
-                    <div>Total: {importStats.deposits.total}</div>
-                    <div>Importados: {importStats.deposits.imported}</div>
-                    <div>Duplicados: {importStats.deposits.duplicated}</div>
-                  </div>
-                )}
-                {importStats.withdrawals && (
-                  <div>
-                    <div className="text-red-400 font-medium">Saques</div>
-                    <div>Total: {importStats.withdrawals.total}</div>
-                    <div>Importados: {importStats.withdrawals.imported}</div>
-                    <div>Duplicados: {importStats.withdrawals.duplicated}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Conteúdo das abas */}
-          <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
-              <TabsTrigger value="import" className="text-white data-[state=active]:bg-purple-700">
-                <Zap className="mr-2 h-4 w-4" />
-                Importação
-              </TabsTrigger>
-              <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-                <BarChart2 className="mr-2 h-4 w-4" />
-                Histórico
-              </TabsTrigger>
-              <TabsTrigger value="charts" className="text-white data-[state=active]:bg-purple-700">
-                <PieChartIcon className="mr-2 h-4 w-4" />
-                Gráficos
-              </TabsTrigger>
-            </TabsList>
-
-            {/* ABA IMPORTAÇÃO */}
-            <TabsContent value="import">
-              <div className="space-y-6">
-                {/* Seletor de Configuração LN Markets */}
-                {multipleConfigs && multipleConfigs.configs.length > 0 && (
-                  <Card className="bg-black/30 border border-purple-700/40">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Configuração LN Markets
-                      </CardTitle>
-                      <CardDescription>
-                        Selecione qual configuração usar para importação
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Configuração Ativa</Label>
-                          <Select value={selectedConfigForImport || ""} onValueChange={setSelectedConfigForImport}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione uma configuração" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {multipleConfigs.configs
-                                .filter(config => config.isActive)
-                                .map((config) => (
-                                  <SelectItem key={config.id} value={config.id}>
-                                    <div className="flex items-center gap-2">
-                                      <span>{config.name}</span>
-                                      {config.id === multipleConfigs.defaultConfigId && (
-                                        <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                      )}
-                                      {currentActiveReportObjectFromHook?.associatedLNMarketsConfigId === config.id && (
-                                        <Badge variant="default" className="text-xs">Associado</Badge>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                    {/* Estatísticas de importação */}
+                    {importStats && selectedConfigForImport && (
+                      <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
+                        <h4 className="text-sm font-medium text-purple-400 mb-3">
+                          Última Importação ({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                          {importStats.trades && (
+                            <div>
+                              <div className="text-green-400 font-medium">Trades</div>
+                              <div>Total: {importStats.trades.total}</div>
+                              <div>Importados: {importStats.trades.imported}</div>
+                              <div>Duplicados: {importStats.trades.duplicated}</div>
+                            </div>
+                          )}
+                          {importStats.deposits && (
+                            <div>
+                              <div className="text-blue-400 font-medium">Depósitos</div>
+                              <div>Total: {importStats.deposits.total}</div>
+                              <div>Importados: {importStats.deposits.imported}</div>
+                              <div>Duplicados: {importStats.deposits.duplicated}</div>
+                            </div>
+                          )}
+                          {importStats.withdrawals && (
+                            <div>
+                              <div className="text-red-400 font-medium">Saques</div>
+                              <div>Total: {importStats.withdrawals.total}</div>
+                              <div>Importados: {importStats.withdrawals.imported}</div>
+                              <div>Duplicados: {importStats.withdrawals.duplicated}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Cards de Importação LN Markets */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Card Trades */}
-                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-green-400">
-                        <TrendingUp className="h-5 w-5" />
-                        Trades
-                      </CardTitle>
-                      <CardDescription>
-                        Importar histórico de trades fechados com lucro/prejuízo
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {importProgress.trades.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.trades} type="trades" />
-                      )}
-                      <Button
-                        onClick={handleImportTrades}
-                        disabled={isImportingTrades || !selectedConfigForImport}
-                        className="w-full bg-green-700 hover:bg-green-600"
-                      >
-                        {isImportingTrades ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <TrendingUp className="mr-2 h-4 w-4" />
-                            Importar Trades
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  {/* Card Depósitos */}
-                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-blue-400">
-                        <Download className="h-5 w-5" />
-                        Aportes
-                      </CardTitle>
-                      <CardDescription>
-                        Importar depósitos confirmados como investimentos
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {importProgress.deposits.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
-                      )}
-                      <Button
-                        onClick={handleImportDeposits}
-                        disabled={isImportingDeposits || !selectedConfigForImport}
-                        className="w-full bg-blue-700 hover:bg-blue-600"
-                      >
-                        {isImportingDeposits ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="mr-2 h-4 w-4" />
-                            Importar Aportes
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  {/* Card Saques */}
-                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-orange-400">
-                        <Upload className="h-5 w-5" />
-                        Saques
-                      </CardTitle>
-                      <CardDescription>
-                        Importar saques confirmados
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {importProgress.withdrawals.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.withdrawals} type="withdrawals" />
-                      )}
-                      <Button
-                        onClick={handleImportWithdrawals}
-                        disabled={isImportingWithdrawals || !selectedConfigForImport}
-                        className="w-full bg-orange-700 hover:bg-orange-600"
-                      >
-                        {isImportingWithdrawals ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Importar Saques
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
             {/* ABA HISTÓRICO */}
             <TabsContent value="history">
               <div className="space-y-6">
+                {/* Filtros e Controles */}
                 <Card className="bg-black/30 border border-purple-700/40">
-                  <CardContent className="py-8">
-                    <div className="text-center text-purple-400">
-                      <BarChart2 className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">Aba Histórico</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Funcionalidade completa será implementada em breve
-                      </p>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Filter className="h-5 w-5" />
+                          Histórico de Transações
+                        </CardTitle>
+                        <CardDescription>
+                          Visualize e analise seus registros históricos com filtros avançados
+                        </CardDescription>
+                      </div>
+                      
+                      {/* Switch de Modo de Visualização */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="view-mode"
+                            checked={historyViewMode === "all"}
+                            onCheckedChange={(checked) => setHistoryViewMode(checked ? "all" : "active")}
+                          />
+                          <Label htmlFor="view-mode" className="text-sm">
+                            {historyViewMode === "all" ? (
+                              <span className="flex items-center gap-1">
+                                <Users className="h-4 w-4" />
+                                Todos os Relatórios
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <Wallet className="h-4 w-4" />
+                                Relatório Ativo
+                              </span>
+                            )}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    {/* Filtros de Período */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <Label>Período</Label>
+                        <Select value={historyFilterPeriod} onValueChange={(value) => setHistoryFilterPeriod(value as HistoryFilterPeriod)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1m">Último Mês</SelectItem>
+                            <SelectItem value="3m">Últimos 3 Meses</SelectItem>
+                            <SelectItem value="6m">Últimos 6 Meses</SelectItem>
+                            <SelectItem value="1y">Último Ano</SelectItem>
+                            <SelectItem value="all">Todos os Períodos</SelectItem>
+                            <SelectItem value="custom">Período Personalizado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {historyFilterPeriod === "custom" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Data Inicial</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {historyCustomStartDate ? formatDateFn(historyCustomStartDate, "dd/MM/yyyy") : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={historyCustomStartDate}
+                                  onSelect={setHistoryCustomStartDate}
+                                  disabled={(date) => date > new Date() || date < new Date("2009-01-03")}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Data Final</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {historyCustomEndDate ? formatDateFn(historyCustomEndDate, "dd/MM/yyyy") : "Selecionar"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={historyCustomEndDate}
+                                  onSelect={setHistoryCustomEndDate}
+                                  disabled={(date) => date > new Date() || date < (historyCustomStartDate || new Date("2009-01-03"))}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            </TabsContent>
 
-            {/* ABA GRÁFICOS */}
-            <TabsContent value="charts">
-              <div className="space-y-6">
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardContent className="py-8">
-                    <div className="text-center text-purple-400">
-                      <PieChartIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">Aba Gráficos</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Funcionalidade completa será implementada em breve
-                      </p>
+                {/* Estatísticas do Período */}
+                {(() => {
+                  const filteredData = getFilteredHistoryData();
+                  const totalInvestmentsBtc = filteredData.investments.reduce((sum, inv) => 
+                    sum + (inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount), 0
+                  );
+                  const totalProfitsBtc = filteredData.profits.reduce((sum, profit) => {
+                    const amount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                    return sum + (profit.isProfit ? amount : -amount);
+                  }, 0);
+                  const totalWithdrawalsBtc = filteredData.withdrawals.reduce((sum, withdrawal) => 
+                    sum + (withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount), 0
+                  );
+
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <HistoryStatsCard
+                        title="Total Investido"
+                        value={formatChartValue(convertChartValue(totalInvestmentsBtc))}
+                        icon={<Download className="h-5 w-5 text-blue-400" />}
+                      />
+                      <HistoryStatsCard
+                        title="Total Lucros/Perdas"
+                        value={formatChartValue(convertChartValue(totalProfitsBtc))}
+                        icon={<TrendingUp className="h-5 w-5 text-green-400" />}
+                        valueColor={totalProfitsBtc >= 0 ? "text-green-400" : "text-red-400"}
+                      />
+                      <HistoryStatsCard
+                        title="Total Saques"
+                        value={formatChartValue(convertChartValue(totalWithdrawalsBtc))}
+                        icon={<Upload className="h-5 w-5 text-red-400" />}
+                      />
+                      <HistoryStatsCard
+                        title="Saldo Líquido"
+                        value={formatChartValue(convertChartValue(totalInvestmentsBtc + totalProfitsBtc - totalWithdrawalsBtc))}
+                        icon={<Wallet className="h-5 w-5 text-purple-400" />}
+                        valueColor={(totalInvestmentsBtc + totalProfitsBtc - totalWithdrawalsBtc) >= 0 ? "text-green-400" : "text-red-400"}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
+                  );
+                })()}
+
+                {/* Tabs de Conteúdo do Histórico */}
+                <Tabs value={historyActiveTab} onValueChange={setHistoryActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 bg-black/40 backdrop-blur-sm">
+                    <TabsTrigger value="overview" className="text-white data-[state=active]:bg-purple-700">
+                      Visão Geral
+                    </TabsTrigger>
+                    <TabsTrigger value="investments" className="text-white data-[state=active]:bg-purple-700">
+                      Investimentos
+                    </TabsTrigger>
+                    <TabsTrigger value="profits" className="text-white data-[state=active]:bg-purple-700">
+                      Lucros/Perdas
+                    </TabsTrigger>
+                    <TabsTrigger value="withdrawals" className="text-white data-[state=active]:bg-purple-700">
+                      Saques
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="overview" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardContent className="p-6">
+                        {(() => {
+                          const filteredData = getFilteredHistoryData();
+                          const hasData = filteredData.investments.length > 0 || 
+                                         filteredData.profits.length > 0 || 
+                                         filteredData.withdrawals.length > 0;
+                          
+                          if (!hasData) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p className="text-lg">Nenhum dado encontrado</p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                  {historyViewMode === "active" 
+                                    ? "O relatório ativo não possui dados no período selecionado"
+                                    : "Nenhum relatório possui dados no período selecionado"
+                                  }
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-6">
+                              <h3 className="text-lg font-semibold">Resumo do Período</h3>
+                              
+                              {/* Resumo por Tipo */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-blue-400">Investimentos</span>
+                                    <Download className="h-4 w-4 text-blue-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.investments.length} registros</p>
+                                </div>
+                                
+                                <div className="p-4 bg-green-900/20 border border-green-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-green-400">Lucros/Perdas</span>
+                                    <TrendingUp className="h-4 w-4 text-green-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.profits.length} registros</p>
+                                </div>
+                                
+                                <div className="p-4 bg-red-900/20 border border-red-700/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-red-400">Saques</span>
+                                    <Upload className="h-4 w-4 text-red-400" />
+                                  </div>
+                                  <p className="text-lg font-semibold">{filteredData.withdrawals.length} registros</p>
+                                </div>
+                              </div>
+
+                              {/* Timeline Recente */}
+                              <div>
+                                <h4 className="text-md font-medium mb-3">Atividade Recente</h4>
+                                <ScrollArea className="h-[300px]">
+                                  {(() => {
+                                    // Combinar todos os registros e ordenar por data
+                                    const allRecords = [
+                                      ...filteredData.investments.map(inv => ({ ...inv, type: 'investment' as const })),
+                                      ...filteredData.profits.map(profit => ({ ...profit, type: 'profit' as const })),
+                                      ...filteredData.withdrawals.map(withdrawal => ({ ...withdrawal, type: 'withdrawal' as const }))
+                                    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                     .slice(0, 20); // Mostrar apenas os 20 mais recentes
+
+                                    return (
+                                      <div className="space-y-2">
+                                        {allRecords.map((record, index) => {
+                                          const amount = record.unit === 'SATS' ? record.amount / 100000000 : record.amount;
+                                          const convertedAmount = convertChartValue(amount);
+                                          
+                                          return (
+                                            <div key={`${record.type}-${record.id || index}`} 
+                                                 className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
+                                              <div className="flex items-center gap-3">
+                                                {record.type === 'investment' && <Download className="h-4 w-4 text-blue-400" />}
+                                                {record.type === 'profit' && <TrendingUp className="h-4 w-4 text-green-400" />}
+                                                {record.type === 'withdrawal' && <Upload className="h-4 w-4 text-red-400" />}
+                                                
+                                                <div>
+                                                  <p className="text-sm font-medium">
+                                                    {record.type === 'investment' && 'Investimento'}
+                                                    {record.type === 'profit' && (record.isProfit ? 'Lucro' : 'Perda')}
+                                                    {record.type === 'withdrawal' && 'Saque'}
+                                                  </p>
+                                                  <p className="text-xs text-gray-400">
+                                                    {formatDateFn(new Date(record.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="text-right">
+                                                <p className={cn("text-sm font-medium",
+                                                  record.type === 'investment' ? "text-blue-400" :
+                                                  record.type === 'profit' ? (record.isProfit ? "text-green-400" : "text-red-400") :
+                                                  "text-red-400"
+                                                )}>
+                                                  {record.type === 'profit' && !record.isProfit ? '-' : ''}
+                                                  {formatChartValue(convertedAmount)}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="investments" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Investimentos</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const investments = getFilteredHistoryData().investments;
+                          
+                          if (investments.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Download className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum investimento encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {investments.map((investment, index) => {
+                                        const btcAmount = investment.unit === 'SATS' ? investment.amount / 100000000 : investment.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={investment.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(investment.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              {investment.unit === 'SATS' 
+                                                ? `${investment.amount.toLocaleString()} sats`
+                                                : `₿${investment.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className="text-blue-400 font-medium">
+                                              {formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {investment.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {investments.map((investment, index) => {
+                                      const btcAmount = investment.unit === 'SATS' ? investment.amount / 100000000 : investment.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={investment.id || index} 
+                                             className="p-4 bg-black/20 border border-blue-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              <Download className="h-4 w-4 text-blue-400" />
+                                              <span className="text-sm font-medium text-blue-400">Investimento</span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {investment.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(investment.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {investment.unit === 'SATS' 
+                                                  ? `${investment.amount.toLocaleString()} sats`
+                                                  : `₿${investment.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-blue-400">
+                                                {formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="profits" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Lucros e Perdas</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const profits = getFilteredHistoryData().profits;
+                          
+                          if (profits.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum registro de lucro/perda encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Tipo</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {profits.map((profit, index) => {
+                                        const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={profit.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(profit.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge 
+                                                variant={profit.isProfit ? "default" : "destructive"}
+                                                className="text-xs"
+                                              >
+                                                {profit.isProfit ? "Lucro" : "Perda"}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              {profit.unit === 'SATS' 
+                                                ? `${profit.amount.toLocaleString()} sats`
+                                                : `₿${profit.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className={cn("font-medium",
+                                              profit.isProfit ? "text-green-400" : "text-red-400"
+                                            )}>
+                                              {profit.isProfit ? '+' : '-'}{formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {profit.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {profits.map((profit, index) => {
+                                      const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={profit.id || index} 
+                                             className="p-4 bg-black/20 border border-green-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              {profit.isProfit ? <TrendingUp className="h-4 w-4 text-green-400" /> : <Minus className="h-4 w-4 text-red-400" />}
+                                              <span className="text-sm font-medium text-white">
+                                                {profit.isProfit ? 'Lucro' : 'Perda'}
+                                              </span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {profit.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(profit.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {profit.unit === 'SATS' 
+                                                  ? `${profit.amount.toLocaleString()} sats`
+                                                  : `₿${profit.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-white">
+                                                {formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="withdrawals" className="mt-4">
+                    <Card className="bg-black/20 border border-purple-700/30">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Histórico de Saques</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const withdrawals = getFilteredHistoryData().withdrawals;
+                          
+                          if (withdrawals.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-purple-400">
+                                <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Nenhum saque encontrado no período selecionado</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              {/* Layout Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <ScrollArea className="h-[400px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Valor Original</TableHead>
+                                        <TableHead>Valor Convertido</TableHead>
+                                        <TableHead>Unidade</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {withdrawals.map((withdrawal, index) => {
+                                        const btcAmount = withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount;
+                                        const convertedAmount = convertChartValue(btcAmount);
+                                        
+                                        return (
+                                          <TableRow key={withdrawal.id || index}>
+                                            <TableCell>
+                                              {formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            </TableCell>
+                                            <TableCell>
+                                              {withdrawal.unit === 'SATS' 
+                                                ? `${withdrawal.amount.toLocaleString()} sats`
+                                                : `₿${withdrawal.amount.toFixed(8)}`
+                                              }
+                                            </TableCell>
+                                            <TableCell className="text-red-400 font-medium">
+                                              -{formatChartValue(convertedAmount)}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline" className="text-xs">
+                                                {withdrawal.unit}
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              </div>
+
+                              {/* Layout Mobile - Cards */}
+                              <div className="md:hidden">
+                                <ScrollArea className="h-[400px]">
+                                  <div className="space-y-3">
+                                    {withdrawals.map((withdrawal, index) => {
+                                      const btcAmount = withdrawal.unit === 'SATS' ? withdrawal.amount / 100000000 : withdrawal.amount;
+                                      const convertedAmount = convertChartValue(btcAmount);
+                                      
+                                      return (
+                                        <div key={withdrawal.id || index} 
+                                             className="p-4 bg-black/20 border border-red-700/30 rounded-lg">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                              <Upload className="h-4 w-4 text-red-400" />
+                                              <span className="text-sm font-medium text-red-400">Saque</span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">
+                                              {withdrawal.unit}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Data:</span>
+                                              <span className="text-sm text-white">
+                                                {formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy", { locale: ptBR })}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Original:</span>
+                                              <span className="text-sm text-white">
+                                                {withdrawal.unit === 'SATS' 
+                                                  ? `${withdrawal.amount.toLocaleString()} sats`
+                                                  : `₿${withdrawal.amount.toFixed(8)}`
+                                                }
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-sm text-gray-400">Valor Convertido:</span>
+                                              <span className="text-sm font-medium text-red-400">
+                                                -{formatChartValue(convertedAmount)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
               </div>
             </TabsContent>
           </Tabs>
