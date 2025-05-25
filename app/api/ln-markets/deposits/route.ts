@@ -63,7 +63,14 @@ export async function POST(request: NextRequest) {
     console.log('[API /api/ln-markets/deposits] Depósitos obtidos com sucesso:', {
       hasData: !!result.data,
       isArray: Array.isArray(result.data),
-      length: Array.isArray(result.data) ? result.data.length : 0
+      length: Array.isArray(result.data) ? result.data.length : 0,
+      firstDeposit: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null,
+      allStatuses: Array.isArray(result.data) ? result.data.map(d => d.status) : [],
+      statusDistribution: Array.isArray(result.data) ? 
+        result.data.reduce((acc, d) => {
+          acc[d.status] = (acc[d.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>) : {}
     });
 
     return NextResponse.json({

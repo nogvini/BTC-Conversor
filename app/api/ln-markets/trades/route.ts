@@ -64,13 +64,22 @@ export async function POST(request: NextRequest) {
     console.log('[API /api/ln-markets/trades] Trades obtidos com sucesso:', {
       hasData: !!result.data,
       isArray: Array.isArray(result.data),
-      length: Array.isArray(result.data) ? result.data.length : 0
+      length: Array.isArray(result.data) ? result.data.length : 0,
+      isEmpty: Array.isArray(result.data) && result.data.length === 0,
+      requestedOffset: options?.offset || 0,
+      requestedLimit: options?.limit || 100
     });
 
     return NextResponse.json({
       success: true,
       data: result.data || [],
-      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0)
+      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0),
+      isEmpty: Array.isArray(result.data) && result.data.length === 0,
+      pagination: {
+        offset: options?.offset || 0,
+        limit: options?.limit || 100,
+        returned: Array.isArray(result.data) ? result.data.length : 0
+      }
     });
 
   } catch (error: any) {

@@ -349,7 +349,7 @@ export default function ProfitCalculator({
 
   // NOVOS Estados para aba gráficos
   const [chartDisplayUnit, setChartDisplayUnit] = useState<"btc" | "usd" | "brl">("btc");
-  const [chartType, setChartType] = useState<"line" | "bar" | "area">("area");
+  const [chartType, setChartType] = useState<"line" | "bar" | "area">("bar");
   const [chartTimeframe, setChartTimeframe] = useState<"daily" | "monthly">("monthly");
   const [chartVisibleSeries, setChartVisibleSeries] = useState({
     investments: true,
@@ -628,17 +628,19 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      // NOVO: Sistema robusto de importação com paginação
+      // NOVO: Sistema robusto de importação com paginação e detecção de páginas vazias
       let allTrades: any[] = [];
       let currentPage = 1;
       let hasMoreData = true;
       let consecutiveDuplicates = 0;
+      let consecutiveEmptyPages = 0;
       const maxConsecutiveDuplicates = 50; // Parar se encontrar 50 duplicatas consecutivas
+      const maxConsecutiveEmptyPages = 3; // Parar se encontrar 3 páginas vazias consecutivas
       const maxPages = 20; // Limite de segurança
       
-      console.log('[handleImportTrades] Iniciando busca paginada...');
+      console.log('[handleImportTrades] Iniciando busca paginada inteligente...');
       
-      while (hasMoreData && currentPage <= maxPages && consecutiveDuplicates < maxConsecutiveDuplicates) {
+      while (hasMoreData && currentPage <= maxPages && consecutiveDuplicates < maxConsecutiveDuplicates && consecutiveEmptyPages < maxConsecutiveEmptyPages) {
         console.log(`[handleImportTrades] Buscando página ${currentPage}...`);
         
         // Atualizar progresso
@@ -677,34 +679,54 @@ export default function ProfitCalculator({
 
         const pageData = response.data;
         
-        // Se a página retornou menos dados que o esperado, é a última página
+        // NOVO: Verificar se a página está vazia usando informação da API
+        const isEmpty = response.isEmpty || pageData.length === 0;
+        
+        if (isEmpty) {
+          consecutiveEmptyPages++;
+          console.log(`[handleImportTrades] Página ${currentPage} vazia. Páginas vazias consecutivas: ${consecutiveEmptyPages}`);
+          
+          if (consecutiveEmptyPages >= maxConsecutiveEmptyPages) {
+            console.log(`[handleImportTrades] Encontradas ${consecutiveEmptyPages} páginas vazias consecutivas. Parando busca.`);
+            hasMoreData = false;
+            break;
+          }
+        } else {
+          consecutiveEmptyPages = 0; // Reset contador se encontrou dados
+        }
+        
+        // Se a página retornou menos dados que o esperado, pode ser a última página
         if (pageData.length < 100) {
+          console.log(`[handleImportTrades] Página ${currentPage} com ${pageData.length} trades (menos que 100). Pode ser a última página.`);
           hasMoreData = false;
         }
         
-        // Verificar duplicatas na página atual
+        // Verificar duplicatas na página atual (apenas se há dados)
         let pageDuplicates = 0;
-        for (const trade of pageData) {
-          const isDuplicate = currentActiveReportObjectFromHook.profits?.some(
-            profit => profit.originalId === `trade_${trade.id || trade.uid}`
-          );
-          
-          if (isDuplicate) {
-            pageDuplicates++;
+        if (pageData.length > 0) {
+          for (const trade of pageData) {
+            const isDuplicate = currentActiveReportObjectFromHook.profits?.some(
+              profit => profit.originalId === `trade_${trade.id || trade.uid}`
+            );
+            
+            if (isDuplicate) {
+              pageDuplicates++;
+            }
           }
+          
+          console.log(`[handleImportTrades] Página ${currentPage}: ${pageData.length} trades, ${pageDuplicates} duplicatas`);
+          
+          // Se toda a página é duplicata, incrementar contador
+          if (pageDuplicates === pageData.length && pageData.length > 0) {
+            consecutiveDuplicates += pageData.length;
+            console.log(`[handleImportTrades] Página ${currentPage} totalmente duplicada. Consecutivas: ${consecutiveDuplicates}`);
+          } else {
+            consecutiveDuplicates = 0; // Reset contador se encontrou dados novos
+          }
+          
+          allTrades.push(...pageData);
         }
         
-        console.log(`[handleImportTrades] Página ${currentPage}: ${pageData.length} trades, ${pageDuplicates} duplicatas`);
-        
-        // Se toda a página é duplicata, incrementar contador
-        if (pageDuplicates === pageData.length && pageData.length > 0) {
-          consecutiveDuplicates += pageData.length;
-          console.log(`[handleImportTrades] Página ${currentPage} totalmente duplicada. Consecutivas: ${consecutiveDuplicates}`);
-        } else {
-          consecutiveDuplicates = 0; // Reset contador se encontrou dados novos
-        }
-        
-        allTrades.push(...pageData);
         currentPage++;
         
         // Pequeno delay entre requisições para não sobrecarregar a API
@@ -716,7 +738,10 @@ export default function ProfitCalculator({
       console.log('[handleImportTrades] Busca paginada concluída:', {
         totalTrades: allTrades.length,
         pagesSearched: currentPage - 1,
-        stoppedReason: consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
+        consecutiveEmptyPages,
+        consecutiveDuplicates,
+        stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
+                      consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
                       currentPage > maxPages ? 'maxPages' : 'noMoreData'
       });
 
@@ -892,7 +917,10 @@ export default function ProfitCalculator({
             )}
             <div className="text-xs text-gray-400 mt-2">
               <div>Configuração: "{config.name}"</div>
-              <div>Busca robusta: {allTrades.length} trades analisados em {currentPage - 1} páginas</div>
+              <div>Busca inteligente: {allTrades.length} trades analisados em {currentPage - 1} páginas</div>
+              {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
+                <div className="text-blue-400">🎯 Busca otimizada: parou ao encontrar páginas vazias</div>
+              )}
               {consecutiveDuplicates >= maxConsecutiveDuplicates && (
                 <div className="text-yellow-400">⚠️ Busca interrompida por duplicatas consecutivas</div>
               )}
@@ -1039,7 +1067,38 @@ export default function ProfitCalculator({
           isConfirmed: deposit.status === 'confirmed'
         });
 
-        if (deposit.status === 'confirmed') {
+        // NOVO: Log detalhado do depósito antes da verificação de status
+        console.log('[handleImportDeposits] Analisando depósito:', {
+          id: deposit.id,
+          amount: deposit.amount,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          deposit_type: deposit.deposit_type,
+          txid: deposit.txid
+        });
+
+        // NOVO: Verificação mais flexível do status
+        const isConfirmed = deposit.status === 'confirmed' || 
+                           deposit.status === 'CONFIRMED' || 
+                           deposit.status === 'complete' || 
+                           deposit.status === 'COMPLETE' ||
+                           deposit.status === 'success' ||
+                           deposit.status === 'SUCCESS';
+        
+        console.log('[handleImportDeposits] Verificação de status:', {
+          originalStatus: deposit.status,
+          isConfirmed,
+          statusComparisons: {
+            'confirmed': deposit.status === 'confirmed',
+            'CONFIRMED': deposit.status === 'CONFIRMED',
+            'complete': deposit.status === 'complete',
+            'COMPLETE': deposit.status === 'COMPLETE',
+            'success': deposit.status === 'success',
+            'SUCCESS': deposit.status === 'SUCCESS'
+          }
+        });
+
+        if (isConfirmed) {
           try {
             const investment = convertDepositToInvestment(deposit);
             
@@ -1102,7 +1161,13 @@ export default function ProfitCalculator({
           skipped++;
           console.log('[handleImportDeposits] Depósito ignorado (não confirmado):', {
             id: deposit.id,
-            status: deposit.status
+            status: deposit.status,
+            amount: deposit.amount,
+            created_at: deposit.created_at,
+            deposit_type: deposit.deposit_type,
+            possibleStatuses: ['confirmed', 'pending', 'failed', 'cancelled'],
+            actualStatus: deposit.status,
+            statusType: typeof deposit.status
           });
         }
         
@@ -1184,6 +1249,9 @@ export default function ProfitCalculator({
                 <span>{skipped} depósitos não confirmados ignorados</span>
               </div>
             )}
+            <div className="text-xs text-gray-400 mt-2">
+              Status aceitos: confirmed, CONFIRMED, complete, COMPLETE, success, SUCCESS
+            </div>
             {errors > 0 && (
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-red-500 rounded-full"></div>
@@ -1607,6 +1675,87 @@ export default function ProfitCalculator({
         variant: "destructive",
       });
     }
+  };
+
+  // NOVA Função para testar conversão de depósitos
+  const testDepositConversion = () => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro no teste",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Criar um depósito de teste com diferentes status
+    const testDeposits = [
+      {
+        id: `test_deposit_${Date.now()}_1`,
+        amount: 100000, // 100k sats
+        status: 'confirmed',
+        created_at: new Date().toISOString(),
+        deposit_type: 'lightning',
+        txid: 'test_txid_1'
+      },
+      {
+        id: `test_deposit_${Date.now()}_2`,
+        amount: 50000, // 50k sats
+        status: 'CONFIRMED',
+        created_at: new Date().toISOString(),
+        deposit_type: 'lightning',
+        txid: 'test_txid_2'
+      },
+      {
+        id: `test_deposit_${Date.now()}_3`,
+        amount: 25000, // 25k sats
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        deposit_type: 'lightning',
+        txid: 'test_txid_3'
+      }
+    ];
+
+    console.log('[testDepositConversion] Testando conversão de depósitos:', testDeposits);
+
+    testDeposits.forEach((deposit, index) => {
+      try {
+        console.log(`[testDepositConversion] Testando depósito ${index + 1}:`, deposit);
+        
+        const isConfirmed = deposit.status === 'confirmed' || 
+                           deposit.status === 'CONFIRMED' || 
+                           deposit.status === 'complete' || 
+                           deposit.status === 'COMPLETE' ||
+                           deposit.status === 'success' ||
+                           deposit.status === 'SUCCESS';
+        
+        console.log(`[testDepositConversion] Depósito ${index + 1} confirmado:`, isConfirmed);
+        
+        if (isConfirmed) {
+          const investment = convertDepositToInvestment(deposit);
+          console.log(`[testDepositConversion] Investimento convertido ${index + 1}:`, investment);
+          
+          const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          console.log(`[testDepositConversion] Resultado da adição ${index + 1}:`, result);
+        } else {
+          console.log(`[testDepositConversion] Depósito ${index + 1} ignorado por status:`, deposit.status);
+        }
+      } catch (error) {
+        console.error(`[testDepositConversion] Erro no depósito ${index + 1}:`, error);
+      }
+    });
+
+    toast({
+      title: "🧪 Teste de Conversão",
+      description: (
+        <div className="space-y-1 text-xs">
+          <div>Testou 3 depósitos com status diferentes</div>
+          <div>Verifique o console para detalhes</div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-blue-500/50 bg-blue-900/20",
+    });
   };
 
   // NOVA Função de debug para verificar dados
@@ -2532,17 +2681,17 @@ export default function ProfitCalculator({
                         <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
                       )}
                       
-                      {/* DEBUG: Botões de debug apenas em desenvolvimento */}
+                                            {/* DEBUG: Botões de debug apenas em desenvolvimento */}
                       {process.env.NODE_ENV === 'development' && (
                         <div className="space-y-2 mb-2">
-                          <Button
-                            onClick={debugImportData}
-                            variant="outline"
-                            size="sm"
+                        <Button
+                          onClick={debugImportData}
+                          variant="outline"
+                          size="sm"
                             className="w-full bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
-                          >
-                            🐛 Debug Info
-                          </Button>
+                        >
+                          🐛 Debug Info
+                        </Button>
                           <Button
                             onClick={testAddInvestment}
                             variant="outline"
@@ -2550,6 +2699,14 @@ export default function ProfitCalculator({
                             className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
                           >
                             🧪 Testar AddInvestment
+                          </Button>
+                          <Button
+                            onClick={testDepositConversion}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
+                          >
+                            🧪 Testar Depósitos
                           </Button>
                         </div>
                       )}
@@ -2970,26 +3127,26 @@ export default function ProfitCalculator({
                       Configurações do Gráfico
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label>Tipo de Gráfico</Label>
+                          <Label className="text-sm font-medium">Tipo de Gráfico</Label>
                         <Select value={chartType} onValueChange={(value: "line" | "bar" | "area") => setChartType(value)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="area">Área</SelectItem>
-                            <SelectItem value="line">Barras Comparativas</SelectItem>
-                            <SelectItem value="bar">Barras Empilhadas</SelectItem>
+                            <SelectItem value="bar">Barras Comparativas</SelectItem>
+                            <SelectItem value="line">Barras Empilhadas</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       
                       <div className="space-y-2">
-                        <Label>Unidade de Exibição</Label>
+                        <Label className="text-sm font-medium">Unidade de Exibição</Label>
                         <Select value={chartDisplayUnit} onValueChange={(value: "btc" | "usd" | "brl") => setChartDisplayUnit(value)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3001,9 +3158,9 @@ export default function ProfitCalculator({
                       </div>
                       
                       <div className="space-y-2">
-                        <Label>Período</Label>
+                        <Label className="text-sm font-medium">Período</Label>
                         <Select value={chartTimeframe} onValueChange={(value: "daily" | "monthly") => setChartTimeframe(value)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3013,29 +3170,30 @@ export default function ProfitCalculator({
                         </Select>
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label>Cotação Atual</Label>
-                        <div className="text-sm bg-black/40 p-2 rounded border border-purple-700/30">
-                          <div className="flex items-center gap-2">
-                            <div className={cn("w-2 h-2 rounded-full", 
+                      <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+                        <Label className="text-sm font-medium">Cotação Atual</Label>
+                        <div className="text-xs bg-black/40 p-3 rounded border border-purple-700/30 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", 
                               states.usingFallbackRates ? "bg-yellow-400" : "bg-green-400"
                             )}></div>
-                            <span>BTC/USD: ${states.currentRates.btcToUsd.toLocaleString()}</span>
+                            <span className="font-medium">BTC/USD: ${states.currentRates.btcToUsd.toLocaleString()}</span>
                           </div>
-                          <div>USD/BRL: R${states.currentRates.brlToUsd.toFixed(2)}</div>
+                          <div className="text-gray-400">USD/BRL: R${states.currentRates.brlToUsd.toFixed(2)}</div>
                           {states.usingFallbackRates && (
-                            <div className="text-xs text-yellow-400 mt-1">
-                              Usando cotação cache
+                            <div className="text-yellow-400 text-xs flex items-center gap-1">
+                              <span>⚠️</span>
+                              <span>Usando cotação cache</span>
                             </div>
                           )}
                         </div>
                       </div>
                       
-                      {/* Controles de Séries Visíveis */}
-                      <div className="mt-4 pt-4 border-t border-purple-700/30">
-                        <Label className="text-sm font-medium mb-3 block">Séries Visíveis</Label>
-                        <div className="flex flex-wrap gap-4">
-                          <div className="flex items-center space-x-2">
+                      {/* Controles de Séries Visíveis - Responsivo */}
+                      <div className="mt-6 pt-4 border-t border-purple-700/30 sm:col-span-2 xl:col-span-4">
+                        <Label className="text-sm font-medium mb-4 block">Séries Visíveis nos Gráficos</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-blue-700/30">
                             <Switch
                               id="show-investments"
                               checked={chartVisibleSeries.investments}
@@ -3043,13 +3201,13 @@ export default function ProfitCalculator({
                                 setChartVisibleSeries(prev => ({ ...prev, investments: checked }))
                               }
                             />
-                            <Label htmlFor="show-investments" className="text-sm flex items-center gap-2">
-                              <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
-                              Investimentos
+                            <Label htmlFor="show-investments" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                              <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
+                              <span>Investimentos</span>
                             </Label>
                           </div>
                           
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-green-700/30">
                             <Switch
                               id="show-profits"
                               checked={chartVisibleSeries.profits}
@@ -3057,13 +3215,13 @@ export default function ProfitCalculator({
                                 setChartVisibleSeries(prev => ({ ...prev, profits: checked }))
                               }
                             />
-                            <Label htmlFor="show-profits" className="text-sm flex items-center gap-2">
-                              <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                              Lucros/Perdas
+                            <Label htmlFor="show-profits" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                              <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
+                              <span>Lucros/Perdas</span>
                             </Label>
                           </div>
                           
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-yellow-700/30">
                             <Switch
                               id="show-balance"
                               checked={chartVisibleSeries.balance}
@@ -3071,9 +3229,9 @@ export default function ProfitCalculator({
                                 setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
                               }
                             />
-                            <Label htmlFor="show-balance" className="text-sm flex items-center gap-2">
-                              <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                              Saldo Total
+                            <Label htmlFor="show-balance" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                              <span>Saldo Total</span>
                             </Label>
                           </div>
                         </div>
@@ -3104,7 +3262,7 @@ export default function ProfitCalculator({
                         </div>
                       </div>
                     ) : (
-                      <div className="h-[400px] w-full">
+                      <div className="h-[300px] sm:h-[400px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         {chartType === "area" && (
                           <AreaChart data={getChartData.map(point => ({
@@ -3117,12 +3275,35 @@ export default function ProfitCalculator({
                             <XAxis 
                               dataKey="month" 
                               stroke="#9CA3AF"
-                              fontSize={12}
+                              fontSize={10}
+                              tick={{ fontSize: 10 }}
+                              interval="preserveStartEnd"
+                              tickFormatter={(value) => {
+                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
+                                }
+                                return value;
+                              }}
                             />
                             <YAxis 
                               stroke="#9CA3AF"
-                              fontSize={12}
-                              tickFormatter={formatChartValue}
+                              fontSize={10}
+                              tick={{ fontSize: 9 }}
+                              width={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
+                              tickFormatter={(value) => {
+                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                  // Formato mais compacto para mobile
+                                  switch (chartDisplayUnit) {
+                                    case "usd":
+                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
+                                    case "brl":
+                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
+                                    case "btc":
+                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                  }
+                                }
+                                return formatChartValue(value);
+                              }}
                             />
                             <Tooltip 
                               contentStyle={{
@@ -3163,7 +3344,7 @@ export default function ProfitCalculator({
                           </AreaChart>
                         )}
                         
-                        {chartType === "line" && (
+                                                {chartType === "bar" && (
                           <BarChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
@@ -3174,15 +3355,35 @@ export default function ProfitCalculator({
                             <XAxis 
                               dataKey="month" 
                               stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 11 }}
-                              tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                              fontSize={10}
+                              tick={{ fontSize: 10 }}
+                              interval="preserveStartEnd"
+                              tickFormatter={(value) => {
+                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
+                                }
+                                return value;
+                              }}
                             />
                             <YAxis 
                               stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 10 }}
-                              tickFormatter={formatChartValue}
+                              fontSize={10}
+                              tick={{ fontSize: 9 }}
+                              width={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
+                              tickFormatter={(value) => {
+                                if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                                  // Formato mais compacto para mobile
+                                  switch (chartDisplayUnit) {
+                                    case "usd":
+                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
+                                    case "brl":
+                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
+                                    case "btc":
+                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                  }
+                                }
+                                return formatChartValue(value);
+                              }}
                             />
                             <Tooltip 
                               contentStyle={{
@@ -3195,7 +3396,7 @@ export default function ProfitCalculator({
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
                                 const formattedName = 
-                                  name === 'investments' ? 'Investimentos' :
+                                name === 'investments' ? 'Investimentos' :
                                   name === 'profits' ? 'Lucros/Perdas' : 
                                   name === 'balance' ? 'Saldo Total' : name;
                                 return [formattedValue, formattedName];
@@ -3208,36 +3409,36 @@ export default function ProfitCalculator({
                             />
                             {chartVisibleSeries.investments && (
                               <Bar 
-                                dataKey="investments" 
+                              dataKey="investments" 
                                 fill="#3B82F6" 
-                                name="Investimentos"
+                              name="Investimentos"
                                 radius={[4, 4, 0, 0]}
                                 maxBarSize={60}
-                              />
+                            />
                             )}
                             {chartVisibleSeries.profits && (
                               <Bar 
-                                dataKey="profits" 
+                              dataKey="profits" 
                                 fill="#10B981" 
-                                name="Lucros/Perdas"
+                              name="Lucros/Perdas"
                                 radius={[4, 4, 0, 0]}
                                 maxBarSize={60}
-                              />
+                            />
                             )}
                             {chartVisibleSeries.balance && (
                               <Bar 
-                                dataKey="balance" 
+                              dataKey="balance" 
                                 fill="#F59E0B" 
-                                name="Saldo Total"
+                              name="Saldo Total"
                                 radius={[4, 4, 0, 0]}
                                 maxBarSize={60}
                                 opacity={0.8}
-                              />
+                            />
                             )}
                           </BarChart>
                         )}
                         
-                        {chartType === "bar" && (
+                        {chartType === "line" && (
                           <BarChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
@@ -3322,7 +3523,7 @@ export default function ProfitCalculator({
                       {!currentActiveReportObjectFromHook || 
                        ((!currentActiveReportObjectFromHook.investments || currentActiveReportObjectFromHook.investments.length === 0) &&
                         (!currentActiveReportObjectFromHook.profits || currentActiveReportObjectFromHook.profits.length === 0)) ? (
-                        <div className="h-[300px] w-full flex items-center justify-center">
+                        <div className="h-[250px] sm:h-[300px] w-full flex items-center justify-center">
                           <div className="text-center space-y-2">
                             <div className="text-gray-400 text-lg">🥧</div>
                             <div className="text-gray-400 text-sm">
@@ -3331,7 +3532,7 @@ export default function ProfitCalculator({
                           </div>
                         </div>
                       ) : (
-                        <div className="h-[300px] w-full">
+                        <div className="h-[250px] sm:h-[300px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                             <Pie
@@ -3362,13 +3563,15 @@ export default function ProfitCalculator({
                               label={({ name, percent }) => {
                                 // Responsivo: mostrar apenas porcentagem em telas pequenas
                                 if (typeof window !== 'undefined' && window.innerWidth < 640) {
-                                  return `${(percent * 100).toFixed(1)}%`;
+                                  return `${(percent * 100).toFixed(0)}%`;
                                 }
                                 return `${name}: ${(percent * 100).toFixed(1)}%`;
                               }}
-                              outerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 80}
+                              outerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 50 : 70}
+                              innerRadius={typeof window !== 'undefined' && window.innerWidth < 640 ? 20 : 30}
                               fill="#8884d8"
                               dataKey="value"
+                              fontSize={typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12}
                             >
                             </Pie>
                             <Tooltip 
@@ -3376,7 +3579,8 @@ export default function ProfitCalculator({
                                 backgroundColor: '#1F2937',
                                 border: '1px solid #374151',
                                 borderRadius: '8px',
-                                color: '#F3F4F6'
+                                color: '#F3F4F6',
+                                fontSize: '12px'
                               }}
                               formatter={(value: number) => formatChartValue(value)}
                             />
@@ -3483,36 +3687,43 @@ export default function ProfitCalculator({
                 <Card className="bg-black/30 border border-purple-700/40">
                   <CardContent className="py-4">
                     {/* Legenda responsiva */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-400 mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate">Investimentos</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-400 mb-4">
+                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-blue-700/30">
+                        <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate text-xs sm:text-sm">Investimentos</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate">Lucros/Perdas</span>
+                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-green-700/30">
+                        <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate text-xs sm:text-sm">Lucros/Perdas</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate">Saldo Total</span>
+                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-yellow-700/30">
+                        <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate text-xs sm:text-sm">Saldo Total</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate">Saques</span>
+                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-orange-700/30">
+                        <div className="w-3 h-3 bg-orange-400 rounded-full flex-shrink-0"></div>
+                        <span className="truncate text-xs sm:text-sm">Saques</span>
                       </div>
                     </div>
                     
                     {/* Informações da cotação - responsivo */}
-                    <div className="text-xs text-gray-500 space-y-1">
+                    <div className="text-xs text-gray-500 space-y-2 bg-black/20 p-3 rounded border border-purple-700/20">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-                        <span>* Valores baseados na cotação atual:</span>
-                        <span className="font-medium text-gray-400">
+                        <span className="text-gray-400">💰 Cotação atual:</span>
+                        <span className="font-medium text-white">
                           ${states.currentRates.btcToUsd.toLocaleString()} USD/BTC
                         </span>
                       </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                        <span className="text-gray-400">🌎 Conversão:</span>
+                        <span className="font-medium text-white">
+                          R${states.currentRates.brlToUsd.toFixed(2)} BRL/USD
+                        </span>
+                      </div>
                       {states.usingFallbackRates && (
-                        <div className="text-yellow-400 text-xs">
-                          ⚠️ Usando cotação em cache
+                        <div className="text-yellow-400 text-xs flex items-center gap-2 mt-2 p-2 bg-yellow-900/20 rounded border border-yellow-700/30">
+                          <span>⚠️</span>
+                          <span>Usando cotação em cache - dados podem estar desatualizados</span>
                         </div>
                       )}
                     </div>

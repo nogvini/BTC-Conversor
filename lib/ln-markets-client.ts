@@ -144,7 +144,9 @@ export async function fetchLNMarketsTrades(userEmail: string, configId: string, 
     console.log('[LN Markets Client] Dados de trades obtidos:', { 
       success: data.success, 
       hasData: !!data.data,
-      dataLength: data.data?.length 
+      dataLength: data.data?.length,
+      isEmpty: data.isEmpty,
+      pagination: data.pagination
     });
 
     return data;
