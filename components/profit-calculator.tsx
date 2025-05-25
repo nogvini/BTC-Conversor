@@ -654,7 +654,7 @@ export default function ProfitCalculator({
 
   // Funções para importação LN Markets
   const handleImportTrades = async () => {
-    console.log('[handleImportTrades] Iniciando importação robusta de trades');
+    console.log('[handleImportTrades] Iniciando importação otimizada de trades');
     
     const config = getCurrentImportConfig();
     
@@ -672,16 +672,17 @@ export default function ProfitCalculator({
         description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
         variant: "destructive",
       });
-        return;
+      return;
     }
 
     // Inicializar progresso
     setImportProgress(prev => ({
       ...prev,
-      trades: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Iniciando busca robusta...' }
+      trades: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Iniciando busca otimizada...' }
     }));
 
     setIsImportingTrades(true);
+    
     try {
       console.log('[handleImportTrades] Fazendo requisição com credenciais:', {
         hasKey: !!config.credentials.key,
@@ -691,139 +692,182 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured
       });
       
-      // NOVO: Sistema robusto de importação com paginação e detecção de páginas vazias
+      // OTIMIZADO: Sistema robusto de importação com retry e validação
       let allTrades: any[] = [];
-      let currentPage = 1;
+      let currentOffset = 0;
       let hasMoreData = true;
-      let consecutiveDuplicates = 0;
       let consecutiveEmptyPages = 0;
-      const maxConsecutiveDuplicates = 50; // Parar se encontrar 50 duplicatas consecutivas
-      const maxConsecutiveEmptyPages = 3; // Parar se encontrar 3 páginas vazias consecutivas
-      const maxPages = 20; // Limite de segurança
+      let totalDuplicatesFound = 0;
+      const batchSize = 100;
+      const maxConsecutiveEmptyPages = 3;
+      const maxRetries = 3;
+      const maxTotalTrades = 5000; // Limite de segurança
       
-      console.log('[handleImportTrades] Iniciando busca paginada inteligente...');
+      console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
-      while (hasMoreData && currentPage <= maxPages && consecutiveDuplicates < maxConsecutiveDuplicates && consecutiveEmptyPages < maxConsecutiveEmptyPages) {
-        console.log(`[handleImportTrades] Buscando página ${currentPage}...`);
+      // NOVO: Criar Set com IDs existentes para verificação rápida de duplicatas
+      const existingTradeIds = new Set(
+        currentActiveReportObjectFromHook.profits
+          ?.filter(profit => profit.originalId?.startsWith('trade_'))
+          .map(profit => profit.originalId) || []
+      );
+      
+      console.log('[handleImportTrades] IDs existentes carregados:', {
+        existingCount: existingTradeIds.size,
+        sampleIds: Array.from(existingTradeIds).slice(0, 5)
+      });
+      
+      while (hasMoreData && allTrades.length < maxTotalTrades && consecutiveEmptyPages < maxConsecutiveEmptyPages) {
+        console.log(`[handleImportTrades] Buscando lote: offset=${currentOffset}, limit=${batchSize}`);
         
         // Atualizar progresso
         setImportProgress(prev => ({
           ...prev,
           trades: { 
             current: allTrades.length, 
-            total: allTrades.length + 100, // Estimativa
-            percentage: Math.min((allTrades.length / (allTrades.length + 100)) * 100, 95), 
+            total: Math.max(allTrades.length + batchSize, 100), // Estimativa dinâmica
+            percentage: Math.min((allTrades.length / Math.max(allTrades.length + batchSize, 100)) * 100, 95), 
             status: 'loading', 
-            message: `Buscando página ${currentPage}... (${allTrades.length} trades encontrados)` 
+            message: `Buscando trades... (${allTrades.length} encontrados, ${totalDuplicatesFound} duplicatas)` 
           }
         }));
         
-        // Fazer requisição para a página atual
-        const response = await fetchLNMarketsTrades(user.email, config.id, {
-          limit: 100,
-          offset: (currentPage - 1) * 100
+        // NOVO: Sistema de retry para requisições
+        let response: any = null;
+        let retryCount = 0;
+        
+        while (retryCount < maxRetries && !response?.success) {
+          try {
+            response = await fetchLNMarketsTrades(user.email, config.id, {
+              limit: batchSize,
+              offset: currentOffset
+            });
+            
+            if (!response.success && retryCount < maxRetries - 1) {
+              console.warn(`[handleImportTrades] Tentativa ${retryCount + 1} falhou, tentando novamente em 2s...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              retryCount++;
+            }
+          } catch (error) {
+            console.error(`[handleImportTrades] Erro na tentativa ${retryCount + 1}:`, error);
+            if (retryCount < maxRetries - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              retryCount++;
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        console.log(`[handleImportTrades] Resposta do lote offset=${currentOffset}:`, {
+          success: response?.success,
+          hasData: !!response?.data,
+          dataLength: response?.data?.length,
+          isEmpty: response?.isEmpty,
+          retryCount: retryCount
         });
 
-        console.log(`[handleImportTrades] Resposta da página ${currentPage}:`, {
-        success: response.success,
-        hasData: !!response.data,
-        dataLength: response.data?.length,
-        error: response.error
-      });
-
-      if (!response.success || !response.data) {
-          if (currentPage === 1) {
-        throw new Error(response.error || "Erro ao buscar trades");
+        if (!response?.success || !response?.data) {
+          if (currentOffset === 0) {
+            throw new Error(response?.error || "Erro ao buscar trades");
           } else {
-            console.log(`[handleImportTrades] Erro na página ${currentPage}, parando busca:`, response.error);
+            console.log(`[handleImportTrades] Erro no offset ${currentOffset}, parando busca:`, response?.error);
             break;
           }
         }
 
         const pageData = response.data;
         
-        // NOVO: Verificar se a página está vazia usando informação da API
+        // OTIMIZADO: Verificar se a página está vazia
         const isEmpty = response.isEmpty || pageData.length === 0;
         
         if (isEmpty) {
           consecutiveEmptyPages++;
-          console.log(`[handleImportTrades] Página ${currentPage} vazia. Páginas vazias consecutivas: ${consecutiveEmptyPages}`);
+          console.log(`[handleImportTrades] Lote offset=${currentOffset} vazio. Páginas vazias consecutivas: ${consecutiveEmptyPages}`);
           
           if (consecutiveEmptyPages >= maxConsecutiveEmptyPages) {
             console.log(`[handleImportTrades] Encontradas ${consecutiveEmptyPages} páginas vazias consecutivas. Parando busca.`);
-            hasMoreData = false;
             break;
           }
         } else {
           consecutiveEmptyPages = 0; // Reset contador se encontrou dados
         }
         
-        // Se a página retornou menos dados que o esperado, pode ser a última página
-        if (pageData.length < 100) {
-          console.log(`[handleImportTrades] Página ${currentPage} com ${pageData.length} trades (menos que 100). Pode ser a última página.`);
+                 // NOVO: Validar e filtrar trades válidos antes de adicionar
+         const validTrades = pageData.filter(trade => {
+           // Verificação rápida de duplicata usando Set
+           const tradeId = `trade_${trade.uid || trade.id}`;
+           if (existingTradeIds.has(tradeId)) {
+             totalDuplicatesFound++;
+             return false; // Não adicionar duplicatas à lista
+           }
+           
+           // Validação completa do trade
+           const validation = validateTradeForImport(trade);
+           if (!validation.isValid) {
+             console.warn(`[handleImportTrades] Trade inválido ignorado: ${validation.reason}`, { 
+               id: trade.id || trade.uid, 
+               closed: trade.closed, 
+               pl: trade.pl 
+             });
+             return false;
+           }
+           
+           return true;
+         });
+        
+        console.log(`[handleImportTrades] Lote offset=${currentOffset}: ${pageData.length} trades brutos, ${validTrades.length} válidos, ${pageData.length - validTrades.length} filtrados`);
+        
+        // Adicionar apenas trades válidos
+        if (validTrades.length > 0) {
+          allTrades.push(...validTrades);
+          
+          // Adicionar IDs ao Set para próximas verificações
+          validTrades.forEach(trade => {
+            const tradeId = `trade_${trade.uid || trade.id}`;
+            existingTradeIds.add(tradeId);
+          });
+        }
+        
+        // Se retornou menos dados que o esperado, pode ser a última página
+        if (pageData.length < batchSize) {
+          console.log(`[handleImportTrades] Lote offset=${currentOffset} com ${pageData.length} trades (menos que ${batchSize}). Última página.`);
           hasMoreData = false;
         }
         
-        // Verificar duplicatas na página atual (apenas se há dados)
-        let pageDuplicates = 0;
-        if (pageData.length > 0) {
-          for (const trade of pageData) {
-            const isDuplicate = currentActiveReportObjectFromHook.profits?.some(
-              profit => profit.originalId === `trade_${trade.id || trade.uid}`
-            );
-            
-            if (isDuplicate) {
-              pageDuplicates++;
-            }
-          }
-          
-          console.log(`[handleImportTrades] Página ${currentPage}: ${pageData.length} trades, ${pageDuplicates} duplicatas`);
-          
-          // Se toda a página é duplicata, incrementar contador
-          if (pageDuplicates === pageData.length && pageData.length > 0) {
-            consecutiveDuplicates += pageData.length;
-            console.log(`[handleImportTrades] Página ${currentPage} totalmente duplicada. Consecutivas: ${consecutiveDuplicates}`);
-          } else {
-            consecutiveDuplicates = 0; // Reset contador se encontrou dados novos
-          }
-          
-          allTrades.push(...pageData);
-        }
-        
-        currentPage++;
+        currentOffset += batchSize;
         
         // Pequeno delay entre requisições para não sobrecarregar a API
-        if (hasMoreData && currentPage <= maxPages) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+        if (hasMoreData && allTrades.length < maxTotalTrades) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
       
       console.log('[handleImportTrades] Busca paginada concluída:', {
-        totalTrades: allTrades.length,
-        pagesSearched: currentPage - 1,
+        totalTradesFound: allTrades.length,
+        totalDuplicatesSkipped: totalDuplicatesFound,
+        offsetsSearched: currentOffset / batchSize,
         consecutiveEmptyPages,
-        consecutiveDuplicates,
         stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
-                      consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
-                      currentPage > maxPages ? 'maxPages' : 'noMoreData'
+                      allTrades.length >= maxTotalTrades ? 'maxLimit' : 'noMoreData'
       });
 
-      const totalTrades = allTrades.length;
+             // Como já validamos os trades durante a busca, todos são válidos para processamento
+       const tradesToProcess = allTrades;
+       const totalTrades = tradesToProcess.length;
       
-      // NOVO: Verificar estado atual do relatório antes de começar
-      console.log('[handleImportTrades] Estado do relatório antes da importação:', {
-        reportId: currentActiveReportObjectFromHook.id,
-        currentProfitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
-        existingProfitIds: currentActiveReportObjectFromHook.profits?.map(profit => profit.originalId) || [],
-        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null
+      console.log('[handleImportTrades] Trades para processamento:', {
+        totalFound: allTrades.length,
+        validForProcessing: totalTrades,
+        filtered: allTrades.length - totalTrades
       });
       
       let imported = 0;
-      let duplicated = 0;
+      let duplicated = totalDuplicatesFound; // Já contamos as duplicatas durante a busca
       let errors = 0;
       let processed = 0;
 
-      // Atualizar progresso inicial
+      // Atualizar progresso inicial do processamento
       setImportProgress(prev => ({
         ...prev,
         trades: { 
@@ -831,97 +875,76 @@ export default function ProfitCalculator({
           total: totalTrades, 
           percentage: 0, 
           status: 'loading', 
-          message: `Processando ${totalTrades} trades...` 
+          message: `Processando ${totalTrades} trades válidos...` 
         }
       }));
 
-      for (const trade of allTrades) {
-        console.log('[handleImportTrades] Processando trade:', {
-          id: trade.id,
-          uid: trade.uid,
-          closed: trade.closed,
-          pl: trade.pl,
-          side: trade.side,
-          quantity: trade.quantity
-        });
+      // OTIMIZADO: Processamento em lotes para melhor performance
+      const processingBatchSize = 10;
+      
+      for (let i = 0; i < tradesToProcess.length; i += processingBatchSize) {
+        const batch = tradesToProcess.slice(i, i + processingBatchSize);
         
-        if (trade.closed && trade.pl !== 0) {
+        // Processar lote
+        for (const trade of batch) {
           try {
-          const profitRecord = convertTradeToProfit(trade);
+            console.log('[handleImportTrades] Processando trade:', {
+              id: trade.id,
+              uid: trade.uid,
+              closed: trade.closed,
+              pl: trade.pl,
+              side: trade.side,
+              quantity: trade.quantity
+            });
             
-            console.log('[handleImportTrades] Registro de lucro convertido:', {
+            const profitRecord = convertTradeToProfit(trade);
+            
+            console.log('[handleImportTrades] Registro convertido:', {
               id: profitRecord.id,
               originalId: profitRecord.originalId,
               date: profitRecord.date,
               amount: profitRecord.amount,
-              unit: profitRecord.unit,
               isProfit: profitRecord.isProfit
             });
             
-            console.log('[handleImportTrades] Tentando adicionar novo registro de lucro...');
-            
             const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
             
-            console.log('[handleImportTrades] Resultado da adição:', {
-              status: result.status,
-              id: result.id,
-              originalId: result.originalId,
-              message: result.message
-            });
-        
             if (result.status === 'added') {
               imported++;
-              console.log('[handleImportTrades] ✅ Registro de lucro adicionado com sucesso:', result.id);
+              console.log('[handleImportTrades] ✅ Trade adicionado:', result.id);
             } else if (result.status === 'duplicate') {
               duplicated++;
-              console.log('[handleImportTrades] ⚠️ Registro de lucro duplicado detectado:', result.originalId);
+              console.log('[handleImportTrades] ⚠️ Trade duplicado:', result.originalId);
             } else {
               errors++;
-              console.error('[handleImportTrades] ❌ Erro ao adicionar registro de lucro:', result);
+              console.error('[handleImportTrades] ❌ Erro ao adicionar trade:', result);
             }
           } catch (conversionError) {
             console.error('[handleImportTrades] Erro na conversão do trade:', conversionError);
             errors++;
           }
-        } else {
-          console.log('[handleImportTrades] Trade ignorado (não fechado ou PL zero):', {
-            id: trade.id,
-            closed: trade.closed,
-            pl: trade.pl
-          });
+          
+          processed++;
         }
         
-        processed++;
+        // Atualizar progresso após cada lote
         const percentage = (processed / totalTrades) * 100;
-        
-        // Atualizar progresso a cada 10 items ou no final
-        if (processed % 10 === 0 || processed === totalTrades) {
-          setImportProgress(prev => ({
-            ...prev,
-            trades: {
-              current: processed,
-              total: totalTrades,
-              percentage,
-              status: 'loading',
-              message: `Processando... ${imported} importados, ${duplicated} duplicados`
-            }
-          }));
-          
-          // Pequeno delay para permitir atualização da UI
-          if (processed % 50 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
+        setImportProgress(prev => ({
+          ...prev,
+          trades: {
+            current: processed,
+            total: totalTrades,
+            percentage,
+            status: 'loading',
+            message: `Processando... ${imported} importados, ${duplicated} duplicados`
           }
+        }));
+        
+        // Pequeno delay entre lotes para não travar a UI
+        if (i + processingBatchSize < tradesToProcess.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
-
-      // NOVO: Verificar estado do relatório após a importação
-      console.log('[handleImportTrades] Estado do relatório após a importação:', {
-        reportId: currentActiveReportObjectFromHook.id,
-        finalProfitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
-        newProfitIds: currentActiveReportObjectFromHook.profits?.slice(-Math.max(imported, 5)).map(profit => profit.originalId) || [],
-        lastProfit: currentActiveReportObjectFromHook.profits?.slice(-1)[0] || null,
-        importStats: { imported, duplicated, errors, processed }
-      });
 
       // Progresso completo
       setImportProgress(prev => ({
@@ -942,10 +965,9 @@ export default function ProfitCalculator({
           duplicated, 
           errors,
           processed: totalTrades,
-          pagesSearched: currentPage - 1,
+          pagesSearched: Math.ceil(currentOffset / batchSize),
           stoppedReason: consecutiveEmptyPages >= maxConsecutiveEmptyPages ? 'emptyPages' :
-                        consecutiveDuplicates >= maxConsecutiveDuplicates ? 'duplicates' : 
-                        currentPage > maxPages ? 'maxPages' : 'noMoreData'
+                        allTrades.length >= maxTotalTrades ? 'maxLimit' : 'noMoreData'
         },
         deposits: prev?.deposits || { total: 0, imported: 0, duplicated: 0, errors: 0 },
         withdrawals: prev?.withdrawals || { total: 0, imported: 0, duplicated: 0, errors: 0 },
@@ -975,12 +997,10 @@ export default function ProfitCalculator({
             )}
             <div className="text-xs text-gray-400 mt-2">
               <div>Configuração: "{config.name}"</div>
-              <div>Busca inteligente: {allTrades.length} trades analisados em {currentPage - 1} páginas</div>
+              <div>Busca otimizada: {allTrades.length} trades analisados</div>
+              <div>Processamento em lotes: {Math.ceil(totalTrades / processingBatchSize)} lotes</div>
               {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
                 <div className="text-blue-400">🎯 Busca otimizada: parou ao encontrar páginas vazias</div>
-              )}
-              {consecutiveDuplicates >= maxConsecutiveDuplicates && (
-                <div className="text-yellow-400">⚠️ Busca interrompida por duplicatas consecutivas</div>
               )}
             </div>
           </div>
@@ -1755,6 +1775,36 @@ export default function ProfitCalculator({
     }
   };
 
+  // NOVA Função para validar trade antes do processamento
+  const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
+    // Verificar se tem ID válido
+    if (!trade.id && !trade.uid) {
+      return { isValid: false, reason: 'Trade sem ID válido' };
+    }
+    
+    // Verificar se está fechado
+    if (!trade.closed) {
+      return { isValid: false, reason: 'Trade não fechado' };
+    }
+    
+    // Verificar se tem PL válido
+    if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
+      return { isValid: false, reason: 'PL inválido ou ausente' };
+    }
+    
+    // Verificar se PL não é zero
+    if (trade.pl === 0) {
+      return { isValid: false, reason: 'PL é zero' };
+    }
+    
+    // Verificar se tem dados de data válidos
+    if (!trade.closed_at && !trade.ts && !trade.updated_at && !trade.created_at) {
+      return { isValid: false, reason: 'Nenhum campo de data válido' };
+    }
+    
+    return { isValid: true };
+  };
+
   // NOVA Função para verificar integridade dos dados após importação
   const verifyImportIntegrity = () => {
     if (!currentActiveReportObjectFromHook) {
@@ -1990,6 +2040,75 @@ export default function ProfitCalculator({
   };
 
   // NOVA Função de debug para verificar dados
+  // NOVA Função para testar a importação otimizada
+  const testOptimizedImport = async () => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro no teste",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const startTime = Date.now();
+    console.log('[testOptimizedImport] Iniciando teste de performance...');
+    
+    // Simular dados de teste
+    const mockTrades = Array.from({ length: 50 }, (_, i) => ({
+      id: `test_${i}`,
+      uid: `test_uid_${i}`,
+      closed: true,
+      pl: Math.random() > 0.5 ? Math.floor(Math.random() * 10000) : -Math.floor(Math.random() * 5000),
+      side: Math.random() > 0.5 ? 'buy' : 'sell',
+      quantity: Math.floor(Math.random() * 1000000),
+      closed_at: Date.now() - Math.floor(Math.random() * 86400000), // Último dia
+      ts: Date.now() - Math.floor(Math.random() * 86400000),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    let validCount = 0;
+    let invalidCount = 0;
+    const validationResults: string[] = [];
+
+    // Testar validação
+    for (const trade of mockTrades) {
+      const validation = validateTradeForImport(trade);
+      if (validation.isValid) {
+        validCount++;
+      } else {
+        invalidCount++;
+        validationResults.push(`Trade ${trade.id}: ${validation.reason}`);
+      }
+    }
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    console.log('[testOptimizedImport] Teste concluído:', {
+      totalTrades: mockTrades.length,
+      validTrades: validCount,
+      invalidTrades: invalidCount,
+      duration: `${duration}ms`,
+      validationResults: validationResults.slice(0, 5) // Primeiros 5 erros
+    });
+
+    toast({
+      title: "🧪 Teste de Performance Concluído",
+      description: (
+        <div className="space-y-1 text-xs">
+          <div>Trades testados: {mockTrades.length}</div>
+          <div>Válidos: {validCount} | Inválidos: {invalidCount}</div>
+          <div>Tempo: {duration}ms</div>
+          <div>Detalhes no console</div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-purple-500/50 bg-purple-900/20",
+    });
+  };
+
   const debugImportData = () => {
     const config = getCurrentImportConfig();
     
@@ -2969,6 +3088,14 @@ export default function ProfitCalculator({
                             className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
                           >
                             🔍 Verificar Dados
+                          </Button>
+                          <Button
+                            onClick={testOptimizedImport}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
+                          >
+                            🧪 Teste Performance
                           </Button>
                           <Button
                             onClick={testAddInvestment}
