@@ -179,11 +179,17 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     tradeStatus: trade.closed ? 'fechado' : 'aberto'
   });
 
-  // Validar e criar ID único - MAIS FLEXÍVEL
-  const tradeIdentifier = trade.uid || trade.id;
+  // Validar e criar ID único - CORRIGIDO!
+  let tradeIdentifier = trade.uid || trade.id;
   if (!tradeIdentifier) {
     console.error('[convertTradeToProfit] Trade sem identificador válido:', trade);
     throw new Error('Trade deve ter uid ou id válido');
+  }
+  
+  // CORREÇÃO CRÍTICA: Se o ID já tiver o prefixo "trade_", remover para evitar duplicação
+  if (typeof tradeIdentifier === 'string' && tradeIdentifier.startsWith('trade_')) {
+    tradeIdentifier = tradeIdentifier.substring(6); // Remover o prefixo 'trade_'
+    console.log('[convertTradeToProfit] ID já tem prefixo, removendo:', tradeIdentifier);
   }
 
   // CORREÇÃO AMPLIADA: Cálculo mais flexível do valor PL

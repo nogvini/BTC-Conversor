@@ -776,17 +776,24 @@ export default function ProfitCalculator({
       
       console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
-      // MELHORADO: Criar Set com IDs existentes para verificação rápida de duplicatas
-      // Garantimos que apenas originalIds válidos sejam incluídos no Set
+      // CORRIGIDO: Criar Set com IDs existentes para verificação rápida de duplicatas
+      // Tratando corretamente o prefixo "trade_" para evitar duplicação
       const existingTradeIds = new Set();
       
       if (currentActiveReportObjectFromHook.profits && currentActiveReportObjectFromHook.profits.length > 0) {
         currentActiveReportObjectFromHook.profits.forEach(profit => {
-          if (profit.originalId && typeof profit.originalId === 'string' && profit.originalId.startsWith('trade_')) {
-            existingTradeIds.add(profit.originalId);
+          if (profit.originalId && typeof profit.originalId === 'string') {
+            // Sempre armazenar com prefixo 'trade_' para consistência
+            if (profit.originalId.startsWith('trade_')) {
+              existingTradeIds.add(profit.originalId);
+            } else {
+              existingTradeIds.add(`trade_${profit.originalId}`);
+            }
           }
         });
       }
+      
+      console.log('[handleImportTrades] Exemplo de IDs existentes:', Array.from(existingTradeIds).slice(0, 10));
       
       console.log('[handleImportTrades] IDs existentes carregados:', {
         existingCount: existingTradeIds.size,
@@ -899,9 +906,18 @@ export default function ProfitCalculator({
              closed: trade.closed
            });
            
-           // Verificação de duplicata
-           if (existingTradeIds.has(tradeId)) {
-             console.log(`[handleImportTrades] Trade duplicado: ${tradeId}`);
+           // Verificação de duplicata - CORRIGIDO!
+           // PROBLEMA ENCONTRADO: O ID já contém "trade_" prefixo na validação, mas 
+           // depois também adicionamos no convertTradeToProfit
+           // Remover o prefixo "trade_" para comparação correta
+           const cleanTradeId = tradeId.startsWith('trade_') 
+             ? tradeId 
+             : `trade_${tradeId}`;
+             
+           console.log(`[handleImportTrades] Verificando duplicata para: ${tradeId}, cleaned: ${cleanTradeId}`);
+           
+           if (existingTradeIds.has(cleanTradeId)) {
+             console.log(`[handleImportTrades] Trade duplicado: ${cleanTradeId}`);
              totalDuplicatesFound++;
              continue;
            }
@@ -1015,25 +1031,52 @@ export default function ProfitCalculator({
         const plValue = Number(trade.pl);
         const hasNonZeroPL = !isNaN(plValue) && plValue !== 0;
         
-        // Log detalhado de cada trade
-        console.log('[handleImportTrades] Avaliando trade:', {
-          id: trade.id || trade.uid,
-          closed: trade.closed,
-          status: trade.status,
-          isClosed,
-          pl: trade.pl,
-          plValue,
-          hasNonZeroPL,
-          side: trade.side,
-          quantity: trade.quantity,
-          hasSideQuantity: !!(trade.side && trade.quantity)
-        });
-        
-        // Qualquer trade com ID e alguma dessas condições é aceito
-        return (isClosed && hasNonZeroPL) ||  // Critério principal: closed=true e pl≠0
-               isClosed ||                    // Aceitar qualquer trade fechado
-               hasNonZeroPL ||               // Aceitar qualquer trade com pl≠0
-               (trade.side && trade.quantity); // Aceitar qualquer trade com side e quantity
+                  // Log super detalhado de cada trade
+         const tradeId = trade.id || trade.uid;
+         const fullId = tradeId.startsWith('trade_') ? tradeId : `trade_${tradeId}`;
+         
+         // Verificar se está duplicado para logging
+         const isDuplicate = existingTradeIds.has(fullId);
+         
+         // Validações específicas
+         const mainCriteria = isClosed && hasNonZeroPL;
+         const altCriteria1 = isClosed;
+         const altCriteria2 = hasNonZeroPL;
+         const altCriteria3 = !!(trade.side && trade.quantity);
+         
+         // Resultado final da validação
+         const isValid = mainCriteria || altCriteria1 || altCriteria2 || altCriteria3;
+         
+         // Log mais detalhado e organizado
+         console.log(`[handleImportTrades] Avaliando trade ${fullId}:`, {
+           // Dados do trade
+           id: trade.id || trade.uid,
+           pl: trade.pl,
+           pl_type: typeof trade.pl,
+           pl_numeric: plValue,
+           closed: trade.closed,
+           status: trade.status,
+           
+           // Critérios e resultado
+           isDuplicate,
+           mainCriteria,        // closed=true E pl≠0 
+           altCriteria1,        // closed=true
+           altCriteria2,        // pl≠0
+           altCriteria3,        // side+quantity
+           isValid,             // Resultado final
+           
+           // Para referência
+           existingId: isDuplicate ? 'JÁ EXISTE!' : 'não existe',
+           validationResult: isValid ? 'VÁLIDO' : 'INVÁLIDO',
+           duplicateResult: isDuplicate ? 'DUPLICADO' : 'NOVO'
+         });
+         
+         // Qualquer trade com ID e alguma dessas condições é aceito
+         // Não processamos duplicatas (já verificado em outro lugar)
+         if (isDuplicate) return false;
+         
+         // Lógica de validação
+         return isValid;
       });
       
       const totalTrades = tradesToProcess.length;
