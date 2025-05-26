@@ -2170,7 +2170,7 @@ export default function ProfitCalculator({
     consecutiveUnproductive: number,
     maxOffsetLimit: number,
     maxTotalTrades: number
-  ) => {
+  ): { offset: number; tradesFound: number; duplicatesSkipped: number; consecutiveEmpty: number; consecutiveUnproductive: number; offsetProgress: number; tradesProgress: number } => {
     const progress = {
       offset: currentOffset,
       tradesFound: allTrades.length,
@@ -2334,12 +2334,12 @@ export default function ProfitCalculator({
               console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
               
               // NOVO: Análise detalhada dos depósitos
-              const statusAnalysis = response.data.reduce((acc, d) => {
+              const statusAnalysis = response.data.reduce((acc: Record<string, number>, d: any) => {
                 acc[d.status] = (acc[d.status] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
 
-              const confirmationAnalysis = response.data.reduce((acc, d) => {
+              const confirmationAnalysis = response.data.reduce((acc: Record<string, number>, d: any) => {
                 let key = '';
                 if (d.isConfirmed === false) key = 'isConfirmed: false';
                 else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
@@ -2351,8 +2351,8 @@ export default function ProfitCalculator({
                 return acc;
               }, {} as Record<string, number>);
               
-              const confirmedByOldLogic = response.data.filter(d => d.status === 'confirmed').length;
-              const confirmedByNewLogic = response.data.filter(isDepositConfirmed).length;
+              const confirmedByOldLogic = response.data.filter((d: any) => d.status === 'confirmed').length;
+              const confirmedByNewLogic = response.data.filter((d: any) => isDepositConfirmed(d)).length;
               
               console.log('[DEBUG] Análise de confirmação dos depósitos:', {
                 totalDeposits: response.data.length,
@@ -2992,10 +2992,10 @@ export default function ProfitCalculator({
                         <span className="text-gray-400">Duplicados:</span>
                         <span className="text-yellow-400">{importStats.deposits.duplicated}</span>
                       </div>
-                      {importStats.deposits.skipped > 0 && (
+                      {(importStats.deposits.skipped || 0) > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-400">Ignorados:</span>
-                          <span className="text-gray-500">{importStats.deposits.skipped}</span>
+                          <span className="text-gray-500">{importStats.deposits.skipped || 0}</span>
                         </div>
                       )}
                       {importStats.deposits.statusDistribution && (

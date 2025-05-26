@@ -32,6 +32,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format as formatDateFn, startOfDay, differenceInDays, isValid as isValidDate } from 'date-fns'
+import { useDefaultCurrency, type DefaultCurrency } from "@/hooks/use-default-currency"
 
 type TimeRange = "1d" | "7d" | "30d" | "90d" | "1y"
 type CurrencyType = "USD" | "BRL"
@@ -92,8 +93,11 @@ interface HistoricalRatesChartProps {
 }
 
 export default function HistoricalRatesChart({ historicalData }: HistoricalRatesChartProps) {
+  // Hook de moeda padrão
+  const { defaultCurrency, formatCurrency: formatCurrencyDefault, getDisplayCurrency } = useDefaultCurrency()
+  
   const [timeRange, setTimeRange] = useState<TimeRange>("30d")
-  const [currency, setCurrency] = useState<CurrencyType>("USD")
+  const [currency, setCurrency] = useState<CurrencyType>(defaultCurrency as CurrencyType)
   const [chartType, setChartType] = useState<ChartType>("area")
   const [chartData, setChartData] = useState<HistoricalDataPoint[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -119,10 +123,56 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   // Ref para o timer do debounce
   const debouncedFetchRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Efeito para sincronizar moeda padrão
+  useEffect(() => {
+    if (defaultCurrency && (defaultCurrency === 'USD' || defaultCurrency === 'BRL')) {
+      setCurrency(defaultCurrency as CurrencyType);
+    }
+  }, [defaultCurrency]);
+
   // Função para gerar chave de cache
   const getCacheKey = useCallback((curr: string, range: string) => {
     return `${curr.toLowerCase()}_${range}`
   }, [])
+
+  // Função para atualizar o cache em segundo plano
+  const updateCacheInBackground = useCallback(async (currencyType: CurrencyType, range: TimeRange, days: number) => {
+    try {
+      console.log(`Atualizando cache em segundo plano: ${currencyType} ${range} (${days} dias)`)
+      const cacheKey = getCacheKey(currencyType, range)
+      
+      // Buscar dados da API sem forçar atualização
+      const data = await getHistoricalBitcoinData(
+        currencyType.toLowerCase(),
+        days,
+        range // Passar o período para melhor cache
+      );
+      
+      // Determinar a fonte dos dados
+      const dataSource = data.length > 0 && data[0].source
+        ? data[0].source
+        : "tradingview";
+      
+      // Atualizar o cache local
+      chartDataCache.current[cacheKey] = {
+        data,
+        timestamp: Date.now(),
+        isUsingCache: data.some((item: HistoricalDataPoint) => item.isUsingCache),
+        source: dataSource
+      };
+      
+      console.log(`Cache atualizado em segundo plano para ${currencyType} ${range}`);
+      
+      // Se estivermos vendo esse período de tempo/moeda agora, atualizar a tela silenciosamente
+      if (currency === currencyType && timeRange === range) {
+        setChartData(data);
+        setIsUsingCachedData(data.some((item: HistoricalDataPoint) => item.isUsingCache));
+        setDataSource(dataSource === "tradingview" ? "TradingView" : "CoinGecko");
+      }
+    } catch (error) {
+      console.error(`Erro na atualização de cache em segundo plano:`, error)
+    }
+  }, [currency, timeRange, getCacheKey])
 
   // Modify the fetchHistoricalData function to better handle errors
   const fetchHistoricalData = useCallback(async (forceUpdate = false) => {
@@ -167,26 +217,26 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
           : "tradingview";
         
         setDataSource(dataSourceFromAPI === "tradingview" ? "TradingView" : "CoinGecko");
-        setIsUsingCachedData(data.some(item => item.isUsingCache));
+        setIsUsingCachedData(data.some((item: HistoricalDataPoint) => item.isUsingCache));
         
         chartDataCache.current[cacheKey] = {
           data,
           timestamp: now,
-          isUsingCache: data.some(item => item.isUsingCache),
+          isUsingCache: data.some((item: HistoricalDataPoint) => item.isUsingCache),
           source: dataSourceFromAPI
         };
         
         data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setChartData(data);
         
-        if (forceUpdate && !data.some(item => item.isUsingCache)) {
+        if (forceUpdate && !data.some((item: HistoricalDataPoint) => item.isUsingCache)) {
           toast({
             title: "Dados atualizados",
             description: `Dados de ${getTimeRangeLabel(timeRange)} obtidos em tempo real.`,
             duration: 3000,
           });
         }
-      } catch (apiError: any) { // Renomeado para apiError para clareza
+      } catch (apiError: any) {
         // Tratar erro da API aqui antes de cair no catch externo geral
         if (apiError.message && apiError.message.startsWith("RATE_LIMIT:")) {
           console.warn("Rate limit detectado em fetchHistoricalData:", apiError.message);
@@ -199,7 +249,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
             setDataSource(cachedData.source || "CoinGecko")
           } else {
             // Se não há cache, mantém a mensagem de erro e dados vazios.
-            setChartData([]); // Limpar dados antigos se houver
+            setChartData([]);
           }
         } else {
           // Se não for rate limit, relança para o catch externo
@@ -217,54 +267,15 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         setIsUsingCachedData(true)
         setDataSource(cachedData.source || "CoinGecko")
         // Não define setError aqui se estamos usando cache, para não sobrescrever possível erro de rate limit
-      } else if (!error?.message?.startsWith("RATE_LIMIT:")) { // Só define erro genérico se não for um rate limit já tratado
+      } else if (!error?.message?.startsWith("RATE_LIMIT:")) {
         setError("Não foi possível obter dados. Por favor, tente novamente mais tarde.")
         setDataSource("Indisponível")
-        setChartData([]); // Limpar dados em caso de erro sem cache
+        setChartData([]);
       }
     } finally {
       setLoading(false)
     }
-  }, [timeRange, currency, getCacheKey])
-  
-  // Função para atualizar o cache em segundo plano
-  const updateCacheInBackground = useCallback(async (currencyType: CurrencyType, range: TimeRange, days: number) => {
-    try {
-      console.log(`Atualizando cache em segundo plano: ${currencyType} ${range} (${days} dias)`)
-      const cacheKey = getCacheKey(currencyType, range)
-      
-      // Buscar dados da API sem forçar atualização
-      const data = await getHistoricalBitcoinData(
-        currencyType.toLowerCase(),
-        days,
-        range // Passar o período para melhor cache
-      );
-      
-      // Determinar a fonte dos dados
-      const dataSource = data.length > 0 && data[0].source
-        ? data[0].source
-        : "tradingview";
-      
-      // Atualizar o cache local
-      chartDataCache.current[cacheKey] = {
-        data,
-        timestamp: Date.now(),
-        isUsingCache: data.some(item => item.isUsingCache),
-        source: dataSource
-      };
-      
-      console.log(`Cache atualizado em segundo plano para ${currencyType} ${range}`);
-      
-      // Se estivermos vendo esse período de tempo/moeda agora, atualizar a tela silenciosamente
-      if (currency === currencyType && timeRange === range) {
-        setChartData(data);
-        setIsUsingCachedData(data.some(item => item.isUsingCache));
-        setDataSource(dataSource === "tradingview" ? "TradingView" : "CoinGecko");
-      }
-    } catch (error) {
-      console.error(`Erro na atualização de cache em segundo plano:`, error)
-    }
-  }, [currency, timeRange, getCacheKey])
+  }, [timeRange, currency, getCacheKey, updateCacheInBackground])
 
   // Forçar atualização - ignora cache
   const forceUpdateData = useCallback(() => {
@@ -276,8 +287,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
     if (activeTab === 'periods') {
       fetchHistoricalData(true)
     }
-    // Se a aba custom estiver ativa, o botão de forçar atualização para ela é outro.
-  }, [fetchHistoricalData, activeTab]) // Adicionado activeTab
+  }, [fetchHistoricalData, activeTab])
 
   // Atualizar dados quando o intervalo de tempo ou moeda mudar, OU quando a aba de períodos for ativada
   useEffect(() => {
@@ -301,18 +311,13 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         if (currentIndex > 0) {
           const prevRange = timeRangesArray[currentIndex - 1]
           const days = timeRangeToDays(prevRange)
-          // Verifica se updateCacheInBackground existe e é uma função antes de chamar
-          if (typeof updateCacheInBackground === 'function') {
-            updateCacheInBackground(currency, prevRange, days)
-          }
+          updateCacheInBackground(currency, prevRange, days)
         }
         
         if (currentIndex < timeRangesArray.length - 1) {
           const nextRange = timeRangesArray[currentIndex + 1]
           const days = timeRangeToDays(nextRange)
-          if (typeof updateCacheInBackground === 'function') {
-            updateCacheInBackground(currency, nextRange, days)
-          }
+          updateCacheInBackground(currency, nextRange, days)
         }
       }
       
@@ -330,15 +335,14 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         clearTimeout(debouncedFetchRef.current);
       }
     };
-  }, [activeTab, timeRange, currency, fetchHistoricalData, updateCacheInBackground]) // Adicionado activeTab e removido updateCacheInBackground se não for mais usado diretamente aqui, verificar uso em preload
-  // A dependência updateCacheInBackground é necessária por causa do preloadAdjacentPeriods.
+  }, [activeTab, timeRange, currency, fetchHistoricalData, updateCacheInBackground])
 
-  // Formatação melhorada para moedas
+  // Formatação melhorada para moedas usando o hook de moeda padrão
   const formatCurrency = (value: number, showSymbol: boolean = false): string => {
-    if (currency === "USD") {
-      return `${showSymbol ? '$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    if (showSymbol) {
+      return formatCurrencyDefault(value, currency);
     } else {
-      return `${showSymbol ? 'R$' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
     }
   }
 
@@ -360,7 +364,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
 
   const formatDateForTimeRange = (date: string): string => {
     const dateObj = new Date(date)
-    const days = activeTab === 'periods' ? timeRangeToDays(timeRange) : differenceInDays(customEndDate || new Date(), customStartDate || new Date()) +1;
+    const days = activeTab === 'periods' ? timeRangeToDays(timeRange) : differenceInDays(customEndDate || new Date(), customStartDate || new Date()) + 1;
 
     if (!isValidDate(dateObj)) return "";
 
@@ -422,10 +426,10 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       };
     }
 
-    const prices = dataToAnalyze.map(d => d.price);
+    const prices = dataToAnalyze.map((d: HistoricalDataPoint) => d.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
-    const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const avgPrice = prices.reduce((sum: number, price: number) => sum + price, 0) / prices.length;
 
     return {
       minPrice,
@@ -433,29 +437,29 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       avgPrice,
       priceChangePeriod: calculatePriceChangeForData(dataToAnalyze).percentage,
     };
-  }, [chartData, customChartData, activeTab, currency])
+  }, [chartData, customChartData, activeTab])
 
   // Função para buscar dados para o gráfico personalizado
   const fetchCustomHistoricalData = useCallback(async () => {
     if (!customStartDate || !customEndDate) {
-      toast({ title: "Datas incompletas", description: "Por favor, selecione as datas de início e fim.", variant: "warning" })
+      toast({ title: "Datas incompletas", description: "Por favor, selecione as datas de início e fim.", variant: "destructive" })
       setCustomError("Por favor, selecione as datas de início e fim.");
       return;
     }
     if (differenceInDays(customEndDate, customStartDate) < 0) {
-      toast({ title: "Intervalo inválido", description: "A data final deve ser posterior à data inicial.", variant: "warning" })
+      toast({ title: "Intervalo inválido", description: "A data final deve ser posterior à data inicial.", variant: "destructive" })
       setCustomError("A data final deve ser posterior à data inicial.");
       return;
     }
-    if (differenceInDays(customEndDate, customStartDate) > 365 * 5) { // Limite de 5 anos por exemplo
-      toast({ title: "Intervalo muito longo", description: "Por favor, selecione um intervalo de no máximo 5 anos.", variant: "warning" });
+    if (differenceInDays(customEndDate, customStartDate) > 365 * 5) {
+      toast({ title: "Intervalo muito longo", description: "Por favor, selecione um intervalo de no máximo 5 anos.", variant: "destructive" });
       setCustomError("Por favor, selecione um intervalo de no máximo 5 anos.");
       return;
     }
 
     setCustomLoading(true)
     setCustomError(null)
-    setCustomChartData([]) // Limpa dados antigos antes de buscar
+    setCustomChartData([])
 
     try {
       const startDateStr = formatDateFn(customStartDate, "yyyy-MM-dd")
@@ -463,12 +467,12 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
       
       const data = await getHistoricalBitcoinData(
         currency.toLowerCase(), 
-        { fromDate: startDateStr, toDate: endDateStr } // Passa o objeto com fromDate e toDate
+        { fromDate: startDateStr, toDate: endDateStr }
       );
 
       const source = data.length > 0 && data[0].source ? data[0].source : "CoinGecko";
       setCustomDataSource(source);
-      setCustomIsUsingCache(data.some(item => item.isUsingCache));
+      setCustomIsUsingCache(data.some((item: HistoricalDataPoint) => item.isUsingCache));
       
       // Ordenar dados por data (mais antigos primeiro)
       data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -485,12 +489,12 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
         toast({ title: "Muitas Requisições", description: userMessage, variant: "destructive", duration: 5000 });
       } else if (err.message && err.message.includes("404")) {
         userMessage = "Dados não encontrados para o período ou moeda selecionada.";
-         toast({ title: "Não Encontrado", description: userMessage, variant: "warning", duration: 5000 });
+         toast({ title: "Não Encontrado", description: userMessage, variant: "destructive", duration: 5000 });
       } else {
         toast({ title: "Erro na Busca", description: userMessage, variant: "destructive", duration: 5000 });
       }
       setCustomError(userMessage)
-      setCustomChartData([]) // Limpa os dados em caso de erro
+      setCustomChartData([])
     } finally {
       setCustomLoading(false)
     }
@@ -596,7 +600,7 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
                       mode="single"
                       selected={customStartDate}
                       onSelect={setCustomStartDate}
-                      disabled={(date) => date > new Date() || date < new Date("2009-01-03")} // Bitcoin genesis block
+                      disabled={(date) => date > new Date() || date < new Date("2009-01-03")}
                       initialFocus
                     />
                   </PopoverContent>
@@ -840,13 +844,13 @@ export default function HistoricalRatesChart({ historicalData }: HistoricalRates
   )
 }
 
-// NOVO COMPONENTE AUXILIAR PARA OS STATS CARDS
+// COMPONENTE AUXILIAR PARA OS STATS CARDS
 interface StatDisplayCardProps {
   title: string;
   value: string;
   icon: React.ReactNode;
   valueColor?: string;
-  currencyUsed?: CurrencyType; // Opcional, para tooltip ou formatação futura
+  currencyUsed?: CurrencyType;
 }
 
 function StatDisplayCard({ title, value, icon, valueColor, currencyUsed }: StatDisplayCardProps) {

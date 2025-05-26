@@ -22,6 +22,7 @@ import { useActiveTab } from "@/hooks/use-active-tab"
 import { PageTransition } from "./page-transition"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useReports } from "@/hooks/use-reports"
+import { useDefaultCurrency } from "@/hooks/use-default-currency"
 
 type CurrencyUnit = "BTC" | "SATS" | "USD" | "BRL"
 
@@ -86,6 +87,17 @@ export default function BitcoinConverter() {
   
   // Hook de relatórios para sincronização em tempo real
   const { activeReportId, activeReport, isLoaded: reportsLoaded } = useReports()
+  
+  // Hook de moeda padrão
+  const { defaultCurrency, getDisplayCurrency } = useDefaultCurrency()
+  
+  // Efeito para atualizar a unidade selecionada baseada na moeda padrão
+  useEffect(() => {
+    if (defaultCurrency && selectedUnit !== "BTC" && selectedUnit !== "SATS") {
+      // Se a unidade atual é uma moeda (USD/BRL), atualizar para a moeda padrão
+      setSelectedUnit(defaultCurrency as CurrencyUnit);
+    }
+  }, [defaultCurrency]);
   
   // Função para atualizar a URL quando a aba é alterada
   const handleTabChange = (value: string) => {

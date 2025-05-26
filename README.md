@@ -278,3 +278,24 @@ Use o console do navegador para acompanhar:
 - Progresso da importação
 - Estatísticas de validação
 - Detecção de problemas
+
+### 💰 Sistema de Moeda Padrão
+- **Configuração por usuário**: Cada configuração LN Markets pode ter sua moeda padrão (USD/BRL)
+- **Aplicação global**: A moeda padrão é aplicada automaticamente em toda a aplicação
+- **Sincronização automática**: Componentes como bitcoin-converter respeitam a configuração do usuário
+- **Fallback inteligente**: USD é usado como padrão quando não há configuração específica
+
+#### Como usar o hook de moeda padrão:
+```typescript
+import { useDefaultCurrency } from '@/hooks/use-default-currency';
+
+function MeuComponente() {
+  const { defaultCurrency, formatCurrency, getDisplayCurrency } = useDefaultCurrency();
+  
+  // Usar a moeda padrão
+  const valor = formatCurrency(1000); // Formata automaticamente na moeda padrão
+  const config = getDisplayCurrency(); // Obtém configuração da moeda (símbolo, nome, etc.)
+  
+  return <div>Moeda padrão: {defaultCurrency}</div>;
+}
+```

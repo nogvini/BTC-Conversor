@@ -167,7 +167,8 @@ export default function UserProfile() {
     secret: "",
     passphrase: "",
     network: "mainnet" as "mainnet" | "testnet",
-    isActive: true
+    isActive: true,
+    defaultCurrency: "USD" as "USD" | "BRL"
   });
   
   // Inicializar o formulário com valores vazios
@@ -402,7 +403,8 @@ export default function UserProfile() {
         network: newConfigForm.network,
         isConfigured: true
       },
-      isActive: newConfigForm.isActive
+      isActive: newConfigForm.isActive,
+      defaultCurrency: newConfigForm.defaultCurrency
     };
 
     const configId = addLNMarketsConfig(user.email, newConfig);
@@ -420,7 +422,8 @@ export default function UserProfile() {
         secret: "",
         passphrase: "",
         network: "mainnet",
-        isActive: true
+        isActive: true,
+        defaultCurrency: "USD"
       });
       setIsAddingNewConfig(false);
       
@@ -708,6 +711,8 @@ export default function UserProfile() {
                         <p className="text-xs text-purple-400 break-all">
                           <span className="inline-block">Rede: {config.credentials.network}</span>
                           <span className="hidden sm:inline"> • </span>
+                          <span className="inline-block">Moeda: {(config as any).defaultCurrency || 'USD'}</span>
+                          <span className="hidden sm:inline"> • </span>
                           <span className="block sm:inline">Criada: {new Date(config.createdAt).toLocaleDateString()}</span>
                         </p>
                       </div>
@@ -781,11 +786,14 @@ export default function UserProfile() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <Zap className="h-12 w-12 text-purple-400 mx-auto mb-3" />
-                <p className="text-purple-300">Nenhuma configuração LN Markets encontrada</p>
-                <p className="text-sm text-purple-400">Adicione sua primeira configuração para começar</p>
-              </div>
+              // CORRIGIDO: Só mostrar mensagem de "nenhuma configuração" se não estiver adicionando nova
+              !isAddingNewConfig && (
+                <div className="text-center py-8">
+                  <Zap className="h-12 w-12 text-purple-400 mx-auto mb-3" />
+                  <p className="text-purple-300">Nenhuma configuração LN Markets encontrada</p>
+                  <p className="text-sm text-purple-400">Adicione sua primeira configuração para começar</p>
+                </div>
+              )
             )}
 
             {/* Formulário para nova configuração */}
@@ -796,7 +804,7 @@ export default function UserProfile() {
                   Nova Configuração LN Markets
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-purple-400 mb-1">
                       Nome da Configuração *
@@ -822,6 +830,20 @@ export default function UserProfile() {
                     >
                       <option value="mainnet">Mainnet</option>
                       <option value="testnet">Testnet</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-purple-400 mb-1">
+                      Moeda Padrão
+                    </label>
+                    <select
+                      value={newConfigForm.defaultCurrency}
+                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, defaultCurrency: e.target.value as "USD" | "BRL" }))}
+                      className="w-full px-3 py-2 bg-black/50 border border-purple-700/50 rounded-md text-white"
+                    >
+                      <option value="USD">USD (Dólar)</option>
+                      <option value="BRL">BRL (Real)</option>
                     </select>
                   </div>
                 </div>
@@ -914,7 +936,8 @@ export default function UserProfile() {
                         secret: "",
                         passphrase: "",
                         network: "mainnet",
-                        isActive: true
+                        isActive: true,
+                        defaultCurrency: "USD"
                       });
                     }}
                     variant="outline"
