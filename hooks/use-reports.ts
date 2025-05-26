@@ -377,6 +377,21 @@ export function useReports() {
       const reportToUpdate = prevCollection.reports[reportIndex];
 
       if (profitData.originalId) {
+        // ALGORITMO MELHORADO: Detectar duplicatas usando ID composto
+        // Verifica se existe EXATAMENTE o mesmo profit (mesmo ID) 
+        const exactDuplicate = reportToUpdate.profits.some(p => p.id === profitData.id);
+        
+        if (exactDuplicate) {
+          result = { status: 'duplicate', originalId: profitData.originalId, message: `Registro de lucro/perda com ID exato ${profitData.id} já existe.` };
+          if (!options?.suppressToast) {
+            toast({ title: "Registro Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
+          }
+          return prevCollection; 
+        }
+        
+        // IMPORTANTE: Não verificar duplicidade pelo originalId, pois queremos permitir
+        // trades do mesmo ID mas com valores diferentes
+        /*
         const isDuplicate = reportToUpdate.profits.some(p => p.originalId === profitData.originalId);
         if (isDuplicate) {
           result = { status: 'duplicate', originalId: profitData.originalId, message: `Registro de lucro/perda com ID original ${profitData.originalId} já existe.` };
@@ -385,9 +400,20 @@ export function useReports() {
           }
           return prevCollection; 
         }
+        */
       }
 
-      const newProfitRecordId = generateId();
+      // MODIFICADO: Preservar o ID se já for um ID composto (começa com lnm_)
+      const usePredefinedId = profitData.id && typeof profitData.id === 'string' && profitData.id.startsWith('lnm_');
+      const newProfitRecordId = usePredefinedId ? profitData.id : generateId();
+      
+      console.log('[addProfitRecord] ID gerado:', {
+        idOriginal: profitData.id,
+        originalId: profitData.originalId,
+        idGerado: newProfitRecordId,
+        usouIdExistente: usePredefinedId
+      });
+      
       const newProfitRecord: ProfitRecord = {
         ...profitData,
         id: newProfitRecordId,

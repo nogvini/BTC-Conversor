@@ -906,11 +906,11 @@ export default function ProfitCalculator({
              id: tradeId,
              pl: trade.pl,
              pl_type: typeof trade.pl,
-             closed: trade.closed
+             closed: trade.closed,
+             raw: JSON.stringify(trade).substring(0, 200) + '...'
            });
            
-           // SOLUÇÃO AVANÇADA: Sistema de detecção de duplicatas mais inteligente
-           // Problema identificado: O mesmo ID de trade aparece com valores PL diferentes
+           // SOLUÇÃO MELHORADA: Sistema de detecção de duplicatas com chave composta
            // Agora vamos considerar um "composite key" que inclui ID + PL
            
            // Normalizar ID
@@ -919,26 +919,28 @@ export default function ProfitCalculator({
              : `trade_${tradeId}`;
            
            // Criar uma chave composta de ID+PL para identificação única
-           const plValue = Number(trade.pl || 0);
+           // Usando Math.round para estabilizar valores numéricos com possíveis erros de ponto flutuante
+           const plValue = Math.round(Number(trade.pl || 0));
            const compositeKey = `${cleanTradeId}|${plValue}`;
-             
-           console.log(`[handleImportTrades] Verificando trade: ID=${cleanTradeId}, PL=${plValue}, compositeKey=${compositeKey}`);
            
-           // Verificar duplicatas pelo ID básico e reportar
-           if (existingTradeIds.has(cleanTradeId)) {
-             console.log(`[handleImportTrades] Trade com ID duplicado mas PL diferente: ${cleanTradeId}`);
-             // Não marcar como duplicado, deixar continuar para verificação de composite key
-           }
+           // ID composto para o sistema (será salvo no objeto ProfitRecord)
+           const compositeId = `lnm_${cleanTradeId.replace('trade_', '')}_pl${plValue}`;
+             
+           console.log(`[handleImportTrades] Verificando trade: ID=${cleanTradeId}, PL=${plValue}, compositeKey=${compositeKey}, compositeId=${compositeId}`);
+           
+           // IMPORTANTE: Não verificar mais duplicatas pelo ID básico
+           // Verificar apenas pelo composite key
            
            // Manter controle de IDs compostos já processados nesta sessão
            if (processedCompositeKeys.has(compositeKey)) {
-             console.log(`[handleImportTrades] Trade com composite key duplicada: ${compositeKey}`);
+             console.log(`[handleImportTrades] DUPLICADO: Trade com chave composta já existente: ${compositeKey}`);
              totalDuplicatesFound++;
              continue;
            }
            
            // Adicionar à lista de chaves compostas processadas
            processedCompositeKeys.add(compositeKey);
+           console.log(`[handleImportTrades] NOVO: Chave composta adicionada: ${compositeKey}`);
            
            // Validação completa do trade
            const validation = validateTradeForImport(trade);
@@ -1057,10 +1059,12 @@ export default function ProfitCalculator({
           const plNum = Number(trade.pl || 0);
           const compositeKey = `${fullId}|${plNum}`;
           
-          // Um trade é duplicado se:
-          // 1. O ID existe nos IDs já registrados (relatório atual)
-          // 2. OU a chave composta já foi processada nesta sessão de importação
-          const isDuplicate = existingTradeIds.has(fullId) || processedCompositeKeys.has(compositeKey);
+          // CORRIGIDO: Um trade é duplicado APENAS se a chave composta já existe
+          // Isso permite que trades com mesmo ID mas PL diferente sejam importados
+          // const isDuplicate = existingTradeIds.has(fullId) || processedCompositeKeys.has(compositeKey);
+          const isDuplicate = processedCompositeKeys.has(compositeKey);
+          
+          console.log(`[handleImportTrades] Verificação de duplicata NOVA: ${isDuplicate ? "DUPLICADO" : "NOVO"} - Chave: ${compositeKey}`);
          
          // Validações específicas
          const mainCriteria = isClosed && hasNonZeroPL;
