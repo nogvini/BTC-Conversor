@@ -1153,33 +1153,61 @@ export default function ProfitCalculator({
 
   // Função auxiliar para verificar se um depósito está confirmado
   const isDepositConfirmed = (deposit: any): boolean => {
+    console.log('[isDepositConfirmed] Analisando depósito:', {
+      id: deposit.id,
+      type: deposit.type,
+      amount: deposit.amount,
+      // Todos os possíveis atributos de confirmação
+      isConfirmed: deposit.isConfirmed,
+      is_confirmed: deposit.is_confirmed,
+      success: deposit.success,
+      status: deposit.status
+    });
+
     // Verificar diferentes atributos dependendo do tipo de depósito:
-    // 1. Depósitos on-chain: is_confirmed: true
+    // 1. Depósitos on-chain (bitcoin): is_confirmed: true
     // 2. Depósitos internos: success: true  
-    // 3. Depósitos não confirmados: isConfirmed: false
+    // 3. Depósitos lightning: status específico ou outros atributos
     
     // Se explicitamente não confirmado
     if (deposit.isConfirmed === false) {
+      console.log('[isDepositConfirmed] ❌ Rejeitado: isConfirmed === false');
       return false;
     }
     
-    // Se é depósito on-chain confirmado
+    // Se é depósito on-chain confirmado (padrão para bitcoin)
     if (deposit.is_confirmed === true) {
+      console.log('[isDepositConfirmed] ✅ Confirmado: is_confirmed === true (on-chain)');
       return true;
     }
     
     // Se é depósito interno bem-sucedido
     if (deposit.success === true) {
+      console.log('[isDepositConfirmed] ✅ Confirmado: success === true (internal)');
       return true;
     }
     
     // Se tem isConfirmed true (caso padrão antigo)
     if (deposit.isConfirmed === true) {
+      console.log('[isDepositConfirmed] ✅ Confirmado: isConfirmed === true (legacy)');
       return true;
     }
     
-    // Se nenhum indicador negativo, considerar confirmado (fallback)
-    return deposit.isConfirmed !== false && deposit.is_confirmed !== false && deposit.success !== false;
+    // Para depósitos bitcoin sem is_confirmed explícito, verificar se tem tx_id (indica confirmação)
+    if (deposit.type === 'bitcoin' && deposit.tx_id && !deposit.hasOwnProperty('is_confirmed')) {
+      console.log('[isDepositConfirmed] ✅ Confirmado: depósito bitcoin com tx_id (assumindo confirmado)');
+      return true;
+    }
+    
+    // Se nenhum indicador negativo explícito, considerar confirmado (fallback conservador)
+    const hasNegativeIndicator = deposit.isConfirmed === false || deposit.is_confirmed === false || deposit.success === false;
+    if (!hasNegativeIndicator) {
+      console.log('[isDepositConfirmed] ✅ Confirmado: sem indicadores negativos (fallback)');
+      return true;
+    }
+    
+    console.log('[isDepositConfirmed] ❌ Rejeitado: não atende critérios de confirmação');
+    return false;
   };
 
   const handleImportDeposits = async () => {
@@ -1906,24 +1934,22 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'PL inválido ou ausente' };
     }
     
-    // Verificar se PL não é zero (trades sem lucro/prejuízo podem ser ignorados)
-    if (Number(trade.pl) === 0) {
-      return { isValid: false, reason: 'PL é zero' };
+    // Para trades fechados, priorizar closed_ts
+    if (trade.closed && !trade.closed_ts) {
+      // Se não tem closed_ts, verificar se tem pelo menos um campo de data válido
+      if (!trade.creation_ts && !trade.market_filled_ts && !trade.last_update_ts) {
+        return { isValid: false, reason: 'Trade fechado sem closed_ts e sem campos de data alternativos' };
+      }
     }
     
-    // Verificar se tem dados de data válidos (campos corretos da API LN Markets)
+    // Verificar se tem pelo menos um campo de data válido (campos corretos da API LN Markets)
     if (!trade.closed_ts && !trade.creation_ts && !trade.market_filled_ts && !trade.last_update_ts) {
       return { isValid: false, reason: 'Nenhum campo de data válido (closed_ts, creation_ts, market_filled_ts, last_update_ts)' };
     }
     
-    // Verificar se tem informações básicas do instrumento
-    if (!trade.instrument && !trade.symbol && !trade.market) {
-      return { isValid: false, reason: 'Instrumento do trade não identificado' };
-    }
-    
     // Verificar se o valor do PL está dentro de limites razoáveis (evitar dados corrompidos)
     const plValue = Math.abs(Number(trade.pl));
-    if (plValue > 1000000) { // Mais de 1 milhão de satoshis (0.01 BTC)
+    if (plValue > 10000000) { // Mais de 10 milhões de satoshis (0.1 BTC) - limite mais generoso
       return { isValid: false, reason: 'PL muito alto, possível dado corrompido' };
     }
     
@@ -2166,7 +2192,128 @@ export default function ProfitCalculator({
     }
   };
 
-  // NOVA Função para testar conversão de depósitos
+  // NOVA Função para testar depósitos reais da API
+  const debugDepositsFromAPI = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !user?.email) {
+      toast({
+        title: "❌ Erro no debug",
+        description: "Configuração ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[debugDepositsFromAPI] Buscando depósitos da API...');
+      
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro no debug",
+          description: response.error || "Erro ao buscar depósitos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const deposits = response.data;
+      console.log('[debugDepositsFromAPI] Depósitos recebidos:', deposits);
+
+      // Analisar cada depósito
+      const analysisResults = deposits.map((deposit: any, index: number) => {
+        console.log(`[debugDepositsFromAPI] Analisando depósito ${index + 1}:`, deposit);
+        
+        const isConfirmed = isDepositConfirmed(deposit);
+        
+        let conversionResult = null;
+        let conversionError = null;
+        
+        if (isConfirmed) {
+          try {
+            conversionResult = convertDepositToInvestment(deposit);
+            console.log(`[debugDepositsFromAPI] Conversão bem-sucedida ${index + 1}:`, conversionResult);
+          } catch (error) {
+            conversionError = error instanceof Error ? error.message : 'Erro desconhecido';
+            console.error(`[debugDepositsFromAPI] Erro na conversão ${index + 1}:`, error);
+          }
+        }
+
+        return {
+          index: index + 1,
+          original: deposit,
+          isConfirmed,
+          conversionResult,
+          conversionError,
+          analysis: {
+            id: deposit.id,
+            type: deposit.type,
+            amount: deposit.amount,
+            // Atributos de confirmação
+            isConfirmed: deposit.isConfirmed,
+            is_confirmed: deposit.is_confirmed,
+            success: deposit.success,
+            status: deposit.status,
+            // Resultado da lógica
+            confirmedByLogic: isConfirmed
+          }
+        };
+      });
+
+      // Estatísticas
+      const stats = {
+        total: deposits.length,
+        confirmed: analysisResults.filter((r: any) => r.isConfirmed).length,
+        rejected: analysisResults.filter((r: any) => !r.isConfirmed).length,
+        conversionSuccess: analysisResults.filter((r: any) => r.conversionResult).length,
+        conversionErrors: analysisResults.filter((r: any) => r.conversionError).length,
+        typeDistribution: deposits.reduce((acc: Record<string, number>, d: any) => {
+          acc[d.type] = (acc[d.type] || 0) + 1;
+          return acc;
+        }, {}),
+        confirmationDistribution: analysisResults.reduce((acc: Record<string, number>, r: any) => {
+          const key = r.isConfirmed ? 'confirmados' : 'rejeitados';
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {})
+      };
+
+      console.log('[debugDepositsFromAPI] Análise completa:', {
+        stats,
+        analysisResults,
+        sampleConfirmed: analysisResults.filter((r: any) => r.isConfirmed).slice(0, 2),
+        sampleRejected: analysisResults.filter((r: any) => !r.isConfirmed).slice(0, 2)
+      });
+
+      toast({
+        title: "🔍 Debug de Depósitos",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div>Total: {stats.total} depósitos</div>
+            <div>Confirmados: {stats.confirmed}</div>
+            <div>Rejeitados: {stats.rejected}</div>
+            <div>Conversões OK: {stats.conversionSuccess}</div>
+            <div>Tipos: {Object.entries(stats.typeDistribution).map(([k,v]) => `${k}:${v}`).join(', ')}</div>
+            <div>Detalhes no console</div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[debugDepositsFromAPI] Erro:', error);
+      toast({
+        title: "❌ Erro no debug",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NOVA Função para testar conversão de depósitos (dados simulados)
   const testDepositConversion = () => {
     if (!currentActiveReportObjectFromHook) {
       toast({
@@ -2177,48 +2324,39 @@ export default function ProfitCalculator({
       return;
     }
 
-    // Criar depósitos de teste com diferentes tipos e atributos de confirmação
-    const testDeposits = [
+    // Usar os dados reais do seu teste como base
+    const realTestDeposits = [
       {
-        id: `test_deposit_${Date.now()}_1`,
+        id: "7d6882a9-5426-451a-88ad-f0839fe96de3",
         amount: 69441,
-        type: 'bitcoin',
-        status: 'confirmed',
-        is_confirmed: true, // depósito on-chain confirmado
-        ts: Date.now(),
-        tx_id: 'test_tx_id_1'
+        tx_id: "964d085f1945a08576d7aa66c9740f3bd9ae9cbfa9278160eeabf3d3d77242c8",
+        is_confirmed: true,
+        ts: 1748191813162,
+        type: "bitcoin"
       },
       {
-        id: `test_deposit_${Date.now()}_2`,
+        id: "f96bf3e0-0c2f-4dff-becc-a5372ebb235f",
+        amount: 321790,
+        tx_id: "3830462b295e75652befe0a48c5cb8bbc5b117db07da6d5dcf7ff6c6e8757a4e",
+        is_confirmed: true,
+        ts: 1747618233082,
+        type: "bitcoin"
+      },
+      {
+        id: "93ad24a6-c060-49fb-9f63-107999d288ff",
         amount: 24779,
-        type: 'internal',
-        from_username: 'test_user',
-        success: true, // depósito interno bem-sucedido
-        ts: Date.now()
-      },
-      {
-        id: `test_deposit_${Date.now()}_3`,
-        amount: 25000,
-        type: 'lightning',
-        status: 'pending',
-        isConfirmed: false, // explicitamente não confirmado
-        created_at: new Date().toISOString()
-      },
-      {
-        id: `test_deposit_${Date.now()}_4`,
-        amount: 15000,
-        type: 'lightning',
-        status: 'confirmed',
-        isConfirmed: true, // confirmado tradicional
-        created_at: new Date().toISOString()
+        success: true,
+        from_username: "lysxvjjp4",
+        ts: 1748193732754,
+        type: "internal"
       }
     ];
 
-    console.log('[testDepositConversion] Testando conversão de depósitos:', testDeposits);
+    console.log('[testDepositConversion] Testando com dados reais:', realTestDeposits);
 
-    testDeposits.forEach((deposit, index) => {
+    realTestDeposits.forEach((deposit, index) => {
       try {
-        console.log(`[testDepositConversion] Testando depósito ${index + 1}:`, deposit);
+        console.log(`[testDepositConversion] Testando depósito real ${index + 1}:`, deposit);
         
         const isConfirmed = isDepositConfirmed(deposit);
         
@@ -2228,14 +2366,10 @@ export default function ProfitCalculator({
           const investment = convertDepositToInvestment(deposit);
           console.log(`[testDepositConversion] Investimento convertido ${index + 1}:`, investment);
           
-          const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          console.log(`[testDepositConversion] Resultado da adição ${index + 1}:`, result);
+          // Não adicionar de verdade, apenas simular
+          console.log(`[testDepositConversion] Simulação: adicionaria investimento ${investment.id}`);
         } else {
-          console.log(`[testDepositConversion] Depósito ${index + 1} ignorado por isConfirmed:`, {
-            status: deposit.status,
-            isConfirmed: deposit.isConfirmed,
-            reason: 'isConfirmed === false'
-          });
+          console.log(`[testDepositConversion] Depósito ${index + 1} seria ignorado`);
         }
       } catch (error) {
         console.error(`[testDepositConversion] Erro no depósito ${index + 1}:`, error);
@@ -2243,12 +2377,13 @@ export default function ProfitCalculator({
     });
 
     toast({
-      title: "🧪 Teste de Conversão",
+      title: "🧪 Teste com Dados Reais",
       description: (
         <div className="space-y-1 text-xs">
-          <div>Testou 4 depósitos com diferentes tipos e confirmações</div>
-          <div>1: bitcoin (is_confirmed=true), 2: internal (success=true)</div>
-          <div>3: lightning (isConfirmed=false), 4: lightning (isConfirmed=true)</div>
+          <div>Testou 3 depósitos reais da sua API</div>
+          <div>2x bitcoin (is_confirmed=true)</div>
+          <div>1x internal (success=true)</div>
+          <div>Todos deveriam ser confirmados</div>
           <div>Verifique o console para detalhes</div>
         </div>
       ),
@@ -3372,6 +3507,14 @@ export default function ProfitCalculator({
                             className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
                           >
                             🧪 Testar Depósitos
+                          </Button>
+                          <Button
+                            onClick={debugDepositsFromAPI}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-cyan-700/20 hover:bg-cyan-600/30 border-cyan-600/50"
+                          >
+                            🔍 Debug Depósitos API
                           </Button>
                           <Button
                             onClick={debugTradesFromAPI}

@@ -134,32 +134,40 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     last_update_ts: trade.last_update_ts,
     closed: trade.closed,
     pl: trade.pl,
+    opening_fee: trade.opening_fee,
+    closing_fee: trade.closing_fee,
     side: trade.side,
     quantity: trade.quantity
   });
 
-  // Identificar todos os possíveis campos de data com prioridade criteriosa (campos corretos da API LN Markets)
-  const possibleDateFields = {
-    closed_ts: trade.closed_ts,           // Data de fechamento (mais importante para trades fechados)
-    market_filled_ts: trade.market_filled_ts, // Timestamp quando foi preenchido no mercado
-    last_update_ts: trade.last_update_ts, // Data da última atualização
-    creation_ts: trade.creation_ts        // Data de criação (fallback)
-  };
+  // Para trades fechados, usar SEMPRE closed_ts como prioridade absoluta
+  // Para trades abertos, usar market_filled_ts ou creation_ts
+  let timestampToUse: string | number | undefined;
+  let dateSource: string;
 
-  console.log('[convertTradeToProfit] Campos de data encontrados:', possibleDateFields);
+  if (trade.closed && trade.closed_ts) {
+    // Trade fechado: usar closed_ts obrigatoriamente
+    timestampToUse = trade.closed_ts;
+    dateSource = 'closed_ts';
+    console.log('[convertTradeToProfit] Trade fechado - usando closed_ts:', timestampToUse);
+  } else {
+    // Trade aberto ou sem closed_ts: usar fallback
+    const possibleDateFields = {
+      market_filled_ts: trade.market_filled_ts,
+      creation_ts: trade.creation_ts,
+      last_update_ts: trade.last_update_ts
+    };
 
-  // Prioridade criteriosa: closed_ts (se fechado) > market_filled_ts > last_update_ts > creation_ts
-  const priorityOrder = trade.closed && trade.closed_ts 
-    ? ['closed_ts', 'market_filled_ts', 'last_update_ts', 'creation_ts']
-    : ['market_filled_ts', 'closed_ts', 'last_update_ts', 'creation_ts'];
-
-  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
-    possibleDateFields,
-    priorityOrder,
-    'convertTradeToProfit'
-  );
-
-  console.log('[convertTradeToProfit] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
+    const { timestamp, source } = selectBestTimestamp(
+      possibleDateFields,
+      ['market_filled_ts', 'creation_ts', 'last_update_ts'],
+      'convertTradeToProfit-fallback'
+    );
+    
+    timestampToUse = timestamp;
+    dateSource = source;
+    console.log('[convertTradeToProfit] Trade aberto/sem closed_ts - usando fallback:', timestampToUse, 'da fonte:', dateSource);
+  }
 
   const tradeDate = parseTimestamp(timestampToUse, `convertTradeToProfit-${dateSource}`);
   
@@ -178,6 +186,20 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     throw new Error('Trade deve ter uid ou id válido');
   }
 
+  // Calcular lucro líquido: PL - fees (opening_fee + closing_fee)
+  const openingFee = trade.opening_fee || 0;
+  const closingFee = trade.closing_fee || 0;
+  const totalFees = openingFee + closingFee;
+  const netProfit = trade.pl - totalFees;
+
+  console.log('[convertTradeToProfit] Cálculo de lucro:', {
+    pl: trade.pl,
+    opening_fee: openingFee,
+    closing_fee: closingFee,
+    total_fees: totalFees,
+    net_profit: netProfit
+  });
+
   // Validar valor do PL
   if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
     console.error('[convertTradeToProfit] Valor PL inválido:', trade.pl);
@@ -188,9 +210,9 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     id: `lnm_trade_${tradeIdentifier}`, // Usar uid se disponível, senão id
     originalId: `trade_${tradeIdentifier}`, // Prefixo para evitar conflitos
     date: tradeDate.toISOString().split('T')[0],
-    amount: Math.abs(trade.pl),
+    amount: Math.abs(netProfit), // Usar lucro líquido (PL - fees)
     unit: 'SATS' as const,
-    isProfit: trade.pl > 0,
+    isProfit: netProfit > 0, // Baseado no lucro líquido
     // Adicionar metadados para debug
     _debug: {
       originalTimestamp: timestampToUse,
@@ -200,6 +222,11 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       closed: trade.closed,
       side: trade.side,
       quantity: trade.quantity,
+      grossPL: trade.pl,
+      openingFee: openingFee,
+      closingFee: closingFee,
+      totalFees: totalFees,
+      netProfit: netProfit,
       allTimestamps: {
         closed_ts: trade.closed_ts,
         market_filled_ts: trade.market_filled_ts,
