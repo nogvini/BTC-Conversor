@@ -51,33 +51,35 @@ export interface LNMarketsConfigImportStats {
   lastImport?: string;
 }
 
-// Tipo para trade da LN Markets
+// Tipo para trade da LN Markets (baseado na documentação oficial da API)
 export interface LNMarketsTrade {
-  id: number;
-  uid: string;
+  id: string; // UUID format
+  uid: string; // UUID format
   type: 'm' | 'l'; // market ou limit
   side: 'b' | 's'; // buy ou sell
   opening_fee: number;
   closing_fee: number;
-  quantity: number;
+  maintenance_margin: number;
+  quantity?: number | null;
   margin: number;
-  leverage: number;
-  price: number;
-  liquidation: number;
-  stoploss?: number;
-  takeprofit?: number;
-  exit_price?: number;
+  leverage?: number | null;
+  price?: number | null;
+  liquidation?: number | null;
+  stoploss?: number | null;
+  takeprofit?: number | null;
+  exit_price?: number | null;
   pl: number; // profit/loss
-  created_at: string; // ISO date string
-  updated_at: string; // ISO date string
-  closed_at?: string; // ISO date string
-  ts?: number; // Timestamp preciso em milissegundos
-  entry_price: number | null;
+  creation_ts?: number | null; // Timestamp de criação
+  market_filled_ts?: number | string | null; // Timestamp quando foi preenchido no mercado
+  closed_ts: number; // Timestamp de fechamento
+  last_update_ts?: number | null; // Timestamp da última atualização
+  entry_price?: number | null;
+  entry_margin?: number | null;
   open: boolean;
   running: boolean;
   canceled: boolean;
   closed: boolean;
-  sum_carry_fees?: number;
+  sum_carry_fees?: number | null;
 }
 
 // Tipo para depósito da LN Markets

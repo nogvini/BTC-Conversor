@@ -25,6 +25,7 @@ function convertToBtc(amount: number, unit: 'SATS' | 'BTC' | 'USD' | 'BRL'): num
 
 /**
  * Função auxiliar para parsear timestamp de forma segura e criteriosa
+ * Baseada na documentação da API LN Markets que usa timestamps em milissegundos
  */
 function parseTimestamp(timestamp: string | number | undefined | null, context: string = 'unknown'): Date {
   console.log(`[parseTimestamp] Context: ${context}, Timestamp recebido:`, timestamp, typeof timestamp);
@@ -36,27 +37,37 @@ function parseTimestamp(timestamp: string | number | undefined | null, context: 
   
   let date: Date;
   
-  // Se for um número (timestamp em milissegundos ou segundos)
+  // Se for um número (timestamp em milissegundos conforme documentação LN Markets)
   if (typeof timestamp === 'number') {
-    // Se for timestamp em segundos (< ano 2100), converter para milissegundos
-    if (timestamp < 4102444800) {
+    // A API LN Markets usa timestamps em milissegundos
+    // Verificar se é um timestamp válido (entre 2010 e 2030)
+    const testDate = new Date(timestamp);
+    const year = testDate.getFullYear();
+    
+    if (year >= 2010 && year <= 2030) {
+      date = testDate;
+      console.log(`[parseTimestamp] ${context}: Usado como milissegundos:`, timestamp);
+    } else {
+      // Se não for válido como milissegundos, tentar como segundos
       date = new Date(timestamp * 1000);
       console.log(`[parseTimestamp] ${context}: Convertido de segundos para milissegundos:`, timestamp, '->', timestamp * 1000);
-    } else {
-      date = new Date(timestamp);
-      console.log(`[parseTimestamp] ${context}: Usado como milissegundos:`, timestamp);
     }
   } else if (typeof timestamp === 'string') {
     // Se for string numérica
     if (/^\d+$/.test(timestamp)) {
       const numericTimestamp = parseInt(timestamp);
-      // Se for timestamp em segundos (< ano 2100), converter para milissegundos
-      if (numericTimestamp < 4102444800) {
+      
+      // Verificar se é um timestamp válido em milissegundos
+      const testDate = new Date(numericTimestamp);
+      const year = testDate.getFullYear();
+      
+      if (year >= 2010 && year <= 2030) {
+        date = testDate;
+        console.log(`[parseTimestamp] ${context}: String numérica usada como milissegundos:`, timestamp);
+      } else {
+        // Se não for válido como milissegundos, tentar como segundos
         date = new Date(numericTimestamp * 1000);
         console.log(`[parseTimestamp] ${context}: String numérica convertida de segundos:`, timestamp, '->', numericTimestamp * 1000);
-      } else {
-        date = new Date(numericTimestamp);
-        console.log(`[parseTimestamp] ${context}: String numérica usada como milissegundos:`, timestamp);
       }
     } else {
       // Tentar parsear como string de data ISO
@@ -76,11 +87,11 @@ function parseTimestamp(timestamp: string | number | undefined | null, context: 
     return new Date();
   }
   
-  // Verificar se a data não é muito antiga (antes de 2010) ou muito futura (depois de 2030)
+  // Verificar se a data está em um range razoável
   const year = date.getFullYear();
   if (year < 2010 || year > 2030) {
-    console.warn(`[parseTimestamp] ${context}: Data suspeita (${year}):`, date, 'timestamp original:', timestamp);
-    // Não vamos usar data atual aqui, mas vamos logar o aviso
+    console.warn(`[parseTimestamp] ${context}: Data fora do range esperado (${year}):`, date, 'timestamp original:', timestamp);
+    // Ainda retornamos a data, mas logamos o aviso
   }
   
   return date;
@@ -117,30 +128,30 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
   console.log('[convertTradeToProfit] Campos de data disponíveis:', {
     id: trade.id,
     uid: trade.uid,
-    created_at: trade.created_at,
-    updated_at: trade.updated_at,
-    closed_at: trade.closed_at,
-    ts: trade.ts,
+    creation_ts: trade.creation_ts,
+    market_filled_ts: trade.market_filled_ts,
+    closed_ts: trade.closed_ts,
+    last_update_ts: trade.last_update_ts,
     closed: trade.closed,
     pl: trade.pl,
     side: trade.side,
     quantity: trade.quantity
   });
 
-  // Identificar todos os possíveis campos de data com prioridade criteriosa
+  // Identificar todos os possíveis campos de data com prioridade criteriosa (campos corretos da API LN Markets)
   const possibleDateFields = {
-    closed_at: trade.closed_at,     // Data de fechamento (mais importante para trades fechados)
-    ts: trade.ts,                   // Timestamp preciso (novos formatos)
-    updated_at: trade.updated_at,   // Data de atualização
-    created_at: trade.created_at    // Data de criação (fallback)
+    closed_ts: trade.closed_ts,           // Data de fechamento (mais importante para trades fechados)
+    market_filled_ts: trade.market_filled_ts, // Timestamp quando foi preenchido no mercado
+    last_update_ts: trade.last_update_ts, // Data da última atualização
+    creation_ts: trade.creation_ts        // Data de criação (fallback)
   };
 
   console.log('[convertTradeToProfit] Campos de data encontrados:', possibleDateFields);
 
-  // Prioridade criteriosa: closed_at (se fechado) > ts > updated_at > created_at
-  const priorityOrder = trade.closed && trade.closed_at 
-    ? ['closed_at', 'ts', 'updated_at', 'created_at']
-    : ['ts', 'closed_at', 'updated_at', 'created_at'];
+  // Prioridade criteriosa: closed_ts (se fechado) > market_filled_ts > last_update_ts > creation_ts
+  const priorityOrder = trade.closed && trade.closed_ts 
+    ? ['closed_ts', 'market_filled_ts', 'last_update_ts', 'creation_ts']
+    : ['market_filled_ts', 'closed_ts', 'last_update_ts', 'creation_ts'];
 
   const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
     possibleDateFields,
@@ -190,10 +201,10 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       side: trade.side,
       quantity: trade.quantity,
       allTimestamps: {
-        closed_at: trade.closed_at,
-        ts: trade.ts,
-        updated_at: trade.updated_at,
-        created_at: trade.created_at
+        closed_ts: trade.closed_ts,
+        market_filled_ts: trade.market_filled_ts,
+        last_update_ts: trade.last_update_ts,
+        creation_ts: trade.creation_ts
       }
     }
   };

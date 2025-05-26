@@ -1911,9 +1911,9 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'PL é zero' };
     }
     
-    // Verificar se tem dados de data válidos
-    if (!trade.closed_at && !trade.ts && !trade.updated_at && !trade.created_at) {
-      return { isValid: false, reason: 'Nenhum campo de data válido' };
+    // Verificar se tem dados de data válidos (campos corretos da API LN Markets)
+    if (!trade.closed_ts && !trade.creation_ts && !trade.market_filled_ts && !trade.last_update_ts) {
+      return { isValid: false, reason: 'Nenhum campo de data válido (closed_ts, creation_ts, market_filled_ts, last_update_ts)' };
     }
     
     // Verificar se tem informações básicas do instrumento
@@ -2067,6 +2067,99 @@ export default function ProfitCalculator({
       console.error('[analyzeDepositStatuses] Erro:', error);
       toast({
         title: "❌ Erro na análise",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NOVA Função para testar e debugar trades da API
+  const debugTradesFromAPI = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !user?.email) {
+      toast({
+        title: "❌ Erro no debug",
+        description: "Configuração ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[debugTradesFromAPI] Buscando trades para debug...');
+      
+      const response = await fetchLNMarketsTrades(user.email, config.id, {
+        limit: 5, // Buscar apenas 5 trades para debug
+        offset: 0
+      });
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro no debug",
+          description: response.error || "Erro ao buscar trades",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const trades = response.data;
+      console.log('[debugTradesFromAPI] Trades recebidos da API:', trades);
+      
+      // Analisar campos de data disponíveis
+      const dateFieldAnalysis = trades.map((trade: any) => ({
+        id: trade.id,
+        uid: trade.uid,
+        closed: trade.closed,
+        pl: trade.pl,
+        dateFields: {
+          creation_ts: trade.creation_ts,
+          market_filled_ts: trade.market_filled_ts,
+          closed_ts: trade.closed_ts,
+          last_update_ts: trade.last_update_ts,
+          // Campos antigos para comparação
+          created_at: trade.created_at,
+          updated_at: trade.updated_at,
+          closed_at: trade.closed_at,
+          ts: trade.ts
+        },
+        validation: validateTradeForImport(trade)
+      }));
+      
+      console.log('[debugTradesFromAPI] Análise de campos de data:', dateFieldAnalysis);
+      
+      // Testar conversão dos trades válidos
+      const validTrades = trades.filter((trade: any) => validateTradeForImport(trade).isValid);
+      const convertedTrades = validTrades.map((trade: any) => {
+        try {
+          return convertTradeToProfit(trade);
+        } catch (error) {
+          console.error('[debugTradesFromAPI] Erro na conversão:', error, trade);
+          return null;
+        }
+      }).filter(Boolean);
+      
+      console.log('[debugTradesFromAPI] Trades convertidos:', convertedTrades);
+      
+      toast({
+        title: "🔍 Debug de Trades",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div>Total recebidos: {trades.length}</div>
+            <div>Válidos: {validTrades.length}</div>
+            <div>Convertidos: {convertedTrades.length}</div>
+            <div>Rejeitados: {trades.length - validTrades.length}</div>
+            <div>Detalhes no console</div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[debugTradesFromAPI] Erro:', error);
+      toast({
+        title: "❌ Erro no debug",
         description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
         variant: "destructive",
       });
@@ -3279,6 +3372,14 @@ export default function ProfitCalculator({
                             className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
                           >
                             🧪 Testar Depósitos
+                          </Button>
+                          <Button
+                            onClick={debugTradesFromAPI}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-yellow-700/20 hover:bg-yellow-600/30 border-yellow-600/50"
+                          >
+                            🔍 Debug Trades API
                           </Button>
                         </div>
                       )}
