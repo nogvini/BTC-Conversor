@@ -780,6 +780,9 @@ export default function ProfitCalculator({
       // Tratando corretamente o prefixo "trade_" para evitar duplicação
       const existingTradeIds = new Set();
       
+      // NOVO: Conjunto para rastrear chaves compostas (ID+PL) já processadas nesta sessão
+      const processedCompositeKeys = new Set();
+      
       if (currentActiveReportObjectFromHook.profits && currentActiveReportObjectFromHook.profits.length > 0) {
         currentActiveReportObjectFromHook.profits.forEach(profit => {
           if (profit.originalId && typeof profit.originalId === 'string') {
@@ -906,21 +909,36 @@ export default function ProfitCalculator({
              closed: trade.closed
            });
            
-           // Verificação de duplicata - CORRIGIDO!
-           // PROBLEMA ENCONTRADO: O ID já contém "trade_" prefixo na validação, mas 
-           // depois também adicionamos no convertTradeToProfit
-           // Remover o prefixo "trade_" para comparação correta
+           // SOLUÇÃO AVANÇADA: Sistema de detecção de duplicatas mais inteligente
+           // Problema identificado: O mesmo ID de trade aparece com valores PL diferentes
+           // Agora vamos considerar um "composite key" que inclui ID + PL
+           
+           // Normalizar ID
            const cleanTradeId = tradeId.startsWith('trade_') 
              ? tradeId 
              : `trade_${tradeId}`;
-             
-           console.log(`[handleImportTrades] Verificando duplicata para: ${tradeId}, cleaned: ${cleanTradeId}`);
            
+           // Criar uma chave composta de ID+PL para identificação única
+           const plValue = Number(trade.pl || 0);
+           const compositeKey = `${cleanTradeId}|${plValue}`;
+             
+           console.log(`[handleImportTrades] Verificando trade: ID=${cleanTradeId}, PL=${plValue}, compositeKey=${compositeKey}`);
+           
+           // Verificar duplicatas pelo ID básico e reportar
            if (existingTradeIds.has(cleanTradeId)) {
-             console.log(`[handleImportTrades] Trade duplicado: ${cleanTradeId}`);
+             console.log(`[handleImportTrades] Trade com ID duplicado mas PL diferente: ${cleanTradeId}`);
+             // Não marcar como duplicado, deixar continuar para verificação de composite key
+           }
+           
+           // Manter controle de IDs compostos já processados nesta sessão
+           if (processedCompositeKeys.has(compositeKey)) {
+             console.log(`[handleImportTrades] Trade com composite key duplicada: ${compositeKey}`);
              totalDuplicatesFound++;
              continue;
            }
+           
+           // Adicionar à lista de chaves compostas processadas
+           processedCompositeKeys.add(compositeKey);
            
            // Validação completa do trade
            const validation = validateTradeForImport(trade);
@@ -1035,8 +1053,14 @@ export default function ProfitCalculator({
          const tradeId = trade.id || trade.uid;
          const fullId = tradeId.startsWith('trade_') ? tradeId : `trade_${tradeId}`;
          
-         // Verificar se está duplicado para logging
-         const isDuplicate = existingTradeIds.has(fullId);
+                   // Verificar se está duplicado usando a chave composta
+          const plNum = Number(trade.pl || 0);
+          const compositeKey = `${fullId}|${plNum}`;
+          
+          // Um trade é duplicado se:
+          // 1. O ID existe nos IDs já registrados (relatório atual)
+          // 2. OU a chave composta já foi processada nesta sessão de importação
+          const isDuplicate = existingTradeIds.has(fullId) || processedCompositeKeys.has(compositeKey);
          
          // Validações específicas
          const mainCriteria = isClosed && hasNonZeroPL;
@@ -1047,29 +1071,33 @@ export default function ProfitCalculator({
          // Resultado final da validação
          const isValid = mainCriteria || altCriteria1 || altCriteria2 || altCriteria3;
          
-         // Log mais detalhado e organizado
-         console.log(`[handleImportTrades] Avaliando trade ${fullId}:`, {
-           // Dados do trade
-           id: trade.id || trade.uid,
-           pl: trade.pl,
-           pl_type: typeof trade.pl,
-           pl_numeric: plValue,
-           closed: trade.closed,
-           status: trade.status,
-           
-           // Critérios e resultado
-           isDuplicate,
-           mainCriteria,        // closed=true E pl≠0 
-           altCriteria1,        // closed=true
-           altCriteria2,        // pl≠0
-           altCriteria3,        // side+quantity
-           isValid,             // Resultado final
-           
-           // Para referência
-           existingId: isDuplicate ? 'JÁ EXISTE!' : 'não existe',
-           validationResult: isValid ? 'VÁLIDO' : 'INVÁLIDO',
-           duplicateResult: isDuplicate ? 'DUPLICADO' : 'NOVO'
-         });
+                   // Log mais detalhado e organizado
+          console.log(`[handleImportTrades] Avaliando trade ${fullId} (PL=${plNum}):`, {
+            // Dados do trade
+            id: trade.id || trade.uid,
+            pl: trade.pl,
+            pl_type: typeof trade.pl,
+            pl_numeric: plNum,
+            closed: trade.closed,
+            status: trade.status,
+            
+            // Critérios e resultado
+            compositeKey,
+            isDuplicate,
+            inExistingIds: existingTradeIds.has(fullId),
+            inCompositeKeys: processedCompositeKeys.has(compositeKey),
+            mainCriteria,        // closed=true E pl≠0 
+            altCriteria1,        // closed=true
+            altCriteria2,        // pl≠0
+            altCriteria3,        // side+quantity
+            isValid,             // Resultado final
+            
+            // Para referência
+            existingId: existingTradeIds.has(fullId) ? 'ID EXISTE' : 'id novo',
+            compositeStatus: processedCompositeKeys.has(compositeKey) ? 'COMPOSITE EXISTE' : 'composite novo',
+            validationResult: isValid ? 'VÁLIDO' : 'INVÁLIDO',
+            duplicateResult: isDuplicate ? 'DUPLICADO' : 'NOVO'
+          });
          
          // Qualquer trade com ID e alguma dessas condições é aceito
          // Não processamos duplicatas (já verificado em outro lugar)

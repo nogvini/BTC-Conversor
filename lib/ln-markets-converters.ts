@@ -294,9 +294,14 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     plValue = 1;
   }
 
+  // MODIFICADO: Criar ID composto que inclui valor PL para diferenciar trades com mesmo ID mas PL diferente
+  // O ID será: lnm_trade_[id]_pl[plValue]
+  // Isso garante que trades com mesmo ID mas PL diferente sejam tratados como entidades distintas
+  const plIdentifier = Math.round(plValue); // Arredondar para inteiro para maior estabilidade
+  
   const result = {
-    id: `lnm_trade_${tradeIdentifier}`, // Usar uid se disponível, senão id
-    originalId: `trade_${tradeIdentifier}`, // Prefixo para evitar conflitos
+    id: `lnm_trade_${tradeIdentifier}_pl${plIdentifier}`, // ID composto com PL
+    originalId: `trade_${tradeIdentifier}`, // Manter o originalId original para retrocompatibilidade
     date: tradeDate.toISOString().split('T')[0],
     amount: Math.abs(netProfit), // Usar lucro líquido (PL - fees)
     unit: 'SATS' as const,
