@@ -2100,6 +2100,105 @@ export default function ProfitCalculator({
   };
 
   // NOVA Função para testar e debugar trades da API
+  // NOVA Função para importar trades testados com sucesso
+  const importTestedTrades = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      toast({
+        title: "❌ Erro na importação",
+        description: "Configuração, relatório ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[importTestedTrades] Importando trades testados...');
+      
+      // Buscar os mesmos trades que foram testados
+      const response = await fetchLNMarketsTrades(user.email, config.id, {
+        limit: 100,
+        offset: 0
+      });
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro na importação",
+          description: response.error || "Erro ao buscar trades",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const trades = response.data;
+      const validTrades = trades.filter((trade: any) => validateTradeForImport(trade).isValid);
+      
+      console.log('[importTestedTrades] Importando trades válidos:', {
+        total: trades.length,
+        valid: validTrades.length,
+        reportId: currentActiveReportObjectFromHook.id
+      });
+
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+
+      // Processar cada trade válido
+      for (const trade of validTrades) {
+        try {
+          const profitRecord = convertTradeToProfit(trade);
+          const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        } catch (error) {
+          console.error('[importTestedTrades] Erro na conversão:', error);
+          errors++;
+        }
+      }
+
+      toast({
+        title: "✅ Importação de Trades Testados Concluída!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>{imported} trades importados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} trades já existentes</span>
+              </div>
+            )}
+            {errors > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{errors} erros</span>
+              </div>
+            )}
+          </div>
+        ),
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[importTestedTrades] Erro:', error);
+      toast({
+        title: "❌ Erro na importação",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const debugTradesFromAPI = async () => {
     const config = getCurrentImportConfig();
     
@@ -2116,7 +2215,7 @@ export default function ProfitCalculator({
       console.log('[debugTradesFromAPI] Buscando trades para debug...');
       
       const response = await fetchLNMarketsTrades(user.email, config.id, {
-        limit: 5, // Buscar apenas 5 trades para debug
+        limit: 100, // Buscar 100 trades para debug completo
         offset: 0
       });
       
@@ -2167,15 +2266,58 @@ export default function ProfitCalculator({
       
       console.log('[debugTradesFromAPI] Trades convertidos:', convertedTrades);
       
+      // Criar resultado estruturado para análise
+      const debugResult = {
+        configTest: {
+          hasConfigs: true,
+          totalConfigs: 1,
+          activeConfigId: config.id,
+          activeConfigName: config.name,
+          credentialsValid: true
+        },
+        apiTest: {
+          success: response.success,
+          hasData: !!response.data,
+          dataType: typeof response.data,
+          isArray: Array.isArray(response.data),
+          totalTrades: trades.length,
+          closedTrades: trades.filter((t: any) => t.closed).length,
+          openTrades: trades.filter((t: any) => !t.closed).length
+        },
+        dateAnalysis: {
+          tradesWithClosedAt: trades.filter((t: any) => t.closed_at).length,
+          tradesWithUpdatedAt: trades.filter((t: any) => t.updated_at).length,
+          tradesWithCreatedAt: trades.filter((t: any) => t.created_at).length,
+          tradesWithoutAnyDate: trades.filter((t: any) => !t.closed_ts && !t.market_filled_ts && !t.creation_ts && !t.last_update_ts).length,
+          dateFormats: [],
+          sampleDates: []
+        },
+        conversionTest: {
+          totalProcessed: trades.length,
+          successfulConversions: convertedTrades.length,
+          failedConversions: trades.length - convertedTrades.length,
+          conversionResults: convertedTrades.slice(0, 3).map((converted: any, index: number) => ({
+            original: trades.find((t: any) => t.id === converted._debug?.tradeId || t.uid === converted._debug?.tradeUid),
+            converted,
+            status: 'success'
+          })),
+          conversionErrors: []
+        },
+        tradesData: trades.slice(0, 3)
+      };
+      
+      console.log('[debugTradesFromAPI] Resultado estruturado:', debugResult);
+      
       toast({
-        title: "🔍 Debug de Trades",
+        title: "🔍 Debug de Trades Completo",
         description: (
           <div className="space-y-1 text-xs">
-            <div>Total recebidos: {trades.length}</div>
-            <div>Válidos: {validTrades.length}</div>
-            <div>Convertidos: {convertedTrades.length}</div>
-            <div>Rejeitados: {trades.length - validTrades.length}</div>
-            <div>Detalhes no console</div>
+            <div>✅ Total recebidos: {trades.length}</div>
+            <div>✅ Válidos: {validTrades.length}</div>
+            <div>✅ Convertidos: {convertedTrades.length}</div>
+            <div>⚠️ Rejeitados: {trades.length - validTrades.length}</div>
+            <div className="text-blue-300 mt-2">📋 Resultado copiado para console</div>
+            <div className="text-green-300">🚀 Use "Importar Trades" para adicionar ao relatório</div>
           </div>
         ),
         variant: "default",
@@ -2184,6 +2326,342 @@ export default function ProfitCalculator({
       
     } catch (error) {
       console.error('[debugTradesFromAPI] Erro:', error);
+      toast({
+        title: "❌ Erro no debug",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NOVA Função para importar depósitos testados com sucesso
+  const importTestedDeposits = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      toast({
+        title: "❌ Erro na importação",
+        description: "Configuração, relatório ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[importTestedDeposits] Importando depósitos testados...');
+      
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro na importação",
+          description: response.error || "Erro ao buscar depósitos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const deposits = response.data;
+      const confirmedDeposits = deposits.filter((deposit: any) => isDepositConfirmed(deposit));
+      
+      console.log('[importTestedDeposits] Importando depósitos confirmados:', {
+        total: deposits.length,
+        confirmed: confirmedDeposits.length,
+        reportId: currentActiveReportObjectFromHook.id
+      });
+
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+
+      // Processar cada depósito confirmado
+      for (const deposit of confirmedDeposits) {
+        try {
+          const investmentRecord = convertDepositToInvestment(deposit);
+          const result = addInvestment(investmentRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        } catch (error) {
+          console.error('[importTestedDeposits] Erro na conversão:', error);
+          errors++;
+        }
+      }
+
+      toast({
+        title: "✅ Importação de Depósitos Testados Concluída!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>{imported} depósitos importados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} depósitos já existentes</span>
+              </div>
+            )}
+            {errors > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{errors} erros</span>
+              </div>
+            )}
+          </div>
+        ),
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[importTestedDeposits] Erro:', error);
+      toast({
+        title: "❌ Erro na importação",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NOVA Função para importar saques testados com sucesso
+  const importTestedWithdrawals = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      toast({
+        title: "❌ Erro na importação",
+        description: "Configuração, relatório ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[importTestedWithdrawals] Importando saques testados...');
+      
+      const response = await fetchLNMarketsWithdrawals(user.email, config.id);
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro na importação",
+          description: response.error || "Erro ao buscar saques",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const withdrawals = response.data;
+      const confirmedWithdrawals = withdrawals.filter((withdrawal: any) => withdrawal.is_confirmed === true);
+      
+      console.log('[importTestedWithdrawals] Importando saques confirmados:', {
+        total: withdrawals.length,
+        confirmed: confirmedWithdrawals.length,
+        reportId: currentActiveReportObjectFromHook.id
+      });
+
+      let imported = 0;
+      let duplicated = 0;
+      let errors = 0;
+
+      // Processar cada saque confirmado
+      for (const withdrawal of confirmedWithdrawals) {
+        try {
+          const profitRecord = convertWithdrawalToRecord(withdrawal);
+          const result = addWithdrawal(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+          
+          if (result.status === 'added') {
+            imported++;
+          } else if (result.status === 'duplicate') {
+            duplicated++;
+          } else {
+            errors++;
+          }
+        } catch (error) {
+          console.error('[importTestedWithdrawals] Erro na conversão:', error);
+          errors++;
+        }
+      }
+
+      toast({
+        title: "✅ Importação de Saques Testados Concluída!",
+        description: (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>{imported} saques importados</span>
+            </div>
+            {duplicated > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>{duplicated} saques já existentes</span>
+              </div>
+            )}
+            {errors > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>{errors} erros</span>
+              </div>
+            )}
+          </div>
+        ),
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[importTestedWithdrawals] Erro:', error);
+      toast({
+        title: "❌ Erro na importação",
+        description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // NOVA Função para testar saques reais da API
+  const debugWithdrawalsFromAPI = async () => {
+    const config = getCurrentImportConfig();
+    
+    if (!config || !user?.email) {
+      toast({
+        title: "❌ Erro no debug",
+        description: "Configuração ou usuário não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('[debugWithdrawalsFromAPI] Buscando saques da API...');
+      
+      const response = await fetchLNMarketsWithdrawals(user.email, config.id);
+      
+      if (!response.success || !response.data) {
+        toast({
+          title: "❌ Erro no debug",
+          description: response.error || "Erro ao buscar saques",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const withdrawals = response.data;
+      console.log('[debugWithdrawalsFromAPI] Saques recebidos:', withdrawals);
+
+      // Analisar cada saque
+      const analysisResults = withdrawals.map((withdrawal: any, index: number) => {
+        console.log(`[debugWithdrawalsFromAPI] Analisando saque ${index + 1}:`, withdrawal);
+        
+        const isConfirmed = withdrawal.is_confirmed === true;
+        
+        let conversionResult = null;
+        let conversionError = null;
+        
+        try {
+          conversionResult = convertWithdrawalToRecord(withdrawal);
+          console.log(`[debugWithdrawalsFromAPI] Conversão bem-sucedida ${index + 1}:`, conversionResult);
+        } catch (error) {
+          conversionError = error instanceof Error ? error.message : 'Erro desconhecido';
+          console.error(`[debugWithdrawalsFromAPI] Erro na conversão ${index + 1}:`, error);
+        }
+
+        return {
+          index: index + 1,
+          original: withdrawal,
+          isConfirmed,
+          conversionResult,
+          conversionError,
+          analysis: {
+            id: withdrawal.id,
+            amount: withdrawal.amount,
+            status: withdrawal.status,
+            is_confirmed: withdrawal.is_confirmed,
+            confirmedByLogic: isConfirmed
+          }
+        };
+      });
+
+      // Estatísticas
+      const stats = {
+        total: withdrawals.length,
+        confirmed: analysisResults.filter((r: any) => r.isConfirmed).length,
+        rejected: analysisResults.filter((r: any) => !r.isConfirmed).length,
+        conversionSuccess: analysisResults.filter((r: any) => r.conversionResult).length,
+        conversionErrors: analysisResults.filter((r: any) => r.conversionError).length,
+        statusDistribution: withdrawals.reduce((acc: Record<string, number>, w: any) => {
+          acc[w.status] = (acc[w.status] || 0) + 1;
+          return acc;
+        }, {}),
+        confirmationDistribution: analysisResults.reduce((acc: Record<string, number>, r: any) => {
+          const key = r.isConfirmed ? 'confirmados' : 'rejeitados';
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {})
+      };
+
+      // Criar resultado estruturado para análise
+      const debugResult = {
+        configTest: {
+          hasConfigs: true,
+          totalConfigs: 1,
+          activeConfigId: config.id,
+          activeConfigName: config.name,
+          credentialsValid: true
+        },
+        apiTest: {
+          success: response.success,
+          hasData: !!response.data,
+          dataType: typeof response.data,
+          isArray: Array.isArray(response.data),
+          totalWithdrawals: withdrawals.length,
+          confirmedWithdrawals: stats.confirmed,
+          pendingWithdrawals: stats.rejected
+        },
+        conversionTest: {
+          totalProcessed: withdrawals.length,
+          successfulConversions: stats.conversionSuccess,
+          failedConversions: stats.conversionErrors,
+          conversionResults: analysisResults.filter((r: any) => r.conversionResult).slice(0, 3).map((r: any) => ({
+            original: r.original,
+            converted: r.conversionResult,
+            status: 'success'
+          })),
+          conversionErrors: analysisResults.filter((r: any) => r.conversionError).map((r: any) => ({
+            original: r.original,
+            error: r.conversionError,
+            status: 'error'
+          }))
+        },
+        withdrawalsData: withdrawals.slice(0, 3)
+      };
+
+      console.log('[debugWithdrawalsFromAPI] Resultado estruturado:', debugResult);
+
+      toast({
+        title: "🔍 Debug de Saques Completo",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div>✅ Total: {stats.total} saques</div>
+            <div>✅ Confirmados: {stats.confirmed}</div>
+            <div>⚠️ Rejeitados: {stats.rejected}</div>
+            <div>✅ Conversões OK: {stats.conversionSuccess}</div>
+            <div>Status: {Object.entries(stats.statusDistribution).map(([k,v]) => `${k}:${v}`).join(', ')}</div>
+            <div className="text-blue-300 mt-2">📋 Resultado copiado para console</div>
+            <div className="text-green-300">🚀 Use "Importar Saques Testados" para adicionar</div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-orange-500/50 bg-orange-900/20",
+      });
+      
+    } catch (error) {
+      console.error('[debugWithdrawalsFromAPI] Erro:', error);
       toast({
         title: "❌ Erro no debug",
         description: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
@@ -2280,23 +2758,55 @@ export default function ProfitCalculator({
         }, {})
       };
 
-      console.log('[debugDepositsFromAPI] Análise completa:', {
-        stats,
-        analysisResults,
-        sampleConfirmed: analysisResults.filter((r: any) => r.isConfirmed).slice(0, 2),
-        sampleRejected: analysisResults.filter((r: any) => !r.isConfirmed).slice(0, 2)
-      });
+      // Criar resultado estruturado para análise
+      const debugResult = {
+        configTest: {
+          hasConfigs: true,
+          totalConfigs: 1,
+          activeConfigId: config.id,
+          activeConfigName: config.name,
+          credentialsValid: true
+        },
+        apiTest: {
+          success: response.success,
+          hasData: !!response.data,
+          dataType: typeof response.data,
+          isArray: Array.isArray(response.data),
+          totalDeposits: deposits.length,
+          confirmedDeposits: stats.confirmed,
+          pendingDeposits: stats.rejected
+        },
+        conversionTest: {
+          totalProcessed: deposits.length,
+          successfulConversions: stats.conversionSuccess,
+          failedConversions: stats.conversionErrors,
+          conversionResults: analysisResults.filter((r: any) => r.conversionResult).slice(0, 3).map((r: any) => ({
+            original: r.original,
+            converted: r.conversionResult,
+            status: 'success'
+          })),
+          conversionErrors: analysisResults.filter((r: any) => r.conversionError).map((r: any) => ({
+            original: r.original,
+            error: r.conversionError,
+            status: 'error'
+          }))
+        },
+        depositsData: deposits.slice(0, 3)
+      };
+
+      console.log('[debugDepositsFromAPI] Resultado estruturado:', debugResult);
 
       toast({
-        title: "🔍 Debug de Depósitos",
+        title: "🔍 Debug de Depósitos Completo",
         description: (
           <div className="space-y-1 text-xs">
-            <div>Total: {stats.total} depósitos</div>
-            <div>Confirmados: {stats.confirmed}</div>
-            <div>Rejeitados: {stats.rejected}</div>
-            <div>Conversões OK: {stats.conversionSuccess}</div>
+            <div>✅ Total: {stats.total} depósitos</div>
+            <div>✅ Confirmados: {stats.confirmed}</div>
+            <div>⚠️ Rejeitados: {stats.rejected}</div>
+            <div>✅ Conversões OK: {stats.conversionSuccess}</div>
             <div>Tipos: {Object.entries(stats.typeDistribution).map(([k,v]) => `${k}:${v}`).join(', ')}</div>
-            <div>Detalhes no console</div>
+            <div className="text-blue-300 mt-2">📋 Resultado copiado para console</div>
+            <div className="text-green-300">🚀 Use "Importar Depósitos Testados" para adicionar</div>
           </div>
         ),
         variant: "default",
@@ -3524,6 +4034,25 @@ export default function ProfitCalculator({
                           >
                             🔍 Debug Trades API
                           </Button>
+                          <Button
+                            onClick={importTestedTrades}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
+                          >
+                            🚀 Importar Trades Testados
+                          </Button>
+                          <Button
+                            onClick={importTestedDeposits}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
+                          >
+                            🚀 Importar Depósitos Testados
+                          </Button>
+                          <div className="text-xs text-center text-blue-300 bg-blue-900/20 p-2 rounded border border-blue-700/30">
+                            💡 Use "Debug" para testar, depois "Importar Testados" para adicionar
+                          </div>
                         </div>
                       )}
                       
@@ -3562,6 +4091,33 @@ export default function ProfitCalculator({
                       {importProgress.withdrawals.status !== 'idle' && (
                         <ImportProgressIndicator progress={importProgress.withdrawals} type="withdrawals" />
                       )}
+                      
+                      {/* Botões de Debug para Saques */}
+                      {showConfigSelector && selectedConfigForImport && (
+                        <div className="space-y-2 p-3 bg-orange-900/20 rounded border border-orange-700/30">
+                          <div className="text-xs text-orange-300 font-medium text-center">🧪 Ferramentas de Debug</div>
+                          <Button
+                            onClick={debugWithdrawalsFromAPI}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-cyan-700/20 hover:bg-cyan-600/30 border-cyan-600/50"
+                          >
+                            🔍 Debug Saques API
+                          </Button>
+                          <Button
+                            onClick={importTestedWithdrawals}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
+                          >
+                            🚀 Importar Saques Testados
+                          </Button>
+                          <div className="text-xs text-center text-blue-300 bg-blue-900/20 p-2 rounded border border-blue-700/30">
+                            💡 Use "Debug" para testar, depois "Importar Testados" para adicionar
+                          </div>
+                        </div>
+                      )}
+                      
                       <Button
                         onClick={handleImportWithdrawals}
                         disabled={isImportingWithdrawals || !selectedConfigForImport}
