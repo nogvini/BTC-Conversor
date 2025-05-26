@@ -32,7 +32,6 @@ export interface LNMarketsAPIConfig {
   createdAt: string; // Data de criação
   updatedAt: string; // Data da última atualização
   lastUsed?: string; // Data do último uso
-  defaultCurrency?: 'USD' | 'BRL'; // Moeda padrão para esta configuração
 }
 
 // NOVO: Gerenciador de múltiplas configurações

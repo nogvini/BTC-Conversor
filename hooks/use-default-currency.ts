@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './use-auth';
-import { retrieveLNMarketsMultipleConfigs } from '@/lib/encryption';
 
 export type DefaultCurrency = 'USD' | 'BRL';
 
@@ -26,42 +25,26 @@ const CURRENCY_CONFIGS: Record<DefaultCurrency, DefaultCurrencyConfig> = {
 export function useDefaultCurrency() {
   const { session } = useAuth();
   const { user } = session;
-  const [defaultCurrency, setDefaultCurrency] = useState<DefaultCurrency>('USD');
+  const [defaultCurrency, setDefaultCurrencyState] = useState<DefaultCurrency>('USD');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.email) {
-      try {
-        // Buscar configurações LN Markets do usuário
-        const configs = retrieveLNMarketsMultipleConfigs(user.email);
-        
-        if (configs && configs.configs.length > 0) {
-          // Procurar pela configuração padrão primeiro
-          const defaultConfig = configs.configs.find(config => 
-            config.id === configs.defaultConfigId && config.isActive
-          );
-          
-          if (defaultConfig && (defaultConfig as any).defaultCurrency) {
-            setDefaultCurrency((defaultConfig as any).defaultCurrency);
-          } else {
-            // Se não houver configuração padrão, usar a primeira configuração ativa
-            const activeConfig = configs.configs.find(config => 
-              config.isActive && (config as any).defaultCurrency
-            );
-            
-            if (activeConfig) {
-              setDefaultCurrency((activeConfig as any).defaultCurrency);
-            }
-          }
+    // Carregar moeda padrão das configurações do usuário (localStorage)
+    try {
+      const savedSettings = localStorage.getItem("userSettings");
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        if (parsedSettings.currency && (parsedSettings.currency === 'USD' || parsedSettings.currency === 'BRL')) {
+          setDefaultCurrencyState(parsedSettings.currency);
         }
-      } catch (error) {
-        console.error('[useDefaultCurrency] Erro ao carregar moeda padrão:', error);
-        // Manter USD como padrão em caso de erro
       }
+    } catch (error) {
+      console.error('[useDefaultCurrency] Erro ao carregar moeda padrão:', error);
+      // Manter USD como padrão em caso de erro
     }
     
     setIsLoading(false);
-  }, [user?.email]);
+  }, []);
 
   const getCurrencyConfig = (currency?: DefaultCurrency): DefaultCurrencyConfig => {
     return CURRENCY_CONFIGS[currency || defaultCurrency];
@@ -87,13 +70,27 @@ export function useDefaultCurrency() {
     return getCurrencyConfig();
   };
 
+  const setDefaultCurrency = (currency: DefaultCurrency) => {
+    setDefaultCurrencyState(currency);
+    
+    // Atualizar também no localStorage para persistir
+    try {
+      const savedSettings = localStorage.getItem("userSettings");
+      const currentSettings = savedSettings ? JSON.parse(savedSettings) : {};
+      const updatedSettings = { ...currentSettings, currency };
+      localStorage.setItem("userSettings", JSON.stringify(updatedSettings));
+    } catch (error) {
+      console.error('[useDefaultCurrency] Erro ao salvar moeda padrão:', error);
+    }
+  };
+
   return {
     defaultCurrency,
     isLoading,
     getCurrencyConfig,
     formatCurrency,
     getDisplayCurrency,
-    setDefaultCurrency, // Para permitir mudanças manuais se necessário
+    setDefaultCurrency,
     availableCurrencies: Object.values(CURRENCY_CONFIGS)
   };
 } 

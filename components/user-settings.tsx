@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
+import { useDefaultCurrency } from "@/hooks/use-default-currency"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -34,11 +35,12 @@ export default function UserSettings() {
   const { session, retryConnection } = useAuth()
   const { toast } = useToast()
   const { user, isLoading } = session
+  const { defaultCurrency, setDefaultCurrency, formatCurrency } = useDefaultCurrency()
   const [settings, setSettings] = useState<UserSettings>(defaultSettings)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("appearance")
 
-  // Carregar configurações do localStorage
+  // Carregar configurações do localStorage e sincronizar com hook de moeda padrão
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedSettings = localStorage.getItem("userSettings")
@@ -49,12 +51,23 @@ export default function UserSettings() {
             ...prevSettings,
             ...parsedSettings,
           }))
+          
+          // Sincronizar moeda padrão com o hook global
+          if (parsedSettings.currency && parsedSettings.currency !== defaultCurrency) {
+            setDefaultCurrency(parsedSettings.currency)
+          }
         } catch (e) {
           console.error("Erro ao carregar configurações:", e)
         }
+      } else {
+        // Se não há configurações salvas, usar a moeda padrão do hook
+        setSettings(prev => ({
+          ...prev,
+          currency: defaultCurrency as "BRL" | "USD"
+        }))
       }
     }
-  }, [])
+  }, [defaultCurrency, setDefaultCurrency])
 
   // Salvar configurações
   const saveSettings = () => {
@@ -64,13 +77,16 @@ export default function UserSettings() {
       // Salvar no localStorage
       localStorage.setItem("userSettings", JSON.stringify(settings))
       
+      // Atualizar moeda padrão no hook global
+      setDefaultCurrency(settings.currency)
+      
       // Aplicar configurações
       applySettings()
       
       toast({
         title: "Configurações salvas",
         description: "Suas preferências foram atualizadas com sucesso.",
-        variant: "success",
+        variant: "default",
       })
     } catch (error) {
       toast({
@@ -91,6 +107,11 @@ export default function UserSettings() {
   // Redefinir para configurações padrão
   const resetSettings = () => {
     setSettings(defaultSettings)
+    setDefaultCurrency(defaultSettings.currency)
+    
+    // Salvar as configurações padrão
+    localStorage.setItem("userSettings", JSON.stringify(defaultSettings))
+    
     toast({
       title: "Configurações redefinidas",
       description: "As configurações foram redefinidas para os valores padrão.",
@@ -146,9 +167,11 @@ export default function UserSettings() {
                     <Label htmlFor="currency">Moeda padrão</Label>
                     <Select 
                       value={settings.currency}
-                      onValueChange={(value: any) => 
+                      onValueChange={(value: "BRL" | "USD") => {
                         setSettings({ ...settings, currency: value })
-                      }
+                        // Atualizar imediatamente o hook global para feedback visual
+                        setDefaultCurrency(value)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a moeda" />
@@ -161,6 +184,11 @@ export default function UserSettings() {
                     <p className="text-xs text-muted-foreground">
                       Moeda que será exibida por padrão na aplicação.
                     </p>
+                    <div className="mt-2 p-2 bg-purple-900/20 rounded border border-purple-700/30">
+                      <p className="text-xs text-purple-300">
+                        💡 Exemplo: {formatCurrency(100000, settings.currency)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

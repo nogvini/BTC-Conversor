@@ -2362,7 +2362,7 @@ export default function ProfitCalculator({
                 confirmedByNewLogic,
                 difference: confirmedByNewLogic - confirmedByOldLogic,
                 allUniqueStatuses: Object.keys(statusAnalysis),
-                confirmedDeposits: response.data.filter(isDepositConfirmed).map(d => ({
+                confirmedDeposits: response.data.filter(isDepositConfirmed).map((d: any) => ({
                   id: d.id,
                   type: d.type,
                   status: d.status,
@@ -2370,7 +2370,7 @@ export default function ProfitCalculator({
                   is_confirmed: d.is_confirmed,
                   success: d.success
                 })),
-                pendingDeposits: response.data.filter(d => !isDepositConfirmed(d)).map(d => ({
+                pendingDeposits: response.data.filter((d: any) => !isDepositConfirmed(d)).map((d: any) => ({
                   id: d.id,
                   type: d.type,
                   status: d.status,
@@ -2641,7 +2641,9 @@ export default function ProfitCalculator({
     // Limitar cache para evitar memory leak
     if (filteredDataCache.current.size > 20) {
       const firstKey = filteredDataCache.current.keys().next().value;
-      filteredDataCache.current.delete(firstKey);
+      if (firstKey) {
+        filteredDataCache.current.delete(firstKey);
+      }
     }
     
     filteredDataCache.current.set(cacheKey, result);
@@ -2748,7 +2750,9 @@ export default function ProfitCalculator({
     // Limitar cache para evitar memory leak
     if (chartDataCache.current.size > 10) {
       const firstKey = chartDataCache.current.keys().next().value;
-      chartDataCache.current.delete(firstKey);
+      if (firstKey) {
+        chartDataCache.current.delete(firstKey);
+      }
     }
     
     chartDataCache.current.set(cacheKey, chartData);
@@ -3378,8 +3382,8 @@ export default function ProfitCalculator({
                       
                       <div className="space-y-2">
                         <Label>Unidade de Exibição</Label>
-                        <Select value={states.displayCurrency.code} onValueChange={(value) => {
-                          states.setDisplayCurrency(value === "USD" ? { code: "USD", symbol: "$" } : { code: "BRL", symbol: "R$" });
+                        <Select value={states.displayCurrency} onValueChange={(value: "USD" | "BRL") => {
+                          states.setDisplayCurrency(value);
                         }}>
                           <SelectTrigger>
                             <SelectValue />
@@ -3442,18 +3446,18 @@ export default function ProfitCalculator({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <HistoryStatsCard
                     title="Total Investido"
-                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
+                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency)}
                     icon={<TrendingDown className="h-4 w-4 text-blue-400" />}
                     valueColor="text-blue-400"
                   />
                   
                   <HistoryStatsCard
                     title="Lucros/Perdas"
-                    value={formatCurrency(getFilteredHistoryData.profits.reduce((sum, profit) => {
+                    value={formatCurrency(getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
                       const btcAmount = convertToBtc(profit.amount, profit.unit);
                       const value = profit.isProfit ? btcAmount : -btcAmount;
                       return sum + (value * states.currentRates.btcToUsd);
-                    }, 0), states.displayCurrency.code)}
+                    }, 0), states.displayCurrency)}
                     icon={<TrendingUp className="h-4 w-4 text-green-400" />}
                     valueColor={getFilteredHistoryData.profits.reduce((sum, profit) => {
                       const btcAmount = convertToBtc(profit.amount, profit.unit);
