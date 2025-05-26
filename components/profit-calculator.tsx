@@ -87,7 +87,7 @@ interface LNMarketsImportStats {
     errors: number;
     processed?: number;
     pagesSearched?: number;
-    stoppedReason?: 'emptyPages' | 'duplicates' | 'maxPages' | 'noMoreData';
+    stoppedReason?: 'emptyPages' | 'duplicates' | 'maxPages' | 'noMoreData' | 'unproductivePages' | 'maxTradesLimit' | 'maxOffsetLimit' | 'apiEndOfData' | 'unknown';
   };
   deposits?: {
     total: number;
@@ -809,7 +809,7 @@ export default function ProfitCalculator({
         }
         
                  // NOVO: Validar e filtrar trades válidos antes de adicionar
-         const validTrades = pageData.filter(trade => {
+         const validTrades = pageData.filter((trade: any) => {
            // Verificação rápida de duplicata usando Set
            const tradeId = `trade_${trade.uid || trade.id}`;
            if (existingTradeIds.has(tradeId)) {
@@ -849,7 +849,7 @@ export default function ProfitCalculator({
           allTrades.push(...validTrades);
           
           // Adicionar IDs ao Set para próximas verificações
-          validTrades.forEach(trade => {
+          validTrades.forEach((trade: any) => {
             const tradeId = `trade_${trade.uid || trade.id}`;
             existingTradeIds.add(tradeId);
           });
@@ -1181,7 +1181,7 @@ export default function ProfitCalculator({
       console.log('[handleImportDeposits] Processando depósitos:', {
         totalDeposits,
         firstDeposit: deposits[0],
-        depositsStructure: deposits.map(d => ({
+        depositsStructure: deposits.map((d: any) => ({
           id: d.id,
           amount: d.amount,
           status: d.status,
@@ -1312,7 +1312,7 @@ export default function ProfitCalculator({
           skipped,
           processed: totalDeposits,
           confirmedCount: deposits.filter(isDepositConfirmed).length,
-          statusDistribution: deposits.reduce((acc, d) => {
+          statusDistribution: deposits.reduce((acc: Record<string, number>, d: any) => {
             acc[d.status] = (acc[d.status] || 0) + 1;
             return acc;
           }, {} as Record<string, number>)
@@ -1544,7 +1544,7 @@ export default function ProfitCalculator({
           errors,
           processed: totalWithdrawals,
           confirmedCount: response.data?.length || 0, // Todos são processados agora
-          statusDistribution: response.data?.reduce((acc, w) => {
+          statusDistribution: response.data?.reduce((acc: Record<string, number>, w: any) => {
             acc[w.status] = (acc[w.status] || 0) + 1;
             return acc;
           }, {} as Record<string, number>) || {}
@@ -2039,12 +2039,12 @@ export default function ProfitCalculator({
       }
 
       const deposits = response.data;
-      const statusAnalysis = deposits.reduce((acc, d) => {
+      const statusAnalysis = deposits.reduce((acc: Record<string, number>, d: any) => {
         acc[d.status] = (acc[d.status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const confirmationAnalysis = deposits.reduce((acc, d) => {
+      const confirmationAnalysis = deposits.reduce((acc: Record<string, number>, d: any) => {
         let key = '';
         if (d.isConfirmed === false) key = 'isConfirmed: false';
         else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
@@ -2056,7 +2056,7 @@ export default function ProfitCalculator({
         return acc;
       }, {} as Record<string, number>);
 
-      const confirmedByOldLogic = deposits.filter(d => d.status === 'confirmed').length;
+      const confirmedByOldLogic = deposits.filter((d: any) => d.status === 'confirmed').length;
       const confirmedByNewLogic = deposits.filter(isDepositConfirmed).length;
       
       console.log('[analyzeDepositStatuses] Análise completa:', {
@@ -2067,7 +2067,7 @@ export default function ProfitCalculator({
         confirmedByNewLogic,
         difference: confirmedByNewLogic - confirmedByOldLogic,
         allUniqueStatuses: Object.keys(statusAnalysis),
-        sampleDeposits: deposits.slice(0, 5).map(d => ({
+        sampleDeposits: deposits.slice(0, 5).map((d: any) => ({
           id: d.id,
           type: d.type,
           status: d.status,
@@ -2371,12 +2371,12 @@ export default function ProfitCalculator({
               console.log('[DEBUG] Primeiros 3 depósitos da API:', response.data.slice(0, 3));
               
               // NOVO: Análise detalhada dos depósitos
-              const statusAnalysis = response.data.reduce((acc, d) => {
+              const statusAnalysis = response.data.reduce((acc: Record<string, number>, d: any) => {
                 acc[d.status] = (acc[d.status] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
 
-              const confirmationAnalysis = response.data.reduce((acc, d) => {
+              const confirmationAnalysis = response.data.reduce((acc: Record<string, number>, d: any) => {
                 let key = '';
                 if (d.isConfirmed === false) key = 'isConfirmed: false';
                 else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
@@ -2388,7 +2388,7 @@ export default function ProfitCalculator({
                 return acc;
               }, {} as Record<string, number>);
               
-              const confirmedByOldLogic = response.data.filter(d => d.status === 'confirmed').length;
+              const confirmedByOldLogic = response.data.filter((d: any) => d.status === 'confirmed').length;
               const confirmedByNewLogic = response.data.filter(isDepositConfirmed).length;
               
               console.log('[DEBUG] Análise de confirmação dos depósitos:', {
@@ -2399,7 +2399,7 @@ export default function ProfitCalculator({
                 confirmedByNewLogic,
                 difference: confirmedByNewLogic - confirmedByOldLogic,
                 allUniqueStatuses: Object.keys(statusAnalysis),
-                confirmedDeposits: response.data.filter(isDepositConfirmed).map(d => ({
+                confirmedDeposits: response.data.filter(isDepositConfirmed).map((d: any) => ({
                   id: d.id,
                   type: d.type,
                   status: d.status,
@@ -2407,7 +2407,7 @@ export default function ProfitCalculator({
                   is_confirmed: d.is_confirmed,
                   success: d.success
                 })),
-                pendingDeposits: response.data.filter(d => !isDepositConfirmed(d)).map(d => ({
+                pendingDeposits: response.data.filter((d: any) => !isDepositConfirmed(d)).map((d: any) => ({
                   id: d.id,
                   type: d.type,
                   status: d.status,
@@ -2678,7 +2678,9 @@ export default function ProfitCalculator({
     // Limitar cache para evitar memory leak
     if (filteredDataCache.current.size > 20) {
       const firstKey = filteredDataCache.current.keys().next().value;
-      filteredDataCache.current.delete(firstKey);
+      if (firstKey) {
+        filteredDataCache.current.delete(firstKey);
+      }
     }
     
     filteredDataCache.current.set(cacheKey, result);
@@ -2785,7 +2787,9 @@ export default function ProfitCalculator({
     // Limitar cache para evitar memory leak
     if (chartDataCache.current.size > 10) {
       const firstKey = chartDataCache.current.keys().next().value;
-      chartDataCache.current.delete(firstKey);
+      if (firstKey) {
+        chartDataCache.current.delete(firstKey);
+      }
     }
     
     chartDataCache.current.set(cacheKey, chartData);
@@ -3502,198 +3506,6 @@ export default function ProfitCalculator({
 
     return { imported, duplicated, errors, details };
   }, [saveDataWithIntegrityCheck]);
-
-  // NOVO: Sistema robusto de salvamento com verificações de integridade e retry
-  const saveDataWithIntegrityCheck = useCallback(async (
-    dataType: 'trade' | 'deposit' | 'withdrawal',
-    rawData: any,
-    convertedData: any,
-    maxRetries: number = 3
-  ): Promise<{ success: boolean; result?: any; error?: string; retryCount: number }> => {
-    const operationId = `${dataType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Iniciando salvamento`, {
-      dataType,
-      rawDataId: rawData?.id || rawData?.uid,
-      convertedId: convertedData?.id,
-      originalId: convertedData?.originalId,
-      timestamp: new Date().toISOString()
-    });
-
-    // Validação prévia dos dados convertidos
-    const preValidation = validateConvertedData(dataType, convertedData);
-    if (!preValidation.isValid) {
-      console.error(`[saveDataWithIntegrityCheck] ${operationId}: Falha na validação prévia:`, preValidation.errors);
-      return {
-        success: false,
-        error: `Validação prévia falhou: ${preValidation.errors.join(', ')}`,
-        retryCount: 0
-      };
-    }
-
-    // Capturar estado antes do salvamento para rollback se necessário
-    const stateBefore = {
-      investmentsCount: currentActiveReportObjectFromHook?.investments?.length || 0,
-      profitsCount: currentActiveReportObjectFromHook?.profits?.length || 0,
-      withdrawalsCount: currentActiveReportObjectFromHook?.withdrawals?.length || 0,
-      timestamp: Date.now()
-    };
-
-    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Estado antes do salvamento:`, stateBefore);
-
-    let retryCount = 0;
-    let lastError: string = '';
-
-    while (retryCount < maxRetries) {
-      try {
-        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Tentativa ${retryCount + 1}/${maxRetries}`);
-
-        let result: any;
-
-        // Executar operação de salvamento baseada no tipo
-        switch (dataType) {
-          case 'trade':
-            result = addProfitRecord(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
-            break;
-          case 'deposit':
-            result = addInvestment(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
-            break;
-          case 'withdrawal':
-            result = addWithdrawal(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
-            break;
-          default:
-            throw new Error(`Tipo de dados não suportado: ${dataType}`);
-        }
-
-        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Resultado da operação:`, {
-          status: result.status,
-          id: result.id,
-          originalId: result.originalId,
-          message: result.message
-        });
-
-        // Verificar se a operação foi bem-sucedida
-        if (result.status === 'added') {
-          // Verificação de integridade pós-salvamento
-          const integrityCheck = await verifyDataIntegrity(operationId, dataType, result.id, convertedData, stateBefore);
-          
-          if (integrityCheck.isValid) {
-            console.log(`[saveDataWithIntegrityCheck] ${operationId}: ✅ Salvamento bem-sucedido com integridade verificada`);
-            return {
-              success: true,
-              result: result,
-              retryCount: retryCount
-            };
-          } else {
-            console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha na verificação de integridade:`, integrityCheck.errors);
-            lastError = `Falha na verificação de integridade: ${integrityCheck.errors.join(', ')}`;
-            
-            // Tentar rollback se possível
-            if (result.id) {
-              await attemptRollback(dataType, result.id, operationId);
-            }
-          }
-        } else if (result.status === 'duplicate') {
-          console.log(`[saveDataWithIntegrityCheck] ${operationId}: ⚠️ Registro duplicado detectado`);
-          return {
-            success: true,
-            result: result,
-            retryCount: retryCount
-          };
-        } else {
-          lastError = result.message || 'Erro desconhecido na operação de salvamento';
-          console.error(`[saveDataWithIntegrityCheck] ${operationId}: Erro na operação:`, lastError);
-        }
-
-      } catch (error: any) {
-        lastError = error.message || 'Erro inesperado durante salvamento';
-        console.error(`[saveDataWithIntegrityCheck] ${operationId}: Exceção na tentativa ${retryCount + 1}:`, error);
-      }
-
-      retryCount++;
-
-      // Se não é a última tentativa, aguardar antes de tentar novamente
-      if (retryCount < maxRetries) {
-        const delayMs = Math.min(1000 * Math.pow(2, retryCount), 5000); // Backoff exponencial, máximo 5s
-        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Aguardando ${delayMs}ms antes da próxima tentativa...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-
-    console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha após ${maxRetries} tentativas. Último erro:`, lastError);
-    return {
-      success: false,
-      error: lastError,
-      retryCount: retryCount
-    };
-  }, [currentActiveReportObjectFromHook, addProfitRecord, addInvestment, addWithdrawal]);
-
-  // NOVO: Função para validar dados convertidos antes do salvamento
-  const validateConvertedData = useCallback((
-    dataType: 'trade' | 'deposit' | 'withdrawal',
-    data: any
-  ): { isValid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-
-    // Validações comuns
-    if (!data) {
-      errors.push('Dados ausentes');
-      return { isValid: false, errors };
-    }
-
-    if (!data.id || typeof data.id !== 'string') {
-      errors.push('ID inválido ou ausente');
-    }
-
-    if (!data.originalId || typeof data.originalId !== 'string') {
-      errors.push('ID original inválido ou ausente');
-    }
-
-    if (!data.date || typeof data.date !== 'string') {
-      errors.push('Data inválida ou ausente');
-    } else {
-      // Validar formato da data
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(data.date)) {
-        errors.push('Formato de data inválido (esperado: YYYY-MM-DD)');
-      }
-    }
-
-    if (typeof data.amount !== 'number' || data.amount < 0 || !isFinite(data.amount)) {
-      errors.push('Valor inválido (deve ser número positivo finito)');
-    }
-
-    if (!data.unit || typeof data.unit !== 'string') {
-      errors.push('Unidade inválida ou ausente');
-    }
-
-    // Validações específicas por tipo
-    switch (dataType) {
-      case 'trade':
-        if (typeof data.isProfit !== 'boolean') {
-          errors.push('Campo isProfit deve ser boolean');
-        }
-        break;
-      
-      case 'deposit':
-        // Depósitos não têm validações específicas adicionais
-        break;
-      
-      case 'withdrawal':
-        if (data.fee !== undefined && (typeof data.fee !== 'number' || data.fee < 0 || !isFinite(data.fee))) {
-          errors.push('Taxa inválida (deve ser número não-negativo finito)');
-        }
-        if (data.type && !['lightning', 'onchain'].includes(data.type)) {
-          errors.push('Tipo de saque inválido (deve ser lightning ou onchain)');
-        }
-        break;
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }, []);
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
