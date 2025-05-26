@@ -1889,7 +1889,7 @@ export default function ProfitCalculator({
       closed: trade.closed,
       pl: trade.pl,
       pl_type: typeof trade.pl,
-      pl_value_abs: Math.abs(Number(trade.pl))
+      pl_value_abs: typeof trade.pl === 'number' ? Math.abs(trade.pl) : 'não numérico'
     });
     
     // Verificar se o objeto trade existe
@@ -1907,28 +1907,58 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'Trade não fechado' };
     }
     
-    // Verificar se tem PL válido e é um número
-    if (trade.pl === undefined || trade.pl === null || isNaN(Number(trade.pl))) {
-      return { isValid: false, reason: 'PL inválido ou ausente' };
+    // Tratar o PL independente do formato
+    let plValue: number;
+    
+    if (typeof trade.pl === 'number') {
+      // Caso 1: PL é um número
+      plValue = Math.abs(trade.pl);
+    } else if (typeof trade.pl === 'string') {
+      // Caso 2: PL é uma string - tentar converter
+      try {
+        // Remover possíveis caracteres não numéricos (como símbolos de moeda)
+        const cleanedString = trade.pl.replace(/[^0-9.-]+/g, '');
+        plValue = Math.abs(parseFloat(cleanedString));
+        console.log('[validateTradeForImport] PL convertido de string:', trade.pl, '->', plValue);
+        
+        if (isNaN(plValue)) {
+          return { isValid: false, reason: `PL em formato string inválido: ${trade.pl}` };
+        }
+      } catch (e) {
+        return { isValid: false, reason: `Erro ao converter PL de string: ${trade.pl}` };
+      }
+    } else {
+      // Caso 3: PL em formato desconhecido
+      return { isValid: false, reason: `PL em formato não suportado: ${typeof trade.pl}` };
     }
     
     // CORRIGIDO: Verificar valores muito pequenos (possível erro de unidade)
     // Em alguns casos, valores como 0.00001234 podem ser BTC em vez de satoshis
-    let plValue = Math.abs(Number(trade.pl));
-    
-    // Se o valor é muito pequeno (menos de 1 satoshi) mas maior que zero,
-    // isso pode indicar que o valor está em BTC em vez de satoshis
     if (plValue > 0 && plValue < 1) {
       console.log('[validateTradeForImport] PL parece estar em BTC em vez de satoshis:', plValue);
       // Converter para satoshis para comparação
       plValue = plValue * 100000000;
+      console.log('[validateTradeForImport] PL convertido para satoshis:', plValue);
     }
     
     // Verificar se o valor é muito pequeno mesmo após possível conversão
     // (valores muito pequenos em satoshis provavelmente são erros)
     if (plValue > 0 && plValue < 10) {
       console.log('[validateTradeForImport] PL muito pequeno mesmo após conversão, possível erro:', plValue);
-      return { isValid: false, reason: `PL muito pequeno (${plValue} sats), possível erro` };
+      
+      // Antes de rejeitar, fazer uma última tentativa com valores extremamente pequenos
+      if (plValue < 0.001) {
+        // Para valores extremamente pequenos, tentar multiplicar por 10^8 duas vezes
+        // (caso seja um valor em BTC que foi acidentalmente dividido por 100000000)
+        plValue = plValue * 100000000;
+        console.log('[validateTradeForImport] Tentativa extra de conversão para PL extremamente pequeno:', plValue);
+        
+        if (plValue < 10) {
+          return { isValid: false, reason: `PL muito pequeno (${plValue} sats) mesmo após conversões, possível erro` };
+        }
+      } else {
+        return { isValid: false, reason: `PL muito pequeno (${plValue} sats), possível erro` };
+      }
     }
     
     // Para trades fechados, priorizar closed_ts
@@ -1972,11 +2002,29 @@ export default function ProfitCalculator({
   const debugWithdrawalsFromAPI = () => {};
   const importTestedWithdrawals = () => {};
   
-  // Stub vazio da função antiga de monitoramento
+  // Stub melhorado da função antiga de monitoramento
   // Foi substituída por atualizações diretas ao estado de progresso
-  const monitorSearchProgress = () => {
-    // Função vazia - mantida apenas para compatibilidade
-    console.log('[monitorSearchProgress] Esta função foi substituída por atualizações diretas ao estado de progresso');
+  const monitorSearchProgress = (
+    progressType: 'trades' | 'deposits' | 'withdrawals', 
+    current: number, 
+    total: number, 
+    message?: string
+  ) => {
+    // Atualiza diretamente o estado de progresso para compatibilidade com código legado
+    const percentage = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+    
+    setImportProgress(prev => ({
+      ...prev,
+      [progressType]: {
+        current,
+        total,
+        percentage,
+        status: current >= total ? 'complete' : 'loading',
+        message: message || `Progresso: ${current}/${total} (${percentage}%)`
+      }
+    }));
+    
+    console.log(`[monitorSearchProgress] Atualização: ${progressType} - ${current}/${total} (${percentage}%)`);
   };
 
   // NOVA: Função para forçar atualização (do MultiReportCalculator)

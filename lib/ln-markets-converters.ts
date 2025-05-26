@@ -186,15 +186,31 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     throw new Error('Trade deve ter uid ou id válido');
   }
 
-  // CORREÇÃO: Garantir que o valor PL esteja em satoshis
-  // O PL é recebido em satoshis pela API, mas vamos validar e garantir a consistência
-  let plValue = trade.pl;
+  // CORREÇÃO CRÍTICA: Garantir que o valor PL esteja em satoshis
+  // O PL é recebido em satoshis pela API normalmente, mas às vezes pode vir em BTC
+  let plValue = Number(trade.pl); // Garantir que é número
   
   // Verificar se o valor está muito pequeno (menos de 1 satoshi), o que indicaria um erro de unidade
   if (Math.abs(plValue) > 0 && Math.abs(plValue) < 1) {
     console.warn('[convertTradeToProfit] Valor PL muito pequeno, possível erro de unidade. Convertendo para satoshis:', plValue);
     // Multiplicar por 100000000 para converter de BTC para satoshis se necessário
     plValue = plValue * 100000000;
+    console.log('[convertTradeToProfit] Valor convertido para satoshis:', plValue);
+  }
+  
+  // Verificação adicional para valores que podem estar em outro formato
+  if (isNaN(plValue) && typeof trade.pl === 'string') {
+    // Tentar extrair número da string
+    const numericValue = parseFloat(trade.pl.replace(/[^0-9.-]+/g, ''));
+    if (!isNaN(numericValue)) {
+      console.warn('[convertTradeToProfit] PL em formato string. Extraído valor numérico:', numericValue);
+      plValue = numericValue;
+      // Se for muito pequeno, assumir que está em BTC
+      if (Math.abs(plValue) > 0 && Math.abs(plValue) < 1) {
+        plValue = plValue * 100000000;
+        console.log('[convertTradeToProfit] Valor convertido para satoshis após extração de string:', plValue);
+      }
+    }
   }
 
   // Calcular lucro líquido: PL - fees (opening_fee + closing_fee + sum_carry_fees)
