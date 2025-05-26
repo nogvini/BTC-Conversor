@@ -109,16 +109,32 @@ class LNMarketsClient {
    * Busca trades/operações fechadas
    * Usando método da biblioteca oficial - GET /v2/futures
    * Parâmetro type: 'closed' para buscar apenas trades fechados
+   * Utiliza paginação ampliada para buscar histórico completo
    * @param options - Opções de paginação (limit, offset)
    */
   async getTrades(options?: { limit?: number; offset?: number }): Promise<LNMarketsApiResponse<LNMarketsTrade[]>> {
+    // Calcular data antiga (2 anos atrás) se não houver offset específico
+    // Isso garante que busquemos o máximo de trades históricos possível
+    const defaultDate = new Date();
+    defaultDate.setFullYear(defaultDate.getFullYear() - 2); // 2 anos atrás
+    const defaultTimestamp = defaultDate.getTime();
+    
+    console.log('[LN Markets API] Buscando trades com parâmetros ampliados:', {
+      type: 'closed',
+      limit: options?.limit || 100,
+      from: options?.offset || 0,
+      defaultHistoricalDate: new Date(defaultTimestamp).toISOString()
+    });
+    
     return this.executeWithErrorHandling(
       () => this.client.futuresGetTrades({ 
         type: 'closed',
-        limit: options?.limit || 100,
-        from: options?.offset || 0
+        limit: options?.limit || 200, // Aumentado para 200 por requisição
+        from: options?.offset || 0,
+        // Se não tiver offset específico, usar data antiga para pegar histórico completo
+        ...(options?.offset === undefined && { timestamp: defaultTimestamp })
       }),
-      'getTrades (closed)'
+      'getTrades (closed - ampliado)'
     );
   }
 

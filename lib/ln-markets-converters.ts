@@ -294,19 +294,27 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     plValue = 1;
   }
 
-  // CORRIGIDO: Criar ID composto que inclui valor PL para diferenciar trades com mesmo ID mas PL diferente
-  // O ID será: lnm_[id]_pl[plValue] (sem o prefixo 'trade_' para evitar duplicação)
-  // Isso garante que trades com mesmo ID mas PL diferente sejam tratados como entidades distintas
+  // VALIDAÇÃO CRUZADA: Usar ID + data de saída + PL para identificação única
+  // Isso garante que trades com a mesma combinação de ID+data+PL sejam considerados iguais
+  // e trades com qualquer diferença em algum desses valores sejam considerados diferentes
   const plIdentifier = Math.round(plValue); // Arredondar para inteiro para maior estabilidade
   
-  console.log('[convertTradeToProfit] Gerando ID composto:', {
+  // Extrair o timestamp no formato mais compacto (dias desde 1/1/2000)
+  const referenceDate = new Date(2000, 0, 1).getTime();
+  const daysSinceReference = Math.floor((tradeDate.getTime() - referenceDate) / (1000 * 60 * 60 * 24));
+  
+  // Criar ID composto com os três atributos (ID + data + PL)
+  const compositeId = `lnm_${tradeIdentifier}_d${daysSinceReference}_pl${plIdentifier}`;
+  
+  console.log('[convertTradeToProfit] Gerando ID com validação cruzada:', {
     tradeIdentifier,
+    daysSinceReference,
     plIdentifier,
-    resultingId: `lnm_${tradeIdentifier}_pl${plIdentifier}`
+    resultingId: compositeId
   });
   
   const result = {
-    id: `lnm_${tradeIdentifier}_pl${plIdentifier}`, // ID composto com PL (sem o prefixo 'trade_')
+    id: compositeId, // ID composto com validação cruzada
     originalId: `trade_${tradeIdentifier}`, // Manter o originalId original para retrocompatibilidade
     date: tradeDate.toISOString().split('T')[0],
     amount: Math.abs(netProfit), // Usar lucro líquido (PL - fees)

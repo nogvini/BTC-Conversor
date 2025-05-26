@@ -772,12 +772,12 @@ export default function ProfitCalculator({
       let consecutiveEmptyPages = 0;
       let consecutiveUnproductivePages = 0; // NOVO: Páginas sem trades válidos
       let totalDuplicatesFound = 0;
-      const batchSize = 100;
-      const maxConsecutiveEmptyPages = 5; // AUMENTADO: Mais tolerante a páginas vazias
-      const maxConsecutiveUnproductivePages = 8; // AUMENTADO: Mais tolerante a páginas improdutivas
-      const maxRetries = 3;
-      const maxTotalTrades = 10000; // AUMENTADO: Buscando um número muito maior de trades
-      const maxOffsetLimit = 20000; // AUMENTADO: Limite absoluto de offset maior
+      const batchSize = 200; // AUMENTADO: Buscar mais trades por requisição (dobrado)
+      const maxConsecutiveEmptyPages = 10; // AUMENTADO: Muito mais tolerante a páginas vazias
+      const maxConsecutiveUnproductivePages = 15; // AUMENTADO: Muito mais tolerante a páginas improdutivas
+      const maxRetries = 5; // AUMENTADO: Mais tentativas em caso de falha
+      const maxTotalTrades = 50000; // AUMENTADO SIGNIFICATIVAMENTE: Buscar todos os trades históricos
+      const maxOffsetLimit = 100000; // AUMENTADO SIGNIFICATIVAMENTE: Buscar muito mais no passado
       
       console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
@@ -1063,16 +1063,18 @@ export default function ProfitCalculator({
          const tradeId = trade.id || trade.uid;
          const fullId = tradeId.startsWith('trade_') ? tradeId : `trade_${tradeId}`;
          
-                   // Verificar se está duplicado usando a chave composta
+                   // VALIDAÇÃO CRUZADA: Verificar se está duplicado usando três elementos (ID + data + PL)
           const plNum = Number(trade.pl || 0);
-          const compositeKey = `${fullId}|${plNum}`;
+          const closed_ts = trade.closed_ts ? Number(trade.closed_ts) : 0;
           
-          // CORRIGIDO: Um trade é duplicado APENAS se a chave composta já existe
-          // Isso permite que trades com mesmo ID mas PL diferente sejam importados
-          // const isDuplicate = existingTradeIds.has(fullId) || processedCompositeKeys.has(compositeKey);
+          // Criar chave composta com ID, timestamp de fechamento e valor PL
+          const compositeKey = `${fullId}|${closed_ts}|${plNum}`;
+          
+          // Um trade é duplicado APENAS se a chave composta de validação cruzada já existe
+          // Isso permite que trades com qualquer diferença em ID, data ou PL sejam importados como novos
           const isDuplicate = processedCompositeKeys.has(compositeKey);
           
-          console.log(`[handleImportTrades] Verificação de duplicata NOVA: ${isDuplicate ? "DUPLICADO" : "NOVO"} - Chave: ${compositeKey}`);
+          console.log(`[handleImportTrades] Verificação com validação cruzada: ${isDuplicate ? "DUPLICADO" : "NOVO"} - Chave: ${compositeKey}`);
          
          // Validações específicas
          const mainCriteria = isClosed && hasNonZeroPL;
@@ -2155,18 +2157,18 @@ export default function ProfitCalculator({
 
 
 
-  // EXTREMAMENTE SIMPLIFICADO: Aceitar quase qualquer trade
+  // NOVA VALIDAÇÃO: Apenas trades fechados (closed=true)
   const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
     // Log detalhado do trade para diagnóstico
     console.log('[validateTradeForImport] Validando trade:', {
       id: trade.id || trade.uid,
       closed: trade.closed,
+      closed_ts: trade.closed_ts,
       pl: trade.pl,
       status: trade.status,
       side: trade.side,
       quantity: trade.quantity,
-      entry_price: trade.entry_price,
-      raw_object: JSON.stringify(trade).substring(0, 200) + '...'
+      entry_price: trade.entry_price
     });
     
     // CRITÉRIO ABSOLUTO: Deve ser um objeto e ter ID
@@ -2178,8 +2180,16 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'Trade sem ID válido' };
     }
     
-    // VALIDAÇÃO EXTREMAMENTE PERMISSIVA: Qualquer trade com ID válido é aceitável
-    console.log('[validateTradeForImport] ✅ Trade válido com ID:', trade.id || trade.uid);
+    // CRITÉRIO ÚNICO: Trade deve estar fechado (closed=true)
+    const isClosed = trade.closed === true || trade.closed === 'true' || 
+                     trade.closed === 1 || trade.closed === '1' || 
+                     trade.status === 'closed' || trade.status === 'done';
+    
+    if (!isClosed) {
+      return { isValid: false, reason: 'Trade não está fechado' };
+    }
+    
+    console.log('[validateTradeForImport] ✅ Trade válido fechado com ID:', trade.id || trade.uid);
     return { isValid: true };
     
     /* CRITÉRIOS ANTERIORES REMOVIDOS - MÁXIMA PERMISSIVIDADE
