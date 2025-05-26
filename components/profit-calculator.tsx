@@ -24,7 +24,9 @@ import {
   TrendingDown,
   Minus,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  AlertTriangle,
+  User
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,7 @@ import {
 import { format as formatDateFn, startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
@@ -2675,6 +2678,37 @@ export default function ProfitCalculator({
                                 ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Card de Aviso - Sem Configuração API */}
+                {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
+                  <Card className="bg-yellow-900/30 border border-yellow-600/50 mb-4">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-yellow-400">
+                        <AlertTriangle className="h-5 w-5" />
+                        Configuração Necessária
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <p className="text-yellow-200">
+                          Você ainda não tem nenhuma configuração de API LN Markets para importação de dados.
+                        </p>
+                        <p className="text-sm text-yellow-300/80">
+                          Para usar as funcionalidades de importação, você precisa configurar suas credenciais de API no seu perfil.
+                        </p>
+                        <div className="flex justify-between items-center pt-2">
+                          <Link href="/profile" className="flex items-center gap-2 text-white bg-yellow-700 hover:bg-yellow-600 px-4 py-2 rounded-md transition-colors">
+                            <User className="h-4 w-4" />
+                            Ir para meu Perfil
+                          </Link>
+                          <a href="https://lnmarkets.com/en/settings/api" target="_blank" rel="noopener noreferrer" className="text-sm text-yellow-400 hover:text-yellow-300 underline underline-offset-2">
+                            Criar chaves API no LN Markets
+                          </a>
                         </div>
                       </div>
                     </CardContent>
