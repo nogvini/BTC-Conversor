@@ -186,15 +186,27 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     throw new Error('Trade deve ter uid ou id válido');
   }
 
+  // CORREÇÃO: Garantir que o valor PL esteja em satoshis
+  // O PL é recebido em satoshis pela API, mas vamos validar e garantir a consistência
+  let plValue = trade.pl;
+  
+  // Verificar se o valor está muito pequeno (menos de 1 satoshi), o que indicaria um erro de unidade
+  if (Math.abs(plValue) > 0 && Math.abs(plValue) < 1) {
+    console.warn('[convertTradeToProfit] Valor PL muito pequeno, possível erro de unidade. Convertendo para satoshis:', plValue);
+    // Multiplicar por 100000000 para converter de BTC para satoshis se necessário
+    plValue = plValue * 100000000;
+  }
+
   // Calcular lucro líquido: PL - fees (opening_fee + closing_fee + sum_carry_fees)
   const openingFee = trade.opening_fee || 0;
   const closingFee = trade.closing_fee || 0;
   const carryFees = trade.sum_carry_fees || 0;
   const totalFees = openingFee + closingFee + carryFees;
-  const netProfit = trade.pl - totalFees;
+  const netProfit = plValue - totalFees;
 
   console.log('[convertTradeToProfit] Cálculo de lucro:', {
-    pl: trade.pl,
+    pl_original: trade.pl,
+    pl_adjusted: plValue,
     opening_fee: openingFee,
     closing_fee: closingFee,
     sum_carry_fees: carryFees,
@@ -203,7 +215,7 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
   });
 
   // Validar valor do PL
-  if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
+  if (plValue === undefined || plValue === null || isNaN(plValue)) {
     console.error('[convertTradeToProfit] Valor PL inválido:', trade.pl);
     throw new Error('Trade deve ter valor PL válido');
   }
@@ -225,6 +237,7 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       side: trade.side,
       quantity: trade.quantity,
       grossPL: trade.pl,
+      adjustedPL: plValue,
       openingFee: openingFee,
       closingFee: closingFee,
       carryFees: carryFees,

@@ -26,7 +26,11 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
-  User
+  User,
+  FileText,
+  FileDown,
+  Loader2,
+  File
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +63,15 @@ import { format as formatDateFn, startOfMonth, endOfMonth, subMonths, difference
 import { ptBR } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useActiveTab } from "@/hooks/use-active-tab";
+import { useToast } from "@/hooks/use-toast";
+import * as ExcelJS from "exceljs";
+
+
 
 // Imports dos módulos refatorados
 import type { ProfitCalculatorProps } from "./types/profit-calculator-types";
@@ -907,16 +920,18 @@ export default function ProfitCalculator({
         
         currentOffset += batchSize;
         
-        // NOVO: Monitorar progresso da busca
-        monitorSearchProgress(
-          currentOffset, 
-          allTrades, 
-          totalDuplicatesFound, 
-          consecutiveEmptyPages, 
-          consecutiveUnproductivePages,
-          maxOffsetLimit,
-          maxTotalTrades
-        );
+        // NOVO: Atualizar informações de progresso
+        const percentageComplete = Math.min(100, Math.round((currentOffset / maxOffsetLimit) * 100));
+        setImportProgress(prev => ({
+          ...prev,
+          trades: {
+            ...prev.trades,
+            current: currentOffset,
+            total: maxOffsetLimit,
+            percentage: percentageComplete,
+            message: `Página ${currentOffset / batchSize} | ${allTrades.length} trades | ${totalDuplicatesFound} duplicados`
+          }
+        }));
         
         // NOVO: Verificar múltiplas condições de parada antes de continuar
         if (!hasMoreData) {
@@ -1866,8 +1881,17 @@ export default function ProfitCalculator({
 
 
 
-  // MELHORADA: Função para validar trade antes do processamento
+  // APRIMORADA: Função para validar trade antes do processamento
   const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
+    console.log('[validateTradeForImport] Validando trade:', {
+      id: trade.id,
+      uid: trade.uid,
+      closed: trade.closed,
+      pl: trade.pl,
+      pl_type: typeof trade.pl,
+      pl_value_abs: Math.abs(Number(trade.pl))
+    });
+    
     // Verificar se o objeto trade existe
     if (!trade || typeof trade !== 'object') {
       return { isValid: false, reason: 'Objeto trade inválido' };
@@ -1888,6 +1912,25 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'PL inválido ou ausente' };
     }
     
+    // CORRIGIDO: Verificar valores muito pequenos (possível erro de unidade)
+    // Em alguns casos, valores como 0.00001234 podem ser BTC em vez de satoshis
+    let plValue = Math.abs(Number(trade.pl));
+    
+    // Se o valor é muito pequeno (menos de 1 satoshi) mas maior que zero,
+    // isso pode indicar que o valor está em BTC em vez de satoshis
+    if (plValue > 0 && plValue < 1) {
+      console.log('[validateTradeForImport] PL parece estar em BTC em vez de satoshis:', plValue);
+      // Converter para satoshis para comparação
+      plValue = plValue * 100000000;
+    }
+    
+    // Verificar se o valor é muito pequeno mesmo após possível conversão
+    // (valores muito pequenos em satoshis provavelmente são erros)
+    if (plValue > 0 && plValue < 10) {
+      console.log('[validateTradeForImport] PL muito pequeno mesmo após conversão, possível erro:', plValue);
+      return { isValid: false, reason: `PL muito pequeno (${plValue} sats), possível erro` };
+    }
+    
     // Para trades fechados, priorizar closed_ts
     if (trade.closed && !trade.closed_ts) {
       // Se não tem closed_ts, verificar se tem pelo menos um campo de data válido
@@ -1901,11 +1944,18 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'Nenhum campo de data válido (closed_ts, creation_ts, market_filled_ts, last_update_ts)' };
     }
     
-    // Verificar se o valor do PL está dentro de limites razoáveis (evitar dados corrompidos)
-    const plValue = Math.abs(Number(trade.pl));
-    if (plValue > 10000000) { // Mais de 10 milhões de satoshis (0.1 BTC) - limite mais generoso
-      return { isValid: false, reason: 'PL muito alto, possível dado corrompido' };
+    // ATUALIZADO: Verificar se o valor do PL está dentro de limites razoáveis (evitar dados corrompidos)
+    // Limite superior mais conservador - 5 milhões de satoshis (0.05 BTC)
+    if (plValue > 5000000) {
+      console.log('[validateTradeForImport] PL muito alto, possível dado corrompido:', plValue);
+      return { isValid: false, reason: `PL muito alto (${plValue} sats), possível dado corrompido` };
     }
+    
+    console.log('[validateTradeForImport] Trade válido:', {
+      id: trade.id || trade.uid,
+      pl_original: trade.pl,
+      pl_validated: plValue
+    });
     
     return { isValid: true };
   };
@@ -1921,33 +1971,12 @@ export default function ProfitCalculator({
   const importTestedDeposits = () => {};
   const debugWithdrawalsFromAPI = () => {};
   const importTestedWithdrawals = () => {};
-  const monitorSearchProgress = (
-    currentOffset: number, 
-    allTrades: any[], 
-    totalDuplicates: number, 
-    consecutiveEmpty: number, 
-    consecutiveUnproductive: number,
-    maxOffsetLimit: number,
-    maxTotalTrades: number
-  ) => {
-    console.log('[monitorSearchProgress] Status da busca:', {
-      offset: currentOffset,
-      tradesFound: allTrades.length,
-      duplicatesSkipped: totalDuplicates,
-      consecutiveEmpty,
-      consecutiveUnproductive,
-      offsetProgress: (currentOffset / maxOffsetLimit) * 100,
-      tradesProgress: (allTrades.length / maxTotalTrades) * 100
-    });
-    return {
-      offset: currentOffset,
-      tradesFound: allTrades.length,
-      duplicatesSkipped: totalDuplicates,
-      consecutiveEmpty,
-      consecutiveUnproductive,
-      offsetProgress: (currentOffset / maxOffsetLimit) * 100,
-      tradesProgress: (allTrades.length / maxTotalTrades) * 100
-    };
+  
+  // Stub vazio da função antiga de monitoramento
+  // Foi substituída por atualizações diretas ao estado de progresso
+  const monitorSearchProgress = () => {
+    // Função vazia - mantida apenas para compatibilidade
+    console.log('[monitorSearchProgress] Esta função foi substituída por atualizações diretas ao estado de progresso');
   };
 
   // NOVA: Função para forçar atualização (do MultiReportCalculator)
@@ -2330,6 +2359,12 @@ export default function ProfitCalculator({
     }
     return value;
   }, [isMobile]);
+
+  // Estado será implementado quando o recurso de exportação for ativado
+
+  // Função de exportação será implementada em breve
+
+
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
@@ -2717,6 +2752,8 @@ export default function ProfitCalculator({
 
                 {/* Cards de Importação LN Markets */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Botão de exportação tradicional em breve será implementado */}
+                  
                   {/* Card Trades */}
                   <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors flex flex-col min-h-[280px]">
                     <CardHeader className="pb-3">
@@ -3808,6 +3845,8 @@ export default function ProfitCalculator({
           </Tabs>
         </>
       )}
+
+             {/* Dialog para exportação será implementado em breve */}
     </div>
   );
 }
