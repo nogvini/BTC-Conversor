@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useReportEvents } from "@/contexts/report-events-context";
+import { useReportSync } from "@/contexts/report-sync-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,6 +10,9 @@ import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
+import { format } from "date-fns";
+import { generateExcelReport, ExcelExportOptions } from "@/lib/excel-export";
+import ExportOptionsDialog, { PDFExportOptions } from "@/components/export-options-dialog";
 import { 
   TrendingUp, 
   Download, 
@@ -15,6 +20,7 @@ import {
   Wallet, 
   Zap, 
   FileSpreadsheet, 
+  FileText,
   ChevronLeft,
   Calendar as CalendarIcon,
   BarChart2,
@@ -27,7 +33,6 @@ import {
   ArrowDown,
   AlertTriangle,
   User,
-  FileText,
   FileDown,
   Loader2,
   File
@@ -2694,6 +2699,166 @@ export default function ProfitCalculator({
     }
   };
 
+  // Estado para controle de exportação
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  
+  // Função para exportar para PDF
+  const handleExportPDF = async (options: PDFExportOptions) => {
+    if (!currentActiveReportObjectFromHook || isExporting) return;
+    
+    try {
+      setIsExporting(true);
+      
+      // Preparar dados do relatório
+      const reportData = {
+        report: {
+          ...currentActiveReportObjectFromHook,
+          investments: options.includeInvestments ? currentActiveReportObjectFromHook.investments : [],
+          profits: options.includeProfits ? currentActiveReportObjectFromHook.profits : [],
+          withdrawals: options.includeWithdrawals ? currentActiveReportObjectFromHook.withdrawals || [] : []
+        },
+        displayCurrency: options.currency,
+        reportPeriodDescription: options.dateRange 
+          ? `${format(options.dateRange.startDate, "dd/MM/yyyy")} - ${format(options.dateRange.endDate, "dd/MM/yyyy")}`
+          : undefined
+      };
+      
+      // Chamar a API para gerar o PDF
+      const response = await fetch('/api/export/report-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reportData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao gerar o PDF');
+      }
+      
+      // Obter o blob do PDF
+      const blob = await response.blob();
+      
+      // Criar um URL para o blob
+      const url = URL.createObjectURL(blob);
+      
+      // Criar um link para download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "📄 PDF Exportado!",
+        description: `Relatório "${currentActiveReportObjectFromHook.name}" exportado com sucesso.`,
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast({
+        title: "❌ Erro na exportação",
+        description: "Ocorreu um erro ao exportar o relatório para PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setShowExportDialog(false);
+    }
+  };
+  
+  // Função para exportar para Excel
+  const handleExportExcel = async (options: ExcelExportOptions) => {
+    if (!currentActiveReportObjectFromHook || isExporting) return;
+    
+    try {
+      setIsExporting(true);
+      
+      // Preparar dados do relatório
+      const reportData = {
+        ...currentActiveReportObjectFromHook,
+        investments: options.includeInvestments ? currentActiveReportObjectFromHook.investments : [],
+        profits: options.includeProfits ? currentActiveReportObjectFromHook.profits : [],
+        withdrawals: options.includeWithdrawals ? currentActiveReportObjectFromHook.withdrawals || [] : []
+      };
+      
+      // Gerar o Excel
+      const blob = await generateExcelReport(
+        reportData, 
+        states.currentRates.btcToUsd, 
+        states.currentRates.brlToUsd, 
+        options
+      );
+      
+      // Criar um URL para o blob
+      const url = URL.createObjectURL(blob);
+      
+      // Criar um link para download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "📊 Excel Exportado!",
+        description: `Relatório "${currentActiveReportObjectFromHook.name}" exportado com sucesso.`,
+        variant: "default",
+        className: "border-green-500/50 bg-green-900/20",
+      });
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error);
+      toast({
+        title: "❌ Erro na exportação",
+        description: "Ocorreu um erro ao exportar o relatório para Excel.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+      setShowExportDialog(false);
+    }
+  };
+
+  // Sistema de sincronização através do contexto global
+  // @ts-ignore - Ignore os erros de lint para esse hook específico
+  const reportSyncData = useReportSync ? useReportSync() : { syncedData: { needsRefresh: false } };
+  const { syncedData } = reportSyncData;
+  
+  // Referência para controlar recarregamentos
+  const refreshTriggerRef = useRef(0);
+  
+  // Adicionar estado para força-atualizações
+  const [investmentListKey, setInvestmentListKey] = useState('investments_0');
+  const [profitsListKey, setProfitsListKey] = useState('profits_0');
+  const [needsRefresh, setNeedsRefresh] = useState(false);
+
+  // Reagir às mudanças de dados sincronizados
+  useEffect(() => {
+    if (!activeReportData) return;
+    
+    // Se houver necessidade de atualização, atualizar os dados da interface
+    if (syncedData && syncedData.needsRefresh) {
+      console.log('[ProfitCalculator] Atualizando interface após evento de sincronização');
+      
+      // Incrementar o contador de atualizações
+      refreshTriggerRef.current += 1;
+      
+      // Atualizar chaves para forçar remontagem de componentes
+      const newInvestmentKey = `investments_${refreshTriggerRef.current}`;
+      const newProfitsKey = `profits_${refreshTriggerRef.current}`;
+      
+      setInvestmentListKey(newInvestmentKey);
+      setProfitsListKey(newProfitsKey);
+      setNeedsRefresh(true);
+    }
+  }, [syncedData, activeReportData]);
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -2716,27 +2881,19 @@ export default function ProfitCalculator({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-black/30 border-green-700/50 hover:bg-green-900/20"
-                    onClick={() => {
-                      // Função de exportação Excel simplificada
-                      console.log('Exportação Excel temporariamente desabilitada para corrigir build');
-                        toast({
-                        title: "🚧 Funcionalidade Temporariamente Indisponível",
-                        description: "A exportação Excel será reativada em breve.",
-                          variant: "default",
-                      });
-                    }}
-                    disabled={states.isExporting}
+                    className="bg-black/30 border-purple-700/50 hover:bg-purple-900/20"
+                    onClick={() => setShowExportDialog(true)}
+                    disabled={isExporting}
                   >
-                    {states.isExporting ? (
+                    {isExporting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Exportando...
                       </>
                     ) : (
                       <>
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Excel Completo
+                        <FileText className="h-4 w-4 mr-2" />
+                        Exportar Relatório
                       </>
                     )}
                   </Button>
@@ -3901,11 +4058,13 @@ export default function ProfitCalculator({
                             />
                             <Tooltip 
                               contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
-                                color: '#F3F4F6'
+                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                border: '1px solid rgba(124, 58, 237, 0.5)',
+                                borderRadius: '0.375rem',
+                                color: '#F3F4F6',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                               }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                               formatter={(value: number, name: string) => [
                                 formatChartValue(value),
                                 name === 'investments' ? 'Investimentos' :
@@ -4059,6 +4218,7 @@ export default function ProfitCalculator({
                                 color: '#F3F4F6',
                                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                               }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
                                 const formattedName = 
@@ -4168,12 +4328,14 @@ export default function ProfitCalculator({
                             </Pie>
                             <Tooltip 
                               contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                border: '1px solid rgba(124, 58, 237, 0.5)',
+                                borderRadius: '0.375rem',
                                 color: '#F3F4F6',
-                                fontSize: '12px'
+                                fontSize: '12px',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                               }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                               formatter={(value: number) => formatChartValue(value)}
                             />
                           </PieChart>
@@ -4324,10 +4486,18 @@ export default function ProfitCalculator({
               </div>
             </TabsContent>
           </Tabs>
+          
+          {/* Diálogo de opções de exportação */}
+          <ExportOptionsDialog 
+            open={showExportDialog} 
+            onOpenChange={setShowExportDialog}
+            onExportPDF={handleExportPDF}
+            onExportExcel={handleExportExcel}
+            isExporting={isExporting}
+          />
         </>
       )}
-
-             {/* Dialog para exportação será implementado em breve */}
     </div>
   );
 }
+

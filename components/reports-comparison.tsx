@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useReports } from "@/hooks/use-reports";
+import { useReportSync } from "@/contexts/report-sync-service";
 import { Report, ReportComparison, Investment, ProfitRecord } from "@/lib/calculator-types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import AnimatedCounter from "./animated-counter";
@@ -145,6 +146,7 @@ const formatTempoInvestimento = (dias: number): string => {
 
 export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsComparisonProps) {
   const { reports } = useReports();
+  const { syncedData } = useReportSync();
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("accumulated");
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>("btc");
@@ -154,6 +156,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
   });
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("summary");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const isMobile = useIsMobile();
 
@@ -163,6 +166,14 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       setSelectedReportIds(reports.slice(0, Math.min(2, reports.length)).map(r => r.id));
     }
   }, [reports, selectedReportIds]);
+  
+  // Reagir a eventos de atualização de relatórios
+  useEffect(() => {
+    if (syncedData.needsRefresh) {
+      console.log('[ReportsComparison] Atualizando após evento de sincronização');
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [syncedData]);
 
   // Função para alternar a seleção de um relatório
   const toggleReportSelection = (reportId: string) => {
@@ -521,7 +532,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-black/90 border border-purple-700/50 rounded-md p-3 shadow-lg">
+        <div className="bg-black/90 border border-purple-700/50 rounded-md p-3 shadow-lg backdrop-blur-sm">
           <p className="font-medium text-sm text-white mb-2">{label}</p>
           <div className="space-y-1">
             {payload.map((entry: any, index: number) => (
@@ -828,7 +839,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                         }
                       }}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip 
+                      content={<CustomTooltip />}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                    />
                     <Legend />
                     {generateChartBars()}
                   </BarChart>
@@ -1185,6 +1199,15 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                           name === 'roi' ? 'ROI' : name;
                         return [formattedValue, formattedName];
                       }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        borderColor: 'rgba(124, 58, 237, 0.5)',
+                        borderRadius: '0.375rem',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                      }}
+                      itemStyle={{ color: '#e2e8f0' }}
+                      labelStyle={{ color: '#f8fafc' }}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                     />
                     <Legend />
                     <Bar dataKey="investimentos" name="Investimentos" fill="#8884d8" />
@@ -1215,6 +1238,15 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     </Pie>
                     <Tooltip 
                       formatter={(value: number) => [`${value.toFixed(8)} BTC`, 'Saldo']}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        borderColor: 'rgba(124, 58, 237, 0.5)',
+                        borderRadius: '0.375rem',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                      }}
+                      itemStyle={{ color: '#e2e8f0' }}
+                      labelStyle={{ color: '#f8fafc' }}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                     />
                     <Legend />
                   </PieChart>

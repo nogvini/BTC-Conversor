@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProviderClient } from "@/components/auth-provider-client"
 import { ClientAppHeader } from "@/components/client-app-header"
+import { ReportEventsProvider } from "@/contexts/report-events-context"
+import { ReportSyncProvider } from "@/contexts/report-sync-service"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -97,12 +99,16 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProviderClient>
-          <ThemeProvider>
-            <ClientAppHeader />
-            <main className="pt-16">
-              {children}
-            </main>
-          </ThemeProvider>
+          <ReportEventsProvider>
+            <ReportSyncProvider>
+              <ThemeProvider>
+                <ClientAppHeader />
+                <main className="pt-16">
+                  {children}
+                </main>
+              </ThemeProvider>
+            </ReportSyncProvider>
+          </ReportEventsProvider>
         </AuthProviderClient>
       </body>
     </html>

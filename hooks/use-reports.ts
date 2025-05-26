@@ -13,6 +13,7 @@ import {
   migrateFromLegacyData
 } from "@/lib/calculator-types";
 import { toast } from "@/components/ui/use-toast";
+import { useReportEvents } from "@/contexts/report-events-context";
 
 // Hook para gerenciar relatórios da calculadora
 export function useReports() {
@@ -28,6 +29,9 @@ export function useReports() {
   
   // Estado para controlar a migração de dados legados
   const [isMigrated, setIsMigrated] = useState(false);
+  
+  // Usar o contexto de eventos para notificar mudanças
+  const { emitEvent } = useReportEvents();
   
   // Referência ao relatório ativo atual
   const activeReport = collection.reports.find(r => r.id === collection.activeReportId) || 
@@ -81,6 +85,11 @@ export function useReports() {
         
         setCollection(correctedCollection);
         setIsMigrated(true);
+        
+        // Emitir evento de relatório selecionado após carregar
+        if (activeId) {
+          emitEvent('report-selected', activeId);
+        }
       } else {
         // Se não há coleção salva, verificar se há dados legados para migrar
         const migratedData = migrateFromLegacyData();
@@ -96,6 +105,11 @@ export function useReports() {
             description: "Seus dados foram migrados para o novo formato de múltiplos relatórios",
             duration: 5000,
           });
+          
+          // Emitir evento após migração
+          if (migratedData.activeReportId) {
+            emitEvent('report-selected', migratedData.activeReportId);
+          }
         } else {
           // Se não houver dados legados, criar um relatório inicial vazio
           const initialReport = createNewReport("Meu Primeiro Relatório", "Relatório inicial");
@@ -108,6 +122,9 @@ export function useReports() {
           
           setCollection(newCollection);
           localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(newCollection));
+          
+          // Emitir evento após criar relatório inicial
+          emitEvent('report-selected', initialReport.id);
         }
       }
       
@@ -134,8 +151,11 @@ export function useReports() {
         variant: "destructive",
         duration: 5000,
       });
+      
+      // Emitir evento após criar relatório em caso de erro
+      emitEvent('report-selected', initialReport.id);
     }
-  }, []);
+  }, [emitEvent]);
   
   // Salva a coleção no localStorage quando ela é alterada - MELHORADO
   useEffect(() => {
@@ -266,11 +286,14 @@ export function useReports() {
         console.error('[selectReport] Erro ao salvar coleção no localStorage:', error);
       }
       
+      // Emitir evento de relatório selecionado
+      emitEvent('report-selected', reportId);
+      
       return newCollection;
     });
     
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // Função para excluir um relatório
   const deleteReport = useCallback((reportId: string) => {
@@ -457,6 +480,10 @@ export function useReports() {
       if (!options?.suppressToast) {
         toast({ title: "Aporte Adicionado", description: result.message, variant: "success" });
       }
+      
+      // Emitir evento de investimento adicionado
+      emitEvent('investment-added', reportIdToUpdate, { investmentId: newInvestmentId });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -464,7 +491,7 @@ export function useReports() {
       };
     });
     return result;
-  }, []);
+  }, [emitEvent]);
   
   // Função para adicionar um registro de lucro/perda ao relatório ativo (ou especificado) - CORRIGIDA
   const addProfitRecord = useCallback((
@@ -565,6 +592,10 @@ export function useReports() {
       if (!options?.suppressToast) {
         toast({ title: "Registro Adicionado", description: result.message, variant: "success" });
       }
+      
+      // Emitir evento de lucro adicionado
+      emitEvent('profit-added', reportIdToUpdate, { profitId: newProfitRecordId });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -572,7 +603,7 @@ export function useReports() {
       };
     });
     return result;
-  }, []);
+  }, [emitEvent]);
   
   // Função para excluir um investimento de um relatório específico
   const deleteInvestment = useCallback((reportId: string, investmentId: string) => {
@@ -594,6 +625,9 @@ export function useReports() {
         updatedAt: new Date().toISOString()
       };
       
+      // Emitir evento de investimento excluído
+      emitEvent('investment-deleted', reportId, { investmentId });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -602,7 +636,7 @@ export function useReports() {
     });
     
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // Função para excluir um registro de lucro/perda
   const deleteProfitRecord = useCallback((reportId: string, profitId: string) => {
@@ -624,6 +658,9 @@ export function useReports() {
         updatedAt: new Date().toISOString()
       };
       
+      // Emitir evento de lucro excluído
+      emitEvent('profit-deleted', reportId, { profitId });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -632,7 +669,7 @@ export function useReports() {
     });
     
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // Função para atualizar os dados de investimentos/lucros completos de um relatório
   const updateReportData = useCallback((
@@ -668,6 +705,12 @@ export function useReports() {
       currentReport.updatedAt = new Date().toISOString();
       updatedReports[reportIndex] = currentReport;
       
+      // Emitir evento de relatório atualizado
+      emitEvent('report-updated', reportId, { 
+        updatedInvestments: newInvestments !== undefined, 
+        updatedProfits: newProfits !== undefined 
+      });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -676,7 +719,7 @@ export function useReports() {
     });
     
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // Função para importar dados de um arquivo ou outro relatório
   const importData = useCallback((
@@ -728,6 +771,13 @@ export function useReports() {
       currentReport.updatedAt = new Date().toISOString();
       updatedReports[reportIndex] = currentReport;
       
+      // Emitir evento de dados importados
+      emitEvent('data-imported', targetReportId, {
+        importedInvestments: investments?.length || 0,
+        importedProfits: profits?.length || 0,
+        replaced: options?.replace || false
+      });
+      
       return {
         ...prevCollection,
         reports: updatedReports,
@@ -736,7 +786,7 @@ export function useReports() {
     });
     
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // NOVA FUNÇÃO: Excluir todos os investimentos de um relatório
   const deleteAllInvestmentsFromReport = useCallback((reportId: string) => {
@@ -765,6 +815,11 @@ export function useReports() {
         description: `Todos os aportes do relatório "${currentReport.name}" foram excluídos.`,
         duration: 3000,
       });
+      
+      // Emitir evento de operação em lote concluída
+      emitEvent('bulk-operation-completed', reportId, { 
+        operation: 'delete-all-investments'
+      });
 
       return {
         ...prevCollection,
@@ -773,7 +828,7 @@ export function useReports() {
       };
     });
     return true;
-  }, []);
+  }, [emitEvent]);
 
   // NOVA FUNÇÃO: Excluir todos os lucros/perdas de um relatório
   const deleteAllProfitsFromReport = useCallback((reportId: string) => {
@@ -802,6 +857,11 @@ export function useReports() {
         description: `Todos os registros de lucro/perda do relatório "${currentReport.name}" foram excluídos.`,
         duration: 3000,
       });
+      
+      // Emitir evento de operação em lote concluída
+      emitEvent('bulk-operation-completed', reportId, { 
+        operation: 'delete-all-profits'
+      });
 
       return {
         ...prevCollection,
@@ -810,7 +870,7 @@ export function useReports() {
       };
     });
     return true;
-  }, []);
+  }, [emitEvent]);
 
   // NOVA FUNÇÃO: Adicionar um saque ao relatório ativo (ou especificado)
   const addWithdrawal = useCallback((
@@ -969,6 +1029,11 @@ export function useReports() {
         description: `Todos os saques do relatório "${currentReport.name}" foram excluídos.`,
         duration: 3000,
       });
+      
+      // Emitir evento de operação em lote concluída
+      emitEvent('bulk-operation-completed', reportId, { 
+        operation: 'delete-all-withdrawals'
+      });
 
       return {
         ...prevCollection,
@@ -977,7 +1042,7 @@ export function useReports() {
       };
     });
     return true;
-  }, []);
+  }, [emitEvent]);
   
   // Retornar as funções e dados necessários
   return {
