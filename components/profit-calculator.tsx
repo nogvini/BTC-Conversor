@@ -768,11 +768,11 @@ export default function ProfitCalculator({
       let consecutiveUnproductivePages = 0; // NOVO: Páginas sem trades válidos
       let totalDuplicatesFound = 0;
       const batchSize = 100;
-      const maxConsecutiveEmptyPages = 3;
-      const maxConsecutiveUnproductivePages = 5; // NOVO: Máximo de páginas sem trades válidos
+      const maxConsecutiveEmptyPages = 5; // AUMENTADO: Mais tolerante a páginas vazias
+      const maxConsecutiveUnproductivePages = 8; // AUMENTADO: Mais tolerante a páginas improdutivas
       const maxRetries = 3;
-      const maxTotalTrades = 2000; // REDUZIDO: Limite mais conservador
-      const maxOffsetLimit = 10000; // NOVO: Limite absoluto de offset
+      const maxTotalTrades = 10000; // AUMENTADO: Buscando um número muito maior de trades
+      const maxOffsetLimit = 20000; // AUMENTADO: Limite absoluto de offset maior
       
       console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
@@ -807,7 +807,7 @@ export default function ProfitCalculator({
       while (hasMoreData && allTrades.length < maxTotalTrades && consecutiveEmptyPages < maxConsecutiveEmptyPages && consecutiveUnproductivePages < maxConsecutiveUnproductivePages && currentOffset < maxOffsetLimit) {
         console.log(`[handleImportTrades] Buscando lote: offset=${currentOffset}, limit=${batchSize}`);
         
-        // Atualizar progresso
+        // Atualizar progresso com informações mais detalhadas
         setImportProgress(prev => ({
           ...prev,
           trades: { 
@@ -815,7 +815,7 @@ export default function ProfitCalculator({
             total: Math.max(allTrades.length + batchSize, 100), // Estimativa dinâmica
             percentage: Math.min((allTrades.length / Math.max(allTrades.length + batchSize, 100)) * 100, 95), 
             status: 'loading', 
-            message: `Buscando trades... (${allTrades.length} encontrados, ${totalDuplicatesFound} duplicatas)` 
+            message: `Buscando trades... Página ${Math.ceil(currentOffset/batchSize)}. (${allTrades.length} encontrados, ${totalDuplicatesFound} duplicatas)` 
           }
         }));
         
@@ -987,8 +987,11 @@ export default function ProfitCalculator({
         
         currentOffset += batchSize;
         
-        // NOVO: Atualizar informações de progresso
-        const percentageComplete = Math.min(100, Math.round((currentOffset / maxOffsetLimit) * 100));
+        // MELHORADO: Atualizar informações de progresso com mais detalhes
+        const percentageComplete = Math.min(95, Math.round((currentOffset / maxOffsetLimit) * 100));
+        const currentPage = Math.ceil(currentOffset / batchSize);
+        const validTradesPercent = allTrades.length > 0 ? Math.round((allTrades.length / (allTrades.length + totalDuplicatesFound)) * 100) : 0;
+        
         setImportProgress(prev => ({
           ...prev,
           trades: {
@@ -996,7 +999,7 @@ export default function ProfitCalculator({
             current: currentOffset,
             total: maxOffsetLimit,
             percentage: percentageComplete,
-            message: `Página ${currentOffset / batchSize} | ${allTrades.length} trades | ${totalDuplicatesFound} duplicados`
+            message: `Página ${currentPage} | ${allTrades.length} trades encontrados | ${totalDuplicatesFound} duplicados | ${validTradesPercent}% aproveitamento`
           }
         }));
         
@@ -1315,7 +1318,7 @@ export default function ProfitCalculator({
         }
       }
       
-      // Progresso completo
+      // Progresso completo com informações mais detalhadas da busca ampliada
       setImportProgress(prev => ({
         ...prev,
         trades: {
@@ -1323,7 +1326,7 @@ export default function ProfitCalculator({
           total: totalTrades,
           percentage: 100,
           status: 'complete',
-          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros`
+          message: `Concluído: ${imported} importados, ${duplicated} duplicados, ${errors} erros | Busca ampliada: ${Math.ceil(currentOffset / batchSize)} páginas`
         }
       }));
 
@@ -1369,20 +1372,32 @@ export default function ProfitCalculator({
             )}
             <div className="text-xs text-gray-400 mt-2">
               <div>Configuração: "{config.name}"</div>
-              <div>Busca otimizada: {allTrades.length} trades analisados em {Math.ceil(currentOffset / batchSize)} páginas</div>
+              <div className="font-medium">Busca ampliada: {allTrades.length} trades analisados em {Math.ceil(currentOffset / batchSize)} páginas</div>
               <div>Processamento em lotes: {Math.ceil(totalTrades / processingBatchSize)} lotes</div>
-              {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
-                <div className="text-blue-400">🎯 Parou: {consecutiveEmptyPages} páginas vazias consecutivas</div>
-              )}
-              {consecutiveUnproductivePages >= maxConsecutiveUnproductivePages && (
-                <div className="text-yellow-400">⚠️ Parou: {consecutiveUnproductivePages} páginas improdutivas consecutivas</div>
-              )}
-              {allTrades.length >= maxTotalTrades && (
-                <div className="text-orange-400">🛑 Parou: limite de {maxTotalTrades} trades atingido</div>
-              )}
-              {currentOffset >= maxOffsetLimit && (
-                <div className="text-red-400">🚫 Parou: limite de offset {maxOffsetLimit} atingido</div>
-              )}
+              <div className="flex flex-wrap gap-x-3 mt-1">
+                <span className="text-purple-400">Taxa de aproveitamento: {allTrades.length > 0 ? Math.round((allTrades.length / (allTrades.length + totalDuplicatesFound)) * 100) : 0}%</span>
+                <span className="text-blue-400">Profundidade: {Math.ceil(currentOffset / batchSize)} páginas</span>
+              </div>
+              <div className="mt-1 p-1 bg-black/30 rounded">
+                {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
+                  <div className="text-blue-400">🎯 Parou: {consecutiveEmptyPages} páginas vazias consecutivas</div>
+                )}
+                {consecutiveUnproductivePages >= maxConsecutiveUnproductivePages && (
+                  <div className="text-yellow-400">⚠️ Parou: {consecutiveUnproductivePages} páginas improdutivas consecutivas</div>
+                )}
+                {allTrades.length >= maxTotalTrades && (
+                  <div className="text-orange-400">🛑 Parou: limite ampliado de {maxTotalTrades} trades atingido</div>
+                )}
+                {currentOffset >= maxOffsetLimit && (
+                  <div className="text-red-400">🚫 Parou: limite ampliado de offset {maxOffsetLimit} atingido</div>
+                )}
+                {consecutiveEmptyPages < maxConsecutiveEmptyPages && 
+                 consecutiveUnproductivePages < maxConsecutiveUnproductivePages && 
+                 allTrades.length < maxTotalTrades && 
+                 currentOffset < maxOffsetLimit && (
+                  <div className="text-green-400">✅ Busca completa! Todos os trades disponíveis foram analisados.</div>
+                )}
+              </div>
             </div>
           </div>
         ),
