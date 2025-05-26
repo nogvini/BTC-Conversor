@@ -40,8 +40,13 @@ export default function UserSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("appearance")
 
+  // Estado para controlar se o componente foi montado (evita problemas de hidratação)
+  const [isMounted, setIsMounted] = useState(false)
+
   // Carregar configurações do localStorage e sincronizar com hook de moeda padrão
   useEffect(() => {
+    setIsMounted(true)
+    
     if (typeof window !== "undefined") {
       const savedSettings = localStorage.getItem("userSettings")
       if (savedSettings) {
@@ -184,11 +189,13 @@ export default function UserSettings() {
                     <p className="text-xs text-muted-foreground">
                       Moeda que será exibida por padrão na aplicação.
                     </p>
-                    <div className="mt-2 p-2 bg-purple-900/20 rounded border border-purple-700/30">
-                      <p className="text-xs text-purple-300">
-                        💡 Exemplo: {formatCurrency(100000, settings.currency)}
-                      </p>
-                    </div>
+                    {isMounted && (
+                      <div className="mt-2 p-2 bg-purple-900/20 rounded border border-purple-700/30">
+                        <p className="text-xs text-purple-300">
+                          💡 Exemplo: {formatCurrency(100000, settings.currency)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

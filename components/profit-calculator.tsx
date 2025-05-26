@@ -116,6 +116,7 @@ import {
   fetchLNMarketsWithdrawals
 } from "@/lib/ln-markets-client";
 import { useAuth } from "@/hooks/use-auth";
+import { useDefaultCurrency } from "@/hooks/use-default-currency";
 
 // Imports para o sistema de relatórios integrado
 import { ReportManager } from "@/components/report-manager";
@@ -315,6 +316,9 @@ export default function ProfitCalculator({
   // Hook de autenticação
   const { session } = useAuth();
   const { user } = session;
+
+  // Hook de moeda padrão
+  const { defaultCurrency, formatCurrency: formatCurrencyDefault } = useDefaultCurrency();
 
   // NOVO: Estado para modo de comparação (integração do MultiReportCalculator)
   const [isComparisonMode, setIsComparisonMode] = useState(false);
@@ -3459,7 +3463,7 @@ export default function ProfitCalculator({
                       return sum + (value * states.currentRates.btcToUsd);
                     }, 0), states.displayCurrency)}
                     icon={<TrendingUp className="h-4 w-4 text-green-400" />}
-                    valueColor={getFilteredHistoryData.profits.reduce((sum, profit) => {
+                    valueColor={getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
                       const btcAmount = convertToBtc(profit.amount, profit.unit);
                       return sum + (profit.isProfit ? btcAmount : -btcAmount);
                     }, 0) >= 0 ? "text-green-400" : "text-red-400"}
@@ -3467,7 +3471,7 @@ export default function ProfitCalculator({
                   
                   <HistoryStatsCard
                     title="Saques"
-                    value={formatCurrency(getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
+                    value={formatCurrencyDefault(getFilteredHistoryData.withdrawals.reduce((sum: number, w: any) => sum + convertToBtc(w.amount, w.unit) * states.currentRates.btcToUsd, 0), defaultCurrency)}
                     icon={<Upload className="h-4 w-4 text-orange-400" />}
                     valueColor="text-orange-400"
                   />
@@ -3506,11 +3510,11 @@ export default function ProfitCalculator({
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Lucros:</span>
-                                  <span className="text-green-400">{getFilteredHistoryData.profits.filter(p => p.isProfit).length}</span>
+                                  <span className="text-green-400">{getFilteredHistoryData.profits.filter((p: any) => p.isProfit).length}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Perdas:</span>
-                                  <span className="text-red-400">{getFilteredHistoryData.profits.filter(p => !p.isProfit).length}</span>
+                                  <span className="text-red-400">{getFilteredHistoryData.profits.filter((p: any) => !p.isProfit).length}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Saques:</span>
@@ -3525,16 +3529,16 @@ export default function ProfitCalculator({
                                 <div className="flex justify-between">
                                   <span>Total Investido:</span>
                                   <span className="text-blue-400">
-                                    ₿{getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0).toFixed(8)}
+                                    ₿{getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0).toFixed(8)}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Lucro/Perda:</span>
-                                  <span className={getFilteredHistoryData.profits.reduce((sum, profit) => {
+                                  <span className={getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
                                     const btcAmount = convertToBtc(profit.amount, profit.unit);
                                     return sum + (profit.isProfit ? btcAmount : -btcAmount);
                                   }, 0) >= 0 ? "text-green-400" : "text-red-400"}>
-                                    ₿{getFilteredHistoryData.profits.reduce((sum, profit) => {
+                                    ₿{getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
                                       const btcAmount = convertToBtc(profit.amount, profit.unit);
                                       return sum + (profit.isProfit ? btcAmount : -btcAmount);
                                     }, 0).toFixed(8)}
@@ -3543,7 +3547,7 @@ export default function ProfitCalculator({
                                 <div className="flex justify-between">
                                   <span>Total Sacado:</span>
                                   <span className="text-orange-400">
-                                    ₿{getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit), 0).toFixed(8)}
+                                    ₿{getFilteredHistoryData.withdrawals.reduce((sum: number, w: any) => sum + convertToBtc(w.amount, w.unit), 0).toFixed(8)}
                                   </span>
                                 </div>
                               </div>
@@ -3568,13 +3572,13 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                                <TableHead>Valor ({defaultCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.investments.map((investment) => {
+                              {getFilteredHistoryData.investments.map((investment: any) => {
                                 const btcAmount = convertToBtc(investment.amount, investment.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
                                 
                                 return (
                                   <TableRow key={investment.id}>
@@ -3582,7 +3586,7 @@ export default function ProfitCalculator({
                                     <TableCell>{investment.amount.toLocaleString()}</TableCell>
                                     <TableCell>{investment.unit}</TableCell>
                                     <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell>{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
+                                    <TableCell>{formatCurrencyDefault(currencyValue)}</TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -3608,13 +3612,13 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                                <TableHead>Valor ({defaultCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.profits.map((profit) => {
+                              {getFilteredHistoryData.profits.map((profit: any) => {
                                 const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
                                 
                                 return (
                                   <TableRow key={profit.id}>
@@ -3630,7 +3634,7 @@ export default function ProfitCalculator({
                                       ₿{btcAmount.toFixed(8)}
                                     </TableCell>
                                     <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      {states.displayCurrency.symbol}{currencyValue.toFixed(2)}
+                                      {formatCurrencyDefault(currencyValue)}
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -3656,13 +3660,13 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
+                                <TableHead>Valor ({defaultCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.withdrawals.map((withdrawal) => {
+                              {getFilteredHistoryData.withdrawals.map((withdrawal: any) => {
                                 const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
                                 
                                 return (
                                   <TableRow key={withdrawal.id}>
@@ -3670,7 +3674,7 @@ export default function ProfitCalculator({
                                     <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
                                     <TableCell>{withdrawal.unit}</TableCell>
                                     <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell className="text-orange-400">{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
+                                    <TableCell className="text-orange-400">{formatCurrencyDefault(currencyValue)}</TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -3832,7 +3836,7 @@ export default function ProfitCalculator({
                     ) : (
                       <div className="h-[300px] sm:h-[400px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        {chartType === "area" && (
+                        {chartType === "area" ? (
                           <AreaChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
@@ -3912,9 +3916,7 @@ export default function ProfitCalculator({
                             />
                             )}
                           </AreaChart>
-                        )}
-                        
-                                                {chartType === "bar" && (
+                        ) : chartType === "bar" ? (
                           <BarChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
@@ -4008,9 +4010,7 @@ export default function ProfitCalculator({
                             />
                             )}
                           </BarChart>
-                        )}
-                        
-                        {chartType === "line" && (
+                        ) : (
                           <BarChart data={getChartData.map(point => ({
                             ...point,
                             investments: convertChartValue(point.investments),
