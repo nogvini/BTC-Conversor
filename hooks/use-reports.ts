@@ -33,7 +33,7 @@ export function useReports() {
   const activeReport = collection.reports.find(r => r.id === collection.activeReportId) || 
                        collection.reports[0];
   
-  // Carrega os dados do localStorage ao inicializar
+  // Carrega os dados do localStorage ao inicializar - CORRIGIDO
   useEffect(() => {
     try {
       // Tentar carregar a coleção de relatórios
@@ -42,7 +42,44 @@ export function useReports() {
       if (savedCollection) {
         // Se há uma coleção salva, usar ela
         const parsedCollection = JSON.parse(savedCollection) as ReportCollection;
-        setCollection(parsedCollection);
+        
+        // CORREÇÃO: Garantir que o activeReportId esteja alinhado com a propriedade isActive
+        let activeId = parsedCollection.activeReportId;
+        
+        // Se não tiver activeReportId definido, verificar se algum relatório está marcado como ativo
+        if (!activeId) {
+          const activeReport = parsedCollection.reports.find(r => r.isActive);
+          if (activeReport) {
+            activeId = activeReport.id;
+          } else if (parsedCollection.reports.length > 0) {
+            // Se não houver relatório ativo, definir o primeiro como ativo
+            activeId = parsedCollection.reports[0].id;
+          }
+        }
+        
+        // Atualizar o isActive para estar consistente com o activeReportId
+        const updatedReports = parsedCollection.reports.map(report => ({
+          ...report,
+          isActive: report.id === activeId
+        }));
+        
+        // Log de debug para verificação da inicialização
+        console.log('[useReports] Carregando relatórios:', {
+          numReports: updatedReports.length,
+          reportNames: updatedReports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`),
+          activeReportId: activeId
+        });
+        
+        const correctedCollection = {
+          ...parsedCollection,
+          reports: updatedReports,
+          activeReportId: activeId
+        };
+        
+        // Salvar a coleção corrigida de volta ao localStorage
+        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(correctedCollection));
+        
+        setCollection(correctedCollection);
         setIsMigrated(true);
       } else {
         // Se não há coleção salva, verificar se há dados legados para migrar
@@ -100,14 +137,40 @@ export function useReports() {
     }
   }, []);
   
-  // Salva a coleção no localStorage quando ela é alterada
+  // Salva a coleção no localStorage quando ela é alterada - MELHORADO
   useEffect(() => {
     if (isLoaded && collection.reports.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(collection));
+      // CORREÇÃO: Verificar a consistência antes de salvar
+      let collectionToSave = {...collection};
+      
+      // Garantir que sempre temos um relatório ativo
+      if (!collectionToSave.activeReportId || !collectionToSave.reports.some(r => r.id === collectionToSave.activeReportId)) {
+        // Se não há relatório ativo válido, usar o primeiro
+        if (collectionToSave.reports.length > 0) {
+          collectionToSave.activeReportId = collectionToSave.reports[0].id;
+          
+          // Atualizar o isActive para todos os relatórios
+          collectionToSave.reports = collectionToSave.reports.map(report => ({
+            ...report,
+            isActive: report.id === collectionToSave.activeReportId
+          }));
+          
+          console.log('[saveEffect] Corrigindo coleção sem relatório ativo:', {
+            activeReportId: collectionToSave.activeReportId,
+            reportNames: collectionToSave.reports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`)
+          });
+          
+          // Atualizar o estado interno com a correção
+          setCollection(collectionToSave);
+        }
+      }
+      
+      // Salvar no localStorage
+      localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(collectionToSave));
     }
   }, [collection, isLoaded]);
   
-  // Função para adicionar um novo relatório
+  // Função para adicionar um novo relatório - CORRIGIDA
   const addReport = useCallback((name: string, description?: string) => {
     setCollection(prevCollection => {
       const newReport = createNewReport(name, description);
@@ -118,12 +181,34 @@ export function useReports() {
         isActive: false,
       }));
       
-      return {
+      // Novo array com todos os relatórios atualizados e o novo relatório
+      const allReports = [...updatedReports, newReport];
+      
+      // Log de debug para verificação
+      console.log('[addReport] Criando novo relatório:', {
+        reportId: newReport.id,
+        reportName: newReport.name,
+        numReports: allReports.length,
+        reportNames: allReports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`),
+        activeReportId: newReport.id
+      });
+      
+      const newCollection = {
         ...prevCollection,
-        reports: [...updatedReports, newReport],
+        reports: allReports,
         activeReportId: newReport.id,
         lastUpdated: new Date().toISOString()
       };
+      
+      // Garantir que a coleção seja salva imediatamente
+      try {
+        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(newCollection));
+        console.log('[addReport] Coleção salva no localStorage com sucesso');
+      } catch (error) {
+        console.error('[addReport] Erro ao salvar coleção no localStorage:', error);
+      }
+      
+      return newCollection;
     });
     
     toast({
@@ -135,7 +220,7 @@ export function useReports() {
     return true;
   }, []);
   
-  // Função para selecionar um relatório
+  // Função para selecionar um relatório - CORRIGIDA
   const selectReport = useCallback((reportId: string) => {
     setCollection(prevCollection => {
       // Verificar se o relatório existe
@@ -155,14 +240,33 @@ export function useReports() {
       const updatedReports = prevCollection.reports.map(report => ({
         ...report,
         isActive: report.id === reportId,
+        updatedAt: report.id === reportId ? new Date().toISOString() : report.updatedAt
       }));
       
-      return {
+      // Log de debug para verificação
+      console.log('[selectReport] Selecionando relatório:', {
+        reportId,
+        numReports: updatedReports.length,
+        reportNames: updatedReports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`),
+        activeReportId: reportId
+      });
+      
+      const newCollection = {
         ...prevCollection,
         reports: updatedReports,
         activeReportId: reportId,
         lastUpdated: new Date().toISOString()
       };
+      
+      // Garantir que a coleção seja salva imediatamente
+      try {
+        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(newCollection));
+        console.log('[selectReport] Coleção salva no localStorage com sucesso');
+      } catch (error) {
+        console.error('[selectReport] Erro ao salvar coleção no localStorage:', error);
+      }
+      
+      return newCollection;
     });
     
     return true;
@@ -280,7 +384,7 @@ export function useReports() {
     return true;
   }, []);
   
-  // Função para adicionar um investimento ao relatório ativo (ou especificado)
+  // Função para adicionar um investimento ao relatório ativo (ou especificado) - CORRIGIDA
   const addInvestment = useCallback((
     investmentData: Omit<Investment, "id"> & { originalId?: string }, 
     targetReportId?: string,
@@ -289,7 +393,22 @@ export function useReports() {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
     
     setCollection(prevCollection => {
-      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      // CORREÇÃO: Garantir que haja um relatório ativo válido
+      let reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      
+      // Se não tiver relatório alvo, verificar se algum relatório está marcado como ativo
+      if (!reportIdToUpdate) {
+        const activeReport = prevCollection.reports.find(r => r.isActive);
+        if (activeReport) {
+          reportIdToUpdate = activeReport.id;
+          console.log('[addInvestment] Usando relatório ativo:', activeReport.name);
+        } else if (prevCollection.reports.length > 0) {
+          // Usar o primeiro relatório se não houver relatório ativo
+          reportIdToUpdate = prevCollection.reports[0].id;
+          console.log('[addInvestment] Nenhum relatório ativo, usando o primeiro:', prevCollection.reports[0].name);
+        }
+      }
+      
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
         if (!options?.suppressToast) {
@@ -347,7 +466,7 @@ export function useReports() {
     return result;
   }, []);
   
-  // Função para adicionar um registro de lucro/perda ao relatório ativo (ou especificado)
+  // Função para adicionar um registro de lucro/perda ao relatório ativo (ou especificado) - CORRIGIDA
   const addProfitRecord = useCallback((
     profitData: Omit<ProfitRecord, "id"> & { originalId?: string }, 
     targetReportId?: string,
@@ -356,7 +475,22 @@ export function useReports() {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
 
     setCollection(prevCollection => {
-      const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      // CORREÇÃO: Garantir que haja um relatório ativo válido
+      let reportIdToUpdate = targetReportId || prevCollection.activeReportId;
+      
+      // Se não tiver relatório alvo, verificar se algum relatório está marcado como ativo
+      if (!reportIdToUpdate) {
+        const activeReport = prevCollection.reports.find(r => r.isActive);
+        if (activeReport) {
+          reportIdToUpdate = activeReport.id;
+          console.log('[addProfitRecord] Usando relatório ativo:', activeReport.name);
+        } else if (prevCollection.reports.length > 0) {
+          // Usar o primeiro relatório se não houver relatório ativo
+          reportIdToUpdate = prevCollection.reports[0].id;
+          console.log('[addProfitRecord] Nenhum relatório ativo, usando o primeiro:', prevCollection.reports[0].name);
+        }
+      }
+      
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
         if (!options?.suppressToast) {

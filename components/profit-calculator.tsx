@@ -420,6 +420,11 @@ export default function ProfitCalculator({
     forceUpdateCount: 0
   });
 
+  // Estados para diálogos de confirmação de exclusão em massa
+  const [showConfirmDeleteInvestments, setShowConfirmDeleteInvestments] = useState(false);
+  const [showConfirmDeleteProfits, setShowConfirmDeleteProfits] = useState(false);
+  const [showConfirmDeleteWithdrawals, setShowConfirmDeleteWithdrawals] = useState(false);
+
   // Refs para controle de sincronização
   const lastReportDataRef = useRef<string | null>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1114,7 +1119,7 @@ export default function ProfitCalculator({
          return isValid;
       });
       
-      const totalTrades = tradesToProcess.length;
+       const totalTrades = tradesToProcess.length;
       
       console.log('[handleImportTrades] Trades para processamento:', {
         totalFound: allTrades.length,
@@ -1173,13 +1178,13 @@ export default function ProfitCalculator({
             try {
               profitRecord = convertTradeToProfit(trade);
               console.log('[handleImportTrades] Registro convertido com sucesso:', {
-                id: profitRecord.id,
-                originalId: profitRecord.originalId,
-                date: profitRecord.date,
-                amount: profitRecord.amount,
-                isProfit: profitRecord.isProfit
-              });
-              
+              id: profitRecord.id,
+              originalId: profitRecord.originalId,
+              date: profitRecord.date,
+              amount: profitRecord.amount,
+              isProfit: profitRecord.isProfit
+            });
+            
               // IMPORTANTE: Adicionar ao array de fallback
               if (fallbackEnabled) {
                 convertedProfits.push(profitRecord);
@@ -1379,16 +1384,16 @@ export default function ProfitCalculator({
                 <span className="text-blue-400">Profundidade: {Math.ceil(currentOffset / batchSize)} páginas</span>
               </div>
               <div className="mt-1 p-1 bg-black/30 rounded">
-                {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
-                  <div className="text-blue-400">🎯 Parou: {consecutiveEmptyPages} páginas vazias consecutivas</div>
-                )}
-                {consecutiveUnproductivePages >= maxConsecutiveUnproductivePages && (
-                  <div className="text-yellow-400">⚠️ Parou: {consecutiveUnproductivePages} páginas improdutivas consecutivas</div>
-                )}
-                {allTrades.length >= maxTotalTrades && (
+              {consecutiveEmptyPages >= maxConsecutiveEmptyPages && (
+                <div className="text-blue-400">🎯 Parou: {consecutiveEmptyPages} páginas vazias consecutivas</div>
+              )}
+              {consecutiveUnproductivePages >= maxConsecutiveUnproductivePages && (
+                <div className="text-yellow-400">⚠️ Parou: {consecutiveUnproductivePages} páginas improdutivas consecutivas</div>
+              )}
+              {allTrades.length >= maxTotalTrades && (
                   <div className="text-orange-400">🛑 Parou: limite ampliado de {maxTotalTrades} trades atingido</div>
-                )}
-                {currentOffset >= maxOffsetLimit && (
+              )}
+              {currentOffset >= maxOffsetLimit && (
                   <div className="text-red-400">🚫 Parou: limite ampliado de offset {maxOffsetLimit} atingido</div>
                 )}
                 {consecutiveEmptyPages < maxConsecutiveEmptyPages && 
@@ -2172,7 +2177,7 @@ export default function ProfitCalculator({
     if (!trade.id && !trade.uid) {
       return { isValid: false, reason: 'Trade sem ID válido' };
     }
-
+    
     // VALIDAÇÃO EXTREMAMENTE PERMISSIVA: Qualquer trade com ID válido é aceitável
     console.log('[validateTradeForImport] ✅ Trade válido com ID:', trade.id || trade.uid);
     return { isValid: true };
@@ -2446,7 +2451,7 @@ export default function ProfitCalculator({
     if (filteredDataCache.current.size > 20) {
       const firstKey = filteredDataCache.current.keys().next().value;
       if (firstKey) {
-        filteredDataCache.current.delete(firstKey);
+      filteredDataCache.current.delete(firstKey);
       }
     }
     
@@ -2555,7 +2560,7 @@ export default function ProfitCalculator({
     if (chartDataCache.current.size > 10) {
       const firstKey = chartDataCache.current.keys().next().value;
       if (firstKey) {
-        chartDataCache.current.delete(firstKey);
+      chartDataCache.current.delete(firstKey);
       }
     }
     
@@ -2627,7 +2632,57 @@ export default function ProfitCalculator({
 
   // Função de exportação será implementada em breve
 
-
+  // Funções para manipular exclusão em massa
+  const handleBulkDeleteInvestments = () => {
+    if (!currentActiveReportObjectFromHook?.id) {
+      toast({
+        title: "Erro",
+        description: "Nenhum relatório ativo para excluir investimentos",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const success = deleteAllInvestmentsFromReport(currentActiveReportObjectFromHook.id);
+    if (success) {
+      setShowConfirmDeleteInvestments(false);
+      forceUpdate();
+    }
+  };
+  
+  const handleBulkDeleteProfits = () => {
+    if (!currentActiveReportObjectFromHook?.id) {
+      toast({
+        title: "Erro",
+        description: "Nenhum relatório ativo para excluir lucros/perdas",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const success = deleteAllProfitsFromReport(currentActiveReportObjectFromHook.id);
+    if (success) {
+      setShowConfirmDeleteProfits(false);
+      forceUpdate();
+    }
+  };
+  
+  const handleBulkDeleteWithdrawals = () => {
+    if (!currentActiveReportObjectFromHook?.id) {
+      toast({
+        title: "Erro",
+        description: "Nenhum relatório ativo para excluir saques",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const success = deleteAllWithdrawalsFromReport(currentActiveReportObjectFromHook.id);
+    if (success) {
+      setShowConfirmDeleteWithdrawals(false);
+      forceUpdate();
+    }
+  };
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
@@ -3355,12 +3410,23 @@ export default function ProfitCalculator({
                         </div>
                       </CardContent>
                     </Card>
-                  </TabsContent>
+                                    </TabsContent>
 
                   <TabsContent value="investments" className="mt-4">
                     <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle>Investimentos no Período</CardTitle>
+                        {getFilteredHistoryData.investments.length > 0 && historyViewMode === "active" && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="bg-red-900/70 text-white hover:bg-red-800"
+                            onClick={() => setShowConfirmDeleteInvestments(true)}
+                          >
+                            <TrendingDown className="h-4 w-4 mr-2" />
+                            Excluir Todos
+                          </Button>
+                        )}
                       </CardHeader>
                       <CardContent>
                         <ScrollArea className="h-[400px]">
@@ -3375,32 +3441,83 @@ export default function ProfitCalculator({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.investments.map((investment: any) => {
-                                const btcAmount = convertToBtc(investment.amount, investment.unit);
-                                const usdValue = btcAmount * states.currentRates.btcToUsd;
-                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                
-                                return (
-                                  <TableRow key={investment.id}>
-                                    <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{investment.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{investment.unit}</TableCell>
-                                    <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell>{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
+                              {getFilteredHistoryData.investments.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                    Nenhum investimento encontrado no período selecionado
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                getFilteredHistoryData.investments.map((investment: any) => {
+                                  const btcAmount = convertToBtc(investment.amount, investment.unit);
+                                  const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                  const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
+                                  
+                                  return (
+                                    <TableRow key={investment.id}>
+                                      <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
+                                      <TableCell>{investment.amount.toLocaleString()}</TableCell>
+                                      <TableCell>{investment.unit}</TableCell>
+                                      <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
+                                      <TableCell>{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
                             </TableBody>
                           </Table>
                         </ScrollArea>
                       </CardContent>
                     </Card>
+
+                    {/* Diálogo de confirmação para excluir todos os investimentos */}
+                    <Dialog open={showConfirmDeleteInvestments} onOpenChange={setShowConfirmDeleteInvestments}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-red-400">Confirmar exclusão em massa</DialogTitle>
+                          <DialogDescription>
+                            Tem certeza que deseja excluir <span className="font-bold text-white">TODOS</span> os investimentos deste relatório?
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="bg-red-900/20 p-3 rounded-md border border-red-500/50 text-sm">
+                          <p className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-red-400" />
+                            <span>Esta ação não pode ser desfeita. Todos os investimentos serão permanentemente removidos.</span>
+                          </p>
+                        </div>
+                        <DialogFooter className="flex flex-row justify-between sm:justify-between">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowConfirmDeleteInvestments(false)}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={handleBulkDeleteInvestments}
+                          >
+                            Sim, excluir todos
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </TabsContent>
 
                   <TabsContent value="profits" className="mt-4">
                     <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle>Lucros e Perdas no Período</CardTitle>
+                        {getFilteredHistoryData.profits.length > 0 && historyViewMode === "active" && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="bg-red-900/70 text-white hover:bg-red-800"
+                            onClick={() => setShowConfirmDeleteProfits(true)}
+                          >
+                            <TrendingDown className="h-4 w-4 mr-2" />
+                            Excluir Todos
+                          </Button>
+                        )}
                       </CardHeader>
                       <CardContent>
                         <ScrollArea className="h-[400px]">
@@ -3416,41 +3533,92 @@ export default function ProfitCalculator({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.profits.map((profit: any) => {
-                                const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                const usdValue = btcAmount * states.currentRates.btcToUsd;
-                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                
-                                return (
-                                  <TableRow key={profit.id}>
-                                    <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>
-                                      <Badge variant={profit.isProfit ? "default" : "destructive"}>
-                                        {profit.isProfit ? "Lucro" : "Perda"}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>{profit.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{profit.unit}</TableCell>
-                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      ₿{btcAmount.toFixed(8)}
-                                    </TableCell>
-                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      {formatCurrency(currencyValue, states.displayCurrency)}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
+                              {getFilteredHistoryData.profits.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                                    Nenhum registro de lucro/perda encontrado no período selecionado
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                getFilteredHistoryData.profits.map((profit: any) => {
+                                  const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                  const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                  const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
+                                  
+                                  return (
+                                    <TableRow key={profit.id}>
+                                      <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
+                                      <TableCell>
+                                        <Badge variant={profit.isProfit ? "default" : "destructive"}>
+                                          {profit.isProfit ? "Lucro" : "Perda"}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>{profit.amount.toLocaleString()}</TableCell>
+                                      <TableCell>{profit.unit}</TableCell>
+                                      <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                        ₿{btcAmount.toFixed(8)}
+                                      </TableCell>
+                                      <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                        {formatCurrency(currencyValue, states.displayCurrency)}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
                             </TableBody>
                           </Table>
                         </ScrollArea>
                       </CardContent>
                     </Card>
+
+                    {/* Diálogo de confirmação para excluir todos os lucros/perdas */}
+                    <Dialog open={showConfirmDeleteProfits} onOpenChange={setShowConfirmDeleteProfits}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-red-400">Confirmar exclusão em massa</DialogTitle>
+                          <DialogDescription>
+                            Tem certeza que deseja excluir <span className="font-bold text-white">TODOS</span> os registros de lucro/perda deste relatório?
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="bg-red-900/20 p-3 rounded-md border border-red-500/50 text-sm">
+                          <p className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-red-400" />
+                            <span>Esta ação não pode ser desfeita. Todos os registros de lucro/perda serão permanentemente removidos.</span>
+                          </p>
+                        </div>
+                        <DialogFooter className="flex flex-row justify-between sm:justify-between">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowConfirmDeleteProfits(false)}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={handleBulkDeleteProfits}
+                          >
+                            Sim, excluir todos
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </TabsContent>
 
                   <TabsContent value="withdrawals" className="mt-4">
                     <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle>Saques no Período</CardTitle>
+                        {getFilteredHistoryData.withdrawals.length > 0 && historyViewMode === "active" && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="bg-red-900/70 text-white hover:bg-red-800"
+                            onClick={() => setShowConfirmDeleteWithdrawals(true)}
+                          >
+                            <TrendingDown className="h-4 w-4 mr-2" />
+                            Excluir Todos
+                          </Button>
+                        )}
                       </CardHeader>
                       <CardContent>
                         <ScrollArea className="h-[400px]">
@@ -3465,26 +3633,66 @@ export default function ProfitCalculator({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {getFilteredHistoryData.withdrawals.map((withdrawal: any) => {
-                                const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
-                                const usdValue = btcAmount * states.currentRates.btcToUsd;
-                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                
-                                return (
-                                  <TableRow key={withdrawal.id}>
-                                    <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{withdrawal.unit}</TableCell>
-                                    <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
+                              {getFilteredHistoryData.withdrawals.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                    Nenhum saque encontrado no período selecionado
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                getFilteredHistoryData.withdrawals.map((withdrawal: any) => {
+                                  const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
+                                  const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                  const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
+                                  
+                                  return (
+                                    <TableRow key={withdrawal.id}>
+                                      <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
+                                      <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
+                                      <TableCell>{withdrawal.unit}</TableCell>
+                                      <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
+                                      <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
                             </TableBody>
                           </Table>
                         </ScrollArea>
                       </CardContent>
                     </Card>
+
+                    {/* Diálogo de confirmação para excluir todos os saques */}
+                    <Dialog open={showConfirmDeleteWithdrawals} onOpenChange={setShowConfirmDeleteWithdrawals}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-red-400">Confirmar exclusão em massa</DialogTitle>
+                          <DialogDescription>
+                            Tem certeza que deseja excluir <span className="font-bold text-white">TODOS</span> os saques deste relatório?
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="bg-red-900/20 p-3 rounded-md border border-red-500/50 text-sm">
+                          <p className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-red-400" />
+                            <span>Esta ação não pode ser desfeita. Todos os saques serão permanentemente removidos.</span>
+                          </p>
+                        </div>
+                        <DialogFooter className="flex flex-row justify-between sm:justify-between">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowConfirmDeleteWithdrawals(false)}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={handleBulkDeleteWithdrawals}
+                          >
+                            Sim, excluir todos
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </TabsContent>
                 </Tabs>
               </div>
