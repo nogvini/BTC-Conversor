@@ -24,6 +24,71 @@ function convertToBtc(amount: number, unit: 'SATS' | 'BTC' | 'USD' | 'BRL'): num
 }
 
 /**
+ * Função auxiliar para validar e sanitizar valores numéricos
+ */
+function sanitizeNumericValue(value: any, fieldName: string, context: string): number {
+  console.log(`[sanitizeNumericValue] ${context}: Validando ${fieldName}:`, value, typeof value);
+  
+  if (value === null || value === undefined) {
+    console.warn(`[sanitizeNumericValue] ${context}: ${fieldName} é null/undefined, usando 0`);
+    return 0;
+  }
+  
+  // Se for string, tentar converter
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    if (isNaN(parsed)) {
+      console.warn(`[sanitizeNumericValue] ${context}: ${fieldName} string inválida "${value}", usando 0`);
+      return 0;
+    }
+    console.log(`[sanitizeNumericValue] ${context}: ${fieldName} convertido de string "${value}" para ${parsed}`);
+    return parsed;
+  }
+  
+  // Se for número, verificar se é válido
+  if (typeof value === 'number') {
+    if (isNaN(value) || !isFinite(value)) {
+      console.warn(`[sanitizeNumericValue] ${context}: ${fieldName} número inválido ${value}, usando 0`);
+      return 0;
+    }
+    return value;
+  }
+  
+  console.warn(`[sanitizeNumericValue] ${context}: ${fieldName} tipo não suportado ${typeof value}, usando 0`);
+  return 0;
+}
+
+/**
+ * Função auxiliar para validar IDs únicos
+ */
+function validateAndSanitizeId(id: any, fallbackId: any, context: string): string {
+  console.log(`[validateAndSanitizeId] ${context}: Validando IDs:`, { id, fallbackId });
+  
+  // Priorizar uid se disponível e válido
+  if (id && (typeof id === 'string' || typeof id === 'number')) {
+    const sanitizedId = String(id).trim();
+    if (sanitizedId.length > 0) {
+      console.log(`[validateAndSanitizeId] ${context}: Usando ID principal: ${sanitizedId}`);
+      return sanitizedId;
+    }
+  }
+  
+  // Usar fallback se ID principal inválido
+  if (fallbackId && (typeof fallbackId === 'string' || typeof fallbackId === 'number')) {
+    const sanitizedFallback = String(fallbackId).trim();
+    if (sanitizedFallback.length > 0) {
+      console.log(`[validateAndSanitizeId] ${context}: Usando ID fallback: ${sanitizedFallback}`);
+      return sanitizedFallback;
+    }
+  }
+  
+  // Gerar ID único se ambos falharem
+  const generatedId = `generated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  console.warn(`[validateAndSanitizeId] ${context}: Gerando ID único: ${generatedId}`);
+  return generatedId;
+}
+
+/**
  * Função auxiliar para parsear timestamp de forma segura e criteriosa
  */
 function parseTimestamp(timestamp: string | number | undefined | null, context: string = 'unknown'): Date {
@@ -114,6 +179,13 @@ function selectBestTimestamp(
  */
 export function convertTradeToProfit(trade: LNMarketsTrade) {
   console.log('[convertTradeToProfit] Trade completo recebido:', trade);
+  
+  // Validação básica dos dados de entrada
+  if (!trade) {
+    console.error('[convertTradeToProfit] Trade é null/undefined');
+    throw new Error('Trade é obrigatório para conversão');
+  }
+
   console.log('[convertTradeToProfit] Campos de data disponíveis:', {
     id: trade.id,
     uid: trade.uid,
@@ -126,6 +198,16 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     side: trade.side,
     quantity: trade.quantity
   });
+
+  // Validar e sanitizar ID único
+  const tradeIdentifier = validateAndSanitizeId(trade.uid, trade.id, 'convertTradeToProfit');
+
+  // Validar e sanitizar valor do PL
+  const sanitizedPL = sanitizeNumericValue(trade.pl, 'pl', 'convertTradeToProfit');
+  if (sanitizedPL === 0 && trade.pl !== 0) {
+    console.error('[convertTradeToProfit] Valor PL inválido após sanitização:', trade.pl);
+    throw new Error('Trade deve ter valor PL válido');
+  }
 
   // Identificar todos os possíveis campos de data com prioridade criteriosa
   const possibleDateFields = {
@@ -160,26 +242,13 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     tradeStatus: trade.closed ? 'fechado' : 'aberto'
   });
 
-  // Validar e criar ID único
-  const tradeIdentifier = trade.uid || trade.id;
-  if (!tradeIdentifier) {
-    console.error('[convertTradeToProfit] Trade sem identificador válido:', trade);
-    throw new Error('Trade deve ter uid ou id válido');
-  }
-
-  // Validar valor do PL
-  if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
-    console.error('[convertTradeToProfit] Valor PL inválido:', trade.pl);
-    throw new Error('Trade deve ter valor PL válido');
-  }
-
   const result = {
     id: `lnm_trade_${tradeIdentifier}`, // Usar uid se disponível, senão id
     originalId: `trade_${tradeIdentifier}`, // Prefixo para evitar conflitos
     date: tradeDate.toISOString().split('T')[0],
-    amount: Math.abs(trade.pl),
+    amount: Math.abs(sanitizedPL),
     unit: 'SATS' as const,
-    isProfit: trade.pl > 0,
+    isProfit: sanitizedPL > 0,
     // Adicionar metadados para debug
     _debug: {
       originalTimestamp: timestampToUse,
@@ -189,6 +258,8 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       closed: trade.closed,
       side: trade.side,
       quantity: trade.quantity,
+      originalPL: trade.pl,
+      sanitizedPL: sanitizedPL,
       allTimestamps: {
         closed_at: trade.closed_at,
         ts: trade.ts,
@@ -199,6 +270,13 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
   };
   
   console.log('[convertTradeToProfit] Resultado da conversão:', result);
+  
+  // Validação final do resultado
+  if (!result.id || !result.originalId || !result.date || result.amount === undefined || !result.unit) {
+    console.error('[convertTradeToProfit] Resultado da conversão incompleto:', result);
+    throw new Error('Falha na conversão do trade: resultado incompleto');
+  }
+  
   return result;
 }
 
@@ -207,6 +285,13 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
  */
 export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
   console.log('[convertDepositToInvestment] Depósito completo recebido:', deposit);
+  
+  // Validação básica dos dados de entrada
+  if (!deposit) {
+    console.error('[convertDepositToInvestment] Depósito é null/undefined');
+    throw new Error('Depósito é obrigatório para conversão');
+  }
+
   console.log('[convertDepositToInvestment] Campos de data disponíveis:', {
     id: deposit.id,
     type: deposit.type,
@@ -224,14 +309,13 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
     success: deposit.success
   });
 
-  // Validação básica dos dados de entrada
-  if (!deposit.id) {
-    console.error('[convertDepositToInvestment] ID do depósito ausente');
-    throw new Error('ID do depósito é obrigatório');
-  }
+  // Validar e sanitizar ID único
+  const depositIdentifier = validateAndSanitizeId(deposit.id, null, 'convertDepositToInvestment');
 
-  if (!deposit.amount || deposit.amount <= 0) {
-    console.error('[convertDepositToInvestment] Valor do depósito inválido:', deposit.amount);
+  // Validar e sanitizar valor do depósito
+  const sanitizedAmount = sanitizeNumericValue(deposit.amount, 'amount', 'convertDepositToInvestment');
+  if (sanitizedAmount <= 0) {
+    console.error('[convertDepositToInvestment] Valor do depósito inválido após sanitização:', deposit.amount);
     throw new Error('Valor do depósito deve ser maior que zero');
   }
 
@@ -264,10 +348,10 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
   });
   
   const result = {
-    id: `lnm_deposit_${deposit.id}`,
-    originalId: `deposit_${deposit.id}`, // Prefixo para evitar conflitos
+    id: `lnm_deposit_${depositIdentifier}`,
+    originalId: `deposit_${depositIdentifier}`, // Prefixo para evitar conflitos
     date: depositDate.toISOString().split('T')[0],
-    amount: deposit.amount,
+    amount: sanitizedAmount,
     unit: 'SATS' as const,
     // Adicionar metadados para debug
     _debug: {
@@ -278,7 +362,9 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
       type: deposit.type || deposit.deposit_type,
       is_confirmed: deposit.is_confirmed,
       isConfirmed: deposit.isConfirmed,
-      success: deposit.success
+      success: deposit.success,
+      originalAmount: deposit.amount,
+      sanitizedAmount: sanitizedAmount
     }
   };
   
@@ -298,6 +384,13 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
  */
 export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
   console.log('[convertWithdrawalToRecord] Saque completo recebido:', withdrawal);
+  
+  // Validação básica dos dados de entrada
+  if (!withdrawal) {
+    console.error('[convertWithdrawalToRecord] Saque é null/undefined');
+    throw new Error('Saque é obrigatório para conversão');
+  }
+
   console.log('[convertWithdrawalToRecord] Campos de data disponíveis:', {
     id: withdrawal.id,
     type: withdrawal.type,
@@ -312,16 +405,18 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
     tx_id: withdrawal.tx_id
   });
 
-  // Validação básica dos dados de entrada
-  if (!withdrawal.id) {
-    console.error('[convertWithdrawalToRecord] ID do saque ausente');
-    throw new Error('ID do saque é obrigatório');
-  }
+  // Validar e sanitizar ID único
+  const withdrawalIdentifier = validateAndSanitizeId(withdrawal.id, null, 'convertWithdrawalToRecord');
 
-  if (!withdrawal.amount || withdrawal.amount <= 0) {
-    console.error('[convertWithdrawalToRecord] Valor do saque inválido:', withdrawal.amount);
+  // Validar e sanitizar valor do saque
+  const sanitizedAmount = sanitizeNumericValue(withdrawal.amount, 'amount', 'convertWithdrawalToRecord');
+  if (sanitizedAmount <= 0) {
+    console.error('[convertWithdrawalToRecord] Valor do saque inválido após sanitização:', withdrawal.amount);
     throw new Error('Valor do saque deve ser maior que zero');
   }
+
+  // Validar e sanitizar taxa
+  const sanitizedFee = sanitizeNumericValue(withdrawal.fees, 'fees', 'convertWithdrawalToRecord');
 
   // Escolher a melhor data disponível com prioridade criteriosa
   const possibleDateFields = {
@@ -361,12 +456,12 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
   });
   
   const result = {
-    id: `lnm_withdrawal_${withdrawal.id}`,
-    originalId: `withdrawal_${withdrawal.id}`, // Prefixo para evitar conflitos
+    id: `lnm_withdrawal_${withdrawalIdentifier}`,
+    originalId: `withdrawal_${withdrawalIdentifier}`, // Prefixo para evitar conflitos
     date: withdrawalDate.toISOString().split('T')[0],
-    amount: withdrawal.amount,
+    amount: sanitizedAmount,
     unit: 'SATS' as const,
-    fee: withdrawal.fees || 0,
+    fee: sanitizedFee,
     type: withdrawalType,
     txid: withdrawal.txid || withdrawal.tx_id,
     // Adicionar metadados para debug
@@ -377,6 +472,10 @@ export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
       status: withdrawal.status,
       type: withdrawal.type,
       withdrawalType: withdrawal.withdrawal_type,
+      originalAmount: withdrawal.amount,
+      sanitizedAmount: sanitizedAmount,
+      originalFees: withdrawal.fees,
+      sanitizedFee: sanitizedFee,
       allTimestamps: {
         ts: withdrawal.ts,
         created_at: withdrawal.created_at,

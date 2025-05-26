@@ -288,10 +288,49 @@ export function useReports() {
   ): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
     
+    // Validação prévia dos dados de entrada
+    if (!investmentData) {
+      result = { status: 'error', message: 'Dados do investimento são obrigatórios' };
+      console.error('[addInvestment] Dados do investimento ausentes');
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    // Validar campos obrigatórios
+    if (!investmentData.date || !investmentData.amount || !investmentData.unit) {
+      result = { status: 'error', message: 'Campos obrigatórios ausentes (date, amount, unit)' };
+      console.error('[addInvestment] Campos obrigatórios ausentes:', investmentData);
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    // Validar valor do investimento
+    if (typeof investmentData.amount !== 'number' || investmentData.amount <= 0 || !isFinite(investmentData.amount)) {
+      result = { status: 'error', message: 'Valor do investimento deve ser um número positivo válido' };
+      console.error('[addInvestment] Valor inválido:', investmentData.amount);
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    console.log('[addInvestment] Iniciando adição de investimento:', {
+      originalId: investmentData.originalId,
+      date: investmentData.date,
+      amount: investmentData.amount,
+      unit: investmentData.unit,
+      targetReportId: targetReportId
+    });
+    
     setCollection(prevCollection => {
       const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
+        console.error('[addInvestment] Nenhum relatório ativo ou alvo especificado');
         if (!options?.suppressToast) {
           toast({ title: "Erro", description: result.message, variant: "destructive" });
         }
@@ -301,6 +340,7 @@ export function useReports() {
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
       if (reportIndex === -1) {
         result = { status: 'error', message: "Relatório não encontrado." };
+        console.error('[addInvestment] Relatório não encontrado:', reportIdToUpdate);
         if (!options?.suppressToast) {
           toast({ title: "Erro", description: result.message, variant: "destructive" });
         }
@@ -309,10 +349,12 @@ export function useReports() {
 
       const reportToUpdate = prevCollection.reports[reportIndex];
 
+      // Verificação de duplicata mais robusta
       if (investmentData.originalId) {
         const isDuplicate = reportToUpdate.investments.some(inv => inv.originalId === investmentData.originalId);
         if (isDuplicate) {
           result = { status: 'duplicate', originalId: investmentData.originalId, message: `Aporte com ID original ${investmentData.originalId} já existe.` };
+          console.log('[addInvestment] Investimento duplicado detectado:', investmentData.originalId);
           if (!options?.suppressToast) {
             toast({ title: "Aporte Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
           }
@@ -326,24 +368,56 @@ export function useReports() {
         id: newInvestmentId,
       };
 
+      console.log('[addInvestment] Criando novo investimento:', {
+        id: newInvestmentId,
+        originalId: newInvestment.originalId,
+        date: newInvestment.date,
+        amount: newInvestment.amount,
+        unit: newInvestment.unit
+      });
+
       const updatedReport = {
         ...reportToUpdate,
         investments: [...reportToUpdate.investments, newInvestment],
+        updatedAt: new Date().toISOString()
       };
 
       const updatedReports = [...prevCollection.reports];
       updatedReports[reportIndex] = updatedReport;
       
-      result = { status: 'added', id: newInvestmentId, message: "Novo aporte registrado com sucesso." };
-      if (!options?.suppressToast) {
-        toast({ title: "Aporte Adicionado", description: result.message, variant: "success" });
-      }
-      return {
+      const newCollection = {
         ...prevCollection,
         reports: updatedReports,
         lastUpdated: new Date().toISOString(),
       };
+
+      // Verificação de integridade pós-adição
+      const verificationReport = newCollection.reports[reportIndex];
+      const addedInvestment = verificationReport.investments.find(inv => inv.id === newInvestmentId);
+      
+      if (!addedInvestment) {
+        result = { status: 'error', message: 'Falha na verificação de integridade: investimento não foi adicionado corretamente' };
+        console.error('[addInvestment] Falha na verificação de integridade');
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
+        return prevCollection; // Retornar estado anterior se verificação falhar
+      }
+
+      console.log('[addInvestment] Investimento adicionado com sucesso:', {
+        id: newInvestmentId,
+        originalId: addedInvestment.originalId,
+        totalInvestments: verificationReport.investments.length
+      });
+      
+      result = { status: 'added', id: newInvestmentId, message: "Novo aporte registrado com sucesso." };
+      if (!options?.suppressToast) {
+        toast({ title: "Aporte Adicionado", description: result.message, variant: "success" });
+      }
+      return newCollection;
     });
+    
+    console.log('[addInvestment] Resultado final:', result);
     return result;
   }, []);
   
@@ -355,10 +429,50 @@ export function useReports() {
   ): { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } => {
     let result: { status: 'added' | 'duplicate' | 'error'; id?: string; originalId?: string; message?: string } = { status: 'error', message: 'Operação não concluída' };
 
+    // Validação prévia dos dados de entrada
+    if (!profitData) {
+      result = { status: 'error', message: 'Dados do lucro/perda são obrigatórios' };
+      console.error('[addProfitRecord] Dados do lucro/perda ausentes');
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    // Validar campos obrigatórios
+    if (!profitData.date || profitData.amount === undefined || !profitData.unit || profitData.isProfit === undefined) {
+      result = { status: 'error', message: 'Campos obrigatórios ausentes (date, amount, unit, isProfit)' };
+      console.error('[addProfitRecord] Campos obrigatórios ausentes:', profitData);
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    // Validar valor do lucro/perda
+    if (typeof profitData.amount !== 'number' || profitData.amount < 0 || !isFinite(profitData.amount)) {
+      result = { status: 'error', message: 'Valor do lucro/perda deve ser um número não-negativo válido' };
+      console.error('[addProfitRecord] Valor inválido:', profitData.amount);
+      if (!options?.suppressToast) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+      }
+      return result;
+    }
+
+    console.log('[addProfitRecord] Iniciando adição de lucro/perda:', {
+      originalId: profitData.originalId,
+      date: profitData.date,
+      amount: profitData.amount,
+      unit: profitData.unit,
+      isProfit: profitData.isProfit,
+      targetReportId: targetReportId
+    });
+
     setCollection(prevCollection => {
       const reportIdToUpdate = targetReportId || prevCollection.activeReportId;
       if (!reportIdToUpdate) {
         result = { status: 'error', message: "Nenhum relatório ativo ou alvo especificado." };
+        console.error('[addProfitRecord] Nenhum relatório ativo ou alvo especificado');
         if (!options?.suppressToast) {
           toast({ title: "Erro", description: result.message, variant: "destructive" });
         }
@@ -368,6 +482,7 @@ export function useReports() {
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportIdToUpdate);
       if (reportIndex === -1) {
         result = { status: 'error', message: "Relatório não encontrado." };
+        console.error('[addProfitRecord] Relatório não encontrado:', reportIdToUpdate);
         if (!options?.suppressToast) {
           toast({ title: "Erro", description: result.message, variant: "destructive" });
         }
@@ -376,10 +491,12 @@ export function useReports() {
 
       const reportToUpdate = prevCollection.reports[reportIndex];
 
+      // Verificação de duplicata mais robusta
       if (profitData.originalId) {
         const isDuplicate = reportToUpdate.profits.some(p => p.originalId === profitData.originalId);
         if (isDuplicate) {
           result = { status: 'duplicate', originalId: profitData.originalId, message: `Registro de lucro/perda com ID original ${profitData.originalId} já existe.` };
+          console.log('[addProfitRecord] Lucro/perda duplicado detectado:', profitData.originalId);
           if (!options?.suppressToast) {
             toast({ title: "Registro Duplicado", description: result.message + " Foi ignorado.", variant: "default", duration: 4000 });
           }
@@ -393,24 +510,57 @@ export function useReports() {
         id: newProfitRecordId,
       };
 
+      console.log('[addProfitRecord] Criando novo registro de lucro/perda:', {
+        id: newProfitRecordId,
+        originalId: newProfitRecord.originalId,
+        date: newProfitRecord.date,
+        amount: newProfitRecord.amount,
+        unit: newProfitRecord.unit,
+        isProfit: newProfitRecord.isProfit
+      });
+
       const updatedReport = {
         ...reportToUpdate,
         profits: [...reportToUpdate.profits, newProfitRecord],
+        updatedAt: new Date().toISOString()
       };
 
       const updatedReports = [...prevCollection.reports];
       updatedReports[reportIndex] = updatedReport;
 
-      result = { status: 'added', id: newProfitRecordId, message: "Novo registro de lucro/perda salvo com sucesso." };
-      if (!options?.suppressToast) {
-        toast({ title: "Registro Adicionado", description: result.message, variant: "success" });
-      }
-      return {
+      const newCollection = {
         ...prevCollection,
         reports: updatedReports,
         lastUpdated: new Date().toISOString(),
       };
+
+      // Verificação de integridade pós-adição
+      const verificationReport = newCollection.reports[reportIndex];
+      const addedProfitRecord = verificationReport.profits.find(p => p.id === newProfitRecordId);
+      
+      if (!addedProfitRecord) {
+        result = { status: 'error', message: 'Falha na verificação de integridade: registro de lucro/perda não foi adicionado corretamente' };
+        console.error('[addProfitRecord] Falha na verificação de integridade');
+        if (!options?.suppressToast) {
+          toast({ title: "Erro", description: result.message, variant: "destructive" });
+        }
+        return prevCollection; // Retornar estado anterior se verificação falhar
+      }
+
+      console.log('[addProfitRecord] Registro de lucro/perda adicionado com sucesso:', {
+        id: newProfitRecordId,
+        originalId: addedProfitRecord.originalId,
+        totalProfits: verificationReport.profits.length
+      });
+
+      result = { status: 'added', id: newProfitRecordId, message: "Novo registro de lucro/perda salvo com sucesso." };
+      if (!options?.suppressToast) {
+        toast({ title: "Registro Adicionado", description: result.message, variant: "success" });
+      }
+      return newCollection;
     });
+    
+    console.log('[addProfitRecord] Resultado final:', result);
     return result;
   }, []);
   

@@ -924,53 +924,39 @@ export default function ProfitCalculator({
         }
       }));
 
-      // OTIMIZADO: Processamento em lotes para melhor performance
-      const processingBatchSize = 10;
+      // NOVO: Processamento robusto com verificação de integridade
+      const processingBatchSize = 5; // Reduzido para melhor controle de integridade
+      
+      console.log(`[handleImportTrades] Processando ${totalTrades} trades com verificação de integridade em lotes de ${processingBatchSize}...`);
       
       for (let i = 0; i < tradesToProcess.length; i += processingBatchSize) {
         const batch = tradesToProcess.slice(i, i + processingBatchSize);
+        const batchId = `trades_batch_${Math.floor(i / processingBatchSize) + 1}`;
         
-        // Processar lote
-        for (const trade of batch) {
-          try {
-            console.log('[handleImportTrades] Processando trade:', {
-              id: trade.id,
-              uid: trade.uid,
-              closed: trade.closed,
-              pl: trade.pl,
-              side: trade.side,
-              quantity: trade.quantity
-            });
-            
-            const profitRecord = convertTradeToProfit(trade);
-            
-            console.log('[handleImportTrades] Registro convertido:', {
-              id: profitRecord.id,
-              originalId: profitRecord.originalId,
-              date: profitRecord.date,
-              amount: profitRecord.amount,
-              isProfit: profitRecord.isProfit
-            });
-            
-            const result = addProfitRecord(profitRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-            
-            if (result.status === 'added') {
-              imported++;
-              console.log('[handleImportTrades] ✅ Trade adicionado:', result.id);
-            } else if (result.status === 'duplicate') {
-              duplicated++;
-              console.log('[handleImportTrades] ⚠️ Trade duplicado:', result.originalId);
-            } else {
-              errors++;
-              console.error('[handleImportTrades] ❌ Erro ao adicionar trade:', result);
-            }
-          } catch (conversionError) {
-            console.error('[handleImportTrades] Erro na conversão do trade:', conversionError);
-            errors++;
-          }
-          
-          processed++;
-        }
+        console.log(`[handleImportTrades] Processando lote ${Math.floor(i / processingBatchSize) + 1}/${Math.ceil(tradesToProcess.length / processingBatchSize)}: ${batch.length} trades`);
+        
+        // Usar sistema robusto de processamento em lote
+        const batchResult = await processBatchWithIntegrity(
+          'trade',
+          batch,
+          convertTradeToProfit,
+          batchId
+        );
+        
+        // Atualizar contadores
+        imported += batchResult.imported;
+        duplicated += batchResult.duplicated;
+        errors += batchResult.errors;
+        processed += batch.length;
+        
+        console.log(`[handleImportTrades] Lote ${batchId} concluído:`, {
+          imported: batchResult.imported,
+          duplicated: batchResult.duplicated,
+          errors: batchResult.errors,
+          totalImported: imported,
+          totalDuplicated: duplicated,
+          totalErrors: errors
+        });
         
         // Atualizar progresso após cada lote
         const percentage = (processed / totalTrades) * 100;
@@ -981,13 +967,13 @@ export default function ProfitCalculator({
             total: totalTrades,
             percentage,
             status: 'loading',
-            message: `Processando... ${imported} importados, ${duplicated} duplicados`
+            message: `Processando com integridade... ${imported} importados, ${duplicated} duplicados, ${errors} erros`
           }
         }));
         
-        // Pequeno delay entre lotes para não travar a UI
+        // Delay entre lotes para permitir verificações de integridade
         if (i + processingBatchSize < tradesToProcess.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
@@ -1224,123 +1210,71 @@ export default function ProfitCalculator({
         }
       }));
 
-      for (const deposit of deposits) {
-        console.log('[handleImportDeposits] Processando depósito:', {
-          id: deposit.id,
-          amount: deposit.amount,
-          type: deposit.type,
-          status: deposit.status,
-          created_at: deposit.created_at,
-          ts: deposit.ts,
-          // Diferentes atributos de confirmação
-          isConfirmed: deposit.isConfirmed,
-          is_confirmed: deposit.is_confirmed,
-          success: deposit.success,
-          // Resultado da lógica
-          isConfirmedByLogic: isDepositConfirmed(deposit)
-        });
+      // NOVO: Filtrar depósitos confirmados antes do processamento
+      const confirmedDeposits = deposits.filter(isDepositConfirmed);
+      const skippedCount = deposits.length - confirmedDeposits.length;
+      
+      console.log(`[handleImportDeposits] Filtragem de depósitos:`, {
+        total: deposits.length,
+        confirmed: confirmedDeposits.length,
+        skipped: skippedCount
+      });
 
-        // NOVO: Log detalhado do depósito antes da verificação de status
-        console.log('[handleImportDeposits] Analisando depósito:', {
-          id: deposit.id,
-          amount: deposit.amount,
-          status: deposit.status,
-          created_at: deposit.created_at,
-          deposit_type: deposit.deposit_type,
-          txid: deposit.txid
-        });
-
-        // NOVO: Verificação mais flexível do status usando função auxiliar
-        const isConfirmed = isDepositConfirmed(deposit);
+      // NOVO: Processar depósitos confirmados com sistema robusto
+      const processingBatchSize = 5; // Lotes menores para melhor controle
+      
+      console.log(`[handleImportDeposits] Processando ${confirmedDeposits.length} depósitos confirmados com verificação de integridade em lotes de ${processingBatchSize}...`);
+      
+      for (let i = 0; i < confirmedDeposits.length; i += processingBatchSize) {
+        const batch = confirmedDeposits.slice(i, i + processingBatchSize);
+        const batchId = `deposits_batch_${Math.floor(i / processingBatchSize) + 1}`;
         
-        console.log('[handleImportDeposits] Verificação de confirmação:', {
-          type: deposit.type,
-          status: deposit.status,
-          // Todos os atributos de confirmação
-          isConfirmed: deposit.isConfirmed,
-          is_confirmed: deposit.is_confirmed,
-          success: deposit.success,
-          // Resultado
-          isConfirmedByLogic: isConfirmed,
-          logic: 'is_confirmed=true OR success=true OR (isConfirmed≠false AND is_confirmed≠false AND success≠false)'
+        console.log(`[handleImportDeposits] Processando lote ${Math.floor(i / processingBatchSize) + 1}/${Math.ceil(confirmedDeposits.length / processingBatchSize)}: ${batch.length} depósitos`);
+        
+        // Usar sistema robusto de processamento em lote
+        const batchResult = await processBatchWithIntegrity(
+          'deposit',
+          batch,
+          convertDepositToInvestment,
+          batchId
+        );
+        
+        // Atualizar contadores
+        imported += batchResult.imported;
+        duplicated += batchResult.duplicated;
+        errors += batchResult.errors;
+        processed += batch.length;
+        
+        console.log(`[handleImportDeposits] Lote ${batchId} concluído:`, {
+          imported: batchResult.imported,
+          duplicated: batchResult.duplicated,
+          errors: batchResult.errors,
+          totalImported: imported,
+          totalDuplicated: duplicated,
+          totalErrors: errors
         });
-
-        if (isConfirmed) {
-          try {
-            const investment = convertDepositToInvestment(deposit);
-            
-            console.log('[handleImportDeposits] Investimento convertido:', {
-              id: investment.id,
-              originalId: investment.originalId,
-              date: investment.date,
-              amount: investment.amount,
-              unit: investment.unit
-            });
-            
-            console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
-            
-            const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-            console.log('[handleImportDeposits] Resultado da adição:', {
-              status: result.status,
-              id: result.id,
-              originalId: result.originalId,
-              message: result.message
-            });
-          
-            if (result.status === 'added') {
-              imported++;
-              console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
-            } else if (result.status === 'duplicate') {
-              duplicated++;
-              console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
-            } else {
-              errors++;
-              console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
-            }
-          } catch (conversionError) {
-            console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
-            errors++;
+        
+        // Atualizar progresso após cada lote
+        const percentage = (processed / confirmedDeposits.length) * 100;
+        setImportProgress(prev => ({
+          ...prev,
+          deposits: {
+            current: processed,
+            total: confirmedDeposits.length,
+            percentage,
+            status: 'loading',
+            message: `Processando com integridade... ${imported} importados, ${duplicated} duplicados, ${skippedCount} não confirmados`
           }
-        } else {
-          skipped++;
-          console.log('[handleImportDeposits] Depósito ignorado (não confirmado):', {
-            id: deposit.id,
-            type: deposit.type,
-            status: deposit.status,
-            amount: deposit.amount,
-            created_at: deposit.created_at,
-            ts: deposit.ts,
-            // Todos os atributos de confirmação
-            isConfirmed: deposit.isConfirmed,
-            is_confirmed: deposit.is_confirmed,
-            success: deposit.success,
-            reason: 'Nenhum atributo de confirmação positivo encontrado'
-          });
-        }
+        }));
         
-        processed++;
-        const percentage = (processed / totalDeposits) * 100;
-        
-        // Atualizar progresso a cada 5 items ou no final
-        if (processed % 5 === 0 || processed === totalDeposits) {
-          setImportProgress(prev => ({
-            ...prev,
-            deposits: {
-              current: processed,
-              total: totalDeposits,
-              percentage,
-              status: 'loading',
-              message: `Processando... ${imported} importados, ${duplicated} duplicados, ${skipped} ignorados`
-            }
-          }));
-          
-          // Pequeno delay para permitir atualização da UI
-          if (processed % 25 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
+        // Delay entre lotes para permitir verificações de integridade
+        if (i + processingBatchSize < confirmedDeposits.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
+      
+      // Adicionar depósitos não confirmados ao contador de ignorados
+      skipped = skippedCount;
 
       // NOVO: Verificar estado do relatório após a importação
       console.log('[handleImportDeposits] Estado do relatório após a importação:', {
@@ -1530,74 +1464,56 @@ export default function ProfitCalculator({
         }
       }));
 
-      for (const withdrawal of response.data) {
-        console.log('[handleImportWithdrawals] Processando saque:', {
-          id: withdrawal.id,
-          amount: withdrawal.amount,
-          status: withdrawal.status,
-          created_at: withdrawal.created_at,
-          isConfirmed: withdrawal.status === 'confirmed'
+      // NOVO: Processar saques com sistema robusto de verificação de integridade
+      const processingBatchSize = 5; // Lotes menores para melhor controle
+      
+      console.log(`[handleImportWithdrawals] Processando ${totalWithdrawals} saques com verificação de integridade em lotes de ${processingBatchSize}...`);
+      
+      for (let i = 0; i < response.data.length; i += processingBatchSize) {
+        const batch = response.data.slice(i, i + processingBatchSize);
+        const batchId = `withdrawals_batch_${Math.floor(i / processingBatchSize) + 1}`;
+        
+        console.log(`[handleImportWithdrawals] Processando lote ${Math.floor(i / processingBatchSize) + 1}/${Math.ceil(response.data.length / processingBatchSize)}: ${batch.length} saques`);
+        
+        // Usar sistema robusto de processamento em lote
+        const batchResult = await processBatchWithIntegrity(
+          'withdrawal',
+          batch,
+          convertWithdrawalToRecord,
+          batchId
+        );
+        
+        // Atualizar contadores
+        imported += batchResult.imported;
+        duplicated += batchResult.duplicated;
+        errors += batchResult.errors;
+        processed += batch.length;
+        
+        console.log(`[handleImportWithdrawals] Lote ${batchId} concluído:`, {
+          imported: batchResult.imported,
+          duplicated: batchResult.duplicated,
+          errors: batchResult.errors,
+          totalImported: imported,
+          totalDuplicated: duplicated,
+          totalErrors: errors
         });
         
-        // NOVO: Importar todos os saques independente do status
-        try {
-          const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
-          
-          console.log('[handleImportWithdrawals] Saque convertido:', {
-            id: withdrawalRecord.id,
-            originalId: withdrawalRecord.originalId,
-            date: withdrawalRecord.date,
-            amount: withdrawalRecord.amount,
-            unit: withdrawalRecord.unit,
-            originalStatus: withdrawal.status
-          });
-          
-          console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
-          
-          const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-          console.log('[handleImportWithdrawals] Resultado da adição:', {
-            status: result.status,
-            id: result.id,
-            originalId: result.originalId,
-            message: result.message
-          });
-          
-          if (result.status === 'added') {
-            imported++;
-            console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-            console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
-          } else {
-            errors++;
-            console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
-          }
-        } catch (conversionError) {
-          console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
-          errors++;
-        }
-        
-        processed++;
+        // Atualizar progresso após cada lote
         const percentage = (processed / totalWithdrawals) * 100;
-        
-        // Atualizar progresso a cada 5 items ou no final
-        if (processed % 5 === 0 || processed === totalWithdrawals) {
-          setImportProgress(prev => ({
-            ...prev,
-            withdrawals: {
-              current: processed,
-              total: totalWithdrawals,
-              percentage,
-              status: 'loading',
-              message: `Processando... ${imported} importados, ${duplicated} duplicados`
-            }
-          }));
-          
-          // Pequeno delay para permitir atualização da UI
-          if (processed % 25 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
+        setImportProgress(prev => ({
+          ...prev,
+          withdrawals: {
+            current: processed,
+            total: totalWithdrawals,
+            percentage,
+            status: 'loading',
+            message: `Processando com integridade... ${imported} importados, ${duplicated} duplicados, ${errors} erros`
           }
+        }));
+        
+        // Delay entre lotes para permitir verificações de integridade
+        if (i + processingBatchSize < response.data.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
@@ -1781,6 +1697,185 @@ export default function ProfitCalculator({
     return config || null;
   };
 
+  // NOVA: Função de diagnóstico para verificar integridade dos dados
+  const runDataIntegrityDiagnostic = useCallback(async () => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro no diagnóstico",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('[runDataIntegrityDiagnostic] Iniciando diagnóstico de integridade dos dados...');
+
+    const report = currentActiveReportObjectFromHook;
+    const diagnosticResults = {
+      investments: {
+        total: report.investments?.length || 0,
+        withOriginalId: 0,
+        withValidDates: 0,
+        withValidAmounts: 0,
+        duplicateOriginalIds: [] as string[],
+        invalidRecords: [] as any[]
+      },
+      profits: {
+        total: report.profits?.length || 0,
+        withOriginalId: 0,
+        withValidDates: 0,
+        withValidAmounts: 0,
+        duplicateOriginalIds: [] as string[],
+        invalidRecords: [] as any[]
+      },
+      withdrawals: {
+        total: report.withdrawals?.length || 0,
+        withOriginalId: 0,
+        withValidDates: 0,
+        withValidAmounts: 0,
+        duplicateOriginalIds: [] as string[],
+        invalidRecords: [] as any[]
+      }
+    };
+
+    // Verificar investimentos
+    const investmentOriginalIds = new Set<string>();
+    report.investments?.forEach((inv, index) => {
+      if (inv.originalId) {
+        diagnosticResults.investments.withOriginalId++;
+        if (investmentOriginalIds.has(inv.originalId)) {
+          diagnosticResults.investments.duplicateOriginalIds.push(inv.originalId);
+        } else {
+          investmentOriginalIds.add(inv.originalId);
+        }
+      }
+      
+      if (inv.date && /^\d{4}-\d{2}-\d{2}$/.test(inv.date)) {
+        diagnosticResults.investments.withValidDates++;
+      }
+      
+      if (typeof inv.amount === 'number' && inv.amount > 0 && isFinite(inv.amount)) {
+        diagnosticResults.investments.withValidAmounts++;
+      } else {
+        diagnosticResults.investments.invalidRecords.push({ index, id: inv.id, amount: inv.amount });
+      }
+    });
+
+    // Verificar lucros/perdas
+    const profitOriginalIds = new Set<string>();
+    report.profits?.forEach((profit, index) => {
+      if (profit.originalId) {
+        diagnosticResults.profits.withOriginalId++;
+        if (profitOriginalIds.has(profit.originalId)) {
+          diagnosticResults.profits.duplicateOriginalIds.push(profit.originalId);
+        } else {
+          profitOriginalIds.add(profit.originalId);
+        }
+      }
+      
+      if (profit.date && /^\d{4}-\d{2}-\d{2}$/.test(profit.date)) {
+        diagnosticResults.profits.withValidDates++;
+      }
+      
+      if (typeof profit.amount === 'number' && profit.amount > 0 && isFinite(profit.amount)) {
+        diagnosticResults.profits.withValidAmounts++;
+      } else {
+        diagnosticResults.profits.invalidRecords.push({ index, id: profit.id, amount: profit.amount });
+      }
+    });
+
+    // Verificar saques
+    const withdrawalOriginalIds = new Set<string>();
+    report.withdrawals?.forEach((withdrawal, index) => {
+      if (withdrawal.originalId) {
+        diagnosticResults.withdrawals.withOriginalId++;
+        if (withdrawalOriginalIds.has(withdrawal.originalId)) {
+          diagnosticResults.withdrawals.duplicateOriginalIds.push(withdrawal.originalId);
+        } else {
+          withdrawalOriginalIds.add(withdrawal.originalId);
+        }
+      }
+      
+      if (withdrawal.date && /^\d{4}-\d{2}-\d{2}$/.test(withdrawal.date)) {
+        diagnosticResults.withdrawals.withValidDates++;
+      }
+      
+      if (typeof withdrawal.amount === 'number' && withdrawal.amount > 0 && isFinite(withdrawal.amount)) {
+        diagnosticResults.withdrawals.withValidAmounts++;
+      } else {
+        diagnosticResults.withdrawals.invalidRecords.push({ index, id: withdrawal.id, amount: withdrawal.amount });
+      }
+    });
+
+    console.log('[runDataIntegrityDiagnostic] Resultados do diagnóstico:', diagnosticResults);
+
+    // Calcular pontuação de integridade
+    const totalRecords = diagnosticResults.investments.total + diagnosticResults.profits.total + diagnosticResults.withdrawals.total;
+    const validRecords = 
+      diagnosticResults.investments.withValidAmounts + 
+      diagnosticResults.profits.withValidAmounts + 
+      diagnosticResults.withdrawals.withValidAmounts;
+    
+    const integrityScore = totalRecords > 0 ? (validRecords / totalRecords) * 100 : 100;
+    
+    const totalDuplicates = 
+      diagnosticResults.investments.duplicateOriginalIds.length +
+      diagnosticResults.profits.duplicateOriginalIds.length +
+      diagnosticResults.withdrawals.duplicateOriginalIds.length;
+
+    const totalInvalidRecords = 
+      diagnosticResults.investments.invalidRecords.length +
+      diagnosticResults.profits.invalidRecords.length +
+      diagnosticResults.withdrawals.invalidRecords.length;
+
+    toast({
+      title: `🔍 Diagnóstico de Integridade - ${integrityScore.toFixed(1)}%`,
+      description: (
+        <div className="space-y-2 text-sm">
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div>
+              <div className="font-semibold">Investimentos</div>
+              <div>Total: {diagnosticResults.investments.total}</div>
+              <div>Válidos: {diagnosticResults.investments.withValidAmounts}</div>
+            </div>
+            <div>
+              <div className="font-semibold">Lucros/Perdas</div>
+              <div>Total: {diagnosticResults.profits.total}</div>
+              <div>Válidos: {diagnosticResults.profits.withValidAmounts}</div>
+            </div>
+            <div>
+              <div className="font-semibold">Saques</div>
+              <div>Total: {diagnosticResults.withdrawals.total}</div>
+              <div>Válidos: {diagnosticResults.withdrawals.withValidAmounts}</div>
+            </div>
+          </div>
+          
+          {totalDuplicates > 0 && (
+            <div className="text-yellow-400">
+              ⚠️ {totalDuplicates} IDs originais duplicados encontrados
+            </div>
+          )}
+          
+          {totalInvalidRecords > 0 && (
+            <div className="text-red-400">
+              ❌ {totalInvalidRecords} registros com valores inválidos
+            </div>
+          )}
+          
+          {integrityScore === 100 && totalDuplicates === 0 && (
+            <div className="text-green-400">
+              ✅ Todos os dados estão íntegros!
+            </div>
+          )}
+        </div>
+      ),
+      variant: integrityScore >= 95 && totalDuplicates === 0 ? "default" : "destructive",
+      className: integrityScore >= 95 && totalDuplicates === 0 ? "border-green-500/50 bg-green-900/20" : "border-yellow-500/50 bg-yellow-900/20",
+    });
+
+    return diagnosticResults;
+  }, [currentActiveReportObjectFromHook]);
+
   // NOVA Função para testar manualmente o addInvestment
   const testAddInvestment = () => {
     if (!currentActiveReportObjectFromHook) {
@@ -1862,55 +1957,144 @@ export default function ProfitCalculator({
     return { isValid: true };
   };
 
-  // NOVA Função para verificar integridade dos dados após importação
-  const verifyImportIntegrity = () => {
-    if (!currentActiveReportObjectFromHook) {
-      toast({
-        title: "❌ Erro na verificação",
-        description: "Nenhum relatório ativo encontrado",
-        variant: "destructive",
+  // NOVA: Função para verificar integridade dos dados após importação
+  const verifyDataIntegrity = useCallback((
+    reportId: string,
+    expectedData: { trades?: number; deposits?: number; withdrawals?: number },
+    context: string
+  ): { isValid: boolean; issues: string[]; details: any } => {
+    console.log(`[verifyDataIntegrity] ${context}: Iniciando verificação de integridade`);
+    
+    const issues: string[] = [];
+    let isValid = true;
+    
+    try {
+      // Buscar relatório atual
+      const currentReport = currentActiveReportObjectFromHook;
+      if (!currentReport || currentReport.id !== reportId) {
+        issues.push('Relatório ativo não corresponde ao esperado');
+        isValid = false;
+        return { isValid, issues, details: { currentReport: currentReport?.id, expectedReport: reportId } };
+      }
+
+      // Verificar localStorage
+      const storedCollection = localStorage.getItem('bitcoinReportsCollection');
+      if (!storedCollection) {
+        issues.push('Dados não encontrados no localStorage');
+        isValid = false;
+      } else {
+        try {
+          const parsedCollection = JSON.parse(storedCollection);
+          const storedReport = parsedCollection.reports?.find((r: any) => r.id === reportId);
+          
+          if (!storedReport) {
+            issues.push('Relatório não encontrado no localStorage');
+            isValid = false;
+          } else {
+            // Verificar consistência entre estado atual e localStorage
+            const currentInvestmentsCount = currentReport.investments?.length || 0;
+            const storedInvestmentsCount = storedReport.investments?.length || 0;
+            const currentProfitsCount = currentReport.profits?.length || 0;
+            const storedProfitsCount = storedReport.profits?.length || 0;
+
+            if (currentInvestmentsCount !== storedInvestmentsCount) {
+              issues.push(`Inconsistência em investimentos: estado=${currentInvestmentsCount}, localStorage=${storedInvestmentsCount}`);
+              isValid = false;
+            }
+
+            if (currentProfitsCount !== storedProfitsCount) {
+              issues.push(`Inconsistência em lucros: estado=${currentProfitsCount}, localStorage=${storedProfitsCount}`);
+              isValid = false;
+            }
+
+            // Verificar se os dados esperados foram adicionados
+            if (expectedData.deposits && currentInvestmentsCount < expectedData.deposits) {
+              issues.push(`Menos investimentos que esperado: atual=${currentInvestmentsCount}, esperado=${expectedData.deposits}`);
+              isValid = false;
+            }
+
+            if (expectedData.trades && currentProfitsCount < expectedData.trades) {
+              issues.push(`Menos lucros que esperado: atual=${currentProfitsCount}, esperado=${expectedData.trades}`);
+              isValid = false;
+            }
+          }
+        } catch (parseError) {
+          issues.push('Erro ao parsear dados do localStorage');
+          isValid = false;
+        }
+      }
+
+      const details = {
+        reportId,
+        currentInvestments: currentReport.investments?.length || 0,
+        currentProfits: currentReport.profits?.length || 0,
+        expectedData,
+        context,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log(`[verifyDataIntegrity] ${context}: Verificação concluída`, {
+        isValid,
+        issues,
+        details
       });
-      return;
+
+      return { isValid, issues, details };
+    } catch (error) {
+      console.error(`[verifyDataIntegrity] ${context}: Erro durante verificação:`, error);
+      issues.push(`Erro durante verificação: ${error}`);
+      return { isValid: false, issues, details: { error: error } };
+    }
+  }, [currentActiveReportObjectFromHook]);
+
+  // NOVA: Função para tentar recuperar dados em caso de falha
+  const attemptDataRecovery = useCallback(async (
+    context: string,
+    originalData: any[],
+    conversionFunction: (item: any) => any,
+    addFunction: (item: any, reportId: string, options: any) => any
+  ): Promise<{ recovered: number; failed: number; errors: string[] }> => {
+    console.log(`[attemptDataRecovery] ${context}: Iniciando recuperação de dados`);
+    
+    let recovered = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    if (!currentActiveReportObjectFromHook) {
+      errors.push('Nenhum relatório ativo para recuperação');
+      return { recovered, failed, errors };
     }
 
-    const report = currentActiveReportObjectFromHook;
-    const stats = {
-      investments: {
-        total: report.investments?.length || 0,
-        withOriginalId: report.investments?.filter(inv => inv.originalId).length || 0,
-        lnMarketsImports: report.investments?.filter(inv => inv.originalId?.startsWith('deposit_')).length || 0,
-        recentIds: report.investments?.slice(-5).map(inv => inv.originalId) || []
-      },
-      profits: {
-        total: report.profits?.length || 0,
-        withOriginalId: report.profits?.filter(p => p.originalId).length || 0,
-        lnMarketsImports: report.profits?.filter(p => p.originalId?.startsWith('trade_')).length || 0,
-        recentIds: report.profits?.slice(-5).map(p => p.originalId) || []
-      },
-      withdrawals: {
-        total: report.withdrawals?.length || 0,
-        withOriginalId: report.withdrawals?.filter(w => w.originalId).length || 0,
-        lnMarketsImports: report.withdrawals?.filter(w => w.originalId?.startsWith('withdrawal_')).length || 0,
-        recentIds: report.withdrawals?.slice(-5).map(w => w.originalId) || []
+    for (const item of originalData) {
+      try {
+        const convertedItem = conversionFunction(item);
+        const result = addFunction(convertedItem, currentActiveReportObjectFromHook.id, { suppressToast: true });
+        
+        if (result.status === 'added') {
+          recovered++;
+          console.log(`[attemptDataRecovery] ${context}: Item recuperado:`, result.id);
+        } else if (result.status === 'duplicate') {
+          // Duplicatas são esperadas na recuperação
+          console.log(`[attemptDataRecovery] ${context}: Item já existe:`, result.originalId);
+        } else {
+          failed++;
+          errors.push(`Falha ao recuperar item: ${result.message}`);
+        }
+      } catch (error) {
+        failed++;
+        errors.push(`Erro na conversão/adição: ${error}`);
+        console.error(`[attemptDataRecovery] ${context}: Erro ao processar item:`, error);
       }
-    };
+    }
 
-    console.log('[verifyImportIntegrity] Estatísticas do relatório:', stats);
-
-    toast({
-      title: "🔍 Verificação de Integridade",
-      description: (
-        <div className="space-y-1 text-xs">
-          <div>Investimentos: {stats.investments.total} (LN: {stats.investments.lnMarketsImports})</div>
-          <div>Lucros/Perdas: {stats.profits.total} (LN: {stats.profits.lnMarketsImports})</div>
-          <div>Saques: {stats.withdrawals.total} (LN: {stats.withdrawals.lnMarketsImports})</div>
-          <div>Detalhes no console</div>
-        </div>
-      ),
-      variant: "default",
-      className: "border-blue-500/50 bg-blue-900/20",
+    console.log(`[attemptDataRecovery] ${context}: Recuperação concluída`, {
+      recovered,
+      failed,
+      errors: errors.length
     });
-  };
+
+    return { recovered, failed, errors };
+  }, [currentActiveReportObjectFromHook]);
 
   // NOVA Função para analisar status dos depósitos em tempo real
   const analyzeDepositStatuses = async () => {
@@ -2751,1493 +2935,817 @@ export default function ProfitCalculator({
     return value;
   }, [isMobile]);
 
-    return (
-    <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
-      {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
-      {isComparisonMode ? (
-        <ReportsComparison 
-          onBack={() => setIsComparisonMode(false)} 
-          btcToUsd={btcToUsd} 
-          brlToUsd={brlToUsd} 
-        />
-      ) : (
-        <>
-          {/* NOVO: Cabeçalho com gerenciador de relatórios */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
-            <ReportManager onCompare={() => setIsComparisonMode(true)} />
+  // NOVA: Função para excluir investimento manualmente
+  const handleDeleteInvestment = useCallback((investmentId: string, investmentDate: string, investmentAmount: number) => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Confirmar exclusão
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o investimento de ${investmentAmount} SATS do dia ${investmentDate}?\n\nEsta ação não pode ser desfeita.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const success = deleteInvestment(currentActiveReportObjectFromHook.id, investmentId);
+      
+      if (success) {
+        console.log('[handleDeleteInvestment] Investimento excluído com sucesso:', investmentId);
+        
+        toast({
+          title: "✅ Investimento excluído",
+          description: `Investimento de ${investmentAmount} SATS foi removido com sucesso`,
+          variant: "default",
+        });
+
+        // Forçar atualização da UI
+        forceUpdate();
+      } else {
+        throw new Error('Falha na exclusão do investimento');
+      }
+    } catch (error) {
+      console.error('[handleDeleteInvestment] Erro ao excluir investimento:', error);
+      toast({
+        title: "❌ Erro na exclusão",
+        description: "Não foi possível excluir o investimento. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }, [currentActiveReportObjectFromHook, deleteInvestment, forceUpdate]);
+
+  // NOVA: Função para excluir lucro/perda manualmente
+  const handleDeleteProfit = useCallback((profitId: string, profitDate: string, profitAmount: number, isProfit: boolean) => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Confirmar exclusão
+    const type = isProfit ? "lucro" : "perda";
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o ${type} de ${profitAmount} SATS do dia ${profitDate}?\n\nEsta ação não pode ser desfeita.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const success = deleteProfitRecord(currentActiveReportObjectFromHook.id, profitId);
+      
+      if (success) {
+        console.log('[handleDeleteProfit] Lucro/perda excluído com sucesso:', profitId);
+        
+        toast({
+          title: `✅ ${isProfit ? 'Lucro' : 'Perda'} excluído`,
+          description: `${isProfit ? 'Lucro' : 'Perda'} de ${profitAmount} SATS foi removido com sucesso`,
+          variant: "default",
+        });
+
+        // Forçar atualização da UI
+        forceUpdate();
+      } else {
+        throw new Error('Falha na exclusão do lucro/perda');
+      }
+    } catch (error) {
+      console.error('[handleDeleteProfit] Erro ao excluir lucro/perda:', error);
+      toast({
+        title: "❌ Erro na exclusão",
+        description: "Não foi possível excluir o registro. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }, [currentActiveReportObjectFromHook, deleteProfitRecord, forceUpdate]);
+
+  // NOVA: Função para excluir saque manualmente
+  const handleDeleteWithdrawal = useCallback((withdrawalId: string, withdrawalDate: string, withdrawalAmount: number) => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Confirmar exclusão
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir o saque de ${withdrawalAmount} SATS do dia ${withdrawalDate}?\n\nEsta ação não pode ser desfeita.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const success = deleteWithdrawal(withdrawalId, currentActiveReportObjectFromHook.id);
+      
+      if (success) {
+        console.log('[handleDeleteWithdrawal] Saque excluído com sucesso:', withdrawalId);
+        
+        toast({
+          title: "✅ Saque excluído",
+          description: `Saque de ${withdrawalAmount} SATS foi removido com sucesso`,
+          variant: "default",
+        });
+
+        // Forçar atualização da UI
+        forceUpdate();
+      } else {
+        throw new Error('Falha na exclusão do saque');
+      }
+    } catch (error) {
+      console.error('[handleDeleteWithdrawal] Erro ao excluir saque:', error);
+      toast({
+        title: "❌ Erro na exclusão",
+        description: "Não foi possível excluir o saque. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }, [currentActiveReportObjectFromHook, deleteWithdrawal, forceUpdate]);
+
+  // NOVA: Função para exclusão em lote com confirmação
+  const handleBulkDelete = useCallback((type: 'investments' | 'profits' | 'withdrawals') => {
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "❌ Erro",
+        description: "Nenhum relatório ativo encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const typeLabels = {
+      investments: 'investimentos',
+      profits: 'lucros/perdas',
+      withdrawals: 'saques'
+    };
+
+    const count = type === 'investments' ? currentActiveReportObjectFromHook.investments?.length || 0 :
+                  type === 'profits' ? currentActiveReportObjectFromHook.profits?.length || 0 :
+                  currentActiveReportObjectFromHook.withdrawals?.length || 0;
+
+    if (count === 0) {
+      toast({
+        title: "ℹ️ Nenhum registro",
+        description: `Não há ${typeLabels[type]} para excluir`,
+        variant: "default",
+      });
+      return;
+    }
+
+    // Confirmar exclusão em lote
+    const confirmed = window.confirm(
+      `⚠️ ATENÇÃO: Você está prestes a excluir TODOS os ${count} ${typeLabels[type]} do relatório "${currentActiveReportObjectFromHook.name}".\n\nEsta ação NÃO PODE ser desfeita!\n\nTem certeza que deseja continuar?`
+    );
+
+    if (!confirmed) return;
+
+    // Segunda confirmação para ações críticas
+    const doubleConfirmed = window.confirm(
+      `🚨 CONFIRMAÇÃO FINAL: Excluir ${count} ${typeLabels[type]}?\n\nDigite "CONFIRMAR" na próxima caixa de diálogo para prosseguir.`
+    );
+
+    if (!doubleConfirmed) return;
+
+    const finalConfirmation = window.prompt(
+      `Digite "CONFIRMAR" (em maiúsculas) para excluir todos os ${typeLabels[type]}:`
+    );
+
+    if (finalConfirmation !== "CONFIRMAR") {
+      toast({
+        title: "❌ Operação cancelada",
+        description: "Exclusão em lote cancelada pelo usuário",
+        variant: "default",
+      });
+      return;
+    }
+
+    try {
+      let success = false;
+      
+      if (type === 'investments') {
+        success = deleteAllInvestmentsFromReport(currentActiveReportObjectFromHook.id);
+      } else if (type === 'profits') {
+        success = deleteAllProfitsFromReport(currentActiveReportObjectFromHook.id);
+      } else if (type === 'withdrawals') {
+        success = deleteAllWithdrawalsFromReport(currentActiveReportObjectFromHook.id);
+      }
+      
+      if (success) {
+        console.log(`[handleBulkDelete] Exclusão em lote de ${type} realizada com sucesso`);
+        
+        toast({
+          title: "✅ Exclusão em lote concluída",
+          description: `Todos os ${count} ${typeLabels[type]} foram removidos com sucesso`,
+          variant: "default",
+        });
+
+        // Forçar atualização da UI
+        forceUpdate();
+      } else {
+        throw new Error(`Falha na exclusão em lote de ${type}`);
+      }
+    } catch (error) {
+      console.error(`[handleBulkDelete] Erro na exclusão em lote de ${type}:`, error);
+      toast({
+        title: "❌ Erro na exclusão em lote",
+        description: `Não foi possível excluir os ${typeLabels[type]}. Tente novamente.`,
+        variant: "destructive",
+      });
+    }
+  }, [currentActiveReportObjectFromHook, deleteAllInvestmentsFromReport, deleteAllProfitsFromReport, deleteAllWithdrawalsFromReport, forceUpdate]);
+
+  // NOVO: Sistema robusto de salvamento com verificações de integridade e retry
+  const saveDataWithIntegrityCheck = useCallback(async (
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    rawData: any,
+    convertedData: any,
+    maxRetries: number = 3
+  ): Promise<{ success: boolean; result?: any; error?: string; retryCount: number }> => {
+    const operationId = `${dataType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Iniciando salvamento`, {
+      dataType,
+      rawDataId: rawData?.id || rawData?.uid,
+      convertedId: convertedData?.id,
+      originalId: convertedData?.originalId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validação prévia dos dados convertidos
+    const preValidation = validateConvertedData(dataType, convertedData);
+    if (!preValidation.isValid) {
+      console.error(`[saveDataWithIntegrityCheck] ${operationId}: Falha na validação prévia:`, preValidation.errors);
+      return {
+        success: false,
+        error: `Validação prévia falhou: ${preValidation.errors.join(', ')}`,
+        retryCount: 0
+      };
+    }
+
+    // Capturar estado antes do salvamento para rollback se necessário
+    const stateBefore = {
+      investmentsCount: currentActiveReportObjectFromHook?.investments?.length || 0,
+      profitsCount: currentActiveReportObjectFromHook?.profits?.length || 0,
+      withdrawalsCount: currentActiveReportObjectFromHook?.withdrawals?.length || 0,
+      timestamp: Date.now()
+    };
+
+    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Estado antes do salvamento:`, stateBefore);
+
+    let retryCount = 0;
+    let lastError: string = '';
+
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Tentativa ${retryCount + 1}/${maxRetries}`);
+
+        let result: any;
+
+        // Executar operação de salvamento baseada no tipo
+        switch (dataType) {
+          case 'trade':
+            result = addProfitRecord(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          case 'deposit':
+            result = addInvestment(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          case 'withdrawal':
+            result = addWithdrawal(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          default:
+            throw new Error(`Tipo de dados não suportado: ${dataType}`);
+        }
+
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Resultado da operação:`, {
+          status: result.status,
+          id: result.id,
+          originalId: result.originalId,
+          message: result.message
+        });
+
+        // Verificar se a operação foi bem-sucedida
+        if (result.status === 'added') {
+          // Verificação de integridade pós-salvamento
+          const integrityCheck = await verifyDataIntegrity(operationId, dataType, result.id, convertedData, stateBefore);
+          
+          if (integrityCheck.isValid) {
+            console.log(`[saveDataWithIntegrityCheck] ${operationId}: ✅ Salvamento bem-sucedido com integridade verificada`);
+            return {
+              success: true,
+              result: result,
+              retryCount: retryCount
+            };
+          } else {
+            console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha na verificação de integridade:`, integrityCheck.errors);
+            lastError = `Falha na verificação de integridade: ${integrityCheck.errors.join(', ')}`;
             
-            <div className="flex gap-2 sm:ml-auto">
-              {/* Sistema de Exportação de Relatórios Robusto */}
-              {currentActiveReportObjectFromHook && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-black/30 border-green-700/50 hover:bg-green-900/20"
-                    onClick={() => {
-                      // Função de exportação Excel simplificada
-                      console.log('Exportação Excel temporariamente desabilitada para corrigir build');
-                        toast({
-                        title: "🚧 Funcionalidade Temporariamente Indisponível",
-                        description: "A exportação Excel será reativada em breve.",
-                          variant: "default",
-                      });
-                    }}
-                    disabled={states.isExporting}
-                  >
-                    {states.isExporting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Exportando...
-                      </>
-                    ) : (
-                      <>
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Excel Completo
-                      </>
-                    )}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-black/30 border-blue-700/50 hover:bg-blue-900/20"
-                    onClick={() => {
-                      if (!currentActiveReportObjectFromHook) return;
-                      
-                      const reportData = {
-                        name: currentActiveReportObjectFromHook.name,
-                        description: currentActiveReportObjectFromHook.description || '',
-                        investments: currentActiveReportObjectFromHook.investments || [],
-                        profits: currentActiveReportObjectFromHook.profits || [],
-                        withdrawals: currentActiveReportObjectFromHook.withdrawals || [],
-                        createdAt: currentActiveReportObjectFromHook.createdAt,
-                        updatedAt: currentActiveReportObjectFromHook.updatedAt
-                      };
-                      
-                      const dataStr = JSON.stringify(reportData, null, 2);
-                      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                      const url = URL.createObjectURL(dataBlob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.download = `relatorio-backup-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${formatDateFn(new Date(), "yyyy-MM-dd")}.json`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                      
-                      toast({
-                        title: "💾 Backup JSON Exportado!",
-                        description: `Backup completo do relatório "${currentActiveReportObjectFromHook.name}" foi salvo.`,
-                        variant: "default",
-                        className: "border-blue-500/50 bg-blue-900/20",
-                      });
-                    }}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Backup JSON
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+            // Tentar rollback se possível
+            if (result.id) {
+              await attemptRollback(dataType, result.id, operationId);
+            }
+          }
+        } else if (result.status === 'duplicate') {
+          console.log(`[saveDataWithIntegrityCheck] ${operationId}: ⚠️ Registro duplicado detectado`);
+          return {
+            success: true,
+            result: result,
+            retryCount: retryCount
+          };
+        } else {
+          lastError = result.message || 'Erro desconhecido na operação de salvamento';
+          console.error(`[saveDataWithIntegrityCheck] ${operationId}: Erro na operação:`, lastError);
+        }
 
-          {/* Estatísticas de importação melhoradas */}
-          {importStats && selectedConfigForImport && (
-            <div className="mt-6 p-4 bg-black/20 rounded-lg border border-purple-700/30">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-purple-400 flex items-center gap-2">
-                  📊 Última Importação 
-                  <span className="text-gray-400">({multipleConfigs?.configs.find(c => c.id === selectedConfigForImport)?.name})</span>
-              </h4>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setImportStats(null);
-                    if (user?.email) {
-                      localStorage.removeItem(`importStats_${user.email}`);
-                    }
-                    toast({
-                      title: "🗑️ Estatísticas Limpas",
-                      description: "Histórico de importação foi removido.",
-                      variant: "default",
-                    });
-                  }}
-                  className="text-xs text-gray-400 hover:text-white h-6 px-2"
-                >
-                  Limpar
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                {importStats.trades && importStats.trades.total > 0 && (
-                  <div className="p-3 bg-green-900/20 rounded border border-green-700/30">
-                    <div className="text-green-400 font-medium mb-2 flex items-center gap-2">
-                      <TrendingUp className="h-3 w-3" />
-                      Trades
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Analisados:</span>
-                        <span className="text-white">{importStats.trades.total}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Importados:</span>
-                        <span className="text-green-400">{importStats.trades.imported}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Duplicados:</span>
-                        <span className="text-yellow-400">{importStats.trades.duplicated}</span>
-                      </div>
-                      {importStats.trades.errors > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Erros:</span>
-                          <span className="text-red-400">{importStats.trades.errors}</span>
-                  </div>
-                )}
-                      {importStats.trades.pagesSearched && (
-                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-green-700/30">
-                          {importStats.trades.pagesSearched} páginas • {importStats.trades.stoppedReason === 'emptyPages' ? '🎯 Otimizado' : 
-                           importStats.trades.stoppedReason === 'duplicates' ? '⚠️ Duplicatas' : 
-                           importStats.trades.stoppedReason === 'maxPages' ? '📄 Limite' : '✅ Completo'}
-                  </div>
-                )}
-                    </div>
-                  </div>
-                )}
-                {importStats.deposits && importStats.deposits.total > 0 && (
-                  <div className="p-3 bg-blue-900/20 rounded border border-blue-700/30">
-                    <div className="text-blue-400 font-medium mb-2 flex items-center gap-2">
-                      <Download className="h-3 w-3" />
-                      Depósitos
-              </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Total:</span>
-                        <span className="text-white">{importStats.deposits.total}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Confirmados:</span>
-                        <span className="text-blue-400">{importStats.deposits.confirmedCount || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Importados:</span>
-                        <span className="text-green-400">{importStats.deposits.imported}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Duplicados:</span>
-                        <span className="text-yellow-400">{importStats.deposits.duplicated}</span>
-                      </div>
-                      {importStats.deposits.skipped > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Ignorados:</span>
-                          <span className="text-gray-500">{importStats.deposits.skipped}</span>
-                        </div>
-                      )}
-                      {importStats.deposits.statusDistribution && (
-                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-blue-700/30">
-                          Status: {Object.entries(importStats.deposits.statusDistribution).map(([status, count]) => 
-                            `${status}(${count})`
-                          ).join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {importStats.withdrawals && importStats.withdrawals.total > 0 && (
-                  <div className="p-3 bg-orange-900/20 rounded border border-orange-700/30">
-                    <div className="text-orange-400 font-medium mb-2 flex items-center gap-2">
-                      <Upload className="h-3 w-3" />
-                      Saques
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Total:</span>
-                        <span className="text-white">{importStats.withdrawals.total}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Confirmados:</span>
-                        <span className="text-orange-400">{importStats.withdrawals.confirmedCount || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Importados:</span>
-                        <span className="text-green-400">{importStats.withdrawals.imported}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Duplicados:</span>
-                        <span className="text-yellow-400">{importStats.withdrawals.duplicated}</span>
-                      </div>
-                      {importStats.withdrawals.errors > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Erros:</span>
-                          <span className="text-red-400">{importStats.withdrawals.errors}</span>
-                        </div>
-                      )}
-                      {importStats.withdrawals.statusDistribution && Object.keys(importStats.withdrawals.statusDistribution).length > 1 && (
-                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-orange-700/30">
-                          Status: {Object.entries(importStats.withdrawals.statusDistribution).map(([status, count]) => 
-                            `${status}(${count})`
-                          ).join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-                            {/* Resumo geral */}
-              <div className="mt-4 pt-3 border-t border-purple-700/30">
-                <div className="text-xs text-gray-400 flex flex-wrap gap-4 mb-2">
-                  <span>
-                    ✅ Total importado: {(importStats.trades?.imported || 0) + (importStats.deposits?.imported || 0) + (importStats.withdrawals?.imported || 0)}
-                  </span>
-                  <span>
-                    ⚠️ Total duplicado: {(importStats.trades?.duplicated || 0) + (importStats.deposits?.duplicated || 0) + (importStats.withdrawals?.duplicated || 0)}
-                  </span>
-                  {((importStats.trades?.errors || 0) + (importStats.deposits?.errors || 0) + (importStats.withdrawals?.errors || 0)) > 0 && (
-                    <span>
-                      ❌ Total erros: {(importStats.trades?.errors || 0) + (importStats.deposits?.errors || 0) + (importStats.withdrawals?.errors || 0)}
-                    </span>
-                  )}
-                </div>
-                
-                {/* Timestamp da última importação */}
-                {(() => {
-                  try {
-                    const savedStats = localStorage.getItem(`importStats_${user?.email}`);
-                    if (savedStats) {
-                      const parsedStats = JSON.parse(savedStats);
-                      if (parsedStats.timestamp) {
-                        const lastImportDate = new Date(parsedStats.timestamp);
-                        const now = new Date();
-                        const diffMinutes = Math.floor((now.getTime() - lastImportDate.getTime()) / (1000 * 60));
-                        
-                        let timeAgo = '';
-                        if (diffMinutes < 1) {
-                          timeAgo = 'agora mesmo';
-                        } else if (diffMinutes < 60) {
-                          timeAgo = `${diffMinutes} min atrás`;
-                        } else if (diffMinutes < 1440) {
-                          timeAgo = `${Math.floor(diffMinutes / 60)}h atrás`;
-                        } else {
-                          timeAgo = formatDateFn(lastImportDate, "dd/MM/yyyy HH:mm");
-                        }
-                        
-                        return (
-                          <div className="text-xs text-gray-500 flex items-center gap-2">
-                            <span>🕒</span>
-                            <span>Última importação: {timeAgo}</span>
-                          </div>
-                        );
-                      }
-                    }
-                  } catch (error) {
-                    // Ignorar erro
-                  }
-                  return null;
-                })()}
-              </div>
-            </div>
-          )}
+      } catch (error: any) {
+        lastError = error.message || 'Erro inesperado durante salvamento';
+        console.error(`[saveDataWithIntegrityCheck] ${operationId}: Exceção na tentativa ${retryCount + 1}:`, error);
+      }
 
-          {/* Conteúdo das abas */}
-          <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
-              <TabsTrigger value="import" className="text-white data-[state=active]:bg-purple-700">
-                <Zap className="mr-2 h-4 w-4" />
-                Importação
-              </TabsTrigger>
-              <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-                <BarChart2 className="mr-2 h-4 w-4" />
-                Histórico
-              </TabsTrigger>
-              <TabsTrigger value="charts" className="text-white data-[state=active]:bg-purple-700">
-                <PieChartIcon className="mr-2 h-4 w-4" />
-                Gráficos
-              </TabsTrigger>
-            </TabsList>
+      retryCount++;
 
-            {/* ABA IMPORTAÇÃO */}
-            <TabsContent value="import">
-              <div className="space-y-6">
-                {/* Seletor de Configuração LN Markets */}
-                {multipleConfigs && multipleConfigs.configs.length > 0 && (
-                  <Card className="bg-black/30 border border-purple-700/40">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Configuração LN Markets
-                      </CardTitle>
-                      <CardDescription>
-                        Selecione qual configuração usar para importação
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Configuração Ativa</Label>
-                          <Select value={selectedConfigForImport || ""} onValueChange={setSelectedConfigForImport}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione uma configuração" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {multipleConfigs.configs
-                                .filter(config => config.isActive)
-                                .map((config) => (
-                                  <SelectItem key={config.id} value={config.id}>
-                                    <div className="flex items-center gap-2">
-                                      <span>{config.name}</span>
-                                      {config.id === multipleConfigs.defaultConfigId && (
-                                        <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                      )}
-                                      {currentActiveReportObjectFromHook?.associatedLNMarketsConfigId === config.id && (
-                                        <Badge variant="default" className="text-xs">Associado</Badge>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+      // Se não é a última tentativa, aguardar antes de tentar novamente
+      if (retryCount < maxRetries) {
+        const delayMs = Math.min(1000 * Math.pow(2, retryCount), 5000); // Backoff exponencial, máximo 5s
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Aguardando ${delayMs}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
 
-                {/* Cards de Importação LN Markets */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Card Trades */}
-                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors flex flex-col min-h-[280px]">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-green-400">
-                        <TrendingUp className="h-5 w-5" />
-                        Trades
-                      </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
-                        Importar histórico de trades fechados com lucro/prejuízo
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
-                      {importProgress.trades.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.trades} type="trades" />
-                      )}
-                      <Button
-                        onClick={handleImportTrades}
-                        disabled={isImportingTrades || !selectedConfigForImport}
-                        className="w-full bg-green-700 hover:bg-green-600 mt-auto"
-                      >
-                        {isImportingTrades ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <TrendingUp className="mr-2 h-4 w-4" />
-                            Importar Trades
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
+    console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha após ${maxRetries} tentativas. Último erro:`, lastError);
+    return {
+      success: false,
+      error: lastError,
+      retryCount: retryCount
+    };
+  }, [currentActiveReportObjectFromHook, addProfitRecord, addInvestment, addWithdrawal]);
 
-                  {/* Card Depósitos */}
-                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors flex flex-col min-h-[280px]">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-blue-400">
-                        <Download className="h-5 w-5" />
-                        Aportes
-                      </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
-                        Importar depósitos confirmados como investimentos
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
-                      {importProgress.deposits.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.deposits} type="deposits" />
-                      )}
-                      
-                                            {/* DEBUG: Botões de debug apenas em desenvolvimento */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="space-y-2 mb-2">
-                        <Button
-                          onClick={debugImportData}
-                          variant="outline"
-                          size="sm"
-                            className="w-full bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
-                        >
-                          🐛 Debug Info
-                        </Button>
-                          <Button
-                            onClick={analyzeDepositStatuses}
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-yellow-700/20 hover:bg-yellow-600/30 border-yellow-600/50"
-                          >
-                            🔍 Analisar Status
-                          </Button>
-                          <Button
-                            onClick={verifyImportIntegrity}
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
-                          >
-                            🔍 Verificar Dados
-                          </Button>
-                          <Button
-                            onClick={testOptimizedImport}
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-purple-700/20 hover:bg-purple-600/30 border-purple-600/50"
-                          >
-                            🧪 Teste Performance
-                          </Button>
-                          <Button
-                            onClick={testAddInvestment}
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-green-700/20 hover:bg-green-600/30 border-green-600/50"
-                          >
-                            🧪 Testar AddInvestment
-                          </Button>
-                          <Button
-                            onClick={testDepositConversion}
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-blue-700/20 hover:bg-blue-600/30 border-blue-600/50"
-                          >
-                            🧪 Testar Depósitos
-                          </Button>
-                        </div>
-                      )}
-                      
-                      <Button
-                        onClick={handleImportDeposits}
-                        disabled={isImportingDeposits || !selectedConfigForImport}
-                        className="w-full bg-blue-700 hover:bg-blue-600 mt-auto"
-                      >
-                        {isImportingDeposits ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="mr-2 h-4 w-4" />
-                            Importar Aportes
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
+  // NOVO: Função para validar dados convertidos antes do salvamento
+  const validateConvertedData = useCallback((
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    data: any
+  ): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
 
-                  {/* Card Saques */}
-                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors flex flex-col min-h-[280px]">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-orange-400">
-                        <Upload className="h-5 w-5" />
-                        Saques
-                      </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
-                        Importar saques confirmados
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4 flex-1 flex flex-col justify-end">
-                      {importProgress.withdrawals.status !== 'idle' && (
-                        <ImportProgressIndicator progress={importProgress.withdrawals} type="withdrawals" />
-                      )}
-                      <Button
-                        onClick={handleImportWithdrawals}
-                        disabled={isImportingWithdrawals || !selectedConfigForImport}
-                        className="w-full bg-orange-700 hover:bg-orange-600 mt-auto"
-                      >
-                        {isImportingWithdrawals ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Importar Saques
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
+    // Validações comuns
+    if (!data) {
+      errors.push('Dados ausentes');
+      return { isValid: false, errors };
+    }
 
-            {/* ABA HISTÓRICO */}
-            <TabsContent value="history">
-              <div className="space-y-6">
-                {/* Controles de Filtro */}
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Filter className="h-5 w-5" />
-                      Filtros e Período
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Período</Label>
-                        <Select value={historyFilterPeriod} onValueChange={(value: HistoryFilterPeriod) => setHistoryFilterPeriod(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1m">Último mês</SelectItem>
-                            <SelectItem value="3m">Últimos 3 meses</SelectItem>
-                            <SelectItem value="6m">Últimos 6 meses</SelectItem>
-                            <SelectItem value="1y">Último ano</SelectItem>
-                            <SelectItem value="all">Todo período</SelectItem>
-                            <SelectItem value="custom">Personalizado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Modo de Visualização</Label>
-                        <Select value={historyViewMode} onValueChange={(value: HistoryViewMode) => setHistoryViewMode(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Relatório Ativo</SelectItem>
-                            <SelectItem value="all">Todos os Relatórios</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Unidade de Exibição</Label>
-                        <Select value={states.displayCurrency.code} onValueChange={(value) => {
-                          states.setDisplayCurrency(value === "USD" ? { code: "USD", symbol: "$" } : { code: "BRL", symbol: "R$" });
-                        }}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD ($)</SelectItem>
-                            <SelectItem value="BRL">BRL (R$)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    {historyFilterPeriod === "custom" && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div className="space-y-2">
-                          <Label>Data Inicial</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {historyCustomStartDate ? formatDateFn(historyCustomStartDate, "dd/MM/yyyy") : "Selecionar data"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <CalendarComponent
-                                mode="single"
-                                selected={historyCustomStartDate}
-                                onSelect={setHistoryCustomStartDate}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label>Data Final</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {historyCustomEndDate ? formatDateFn(historyCustomEndDate, "dd/MM/yyyy") : "Selecionar data"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <CalendarComponent
-                                mode="single"
-                                selected={historyCustomEndDate}
-                                onSelect={setHistoryCustomEndDate}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+    if (!data.id || typeof data.id !== 'string') {
+      errors.push('ID inválido ou ausente');
+    }
 
-                {/* Estatísticas do Período */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <HistoryStatsCard
-                    title="Total Investido"
-                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
-                    icon={<TrendingDown className="h-4 w-4 text-blue-400" />}
-                    valueColor="text-blue-400"
-                  />
-                  
-                  <HistoryStatsCard
-                    title="Lucros/Perdas"
-                    value={formatCurrency(getFilteredHistoryData.profits.reduce((sum, profit) => {
-                      const btcAmount = convertToBtc(profit.amount, profit.unit);
-                      const value = profit.isProfit ? btcAmount : -btcAmount;
-                      return sum + (value * states.currentRates.btcToUsd);
-                    }, 0), states.displayCurrency.code)}
-                    icon={<TrendingUp className="h-4 w-4 text-green-400" />}
-                    valueColor={getFilteredHistoryData.profits.reduce((sum, profit) => {
-                      const btcAmount = convertToBtc(profit.amount, profit.unit);
-                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                    }, 0) >= 0 ? "text-green-400" : "text-red-400"}
-                  />
-                  
-                  <HistoryStatsCard
-                    title="Saques"
-                    value={formatCurrency(getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency.code)}
-                    icon={<Upload className="h-4 w-4 text-orange-400" />}
-                    valueColor="text-orange-400"
-                  />
-                  
-                  <HistoryStatsCard
-                    title="Transações"
-                    value={`${getFilteredHistoryData.investments.length + getFilteredHistoryData.profits.length + getFilteredHistoryData.withdrawals.length}`}
-                    icon={<Users className="h-4 w-4 text-purple-400" />}
-                    valueColor="text-purple-400"
-                  />
-                </div>
+    if (!data.originalId || typeof data.originalId !== 'string') {
+      errors.push('ID original inválido ou ausente');
+    }
 
-                {/* Tabelas de Dados */}
-                <Tabs value={historyActiveTab} onValueChange={setHistoryActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4 bg-black/40">
-                    <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-                    <TabsTrigger value="investments">Investimentos</TabsTrigger>
-                    <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
-                    <TabsTrigger value="withdrawals">Saques</TabsTrigger>
-                  </TabsList>
+    if (!data.date || typeof data.date !== 'string') {
+      errors.push('Data inválida ou ausente');
+    } else {
+      // Validar formato da data
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(data.date)) {
+        errors.push('Formato de data inválido (esperado: YYYY-MM-DD)');
+      }
+    }
 
-                  <TabsContent value="overview" className="mt-4">
-                    <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
-                        <CardTitle>Resumo do Período</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-400 mb-2">Distribuição por Tipo</h4>
-                              <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span>Investimentos:</span>
-                                  <span className="text-blue-400">{getFilteredHistoryData.investments.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Lucros:</span>
-                                  <span className="text-green-400">{getFilteredHistoryData.profits.filter(p => p.isProfit).length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Perdas:</span>
-                                  <span className="text-red-400">{getFilteredHistoryData.profits.filter(p => !p.isProfit).length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Saques:</span>
-                                  <span className="text-orange-400">{getFilteredHistoryData.withdrawals.length}</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-400 mb-2">Valores Totais (BTC)</h4>
-                              <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span>Total Investido:</span>
-                                  <span className="text-blue-400">
-                                    ₿{getFilteredHistoryData.investments.reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0).toFixed(8)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Lucro/Perda:</span>
-                                  <span className={getFilteredHistoryData.profits.reduce((sum, profit) => {
-                                    const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                    return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                  }, 0) >= 0 ? "text-green-400" : "text-red-400"}>
-                                    ₿{getFilteredHistoryData.profits.reduce((sum, profit) => {
-                                      const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                    }, 0).toFixed(8)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Total Sacado:</span>
-                                  <span className="text-orange-400">
-                                    ₿{getFilteredHistoryData.withdrawals.reduce((sum, w) => sum + convertToBtc(w.amount, w.unit), 0).toFixed(8)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+    if (typeof data.amount !== 'number' || data.amount < 0 || !isFinite(data.amount)) {
+      errors.push('Valor inválido (deve ser número positivo finito)');
+    }
 
-                  <TabsContent value="investments" className="mt-4">
-                    <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
-                        <CardTitle>Investimentos no Período</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ScrollArea className="h-[400px]">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Valor</TableHead>
-                                <TableHead>Unidade</TableHead>
-                                <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {getFilteredHistoryData.investments.map((investment) => {
-                                const btcAmount = convertToBtc(investment.amount, investment.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
-                                
-                                return (
-                                  <TableRow key={investment.id}>
-                                    <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{investment.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{investment.unit}</TableCell>
-                                    <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell>{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+    if (!data.unit || typeof data.unit !== 'string') {
+      errors.push('Unidade inválida ou ausente');
+    }
 
-                  <TabsContent value="profits" className="mt-4">
-                    <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
-                        <CardTitle>Lucros e Perdas no Período</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ScrollArea className="h-[400px]">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Valor</TableHead>
-                                <TableHead>Unidade</TableHead>
-                                <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {getFilteredHistoryData.profits.map((profit) => {
-                                const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
-                                
-                                return (
-                                  <TableRow key={profit.id}>
-                                    <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>
-                                      <Badge variant={profit.isProfit ? "default" : "destructive"}>
-                                        {profit.isProfit ? "Lucro" : "Perda"}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>{profit.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{profit.unit}</TableCell>
-                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      ₿{btcAmount.toFixed(8)}
-                                    </TableCell>
-                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      {states.displayCurrency.symbol}{currencyValue.toFixed(2)}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+    // Validações específicas por tipo
+    switch (dataType) {
+      case 'trade':
+        if (typeof data.isProfit !== 'boolean') {
+          errors.push('Campo isProfit deve ser boolean');
+        }
+        break;
+      
+      case 'deposit':
+        // Depósitos não têm validações específicas adicionais
+        break;
+      
+      case 'withdrawal':
+        if (data.fee !== undefined && (typeof data.fee !== 'number' || data.fee < 0 || !isFinite(data.fee))) {
+          errors.push('Taxa inválida (deve ser número não-negativo finito)');
+        }
+        if (data.type && !['lightning', 'onchain'].includes(data.type)) {
+          errors.push('Tipo de saque inválido (deve ser lightning ou onchain)');
+        }
+        break;
+    }
 
-                  <TabsContent value="withdrawals" className="mt-4">
-                    <Card className="bg-black/30 border border-purple-700/40">
-                      <CardHeader>
-                        <CardTitle>Saques no Período</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ScrollArea className="h-[400px]">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Valor</TableHead>
-                                <TableHead>Unidade</TableHead>
-                                <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency.code})</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {getFilteredHistoryData.withdrawals.map((withdrawal) => {
-                                const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (states.displayCurrency.code === "BRL" ? states.currentRates.brlToUsd : 1);
-                                
-                                return (
-                                  <TableRow key={withdrawal.id}>
-                                    <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
-                                    <TableCell>{withdrawal.unit}</TableCell>
-                                    <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell className="text-orange-400">{states.displayCurrency.symbol}{currencyValue.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </TabsContent>
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }, []);
 
-            {/* ABA GRÁFICOS */}
-            <TabsContent value="charts">
-              <div className="space-y-6">
-                {/* Controles do Gráfico */}
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <PieChartIcon className="h-5 w-5" />
-                      Configurações do Gráfico
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                          <Label className="text-sm font-medium">Tipo de Gráfico</Label>
-                        <Select value={chartType} onValueChange={(value: "line" | "bar" | "area") => setChartType(value)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="area">Área</SelectItem>
-                            <SelectItem value="bar">Barras Comparativas</SelectItem>
-                            <SelectItem value="line">Barras Empilhadas</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Unidade de Exibição</Label>
-                        <Select value={chartDisplayUnit} onValueChange={(value: "btc" | "usd" | "brl") => setChartDisplayUnit(value)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="btc">Bitcoin (₿)</SelectItem>
-                            <SelectItem value="usd">Dólares ($)</SelectItem>
-                            <SelectItem value="brl">Reais (R$)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Período</Label>
-                        <Select value={chartTimeframe} onValueChange={(value: "daily" | "monthly") => setChartTimeframe(value)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="monthly">Mensal</SelectItem>
-                            <SelectItem value="daily">Diário</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2 sm:col-span-2 xl:col-span-1">
-                        <Label className="text-sm font-medium">Cotação Atual</Label>
-                        <div className="text-xs bg-black/40 p-3 rounded border border-purple-700/30 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className={cn("w-2 h-2 rounded-full flex-shrink-0", 
-                              states.usingFallbackRates ? "bg-yellow-400" : "bg-green-400"
-                            )}></div>
-                            <span className="font-medium">BTC/USD: ${states.currentRates.btcToUsd.toLocaleString()}</span>
-                        </div>
-                          <div className="text-gray-400">USD/BRL: R${states.currentRates.brlToUsd.toFixed(2)}</div>
-                          {states.usingFallbackRates && (
-                            <div className="text-yellow-400 text-xs flex items-center gap-1">
-                              <span>⚠️</span>
-                              <span>Usando cotação cache</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Controles de Séries Visíveis - Responsivo */}
-                      <div className="mt-6 pt-4 border-t border-purple-700/30 sm:col-span-2 xl:col-span-4">
-                        <Label className="text-sm font-medium mb-4 block">Séries Visíveis nos Gráficos</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-blue-700/30">
-                            <Switch
-                              id="show-investments"
-                              checked={chartVisibleSeries.investments}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, investments: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-investments" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
-                              <span>Investimentos</span>
-                            </Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-green-700/30">
-                            <Switch
-                              id="show-profits"
-                              checked={chartVisibleSeries.profits}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, profits: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-profits" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
-                              <span>Lucros/Perdas</span>
-                            </Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-yellow-700/30">
-                            <Switch
-                              id="show-balance"
-                              checked={chartVisibleSeries.balance}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-balance" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                              <span>Saldo Total</span>
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+  // NOVO: Função para verificar integridade dos dados após salvamento
+  const verifyDataIntegrity = useCallback(async (
+    operationId: string,
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    savedId: string,
+    originalData: any,
+    stateBefore: any
+  ): Promise<{ isValid: boolean; errors: string[] }> => {
+    console.log(`[verifyDataIntegrity] ${operationId}: Verificando integridade para ${dataType} ID: ${savedId}`);
+    
+    const errors: string[] = [];
 
-                {/* Gráfico de Evolução */}
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardHeader>
-                    <CardTitle>Evolução Patrimonial</CardTitle>
-                    <CardDescription>
-                      Acompanhe a evolução dos seus investimentos e lucros ao longo do tempo
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {getChartData.length === 0 ? (
-                      <div className="h-[400px] w-full flex items-center justify-center">
-                        <div className="text-center space-y-4">
-                          <div className="text-gray-400 text-lg">📊</div>
-                          <div className="text-gray-400">
-                            Nenhum dado disponível para exibir gráficos
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Adicione investimentos ou lucros/perdas para visualizar os gráficos
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="h-[300px] sm:h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        {chartType === "area" && (
-                          <AreaChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 10 }}
-                              interval="preserveStartEnd"
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
-                                }
-                                return value;
-                              }}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 9 }}
-                              width={isMobile ? 60 : 80}
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  // Formato mais compacto para mobile
-                                  switch (chartDisplayUnit) {
-                                    case "usd":
-                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
-                                    case "brl":
-                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
-                                    case "btc":
-                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
-                                    default:
-                                      return formatChartValue(value);
-                                  }
-                                }
-                                return formatChartValue(value);
-                              }}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
-                                color: '#F3F4F6'
-                              }}
-                              formatter={(value: number, name: string) => [
-                                formatChartValue(value),
-                                name === 'investments' ? 'Investimentos' :
-                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
-                              ]}
-                            />
-                            <Legend />
-                            {chartVisibleSeries.investments && (
-                            <Area 
-                              type="monotone" 
-                              dataKey="investments" 
-                              stackId="1"
-                              stroke="#3B82F6" 
-                              fill="#3B82F6" 
-                              fillOpacity={0.6}
-                              name="Investimentos"
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                            <Area 
-                              type="monotone" 
-                              dataKey="profits" 
-                              stackId="1"
-                              stroke="#10B981" 
-                              fill="#10B981" 
-                              fillOpacity={0.6}
-                              name="Lucros/Perdas"
-                            />
-                            )}
-                          </AreaChart>
-                        )}
-                        
-                                                {chartType === "bar" && (
-                          <BarChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 10 }}
-                              interval="preserveStartEnd"
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
-                                }
-                                return value;
-                              }}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 9 }}
-                              width={isMobile ? 60 : 80}
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  // Formato mais compacto para mobile
-                                  switch (chartDisplayUnit) {
-                                    case "usd":
-                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
-                                    case "brl":
-                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
-                                    case "btc":
-                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
-                                    default:
-                                      return formatChartValue(value);
-                                  }
-                                }
-                                return formatChartValue(value);
-                              }}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
-                                color: '#F3F4F6',
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                              }}
-                              formatter={(value: number, name: string) => {
-                                const formattedValue = formatChartValue(value);
-                                const formattedName = 
-                                name === 'investments' ? 'Investimentos' :
-                                  name === 'profits' ? 'Lucros/Perdas' : 
-                                  name === 'balance' ? 'Saldo Total' : name;
-                                return [formattedValue, formattedName];
-                              }}
-                              labelFormatter={(label) => `Período: ${label}`}
-                            />
-                            <Legend 
-                              wrapperStyle={{ paddingTop: '20px' }}
-                              iconType="rect"
-                            />
-                            {chartVisibleSeries.investments && (
-                              <Bar 
-                              dataKey="investments" 
-                                fill="#3B82F6" 
-                              name="Investimentos"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                              <Bar 
-                              dataKey="profits" 
-                                fill="#10B981" 
-                              name="Lucros/Perdas"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.balance && (
-                              <Bar 
-                              dataKey="balance" 
-                                fill="#F59E0B" 
-                              name="Saldo Total"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                                opacity={0.8}
-                            />
-                            )}
-                          </BarChart>
-                        )}
-                        
-                        {chartType === "line" && (
-                          <BarChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 11 }}
-                              tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 10 }}
-                              tickFormatter={formatChartValue}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
-                                color: '#F3F4F6',
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                              }}
-                              formatter={(value: number, name: string) => {
-                                const formattedValue = formatChartValue(value);
-                                const formattedName = 
-                                name === 'investments' ? 'Investimentos' :
-                                  name === 'profits' ? 'Lucros/Perdas' : 
-                                  name === 'balance' ? 'Saldo Total' : name;
-                                return [formattedValue, formattedName];
-                              }}
-                              labelFormatter={(label) => `Período: ${label}`}
-                            />
-                            <Legend 
-                              wrapperStyle={{ paddingTop: '20px' }}
-                              iconType="rect"
-                            />
-                            {chartVisibleSeries.investments && (
-                            <Bar 
-                              dataKey="investments" 
-                                stackId="stack"
-                              fill="#3B82F6" 
-                              name="Investimentos"
-                                radius={[0, 0, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                            <Bar 
-                              dataKey="profits" 
-                                stackId="stack"
-                              fill="#10B981" 
-                              name="Lucros/Perdas"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                          </BarChart>
-                        )}
-                      </ResponsiveContainer>
-                    </div>
-                    )}
-                  </CardContent>
-                </Card>
+    try {
+      // Aguardar um momento para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-                {/* Gráficos de Pizza - Distribuição */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Gráfico de Pizza - Investimentos vs Lucros */}
-                  <Card className="bg-black/30 border border-purple-700/40">
-                    <CardHeader>
-                      <CardTitle>Composição do Patrimônio</CardTitle>
-                      <CardDescription>
-                        Distribuição entre investimentos e lucros/perdas
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {!currentActiveReportObjectFromHook || 
-                       ((!currentActiveReportObjectFromHook.investments || currentActiveReportObjectFromHook.investments.length === 0) &&
-                        (!currentActiveReportObjectFromHook.profits || currentActiveReportObjectFromHook.profits.length === 0)) ? (
-                        <div className="h-[250px] sm:h-[300px] w-full flex items-center justify-center">
-                          <div className="text-center space-y-2">
-                            <div className="text-gray-400 text-lg">🥧</div>
-                            <div className="text-gray-400 text-sm">
-                              Sem dados para composição
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="h-[250px] sm:h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                {
-                                  name: 'Investimentos',
-                                  value: convertChartValue(
-                                    (currentActiveReportObjectFromHook?.investments || [])
-                                      .reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0)
-                                  ),
-                                  fill: '#3B82F6'
-                                },
-                                {
-                                  name: 'Lucros/Perdas',
-                                  value: Math.abs(convertChartValue(
-                                    (currentActiveReportObjectFromHook?.profits || [])
-                                      .reduce((sum, profit) => {
-                                        const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                        return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                      }, 0)
-                                  )),
-                                  fill: '#10B981'
-                                }
-                              ]}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => {
-                                // Responsivo: mostrar apenas porcentagem em telas pequenas
-                                if (isMobile) {
-                                  return `${(percent * 100).toFixed(0)}%`;
-                                }
-                                return `${name}: ${(percent * 100).toFixed(1)}%`;
-                              }}
-                              outerRadius={isMobile ? 50 : 70}
-                              innerRadius={isMobile ? 20 : 30}
-                              fill="#8884d8"
-                              dataKey="value"
-                              fontSize={isMobile ? 10 : 12}
-                            >
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px',
-                                color: '#F3F4F6',
-                                fontSize: '12px'
-                              }}
-                              formatter={(value: number) => formatChartValue(value)}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      )}
-                    </CardContent>
-                  </Card>
+      // Obter estado atual do relatório
+      const currentReport = currentActiveReportObjectFromHook;
+      if (!currentReport) {
+        errors.push('Relatório ativo não encontrado após salvamento');
+        return { isValid: false, errors };
+      }
 
-                  {/* Estatísticas Resumidas */}
-                  <Card className="bg-black/30 border border-purple-700/40">
-                    <CardHeader>
-                      <CardTitle>Estatísticas do Período</CardTitle>
-                      <CardDescription>
-                        Métricas principais dos investimentos
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {!reportSummaryData ? (
-                          <div className="text-center py-8">
-                            <div className="text-gray-400 text-sm">
-                              Nenhum relatório ativo selecionado
-                            </div>
-                          </div>
-                        ) : reportSummaryData.totalInvestmentsBtc === 0 && reportSummaryData.operationalProfitBtc === 0 ? (
-                          <div className="text-center py-8">
-                            <div className="text-gray-400 text-sm">
-                              Adicione investimentos ou lucros/perdas para ver as estatísticas
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-400">Total Investido:</span>
-                              <span className="text-blue-400 font-medium">
-                                {formatChartValue(convertChartValue(reportSummaryData.totalInvestmentsBtc))}
-                              </span>
-                            </div>
-                            
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-400">Lucro/Perda Operacional:</span>
-                              <span className={`font-medium ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {formatChartValue(convertChartValue(reportSummaryData.operationalProfitBtc))}
-                              </span>
-                            </div>
-                            
-                            {reportSummaryData.hasWithdrawals && (
-                              <>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-400">Total Sacado:</span>
-                                  <span className="text-orange-400 font-medium">
-                                    {formatChartValue(convertChartValue(reportSummaryData.totalWithdrawalsBtc))}
-                                  </span>
-                                </div>
-                                
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-400">Saldo Atual:</span>
-                                  <span className="text-purple-400 font-medium">
-                                    {formatChartValue(convertChartValue(reportSummaryData.currentBalanceBtc))}
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                            
-                            <div className="border-t border-purple-700/30 pt-3">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">ROI:</span>
-                                <span className={`font-bold ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {reportSummaryData.totalInvestmentsBtc > 0 
-                                    ? `${((reportSummaryData.operationalProfitBtc / reportSummaryData.totalInvestmentsBtc) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                  }
-                                </span>
-                              </div>
-                            </div>
-                            
-                            {reportSummaryData.averageBuyPriceUsd > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">Preço Médio de Compra:</span>
-                                <span className="text-yellow-400 font-medium">
-                                  ${reportSummaryData.averageBuyPriceUsd.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {reportSummaryData.valuationProfitUsd !== 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">Lucro de Valorização:</span>
-                                <span className={`font-medium ${reportSummaryData.valuationProfitUsd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  ${reportSummaryData.valuationProfitUsd.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+      // Verificar se o contador aumentou corretamente
+      const currentCounts = {
+        investmentsCount: currentReport.investments?.length || 0,
+        profitsCount: currentReport.profits?.length || 0,
+        withdrawalsCount: currentReport.withdrawals?.length || 0
+      };
 
-                {/* Informações sobre os Dados - Responsivo */}
-                <Card className="bg-black/30 border border-purple-700/40">
-                  <CardContent className="py-4">
-                    {/* Legenda responsiva */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-400 mb-4">
-                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-blue-700/30">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate text-xs sm:text-sm">Investimentos</span>
-                    </div>
-                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-green-700/30">
-                        <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate text-xs sm:text-sm">Lucros/Perdas</span>
-                      </div>
-                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-yellow-700/30">
-                        <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate text-xs sm:text-sm">Saldo Total</span>
-                      </div>
-                      <div className="flex items-center gap-2 p-2 bg-black/20 rounded border border-orange-700/30">
-                        <div className="w-3 h-3 bg-orange-400 rounded-full flex-shrink-0"></div>
-                        <span className="truncate text-xs sm:text-sm">Saques</span>
-                      </div>
-                    </div>
-                    
-                    {/* Informações da cotação - responsivo */}
-                    <div className="text-xs text-gray-500 space-y-2 bg-black/20 p-3 rounded border border-purple-700/20">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-                        <span className="text-gray-400">💰 Cotação atual:</span>
-                        <span className="font-medium text-white">
-                          ${states.currentRates.btcToUsd.toLocaleString()} USD/BTC
-                        </span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1">
-                        <span className="text-gray-400">🌎 Conversão:</span>
-                        <span className="font-medium text-white">
-                          R${states.currentRates.brlToUsd.toFixed(2)} BRL/USD
-                        </span>
-                      </div>
-                      {states.usingFallbackRates && (
-                        <div className="text-yellow-400 text-xs flex items-center gap-2 mt-2 p-2 bg-yellow-900/20 rounded border border-yellow-700/30">
-                          <span>⚠️</span>
-                          <span>Usando cotação em cache - dados podem estar desatualizados</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
-  );
-}
+      let expectedField: keyof typeof currentCounts;
+      switch (dataType) {
+        case 'trade':
+          expectedField = 'profitsCount';
+          break;
+        case 'deposit':
+          expectedField = 'investmentsCount';
+          break;
+        case 'withdrawal':
+          expectedField = 'withdrawalsCount';
+          break;
+      }
+
+      const expectedCount = stateBefore[expectedField] + 1;
+      const actualCount = currentCounts[expectedField];
+
+      if (actualCount !== expectedCount) {
+        errors.push(`Contador de ${dataType}s inconsistente: esperado ${expectedCount}, atual ${actualCount}`);
+      }
+
+      // Verificar se o registro específico existe
+      let foundRecord: any = null;
+      switch (dataType) {
+        case 'trade':
+          foundRecord = currentReport.profits?.find(p => p.id === savedId);
+          break;
+        case 'deposit':
+          foundRecord = currentReport.investments?.find(i => i.id === savedId);
+          break;
+        case 'withdrawal':
+          foundRecord = currentReport.withdrawals?.find(w => w.id === savedId);
+          break;
+      }
+
+      if (!foundRecord) {
+        errors.push(`Registro ${dataType} com ID ${savedId} não encontrado após salvamento`);
+      } else {
+        // Verificar se os dados salvos correspondem aos dados originais
+        if (foundRecord.originalId !== originalData.originalId) {
+          errors.push(`ID original inconsistente: esperado ${originalData.originalId}, salvo ${foundRecord.originalId}`);
+        }
+
+        if (foundRecord.amount !== originalData.amount) {
+          errors.push(`Valor inconsistente: esperado ${originalData.amount}, salvo ${foundRecord.amount}`);
+        }
+
+        if (foundRecord.date !== originalData.date) {
+          errors.push(`Data inconsistente: esperada ${originalData.date}, salva ${foundRecord.date}`);
+        }
+
+        if (foundRecord.unit !== originalData.unit) {
+          errors.push(`Unidade inconsistente: esperada ${originalData.unit}, salva ${foundRecord.unit}`);
+        }
+
+        // Verificações específicas por tipo
+        if (dataType === 'trade' && foundRecord.isProfit !== originalData.isProfit) {
+          errors.push(`Campo isProfit inconsistente: esperado ${originalData.isProfit}, salvo ${foundRecord.isProfit}`);
+        }
+      }
+
+      console.log(`[verifyDataIntegrity] ${operationId}: Verificação concluída`, {
+        isValid: errors.length === 0,
+        errorsCount: errors.length,
+        expectedCount,
+        actualCount,
+        foundRecord: !!foundRecord
+      });
+
+    } catch (error: any) {
+      console.error(`[verifyDataIntegrity] ${operationId}: Erro durante verificação:`, error);
+      errors.push(`Erro durante verificação de integridade: ${error.message}`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }, [currentActiveReportObjectFromHook]);
+
+  // NOVO: Função para tentar rollback em caso de falha na verificação
+  const attemptRollback = useCallback(async (
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    recordId: string,
+    operationId: string
+  ): Promise<boolean> => {
+    console.log(`[attemptRollback] ${operationId}: Tentando rollback para ${dataType} ID: ${recordId}`);
+    
+    try {
+      let success = false;
+      
+      switch (dataType) {
+        case 'trade':
+          success = deleteProfitRecord(currentActiveReportObjectFromHook?.id || '', recordId);
+          break;
+        case 'deposit':
+          success = deleteInvestment(currentActiveReportObjectFromHook?.id || '', recordId);
+          break;
+        case 'withdrawal':
+          success = deleteWithdrawal(recordId, currentActiveReportObjectFromHook?.id);
+          break;
+      }
+
+      if (success) {
+        console.log(`[attemptRollback] ${operationId}: ✅ Rollback bem-sucedido para ${dataType} ID: ${recordId}`);
+      } else {
+        console.error(`[attemptRollback] ${operationId}: ❌ Falha no rollback para ${dataType} ID: ${recordId}`);
+      }
+
+      return success;
+    } catch (error: any) {
+      console.error(`[attemptRollback] ${operationId}: Exceção durante rollback:`, error);
+      return false;
+    }
+  }, [currentActiveReportObjectFromHook, deleteProfitRecord, deleteInvestment, deleteWithdrawal]);
+
+  // NOVO: Função para processar dados em lotes com verificação de integridade
+  const processBatchWithIntegrity = useCallback(async (
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    rawDataBatch: any[],
+    convertFunction: (data: any) => any,
+    batchId: string
+  ): Promise<{
+    imported: number;
+    duplicated: number;
+    errors: number;
+    details: Array<{ id: string; status: string; error?: string; retryCount?: number }>;
+  }> => {
+    console.log(`[processBatchWithIntegrity] ${batchId}: Processando lote de ${rawDataBatch.length} ${dataType}s`);
+    
+    let imported = 0;
+    let duplicated = 0;
+    let errors = 0;
+    const details: Array<{ id: string; status: string; error?: string; retryCount?: number }> = [];
+
+    for (let i = 0; i < rawDataBatch.length; i++) {
+      const rawData = rawDataBatch[i];
+      const itemId = rawData?.id || rawData?.uid || `unknown_${i}`;
+      
+      try {
+        console.log(`[processBatchWithIntegrity] ${batchId}: Processando item ${i + 1}/${rawDataBatch.length} - ID: ${itemId}`);
+        
+        // Converter dados
+        const convertedData = convertFunction(rawData);
+        
+        // Salvar com verificação de integridade
+        const saveResult = await saveDataWithIntegrityCheck(dataType, rawData, convertedData);
+        
+        if (saveResult.success) {
+          if (saveResult.result?.status === 'added') {
+            imported++;
+            details.push({
+              id: itemId,
+              status: 'imported',
+              retryCount: saveResult.retryCount
+            });
+            console.log(`[processBatchWithIntegrity] ${batchId}: ✅ Item ${itemId} importado com sucesso (${saveResult.retryCount} tentativas)`);
+          } else if (saveResult.result?.status === 'duplicate') {
+            duplicated++;
+            details.push({
+              id: itemId,
+              status: 'duplicate'
+            });
+            console.log(`[processBatchWithIntegrity] ${batchId}: ⚠️ Item ${itemId} duplicado`);
+          }
+        } else {
+          errors++;
+          details.push({
+            id: itemId,
+            status: 'error',
+            error: saveResult.error,
+            retryCount: saveResult.retryCount
+          });
+          console.error(`[processBatchWithIntegrity] ${batchId}: ❌ Falha no item ${itemId}: ${saveResult.error} (${saveResult.retryCount} tentativas)`);
+        }
+
+      } catch (error: any) {
+        errors++;
+        details.push({
+          id: itemId,
+          status: 'error',
+          error: error.message || 'Erro inesperado'
+        });
+        console.error(`[processBatchWithIntegrity] ${batchId}: ❌ Exceção no item ${itemId}:`, error);
+      }
+
+      // Pequeno delay entre itens para não sobrecarregar
+      if (i < rawDataBatch.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+    }
+
+    console.log(`[processBatchWithIntegrity] ${batchId}: Lote concluído`, {
+      imported,
+      duplicated,
+      errors,
+      total: rawDataBatch.length
+    });
+
+    return { imported, duplicated, errors, details };
+  }, [saveDataWithIntegrityCheck]);
+
+  // NOVO: Sistema robusto de salvamento com verificações de integridade e retry
+  const saveDataWithIntegrityCheck = useCallback(async (
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    rawData: any,
+    convertedData: any,
+    maxRetries: number = 3
+  ): Promise<{ success: boolean; result?: any; error?: string; retryCount: number }> => {
+    const operationId = `${dataType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Iniciando salvamento`, {
+      dataType,
+      rawDataId: rawData?.id || rawData?.uid,
+      convertedId: convertedData?.id,
+      originalId: convertedData?.originalId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validação prévia dos dados convertidos
+    const preValidation = validateConvertedData(dataType, convertedData);
+    if (!preValidation.isValid) {
+      console.error(`[saveDataWithIntegrityCheck] ${operationId}: Falha na validação prévia:`, preValidation.errors);
+      return {
+        success: false,
+        error: `Validação prévia falhou: ${preValidation.errors.join(', ')}`,
+        retryCount: 0
+      };
+    }
+
+    // Capturar estado antes do salvamento para rollback se necessário
+    const stateBefore = {
+      investmentsCount: currentActiveReportObjectFromHook?.investments?.length || 0,
+      profitsCount: currentActiveReportObjectFromHook?.profits?.length || 0,
+      withdrawalsCount: currentActiveReportObjectFromHook?.withdrawals?.length || 0,
+      timestamp: Date.now()
+    };
+
+    console.log(`[saveDataWithIntegrityCheck] ${operationId}: Estado antes do salvamento:`, stateBefore);
+
+    let retryCount = 0;
+    let lastError: string = '';
+
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Tentativa ${retryCount + 1}/${maxRetries}`);
+
+        let result: any;
+
+        // Executar operação de salvamento baseada no tipo
+        switch (dataType) {
+          case 'trade':
+            result = addProfitRecord(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          case 'deposit':
+            result = addInvestment(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          case 'withdrawal':
+            result = addWithdrawal(convertedData, currentActiveReportObjectFromHook?.id, { suppressToast: true });
+            break;
+          default:
+            throw new Error(`Tipo de dados não suportado: ${dataType}`);
+        }
+
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Resultado da operação:`, {
+          status: result.status,
+          id: result.id,
+          originalId: result.originalId,
+          message: result.message
+        });
+
+        // Verificar se a operação foi bem-sucedida
+        if (result.status === 'added') {
+          // Verificação de integridade pós-salvamento
+          const integrityCheck = await verifyDataIntegrity(operationId, dataType, result.id, convertedData, stateBefore);
+          
+          if (integrityCheck.isValid) {
+            console.log(`[saveDataWithIntegrityCheck] ${operationId}: ✅ Salvamento bem-sucedido com integridade verificada`);
+            return {
+              success: true,
+              result: result,
+              retryCount: retryCount
+            };
+          } else {
+            console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha na verificação de integridade:`, integrityCheck.errors);
+            lastError = `Falha na verificação de integridade: ${integrityCheck.errors.join(', ')}`;
+            
+            // Tentar rollback se possível
+            if (result.id) {
+              await attemptRollback(dataType, result.id, operationId);
+            }
+          }
+        } else if (result.status === 'duplicate') {
+          console.log(`[saveDataWithIntegrityCheck] ${operationId}: ⚠️ Registro duplicado detectado`);
+          return {
+            success: true,
+            result: result,
+            retryCount: retryCount
+          };
+        } else {
+          lastError = result.message || 'Erro desconhecido na operação de salvamento';
+          console.error(`[saveDataWithIntegrityCheck] ${operationId}: Erro na operação:`, lastError);
+        }
+
+      } catch (error: any) {
+        lastError = error.message || 'Erro inesperado durante salvamento';
+        console.error(`[saveDataWithIntegrityCheck] ${operationId}: Exceção na tentativa ${retryCount + 1}:`, error);
+      }
+
+      retryCount++;
+
+      // Se não é a última tentativa, aguardar antes de tentar novamente
+      if (retryCount < maxRetries) {
+        const delayMs = Math.min(1000 * Math.pow(2, retryCount), 5000); // Backoff exponencial, máximo 5s
+        console.log(`[saveDataWithIntegrityCheck] ${operationId}: Aguardando ${delayMs}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+
+    console.error(`[saveDataWithIntegrityCheck] ${operationId}: ❌ Falha após ${maxRetries} tentativas. Último erro:`, lastError);
+    return {
+      success: false,
+      error: lastError,
+      retryCount: retryCount
+    };
+  }, [currentActiveReportObjectFromHook, addProfitRecord, addInvestment, addWithdrawal]);
+
+  // NOVO: Função para validar dados convertidos antes do salvamento
+  const validateConvertedData = useCallback((
+    dataType: 'trade' | 'deposit' | 'withdrawal',
+    data: any
+  ): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    // Validações comuns
+    if (!data) {
+      errors.push('Dados ausentes');
+      return { isValid: false, errors };
+    }
+
+    if (!data.id || typeof data.id !== 'string') {
+      errors.push('ID inválido ou ausente');
+    }
+
+    if (!data.originalId || typeof data.originalId !== 'string') {
+      errors.push('ID original inválido ou ausente');
+    }
+
+    if (!data.date || typeof data.date !== 'string') {
+      errors.push('Data inválida ou ausente');
+    } else {
+      // Validar formato da data
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(data.date)) {
+        errors.push('Formato de data inválido (esperado: YYYY-MM-DD)');
+      }
+    }
+
+    if (typeof data.amount !== 'number' || data.amount < 0 || !isFinite(data.amount)) {
+      errors.push('Valor inválido (deve ser número positivo finito)');
+    }
+
+    if (!data.unit || typeof data.unit !== 'string') {
+      errors.push('Unidade inválida ou ausente');
+    }
