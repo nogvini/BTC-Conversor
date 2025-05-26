@@ -776,16 +776,22 @@ export default function ProfitCalculator({
       
       console.log('[handleImportTrades] Iniciando busca paginada otimizada...');
       
-      // NOVO: Criar Set com IDs existentes para verificação rápida de duplicatas
-      const existingTradeIds = new Set(
-        currentActiveReportObjectFromHook.profits
-          ?.filter(profit => profit.originalId?.startsWith('trade_'))
-          .map(profit => profit.originalId) || []
-      );
+      // MELHORADO: Criar Set com IDs existentes para verificação rápida de duplicatas
+      // Garantimos que apenas originalIds válidos sejam incluídos no Set
+      const existingTradeIds = new Set();
+      
+      if (currentActiveReportObjectFromHook.profits && currentActiveReportObjectFromHook.profits.length > 0) {
+        currentActiveReportObjectFromHook.profits.forEach(profit => {
+          if (profit.originalId && typeof profit.originalId === 'string' && profit.originalId.startsWith('trade_')) {
+            existingTradeIds.add(profit.originalId);
+          }
+        });
+      }
       
       console.log('[handleImportTrades] IDs existentes carregados:', {
         existingCount: existingTradeIds.size,
-        sampleIds: Array.from(existingTradeIds).slice(0, 5)
+        sampleIds: Array.from(existingTradeIds).slice(0, 5),
+        totalProfits: currentActiveReportObjectFromHook.profits?.length || 0
       });
       
       while (hasMoreData && allTrades.length < maxTotalTrades && consecutiveEmptyPages < maxConsecutiveEmptyPages && consecutiveUnproductivePages < maxConsecutiveUnproductivePages && currentOffset < maxOffsetLimit) {
@@ -871,28 +877,53 @@ export default function ProfitCalculator({
           hasMoreData = false;
         }
         
-                 // NOVO: Validar e filtrar trades válidos antes de adicionar
-         const validTrades = pageData.filter((trade: any) => {
-           // Verificação rápida de duplicata usando Set
+                 // MELHORADO: Validar e filtrar trades válidos antes de adicionar
+         const validTrades = [];
+         
+         // Processar cada trade individualmente para melhor diagnóstico
+         for (const trade of pageData) {
+           // Garantir que o trade tem ID
+           if (!trade.id && !trade.uid) {
+             console.warn('[handleImportTrades] Trade sem ID ignorado');
+             continue;
+           }
+           
+           // Criar ID consistente
            const tradeId = `trade_${trade.uid || trade.id}`;
+           
+           // Log detalhado para análise
+           console.log(`[handleImportTrades] Analisando trade:`, {
+             id: tradeId,
+             pl: trade.pl,
+             pl_type: typeof trade.pl,
+             closed: trade.closed
+           });
+           
+           // Verificação de duplicata
            if (existingTradeIds.has(tradeId)) {
+             console.log(`[handleImportTrades] Trade duplicado: ${tradeId}`);
              totalDuplicatesFound++;
-             return false; // Não adicionar duplicatas à lista
+             continue;
            }
            
            // Validação completa do trade
            const validation = validateTradeForImport(trade);
            if (!validation.isValid) {
-             console.warn(`[handleImportTrades] Trade inválido ignorado: ${validation.reason}`, { 
-               id: trade.id || trade.uid, 
+             console.warn(`[handleImportTrades] Trade inválido: ${validation.reason}`, { 
+               id: tradeId, 
                closed: trade.closed, 
                pl: trade.pl 
              });
-             return false;
+             continue;
            }
            
-           return true;
-         });
+           // Trade válido
+           console.log(`[handleImportTrades] Trade válido adicionado: ${tradeId}`);
+           validTrades.push(trade);
+           
+           // Adicionar ao Set para evitar duplicatas na mesma importação
+           existingTradeIds.add(tradeId);
+         }
         
         console.log(`[handleImportTrades] Lote offset=${currentOffset}: ${pageData.length} trades brutos, ${validTrades.length} válidos, ${pageData.length - validTrades.length} filtrados`);
         
@@ -967,14 +998,49 @@ export default function ProfitCalculator({
                       !hasMoreData ? 'apiEndOfData' : 'unknown'
       });
 
-             // Como já validamos os trades durante a busca, todos são válidos para processamento
-       const tradesToProcess = allTrades;
-       const totalTrades = tradesToProcess.length;
+             // MELHORADO: Validar novamente os trades antes do processamento
+      // Isto ajuda a identificar por que os trades não estão sendo processados
+      const tradesToProcess = allTrades.filter(trade => {
+        // Um trade é válido para processamento se:
+        const hasId = trade.uid || trade.id;
+        const isClosed = trade.closed === true || trade.closed === 'true' || 
+                         trade.closed === 1 || trade.status === 'closed';
+        const hasPL = trade.pl !== undefined && trade.pl !== null;
+        const hasSideAndQuantity = trade.side && trade.quantity;
+        
+        // Validação mais permissiva
+        const isValid = hasId && (isClosed || hasPL || hasSideAndQuantity);
+        
+        // Log para debug
+        if (!isValid) {
+          console.log('[handleImportTrades] Trade inválido para processamento:', {
+            id: trade.id || trade.uid,
+            hasId,
+            isClosed,
+            hasPL,
+            hasSideAndQuantity,
+            pl: trade.pl,
+            pl_type: typeof trade.pl,
+            closed: trade.closed,
+            status: trade.status
+          });
+        }
+        
+        return isValid;
+      });
+      
+      const totalTrades = tradesToProcess.length;
       
       console.log('[handleImportTrades] Trades para processamento:', {
         totalFound: allTrades.length,
         validForProcessing: totalTrades,
-        filtered: allTrades.length - totalTrades
+        filtered: allTrades.length - totalTrades,
+        detalhes: {
+          semId: allTrades.filter(t => !(t.uid || t.id)).length,
+          naoFechados: allTrades.filter(t => !(t.closed || t.status === 'closed')).length,
+          semPL: allTrades.filter(t => t.pl === undefined || t.pl === null).length,
+          semSideQuantity: allTrades.filter(t => !(t.side && t.quantity)).length
+        }
       });
       
       let imported = 0;
@@ -1881,15 +1947,15 @@ export default function ProfitCalculator({
 
 
 
-  // APRIMORADA: Função para validar trade antes do processamento
+  // MELHORADO: Função para validar trade antes do processamento com lógica mais permissiva
   const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
     console.log('[validateTradeForImport] Validando trade:', {
-      id: trade.id,
-      uid: trade.uid,
+      id: trade.id || trade.uid,
       closed: trade.closed,
       pl: trade.pl,
       pl_type: typeof trade.pl,
-      pl_value_abs: typeof trade.pl === 'number' ? Math.abs(trade.pl) : 'não numérico'
+      side: trade.side,
+      quantity: trade.quantity
     });
     
     // Verificar se o objeto trade existe
@@ -1902,19 +1968,38 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'Trade sem ID válido' };
     }
     
-    // Verificar se está fechado
-    if (!trade.closed) {
+    // Verificar se está fechado - mais tolerante com diferentes formatos
+    const isClosed = trade.closed === true || trade.closed === 'true' || trade.closed === 1 || trade.status === 'closed';
+    if (!isClosed) {
       return { isValid: false, reason: 'Trade não fechado' };
     }
     
-    // Tratar o PL independente do formato
+    // Tratar o PL independente do formato - LÓGICA MUITO MAIS PERMISSIVA
     let plValue: number;
     
+    // CASO 1: PL é undefined ou null - considerar como zero
+    if (trade.pl === undefined || trade.pl === null) {
+      // Se não temos PL mas temos quantidade e preço, podemos tentar calcular
+      if (trade.quantity && (trade.price_index || trade.price)) {
+        console.log('[validateTradeForImport] Tentando calcular PL a partir de quantidade e preço');
+        return { isValid: true }; // Deixar o conversor lidar com isso
+      }
+      
+      // Se trade tem side e quantity, podemos tentar processar mesmo sem PL
+      if (trade.side && trade.quantity) {
+        console.log('[validateTradeForImport] Trade sem PL, mas com side e quantity - permitindo processar');
+        return { isValid: true }; // Permitir processamento
+      }
+      
+      return { isValid: false, reason: 'PL ausente e sem dados para cálculo' };
+    }
+    
+    // CASO 2: PL é um número
     if (typeof trade.pl === 'number') {
-      // Caso 1: PL é um número
       plValue = Math.abs(trade.pl);
-    } else if (typeof trade.pl === 'string') {
-      // Caso 2: PL é uma string - tentar converter
+    } 
+    // CASO 3: PL é uma string
+    else if (typeof trade.pl === 'string') {
       try {
         // Remover possíveis caracteres não numéricos (como símbolos de moeda)
         const cleanedString = trade.pl.replace(/[^0-9.-]+/g, '');
@@ -1922,18 +2007,28 @@ export default function ProfitCalculator({
         console.log('[validateTradeForImport] PL convertido de string:', trade.pl, '->', plValue);
         
         if (isNaN(plValue)) {
+          // Se ainda é inválido após limpeza, tentar outros campos
+          if (trade.side && trade.quantity) {
+            console.log('[validateTradeForImport] PL string inválido, mas com side e quantity - permitindo processar');
+            return { isValid: true }; // Permitir processamento com campos alternativos
+          }
           return { isValid: false, reason: `PL em formato string inválido: ${trade.pl}` };
         }
       } catch (e) {
         return { isValid: false, reason: `Erro ao converter PL de string: ${trade.pl}` };
       }
-    } else {
-      // Caso 3: PL em formato desconhecido
+    } 
+    // CASO 4: PL em outro formato - tentar campos alternativos
+    else {
+      if (trade.side && trade.quantity) {
+        console.log('[validateTradeForImport] PL em formato desconhecido, mas com side e quantity - permitindo processar');
+        return { isValid: true }; // Permitir processamento com campos alternativos
+      }
       return { isValid: false, reason: `PL em formato não suportado: ${typeof trade.pl}` };
     }
     
     // CORRIGIDO: Verificar valores muito pequenos (possível erro de unidade)
-    // Em alguns casos, valores como 0.00001234 podem ser BTC em vez de satoshis
+    // LÓGICA MAIS PERMISSIVA - qualquer valor não-zero é considerado válido
     if (plValue > 0 && plValue < 1) {
       console.log('[validateTradeForImport] PL parece estar em BTC em vez de satoshis:', plValue);
       // Converter para satoshis para comparação
@@ -1941,50 +2036,58 @@ export default function ProfitCalculator({
       console.log('[validateTradeForImport] PL convertido para satoshis:', plValue);
     }
     
-    // Verificar se o valor é muito pequeno mesmo após possível conversão
-    // (valores muito pequenos em satoshis provavelmente são erros)
-    if (plValue > 0 && plValue < 10) {
-      console.log('[validateTradeForImport] PL muito pequeno mesmo após conversão, possível erro:', plValue);
+    // Mesmo valores muito pequenos são permitidos agora, desde que não sejam zero
+    if (plValue === 0) {
+      // Para PL zero, verificar se temos outros campos que possam ajudar
+      if (trade.side && trade.quantity) {
+        console.log('[validateTradeForImport] PL zero, mas com side e quantity - permitindo processar');
+        return { isValid: true }; // Permitir processamento com campos alternativos
+      }
+      return { isValid: false, reason: 'PL zero sem dados alternativos' };
+    }
+    
+    // LÓGICA MAIS FLEXÍVEL PARA DATAS
+    // Verificar se tem pelo menos um campo de data
+    const hasAnyDate = trade.closed_ts || trade.creation_ts || trade.market_filled_ts || 
+                       trade.last_update_ts || trade.created_at || trade.updated_at || 
+                       trade.ts || trade.timestamp;
+    
+    if (!hasAnyDate) {
+      console.log('[validateTradeForImport] Trade sem campos de data - usando data atual como fallback');
+      // Mesmo sem data, permitimos processar (conversor usará data atual)
+    }
+    
+    // ATUALIZADO: Verificar se o valor do PL está dentro de limites mais permissivos
+    // Aumentar o limite superior para 50 milhões de satoshis (0.5 BTC)
+    if (plValue > 50000000) {
+      console.log('[validateTradeForImport] PL muito alto, verificando proporcionalmente:', plValue);
       
-      // Antes de rejeitar, fazer uma última tentativa com valores extremamente pequenos
-      if (plValue < 0.001) {
-        // Para valores extremamente pequenos, tentar multiplicar por 10^8 duas vezes
-        // (caso seja um valor em BTC que foi acidentalmente dividido por 100000000)
-        plValue = plValue * 100000000;
-        console.log('[validateTradeForImport] Tentativa extra de conversão para PL extremamente pequeno:', plValue);
+      // Se temos quantidade, verificar se o PL é proporcional
+      if (trade.quantity && typeof trade.quantity === 'number' && trade.quantity > 0) {
+        const plPerUnit = plValue / trade.quantity;
         
-        if (plValue < 10) {
-          return { isValid: false, reason: `PL muito pequeno (${plValue} sats) mesmo após conversões, possível erro` };
+        // Se o PL por unidade parece razoável, permitir
+        if (plPerUnit < 1000000) {
+          console.log('[validateTradeForImport] PL alto mas proporcional à quantidade, permitindo');
+          // Permitir processar
+        } else {
+          return { isValid: false, reason: `PL por unidade muito alto (${plPerUnit} sats/unidade), possível dado corrompido` };
         }
       } else {
-        return { isValid: false, reason: `PL muito pequeno (${plValue} sats), possível erro` };
+        // Se o valor é extremamente alto, pode ser um erro
+        if (plValue > 100000000) { // mais de 1 BTC
+          return { isValid: false, reason: `PL extremamente alto (${plValue} sats), possível dado corrompido` };
+        }
+        // Caso contrário, permitir processar
       }
-    }
-    
-    // Para trades fechados, priorizar closed_ts
-    if (trade.closed && !trade.closed_ts) {
-      // Se não tem closed_ts, verificar se tem pelo menos um campo de data válido
-      if (!trade.creation_ts && !trade.market_filled_ts && !trade.last_update_ts) {
-        return { isValid: false, reason: 'Trade fechado sem closed_ts e sem campos de data alternativos' };
-      }
-    }
-    
-    // Verificar se tem pelo menos um campo de data válido (campos corretos da API LN Markets)
-    if (!trade.closed_ts && !trade.creation_ts && !trade.market_filled_ts && !trade.last_update_ts) {
-      return { isValid: false, reason: 'Nenhum campo de data válido (closed_ts, creation_ts, market_filled_ts, last_update_ts)' };
-    }
-    
-    // ATUALIZADO: Verificar se o valor do PL está dentro de limites razoáveis (evitar dados corrompidos)
-    // Limite superior mais conservador - 5 milhões de satoshis (0.05 BTC)
-    if (plValue > 5000000) {
-      console.log('[validateTradeForImport] PL muito alto, possível dado corrompido:', plValue);
-      return { isValid: false, reason: `PL muito alto (${plValue} sats), possível dado corrompido` };
     }
     
     console.log('[validateTradeForImport] Trade válido:', {
       id: trade.id || trade.uid,
       pl_original: trade.pl,
-      pl_validated: plValue
+      pl_validated: plValue,
+      side: trade.side,
+      quantity: trade.quantity
     });
     
     return { isValid: true };
