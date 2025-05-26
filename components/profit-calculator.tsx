@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { generateExcelReport, ExcelExportOptions } from "@/lib/excel-export";
 import ExportOptionsDialog, { PDFExportOptions } from "@/components/export-options-dialog";
 import { 
+  AlertCircle,
   TrendingUp, 
   Download, 
   Upload, 
@@ -35,6 +36,7 @@ import {
   User,
   FileDown,
   Loader2,
+  RefreshCw,
   File
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -2710,13 +2712,27 @@ export default function ProfitCalculator({
     try {
       setIsExporting(true);
       
+      // Garantir que o relatório tenha todas as propriedades necessárias
+      const baseReport = {
+        id: currentActiveReportObjectFromHook.id || `report-${Date.now()}`,
+        name: currentActiveReportObjectFromHook.name || "Relatório",
+        description: currentActiveReportObjectFromHook.description || "",
+        createdAt: currentActiveReportObjectFromHook.createdAt || new Date().toISOString(),
+        updatedAt: currentActiveReportObjectFromHook.updatedAt || new Date().toISOString(),
+        isActive: currentActiveReportObjectFromHook.isActive || false,
+        investments: [],
+        profits: [],
+        withdrawals: []
+      };
+      
       // Preparar dados do relatório
       const reportData = {
         report: {
+          ...baseReport,
           ...currentActiveReportObjectFromHook,
-          investments: options.includeInvestments ? currentActiveReportObjectFromHook.investments : [],
-          profits: options.includeProfits ? currentActiveReportObjectFromHook.profits : [],
-          withdrawals: options.includeWithdrawals ? currentActiveReportObjectFromHook.withdrawals || [] : []
+          investments: options.includeInvestments ? (currentActiveReportObjectFromHook.investments || []) : [],
+          profits: options.includeProfits ? (currentActiveReportObjectFromHook.profits || []) : [],
+          withdrawals: options.includeWithdrawals ? (currentActiveReportObjectFromHook.withdrawals || []) : []
         },
         displayCurrency: options.currency,
         reportPeriodDescription: options.dateRange 
@@ -3350,12 +3366,35 @@ export default function ProfitCalculator({
                     </CardContent>
                   </Card>
                 </div>
+                
+                <div className="mt-6">
+                  <Alert variant="default" className="bg-yellow-900/20 border border-yellow-700/40">
+                    <AlertCircle className="h-5 w-5 text-yellow-400" />
+                    <AlertDescription>
+                      <p className="text-yellow-200 text-sm font-medium">Dica para importações com muitos registros</p>
+                      <p className="text-yellow-100/80 text-xs mt-1">
+                        Às vezes é necessário clicar de 2 a 3 vezes no botão de importação para que todas as operações sejam salvas, 
+                        especialmente quando há muitos registros. Aguarde a conclusão de cada operação antes de clicar novamente.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                </div>
               </div>
             </TabsContent>
 
             {/* ABA HISTÓRICO */}
             <TabsContent value="history">
               <div className="space-y-6">
+                <Alert variant="default" className="bg-blue-900/20 border border-blue-700/40">
+                  <RefreshCw className="h-5 w-5 text-blue-400" />
+                  <AlertDescription>
+                    <p className="text-blue-200 text-sm font-medium">Dica para visualização do histórico</p>
+                    <p className="text-blue-100/80 text-xs mt-1">
+                      Se os resultados não parecerem corretos ou estiverem desatualizados, atualize a página para garantir que todos os dados sejam carregados corretamente.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+                
                 {/* Controles de Filtro */}
                 <Card className="bg-black/30 border border-purple-700/40">
                   <CardHeader>
@@ -4064,7 +4103,7 @@ export default function ProfitCalculator({
                                 color: '#F3F4F6',
                                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                               }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
                               formatter={(value: number, name: string) => [
                                 formatChartValue(value),
                                 name === 'investments' ? 'Investimentos' :
@@ -4141,20 +4180,22 @@ export default function ProfitCalculator({
                             <Tooltip 
                               contentStyle={{
                                 backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
+                                border: '1px solid #7C3AED',
                                 borderRadius: '8px',
                                 color: '#F3F4F6',
                                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                               }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
                                 const formattedName = 
                                 name === 'investments' ? 'Investimentos' :
                                   name === 'profits' ? 'Lucros/Perdas' : 
                                   name === 'balance' ? 'Saldo Total' : name;
-                                return [formattedValue, formattedName];
+                                const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
+                                return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
                               }}
-                              labelFormatter={(label) => `Período: ${label}`}
+                              labelFormatter={(label: string) => `Período: ${label}`}
                             />
                             <Legend 
                               wrapperStyle={{ paddingTop: '20px' }}
@@ -4213,21 +4254,22 @@ export default function ProfitCalculator({
                             <Tooltip 
                               contentStyle={{
                                 backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
+                                border: '1px solid #7C3AED',
                                 borderRadius: '8px',
                                 color: '#F3F4F6',
                                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                               }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
                                 const formattedName = 
                                 name === 'investments' ? 'Investimentos' :
                                   name === 'profits' ? 'Lucros/Perdas' : 
                                   name === 'balance' ? 'Saldo Total' : name;
-                                return [formattedValue, formattedName];
+                                const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
+                                return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
                               }}
-                              labelFormatter={(label) => `Período: ${label}`}
+                              labelFormatter={(label: string) => `Período: ${label}`}
                             />
                             <Legend 
                               wrapperStyle={{ paddingTop: '20px' }}
@@ -4328,15 +4370,21 @@ export default function ProfitCalculator({
                             </Pie>
                             <Tooltip 
                               contentStyle={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                                border: '1px solid rgba(124, 58, 237, 0.5)',
-                                borderRadius: '0.375rem',
+                                backgroundColor: 'rgba(31, 41, 55, 0.85)',
+                                border: '1px solid rgba(124, 58, 237, 0.6)',
+                                borderRadius: '0.5rem',
                                 color: '#F3F4F6',
-                                fontSize: '12px',
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                                fontSize: '13px',
+                                boxShadow: '0 8px 16px -2px rgba(0, 0, 0, 0.2)',
+                                padding: '10px'
                               }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
-                              formatter={(value: number) => formatChartValue(value)}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                              formatter={(value: number, name: string) => {
+                                const formattedValue = formatChartValue(value);
+                                // Colorize based on name - yellow for investments, green for profits
+                                const textColor = name === 'Investimentos' ? '#F59E0B' : '#10B981';
+                                return [<span style={{ color: textColor }}>{formattedValue}</span>, name];
+                              }}
                             />
                           </PieChart>
                         </ResponsiveContainer>
@@ -4500,4 +4548,11 @@ export default function ProfitCalculator({
     </div>
   );
 }
+
+
+
+
+
+
+
 

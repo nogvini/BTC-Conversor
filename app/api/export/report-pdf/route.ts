@@ -39,6 +39,33 @@ export async function POST(request: NextRequest) {
     if (!report || !report.name) {
         return NextResponse.json({ error: 'Report data or report name is missing' }, { status: 400 });
     }
+    
+    // Garantir que o relatório tenha as propriedades obrigatórias
+    if (!report.investments) {
+      console.warn('Missing investments array in report, using empty array');
+      report.investments = [];
+    }
+    
+    if (!report.profits) {
+      console.warn('Missing profits array in report, using empty array');
+      report.profits = [];
+    }
+    
+    if (!report.withdrawals) {
+      console.warn('Missing withdrawals array in report, using empty array');
+      report.withdrawals = [];
+    }
+    
+    // Log de debug para identificar problemas com a estrutura do relatório
+    console.log('Report structure:', {
+      hasName: !!report.name,
+      hasInvestments: Array.isArray(report.investments),
+      investmentsLength: Array.isArray(report.investments) ? report.investments.length : 'N/A',
+      hasProfits: Array.isArray(report.profits),
+      profitsLength: Array.isArray(report.profits) ? report.profits.length : 'N/A',
+      hasWithdrawals: Array.isArray(report.withdrawals),
+      withdrawalsLength: Array.isArray(report.withdrawals) ? report.withdrawals.length : 'N/A'
+    });
 
     // Etapa 1: Preparar dados base (enriquecer operações, buscar cotações)
     // A função prepareReportFoundationData já foi fornecida e deve ser mantida.

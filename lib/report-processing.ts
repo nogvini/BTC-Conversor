@@ -54,8 +54,23 @@ export async function prepareReportFoundationData(
 
   // 1. Coletar todas as datas de transações para determinar o intervalo
   const transactionDates: string[] = [];
-  report.investments.forEach(inv => transactionDates.push(inv.date.split('T')[0]));
-  report.profits.forEach(prof => transactionDates.push(prof.date.split('T')[0]));
+  
+  // Garantir que investments e profits existem e são arrays
+  const investments = Array.isArray(report.investments) ? report.investments : [];
+  const profits = Array.isArray(report.profits) ? report.profits : [];
+  
+  // Garantir que date existe e é uma string válida antes de fazer split
+  investments.forEach(inv => {
+    if (inv && typeof inv.date === 'string') {
+      transactionDates.push(inv.date.split('T')[0]);
+    }
+  });
+  
+  profits.forEach(prof => {
+    if (prof && typeof prof.date === 'string') {
+      transactionDates.push(prof.date.split('T')[0]);
+    }
+  });
 
   if (transactionDates.length > 0) {
     transactionDates.sort(); // Ordena para facilmente pegar min e max
@@ -84,53 +99,67 @@ export async function prepareReportFoundationData(
   }
 
   // 3. Transformar Investments em OperationData
-  report.investments.forEach(inv => {
-    const dateOnly = inv.date.split('T')[0];
-    const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
-    const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
-    const quantityBTC = convertToBTC(inv.amount, inv.unit);
+  if (Array.isArray(investments)) {
+    investments.forEach(inv => {
+      if (!inv || typeof inv.date !== 'string' || typeof inv.amount !== 'number') {
+        console.warn('Skipping invalid investment:', inv);
+        return;
+      }
+      
+      const dateOnly = inv.date.split('T')[0];
+      const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
+      const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
+      const quantityBTC = convertToBTC(inv.amount, inv.unit || 'BTC');
 
-    enrichedOperations.push({
-      id: inv.id,
-      originalId: inv.originalId,
-      date: inv.date, // Manter o timestamp completo original
-      type: 'buy',
-      asset: 'BTC',
-      quantity: quantityBTC,
-      // Se a cotação não estiver disponível, pricePerUnit e totalAmount podem ser 0 ou undefined.
-      // A interface OperationData precisará permitir isso ou teremos que tratar.
-      pricePerUnitUSD: btcPriceUSD, // Este é o preço do BTC, não o preço por unidade da compra
-      totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
-      pricePerUnitBRL: btcPriceBRL,
-      totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
-      // currency: 'BRL', // A moeda da transação original. Atualmente não temos essa info.
-                         // Para a exportação, podemos definir uma moeda principal para exibição.
+      enrichedOperations.push({
+        id: inv.id || `inv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        originalId: inv.originalId,
+        date: inv.date, // Manter o timestamp completo original
+        type: 'buy',
+        asset: 'BTC',
+        quantity: quantityBTC,
+        // Se a cotação não estiver disponível, pricePerUnit e totalAmount podem ser 0 ou undefined.
+        // A interface OperationData precisará permitir isso ou teremos que tratar.
+        pricePerUnitUSD: btcPriceUSD, // Este é o preço do BTC, não o preço por unidade da compra
+        totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
+        pricePerUnitBRL: btcPriceBRL,
+        totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
+        // currency: 'BRL', // A moeda da transação original. Atualmente não temos essa info.
+                          // Para a exportação, podemos definir uma moeda principal para exibição.
+      });
     });
-  });
+  }
 
   // 4. Transformar ProfitRecords em OperationData
-  report.profits.forEach(prof => {
-    const dateOnly = prof.date.split('T')[0];
-    const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
-    const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
-    const quantityBTC = convertToBTC(prof.amount, prof.unit);
+  if (Array.isArray(profits)) {
+    profits.forEach(prof => {
+      if (!prof || typeof prof.date !== 'string' || typeof prof.amount !== 'number') {
+        console.warn('Skipping invalid profit record:', prof);
+        return;
+      }
+      
+      const dateOnly = prof.date.split('T')[0];
+      const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
+      const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
+      const quantityBTC = convertToBTC(prof.amount, prof.unit || 'BTC');
 
-    // Nota: isProfit indica se foi lucro em BTC. Para "venda", o valor em fiat é sempre positivo.
-    enrichedOperations.push({
-      id: prof.id,
-      originalId: prof.originalId,
-      date: prof.date,
-      type: 'sell',
-      asset: 'BTC',
-      quantity: quantityBTC,
-      pricePerUnitUSD: btcPriceUSD,
-      totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
-      pricePerUnitBRL: btcPriceBRL,
-      totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
-      // currency: 'BRL',
-      isProfitContext: prof.isProfit, // Adicionar contexto se foi lucro ou prejuízo em BTC
+      // Nota: isProfit indica se foi lucro em BTC. Para "venda", o valor em fiat é sempre positivo.
+      enrichedOperations.push({
+        id: prof.id || `prof-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        originalId: prof.originalId,
+        date: prof.date,
+        type: 'sell',
+        asset: 'BTC',
+        quantity: quantityBTC,
+        pricePerUnitUSD: btcPriceUSD,
+        totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
+        pricePerUnitBRL: btcPriceBRL,
+        totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
+        // currency: 'BRL',
+        isProfitContext: prof.isProfit, // Adicionar contexto se foi lucro ou prejuízo em BTC
+      });
     });
-  });
+  }
   
   // Ordenar operações por data (importante para cálculos sequenciais de saldo)
   enrichedOperations.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
