@@ -998,35 +998,42 @@ export default function ProfitCalculator({
                       !hasMoreData ? 'apiEndOfData' : 'unknown'
       });
 
-             // MELHORADO: Validar novamente os trades antes do processamento
-      // Isto ajuda a identificar por que os trades não estão sendo processados
+             // MÁXIMA PERMISSIVIDADE: Aceitar praticamente qualquer trade
+      // Baseado no critério do usuário: "closed:true e pl diferente de 0 deve ser válido"
       const tradesToProcess = allTrades.filter(trade => {
-        // Um trade é válido para processamento se:
-        const hasId = trade.uid || trade.id;
-        const isClosed = trade.closed === true || trade.closed === 'true' || 
-                         trade.closed === 1 || trade.status === 'closed';
-        const hasPL = trade.pl !== undefined && trade.pl !== null;
-        const hasSideAndQuantity = trade.side && trade.quantity;
-        
-        // Validação mais permissiva
-        const isValid = hasId && (isClosed || hasPL || hasSideAndQuantity);
-        
-        // Log para debug
-        if (!isValid) {
-          console.log('[handleImportTrades] Trade inválido para processamento:', {
-            id: trade.id || trade.uid,
-            hasId,
-            isClosed,
-            hasPL,
-            hasSideAndQuantity,
-            pl: trade.pl,
-            pl_type: typeof trade.pl,
-            closed: trade.closed,
-            status: trade.status
-          });
+        // MÍNIMO: Precisa ter ID
+        if (!trade.id && !trade.uid) {
+          console.log('[handleImportTrades] Trade sem ID rejeitado');
+          return false;
         }
         
-        return isValid;
+        // CRITÉRIO PRINCIPAL DO USUÁRIO: closed=true e pl≠0
+        const isClosed = trade.closed === true || trade.closed === 'true' || 
+                        trade.closed === 1 || trade.status === 'closed' ||
+                        trade.status === 'done' || trade.state === 'closed';
+        
+        const plValue = Number(trade.pl);
+        const hasNonZeroPL = !isNaN(plValue) && plValue !== 0;
+        
+        // Log detalhado de cada trade
+        console.log('[handleImportTrades] Avaliando trade:', {
+          id: trade.id || trade.uid,
+          closed: trade.closed,
+          status: trade.status,
+          isClosed,
+          pl: trade.pl,
+          plValue,
+          hasNonZeroPL,
+          side: trade.side,
+          quantity: trade.quantity,
+          hasSideQuantity: !!(trade.side && trade.quantity)
+        });
+        
+        // Qualquer trade com ID e alguma dessas condições é aceito
+        return (isClosed && hasNonZeroPL) ||  // Critério principal: closed=true e pl≠0
+               isClosed ||                    // Aceitar qualquer trade fechado
+               hasNonZeroPL ||               // Aceitar qualquer trade com pl≠0
+               (trade.side && trade.quantity); // Aceitar qualquer trade com side e quantity
       });
       
       const totalTrades = tradesToProcess.length;
@@ -1947,150 +1954,65 @@ export default function ProfitCalculator({
 
 
 
-  // MELHORADO: Função para validar trade antes do processamento com lógica mais permissiva
+  // ULTRA SIMPLIFICADO: Função para validar trades com critérios mínimos
   const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
+    // Log básico do trade
     console.log('[validateTradeForImport] Validando trade:', {
       id: trade.id || trade.uid,
       closed: trade.closed,
-      pl: trade.pl,
-      pl_type: typeof trade.pl,
-      side: trade.side,
-      quantity: trade.quantity
+      pl: trade.pl
     });
     
-    // Verificar se o objeto trade existe
+    // CRITÉRIO 1: Deve ser um objeto
     if (!trade || typeof trade !== 'object') {
       return { isValid: false, reason: 'Objeto trade inválido' };
     }
     
-    // Verificar se tem ID válido
+    // CRITÉRIO 2: Deve ter ID
     if (!trade.id && !trade.uid) {
       return { isValid: false, reason: 'Trade sem ID válido' };
     }
     
-    // Verificar se está fechado - mais tolerante com diferentes formatos
-    const isClosed = trade.closed === true || trade.closed === 'true' || trade.closed === 1 || trade.status === 'closed';
-    if (!isClosed) {
-      return { isValid: false, reason: 'Trade não fechado' };
-    }
+    // Critério do usuário: "closed:true e pl diferente de 0 deve ser válido"
+    // Para compatibilidade, vamos aceitar diversos formatos de "closed"
+    const isClosed = trade.closed === true || trade.closed === 'true' || 
+                     trade.closed === 1 || trade.status === 'closed' || 
+                     trade.status === 'done' || trade.state === 'closed';
     
-    // Tratar o PL independente do formato - LÓGICA MUITO MAIS PERMISSIVA
-    let plValue: number;
-    
-    // CASO 1: PL é undefined ou null - considerar como zero
+    // Se não tiver PL, ainda podemos processar se tiver closed
     if (trade.pl === undefined || trade.pl === null) {
-      // Se não temos PL mas temos quantidade e preço, podemos tentar calcular
-      if (trade.quantity && (trade.price_index || trade.price)) {
-        console.log('[validateTradeForImport] Tentando calcular PL a partir de quantidade e preço');
-        return { isValid: true }; // Deixar o conversor lidar com isso
+      if (isClosed) {
+        console.log('[validateTradeForImport] Trade válido (closed=true, sem PL)');
+        return { isValid: true };
       }
-      
-      // Se trade tem side e quantity, podemos tentar processar mesmo sem PL
       if (trade.side && trade.quantity) {
-        console.log('[validateTradeForImport] Trade sem PL, mas com side e quantity - permitindo processar');
-        return { isValid: true }; // Permitir processamento
+        console.log('[validateTradeForImport] Trade válido (tem side e quantity)');
+        return { isValid: true };
       }
-      
-      return { isValid: false, reason: 'PL ausente e sem dados para cálculo' };
+      return { isValid: false, reason: 'Trade sem PL e não fechado' };
     }
     
-    // CASO 2: PL é um número
-    if (typeof trade.pl === 'number') {
-      plValue = Math.abs(trade.pl);
-    } 
-    // CASO 3: PL é uma string
-    else if (typeof trade.pl === 'string') {
-      try {
-        // Remover possíveis caracteres não numéricos (como símbolos de moeda)
-        const cleanedString = trade.pl.replace(/[^0-9.-]+/g, '');
-        plValue = Math.abs(parseFloat(cleanedString));
-        console.log('[validateTradeForImport] PL convertido de string:', trade.pl, '->', plValue);
-        
-        if (isNaN(plValue)) {
-          // Se ainda é inválido após limpeza, tentar outros campos
-          if (trade.side && trade.quantity) {
-            console.log('[validateTradeForImport] PL string inválido, mas com side e quantity - permitindo processar');
-            return { isValid: true }; // Permitir processamento com campos alternativos
-          }
-          return { isValid: false, reason: `PL em formato string inválido: ${trade.pl}` };
-        }
-      } catch (e) {
-        return { isValid: false, reason: `Erro ao converter PL de string: ${trade.pl}` };
-      }
-    } 
-    // CASO 4: PL em outro formato - tentar campos alternativos
-    else {
-      if (trade.side && trade.quantity) {
-        console.log('[validateTradeForImport] PL em formato desconhecido, mas com side e quantity - permitindo processar');
-        return { isValid: true }; // Permitir processamento com campos alternativos
-      }
-      return { isValid: false, reason: `PL em formato não suportado: ${typeof trade.pl}` };
+    // Qualquer trade com PL não zero é válido (requisito do usuário)
+    const plValue = Number(trade.pl);
+    if (!isNaN(plValue) && plValue !== 0) {
+      console.log('[validateTradeForImport] Trade válido (pl não zero)');
+      return { isValid: true };
     }
     
-    // CORRIGIDO: Verificar valores muito pequenos (possível erro de unidade)
-    // LÓGICA MAIS PERMISSIVA - qualquer valor não-zero é considerado válido
-    if (plValue > 0 && plValue < 1) {
-      console.log('[validateTradeForImport] PL parece estar em BTC em vez de satoshis:', plValue);
-      // Converter para satoshis para comparação
-      plValue = plValue * 100000000;
-      console.log('[validateTradeForImport] PL convertido para satoshis:', plValue);
+    // Regra especial para trades com PL zero
+    if (plValue === 0 && isClosed) {
+      console.log('[validateTradeForImport] Trade válido (closed=true, pl=0)');
+      return { isValid: true };
     }
     
-    // Mesmo valores muito pequenos são permitidos agora, desde que não sejam zero
-    if (plValue === 0) {
-      // Para PL zero, verificar se temos outros campos que possam ajudar
-      if (trade.side && trade.quantity) {
-        console.log('[validateTradeForImport] PL zero, mas com side e quantity - permitindo processar');
-        return { isValid: true }; // Permitir processamento com campos alternativos
-      }
-      return { isValid: false, reason: 'PL zero sem dados alternativos' };
+    // Último critério: side e quantity
+    if (trade.side && trade.quantity) {
+      console.log('[validateTradeForImport] Trade válido (tem side e quantity)');
+      return { isValid: true };
     }
     
-    // LÓGICA MAIS FLEXÍVEL PARA DATAS
-    // Verificar se tem pelo menos um campo de data
-    const hasAnyDate = trade.closed_ts || trade.creation_ts || trade.market_filled_ts || 
-                       trade.last_update_ts || trade.created_at || trade.updated_at || 
-                       trade.ts || trade.timestamp;
-    
-    if (!hasAnyDate) {
-      console.log('[validateTradeForImport] Trade sem campos de data - usando data atual como fallback');
-      // Mesmo sem data, permitimos processar (conversor usará data atual)
-    }
-    
-    // ATUALIZADO: Verificar se o valor do PL está dentro de limites mais permissivos
-    // Aumentar o limite superior para 50 milhões de satoshis (0.5 BTC)
-    if (plValue > 50000000) {
-      console.log('[validateTradeForImport] PL muito alto, verificando proporcionalmente:', plValue);
-      
-      // Se temos quantidade, verificar se o PL é proporcional
-      if (trade.quantity && typeof trade.quantity === 'number' && trade.quantity > 0) {
-        const plPerUnit = plValue / trade.quantity;
-        
-        // Se o PL por unidade parece razoável, permitir
-        if (plPerUnit < 1000000) {
-          console.log('[validateTradeForImport] PL alto mas proporcional à quantidade, permitindo');
-          // Permitir processar
-        } else {
-          return { isValid: false, reason: `PL por unidade muito alto (${plPerUnit} sats/unidade), possível dado corrompido` };
-        }
-      } else {
-        // Se o valor é extremamente alto, pode ser um erro
-        if (plValue > 100000000) { // mais de 1 BTC
-          return { isValid: false, reason: `PL extremamente alto (${plValue} sats), possível dado corrompido` };
-        }
-        // Caso contrário, permitir processar
-      }
-    }
-    
-    console.log('[validateTradeForImport] Trade válido:', {
-      id: trade.id || trade.uid,
-      pl_original: trade.pl,
-      pl_validated: plValue,
-      side: trade.side,
-      quantity: trade.quantity
-    });
-    
-    return { isValid: true };
+    // Se chegou aqui, não atende a nenhum critério
+    return { isValid: false, reason: 'Trade não atende aos critérios mínimos' };
   };
 
   // Funções stub vazias para as funções removidas que são referenciadas na interface
