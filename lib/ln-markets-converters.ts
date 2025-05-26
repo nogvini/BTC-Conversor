@@ -186,16 +186,18 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     throw new Error('Trade deve ter uid ou id válido');
   }
 
-  // Calcular lucro líquido: PL - fees (opening_fee + closing_fee)
+  // Calcular lucro líquido: PL - fees (opening_fee + closing_fee + sum_carry_fees)
   const openingFee = trade.opening_fee || 0;
   const closingFee = trade.closing_fee || 0;
-  const totalFees = openingFee + closingFee;
+  const carryFees = trade.sum_carry_fees || 0;
+  const totalFees = openingFee + closingFee + carryFees;
   const netProfit = trade.pl - totalFees;
 
   console.log('[convertTradeToProfit] Cálculo de lucro:', {
     pl: trade.pl,
     opening_fee: openingFee,
     closing_fee: closingFee,
+    sum_carry_fees: carryFees,
     total_fees: totalFees,
     net_profit: netProfit
   });
@@ -225,6 +227,7 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       grossPL: trade.pl,
       openingFee: openingFee,
       closingFee: closingFee,
+      carryFees: carryFees,
       totalFees: totalFees,
       netProfit: netProfit,
       allTimestamps: {
