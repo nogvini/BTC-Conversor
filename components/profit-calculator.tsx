@@ -24,7 +24,10 @@ import {
   TrendingDown,
   Minus,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Loader2,
+  Search,
+  Trash2
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +70,9 @@ import {
   isFutureDate,
   calculateOperationalProfitForSummary,
   calculateValuationProfitForSummary,
-  calculateAverageBuyPriceForSummary
+  calculateAverageBuyPriceForSummary,
+  formatDisplayDate,
+  formatCryptoAmount
 } from "./utils/profit-calculator-utils";
 
 // Imports para LN Markets
@@ -1256,17 +1261,17 @@ export default function ProfitCalculator({
         
         // Atualizar progresso após cada lote
         const percentage = (processed / confirmedDeposits.length) * 100;
-        setImportProgress(prev => ({
-          ...prev,
-          deposits: {
-            current: processed,
+          setImportProgress(prev => ({
+            ...prev,
+            deposits: {
+              current: processed,
             total: confirmedDeposits.length,
-            percentage,
-            status: 'loading',
+              percentage,
+              status: 'loading',
             message: `Processando com integridade... ${imported} importados, ${duplicated} duplicados, ${skippedCount} não confirmados`
-          }
-        }));
-        
+            }
+          }));
+          
         // Delay entre lotes para permitir verificações de integridade
         if (i + processingBatchSize < confirmedDeposits.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -1500,17 +1505,17 @@ export default function ProfitCalculator({
         
         // Atualizar progresso após cada lote
         const percentage = (processed / totalWithdrawals) * 100;
-        setImportProgress(prev => ({
-          ...prev,
-          withdrawals: {
-            current: processed,
-            total: totalWithdrawals,
-            percentage,
-            status: 'loading',
+          setImportProgress(prev => ({
+            ...prev,
+            withdrawals: {
+              current: processed,
+              total: totalWithdrawals,
+              percentage,
+              status: 'loading',
             message: `Processando com integridade... ${imported} importados, ${duplicated} duplicados, ${errors} erros`
-          }
-        }));
-        
+            }
+          }));
+          
         // Delay entre lotes para permitir verificações de integridade
         if (i + processingBatchSize < response.data.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -2959,11 +2964,11 @@ export default function ProfitCalculator({
       if (success) {
         console.log('[handleDeleteInvestment] Investimento excluído com sucesso:', investmentId);
         
-        toast({
+                        toast({
           title: "✅ Investimento excluído",
           description: `Investimento de ${investmentAmount} SATS foi removido com sucesso`,
-          variant: "default",
-        });
+                          variant: "default",
+                      });
 
         // Forçar atualização da UI
         forceUpdate();
@@ -3004,11 +3009,11 @@ export default function ProfitCalculator({
       
       if (success) {
         console.log('[handleDeleteProfit] Lucro/perda excluído com sucesso:', profitId);
-        
-        toast({
+                      
+                      toast({
           title: `✅ ${isProfit ? 'Lucro' : 'Perda'} excluído`,
           description: `${isProfit ? 'Lucro' : 'Perda'} de ${profitAmount} SATS foi removido com sucesso`,
-          variant: "default",
+                        variant: "default",
         });
 
         // Forçar atualização da UI
@@ -3018,7 +3023,7 @@ export default function ProfitCalculator({
       }
     } catch (error) {
       console.error('[handleDeleteProfit] Erro ao excluir lucro/perda:', error);
-      toast({
+                    toast({
         title: "❌ Erro na exclusão",
         description: "Não foi possível excluir o registro. Tente novamente.",
         variant: "destructive",
@@ -3058,7 +3063,7 @@ export default function ProfitCalculator({
 
         // Forçar atualização da UI
         forceUpdate();
-      } else {
+                        } else {
         throw new Error('Falha na exclusão do saque');
       }
     } catch (error) {
@@ -3152,8 +3157,8 @@ export default function ProfitCalculator({
         forceUpdate();
       } else {
         throw new Error(`Falha na exclusão em lote de ${type}`);
-      }
-    } catch (error) {
+                    }
+                  } catch (error) {
       console.error(`[handleBulkDelete] Erro na exclusão em lote de ${type}:`, error);
       toast({
         title: "❌ Erro na exclusão em lote",
@@ -3749,3 +3754,448 @@ export default function ProfitCalculator({
     if (!data.unit || typeof data.unit !== 'string') {
       errors.push('Unidade inválida ou ausente');
     }
+
+    // Validações específicas por tipo
+    switch (dataType) {
+      case 'trade':
+        if (typeof data.isProfit !== 'boolean') {
+          errors.push('Campo isProfit deve ser boolean');
+        }
+        break;
+      
+      case 'deposit':
+        // Depósitos não têm validações específicas adicionais
+        break;
+      
+      case 'withdrawal':
+        if (data.fee !== undefined && (typeof data.fee !== 'number' || data.fee < 0 || !isFinite(data.fee))) {
+          errors.push('Taxa inválida (deve ser número não-negativo finito)');
+        }
+        if (data.type && !['lightning', 'onchain'].includes(data.type)) {
+          errors.push('Tipo de saque inválido (deve ser lightning ou onchain)');
+        }
+        break;
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }, []);
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
+      <Tabs defaultValue="import" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-black/30 border border-purple-700/40">
+          <TabsTrigger value="import" className="text-white data-[state=active]:bg-purple-600">
+            Importação
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-600">
+            Histórico
+          </TabsTrigger>
+          <TabsTrigger value="summary" className="text-white data-[state=active]:bg-purple-600">
+            Resumo
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="import" className="space-y-6">
+          {/* Seção de Configuração LN Markets */}
+          <Card className="bg-black/30 border border-purple-700/40">
+            <CardHeader>
+              <CardTitle className="text-white">Configuração LN Markets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Seleção de configuração */}
+                {multipleConfigs && multipleConfigs.configs.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-white">Configuração Ativa:</Label>
+                    <Select value={selectedConfigForImport || ''} onValueChange={setSelectedConfigForImport}>
+                      <SelectTrigger className="bg-black/50 border-purple-700/50 text-white">
+                        <SelectValue placeholder="Selecione uma configuração" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-black border-purple-700/50">
+                        {multipleConfigs.configs
+                          .filter(config => config.isActive)
+                          .map(config => (
+                            <SelectItem key={config.id} value={config.id} className="text-white hover:bg-purple-700/20">
+                              {config.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Botões de importação */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button
+                    onClick={handleImportTrades}
+                    disabled={isImportingTrades || !selectedConfigForImport}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {isImportingTrades ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importando Trades...
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp className="mr-2 h-4 w-4" />
+                        Importar Trades
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={handleImportDeposits}
+                    disabled={isImportingDeposits || !selectedConfigForImport}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isImportingDeposits ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importando Depósitos...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Importar Depósitos
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={handleImportWithdrawals}
+                    disabled={isImportingWithdrawals || !selectedConfigForImport}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    {isImportingWithdrawals ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importando Saques...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Importar Saques
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Progresso das importações */}
+                {(importProgress.trades.status === 'loading' || 
+                  importProgress.deposits.status === 'loading' || 
+                  importProgress.withdrawals.status === 'loading') && (
+                  <div className="space-y-3">
+                    <h4 className="text-white font-medium">Progresso das Importações:</h4>
+                    {importProgress.trades.status === 'loading' && (
+                      <ImportProgressIndicator progress={importProgress.trades} type="Trades" />
+                    )}
+                    {importProgress.deposits.status === 'loading' && (
+                      <ImportProgressIndicator progress={importProgress.deposits} type="Depósitos" />
+                    )}
+                    {importProgress.withdrawals.status === 'loading' && (
+                      <ImportProgressIndicator progress={importProgress.withdrawals} type="Saques" />
+                    )}
+                  </div>
+                )}
+
+                {/* Estatísticas de importação */}
+                {importStats && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    {importStats.trades && importStats.trades.total > 0 && (
+                      <HistoryStatsCard
+                        title="Trades Importados"
+                        value={`${importStats.trades.imported}/${importStats.trades.total}`}
+                        icon={<TrendingUp className="h-4 w-4" />}
+                        valueColor="text-green-400"
+                      />
+                    )}
+                    {importStats.deposits && importStats.deposits.total > 0 && (
+                      <HistoryStatsCard
+                        title="Depósitos Importados"
+                        value={`${importStats.deposits.imported}/${importStats.deposits.total}`}
+                        icon={<Download className="h-4 w-4" />}
+                        valueColor="text-blue-400"
+                      />
+                    )}
+                    {importStats.withdrawals && importStats.withdrawals.total > 0 && (
+                      <HistoryStatsCard
+                        title="Saques Importados"
+                        value={`${importStats.withdrawals.imported}/${importStats.withdrawals.total}`}
+                        icon={<Upload className="h-4 w-4" />}
+                        valueColor="text-orange-400"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Botão de diagnóstico */}
+                <div className="pt-4 border-t border-purple-700/30">
+                  <Button
+                    onClick={runDataIntegrityDiagnostic}
+                    variant="outline"
+                    className="border-purple-700/50 text-purple-300 hover:bg-purple-700/20"
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    Diagnóstico de Integridade
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          {/* Aba de Histórico */}
+          <Card className="bg-black/30 border border-purple-700/40">
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-white">Histórico de Transações</CardTitle>
+                <div className="flex items-center space-x-2">
+                  <Label className="text-white text-sm">Moeda:</Label>
+                  <Select 
+                    value={states.displayCurrency} 
+                    onValueChange={(value: DisplayCurrency) => states.setDisplayCurrency(value)}
+                  >
+                    <SelectTrigger className="w-24 bg-black/50 border-purple-700/50 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-purple-700/50">
+                      <SelectItem value="USD" className="text-white hover:bg-purple-700/20">USD</SelectItem>
+                      <SelectItem value="BRL" className="text-white hover:bg-purple-700/20">BRL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {currentActiveReportObjectFromHook ? (
+                <div className="space-y-6">
+                  {/* Tabela de Investimentos */}
+                  {currentActiveReportObjectFromHook.investments.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Investimentos</h3>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-purple-700/30">
+                              <TableHead className="text-purple-300">Data</TableHead>
+                              <TableHead className="text-purple-300">Valor BTC</TableHead>
+                              <TableHead className="text-purple-300">Valor {states.displayCurrency}</TableHead>
+                              <TableHead className="text-purple-300">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {currentActiveReportObjectFromHook.investments.map((investment) => {
+                              const btcAmount = convertToBtc(investment.amount, investment.unit);
+                              const fiatValue = states.displayCurrency === 'USD' 
+                                ? btcAmount * states.currentRates.btcToUsd
+                                : btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd;
+                              
+                              return (
+                                <TableRow key={investment.id} className="border-purple-700/20">
+                                  <TableCell className="text-white">
+                                    {formatDisplayDate(investment.date)}
+                                  </TableCell>
+                                  <TableCell className="text-amber-400">
+                                    {formatCryptoAmount(investment.amount, investment.unit)}
+                                  </TableCell>
+                                  <TableCell className="text-green-400">
+                                    {formatCurrency(fiatValue, states.displayCurrency)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteInvestment(investment.id, investment.date, investment.amount)}
+                                      className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabela de Lucros/Perdas */}
+                  {currentActiveReportObjectFromHook.profits.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Lucros e Perdas</h3>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-purple-700/30">
+                              <TableHead className="text-purple-300">Data</TableHead>
+                              <TableHead className="text-purple-300">Tipo</TableHead>
+                              <TableHead className="text-purple-300">Valor BTC</TableHead>
+                              <TableHead className="text-purple-300">Valor {states.displayCurrency}</TableHead>
+                              <TableHead className="text-purple-300">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {currentActiveReportObjectFromHook.profits.map((profit) => {
+                              const btcAmount = convertToBtc(profit.amount, profit.unit);
+                              const fiatValue = states.displayCurrency === 'USD' 
+                                ? btcAmount * states.currentRates.btcToUsd
+                                : btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd;
+                              
+                              return (
+                                <TableRow key={profit.id} className="border-purple-700/20">
+                                  <TableCell className="text-white">
+                                    {formatDisplayDate(profit.date)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                      {profit.isProfit ? "Lucro" : "Perda"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-amber-400">
+                                    {formatCryptoAmount(profit.amount, profit.unit)}
+                                  </TableCell>
+                                  <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                    {formatCurrency(fiatValue, states.displayCurrency)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteProfit(profit.id, profit.date, profit.amount, profit.isProfit)}
+                                      className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabela de Saques */}
+                  {currentActiveReportObjectFromHook.withdrawals && currentActiveReportObjectFromHook.withdrawals.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Saques</h3>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-purple-700/30">
+                              <TableHead className="text-purple-300">Data</TableHead>
+                              <TableHead className="text-purple-300">Valor BTC</TableHead>
+                              <TableHead className="text-purple-300">Valor {states.displayCurrency}</TableHead>
+                              <TableHead className="text-purple-300">Taxa</TableHead>
+                              <TableHead className="text-purple-300">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {currentActiveReportObjectFromHook.withdrawals.map((withdrawal) => {
+                              const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
+                              const fiatValue = states.displayCurrency === 'USD' 
+                                ? btcAmount * states.currentRates.btcToUsd
+                                : btcAmount * states.currentRates.btcToUsd * states.currentRates.brlToUsd;
+                              
+                              return (
+                                <TableRow key={withdrawal.id} className="border-purple-700/20">
+                                  <TableCell className="text-white">
+                                    {formatDisplayDate(withdrawal.date)}
+                                  </TableCell>
+                                  <TableCell className="text-amber-400">
+                                    {formatCryptoAmount(withdrawal.amount, withdrawal.unit)}
+                                  </TableCell>
+                                  <TableCell className="text-orange-400">
+                                    {formatCurrency(fiatValue, states.displayCurrency)}
+                                  </TableCell>
+                                  <TableCell className="text-gray-400">
+                                    {withdrawal.fee ? `${withdrawal.fee} sats` : 'N/A'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteWithdrawal(withdrawal.id, withdrawal.date, withdrawal.amount)}
+                                      className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mensagem quando não há dados */}
+                  {(!currentActiveReportObjectFromHook.investments.length && 
+                    !currentActiveReportObjectFromHook.profits.length && 
+                    (!currentActiveReportObjectFromHook.withdrawals || !currentActiveReportObjectFromHook.withdrawals.length)) && (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400">Nenhuma transação encontrada neste relatório.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-400">Selecione um relatório para visualizar o histórico.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="summary" className="space-y-6">
+          {/* Resumo do Relatório */}
+          {reportSummaryData && (
+            <Card className="bg-black/30 border border-purple-700/40">
+              <CardHeader>
+                <CardTitle className="text-white">Resumo do Relatório</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-400">
+                      {formatCurrency(reportSummaryData.totalInvestmentsBtc, 'BTC')}
+                    </div>
+                    <div className="text-sm text-gray-400">Total Investido</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formatCurrency(reportSummaryData.operationalProfitBtc, 'BTC')}
+                    </div>
+                    <div className="text-sm text-gray-400">Lucro Operacional</div>
+                  </div>
+                  {reportSummaryData.hasWithdrawals && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-400">
+                        {formatCurrency(reportSummaryData.totalWithdrawalsBtc, 'BTC')}
+                      </div>
+                      <div className="text-sm text-gray-400">Total Sacado</div>
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-400">
+                      {formatCurrency(reportSummaryData.currentBalanceBtc, 'BTC')}
+                    </div>
+                    <div className="text-sm text-gray-400">Saldo Atual</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
