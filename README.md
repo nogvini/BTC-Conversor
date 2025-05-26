@@ -232,3 +232,49 @@ Substitua `sua_url_do_supabase` e `sua_chave_anonima` pelas suas credenciais do 
 ### Inicialização do Banco de Dados
 
 O sistema possui uma rota `/api/init-db` que verifica e inicializa as tabelas necessárias para o funcionamento da aplicação. Você pode acessar esta rota após iniciar o servidor de desenvolvimento para garantir que o banco de dados está configurado corretamente.
+
+## Melhorias Recentes Implementadas
+
+### 🔄 Sincronização de Cotações
+- **Correção na contação de unidades do histórico**: Agora as cotações são sincronizadas automaticamente do `bitcoin-converter.tsx` para o `profit-calculator.tsx`
+- **Priorização de fontes**: Sistema hierárquico de cotações (props do bitcoin-converter > appData > API direta)
+- **Logs detalhados**: Rastreamento completo da origem das cotações para debugging
+
+### 🛡️ Sistema de Importação Melhorado
+- **Validação robusta de trades**: Verificação aprimorada com múltiplos critérios de validação
+- **Detecção de dados corrompidos**: Filtros para valores de P&L extremos e dados inválidos
+- **Sistema de retry**: Tentativas automáticas em caso de falha na API
+- **Controle de duplicatas**: Verificação eficiente usando Sets para evitar importações duplicadas
+- **Parada inteligente**: Detecção automática do fim dos dados da API
+
+### 📊 Melhorias na Aba Histórico
+- **Cotações sincronizadas**: Valores em tempo real do bitcoin-converter
+- **Cálculos precisos**: Conversões BTC/USD/BRL consistentes
+- **Performance otimizada**: Cache de dados filtrados para melhor responsividade
+
+### 🔧 Correções Técnicas
+- **Tipos TypeScript**: Correção de erros de tipos implícitos
+- **Interfaces atualizadas**: Novos campos para estatísticas de importação
+- **Logs estruturados**: Sistema de logging mais detalhado para debugging
+
+## Como Usar
+
+### Sincronização de Cotações
+As cotações são sincronizadas automaticamente entre os componentes. O sistema prioriza:
+1. Cotações do `bitcoin-converter` (props)
+2. Dados do `appData` (fallback)
+3. API direta (último recurso)
+
+### Sistema de Importação
+O sistema de importação agora inclui:
+- Validação automática de trades
+- Detecção de duplicatas
+- Retry automático em falhas
+- Parada inteligente quando não há mais dados
+
+### Monitoramento
+Use o console do navegador para acompanhar:
+- Origem das cotações utilizadas
+- Progresso da importação
+- Estatísticas de validação
+- Detecção de problemas

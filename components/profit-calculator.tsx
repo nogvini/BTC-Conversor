@@ -73,7 +73,7 @@ import {
 // Imports para LN Markets
 import type { LNMarketsCredentials, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "./types/ln-markets-types";
 
-// Tipo atualizado para estatísticas de importação
+// Tipo atualizado para estatísticas de importação com tipos mais específicos
 interface LNMarketsImportStats {
   trades?: {
     total: number;
@@ -82,7 +82,7 @@ interface LNMarketsImportStats {
     errors: number;
     processed?: number;
     pagesSearched?: number;
-    stoppedReason?: 'emptyPages' | 'duplicates' | 'maxPages' | 'noMoreData';
+    stoppedReason?: 'emptyPages' | 'duplicates' | 'maxPages' | 'noMoreData' | 'unproductivePages' | 'maxTradesLimit' | 'maxOffsetLimit' | 'apiEndOfData' | 'unknown';
   };
   deposits?: {
     total: number;
@@ -609,11 +609,54 @@ export default function ProfitCalculator({
     }
   }, [states.displayCurrency, reportsDataLoaded]);
 
+  // NOVO: Efeito para sincronizar cotações do bitcoin-converter
+  useEffect(() => {
+    if (btcToUsd && brlToUsd) {
+      // Sincronizar cotações do bitcoin-converter imediatamente
+      states.setCurrentRates({
+        btcToUsd: btcToUsd,
+        brlToUsd: brlToUsd,
+      });
+      states.setUsingFallbackRates(false);
+      console.log('[ProfitCalculator] Cotações sincronizadas automaticamente:', {
+        btcToUsd,
+        brlToUsd
+      });
+    } else {
+      // Fallback para updateRates se as props não estiverem disponíveis
+      updateRates();
+    }
+  }, [btcToUsd, brlToUsd, appData]);
+
   // Funções auxiliares
   const updateRates = async () => {
-    if (appData) {
+    // CORRIGIDO: Priorizar cotações do bitcoin-converter (props) sobre appData
+    if (btcToUsd && brlToUsd) {
+      // Usar cotações sincronizadas do bitcoin-converter
+      states.setCurrentRates({
+        btcToUsd: btcToUsd,
+        brlToUsd: brlToUsd,
+      });
+      states.setUsingFallbackRates(false);
+      console.log('[ProfitCalculator] Usando cotações sincronizadas do bitcoin-converter:', {
+        btcToUsd,
+        brlToUsd
+      });
+      return;
+    } else if (appData) {
+      // Fallback para appData se as props não estiverem disponíveis
+      states.setCurrentRates({
+        btcToUsd: appData.currentPrice.usd,
+        brlToUsd: appData.currentPrice.brl / appData.currentPrice.usd,
+      });
+      states.setUsingFallbackRates(Boolean(appData.isUsingCache || appData.currentPrice.isUsingCache));
+      console.log('[ProfitCalculator] Usando cotações do appData:', {
+        btcToUsd: appData.currentPrice.usd,
+        brlToUsd: appData.currentPrice.brl / appData.currentPrice.usd
+      });
       return;
     } else {
+      // Último recurso: buscar cotações diretamente
       states.setLoading(true);
       try {
         const priceData = await getCurrentBitcoinPrice();
@@ -623,6 +666,11 @@ export default function ProfitCalculator({
             brlToUsd: priceData.brl / priceData.usd,
           });
           states.setUsingFallbackRates(priceData.isUsingCache);
+          
+          console.log('[ProfitCalculator] Cotações obtidas diretamente da API:', {
+            btcToUsd: priceData.usd,
+            brlToUsd: priceData.brl / priceData.usd
+          });
           
           if (!states.toastDebounce) {
             states.setToastDebounce(true);
@@ -804,7 +852,7 @@ export default function ProfitCalculator({
         }
         
                  // NOVO: Validar e filtrar trades válidos antes de adicionar
-         const validTrades = pageData.filter(trade => {
+         const validTrades = pageData.filter((trade: any) => {
            // Verificação rápida de duplicata usando Set
            const tradeId = `trade_${trade.uid || trade.id}`;
            if (existingTradeIds.has(tradeId)) {
@@ -844,7 +892,7 @@ export default function ProfitCalculator({
           allTrades.push(...validTrades);
           
           // Adicionar IDs ao Set para próximas verificações
-          validTrades.forEach(trade => {
+          validTrades.forEach((trade: any) => {
             const tradeId = `trade_${trade.uid || trade.id}`;
             existingTradeIds.add(tradeId);
           });
@@ -1190,7 +1238,7 @@ export default function ProfitCalculator({
       console.log('[handleImportDeposits] Processando depósitos:', {
         totalDeposits,
         firstDeposit: deposits[0],
-        depositsStructure: deposits.map(d => ({
+        depositsStructure: deposits.map((d: any) => ({
           id: d.id,
           amount: d.amount,
           status: d.status,
@@ -1373,7 +1421,7 @@ export default function ProfitCalculator({
           skipped,
           processed: totalDeposits,
           confirmedCount: deposits.filter(isDepositConfirmed).length,
-          statusDistribution: deposits.reduce((acc, d) => {
+          statusDistribution: deposits.reduce((acc: Record<string, number>, d: any) => {
             acc[d.status] = (acc[d.status] || 0) + 1;
             return acc;
           }, {} as Record<string, number>)
@@ -1623,7 +1671,7 @@ export default function ProfitCalculator({
           errors,
           processed: totalWithdrawals,
           confirmedCount: response.data?.length || 0, // Todos são processados agora
-          statusDistribution: response.data?.reduce((acc, w) => {
+          statusDistribution: response.data?.reduce((acc: Record<string, number>, w: any) => {
             acc[w.status] = (acc[w.status] || 0) + 1;
             return acc;
           }, {} as Record<string, number>) || {}
@@ -1832,8 +1880,13 @@ export default function ProfitCalculator({
     }
   };
 
-  // NOVA Função para validar trade antes do processamento
+  // MELHORADA: Função para validar trade antes do processamento
   const validateTradeForImport = (trade: any): { isValid: boolean; reason?: string } => {
+    // Verificar se o objeto trade existe
+    if (!trade || typeof trade !== 'object') {
+      return { isValid: false, reason: 'Objeto trade inválido' };
+    }
+    
     // Verificar se tem ID válido
     if (!trade.id && !trade.uid) {
       return { isValid: false, reason: 'Trade sem ID válido' };
@@ -1844,19 +1897,30 @@ export default function ProfitCalculator({
       return { isValid: false, reason: 'Trade não fechado' };
     }
     
-    // Verificar se tem PL válido
-    if (trade.pl === undefined || trade.pl === null || isNaN(trade.pl)) {
+    // Verificar se tem PL válido e é um número
+    if (trade.pl === undefined || trade.pl === null || isNaN(Number(trade.pl))) {
       return { isValid: false, reason: 'PL inválido ou ausente' };
     }
     
-    // Verificar se PL não é zero
-    if (trade.pl === 0) {
+    // Verificar se PL não é zero (trades sem lucro/prejuízo podem ser ignorados)
+    if (Number(trade.pl) === 0) {
       return { isValid: false, reason: 'PL é zero' };
     }
     
     // Verificar se tem dados de data válidos
     if (!trade.closed_at && !trade.ts && !trade.updated_at && !trade.created_at) {
       return { isValid: false, reason: 'Nenhum campo de data válido' };
+    }
+    
+    // Verificar se tem informações básicas do instrumento
+    if (!trade.instrument && !trade.symbol && !trade.market) {
+      return { isValid: false, reason: 'Instrumento do trade não identificado' };
+    }
+    
+    // Verificar se o valor do PL está dentro de limites razoáveis (evitar dados corrompidos)
+    const plValue = Math.abs(Number(trade.pl));
+    if (plValue > 1000000) { // Mais de 1 milhão de satoshis (0.01 BTC)
+      return { isValid: false, reason: 'PL muito alto, possível dado corrompido' };
     }
     
     return { isValid: true };
@@ -1938,12 +2002,12 @@ export default function ProfitCalculator({
       }
 
       const deposits = response.data;
-      const statusAnalysis = deposits.reduce((acc, d) => {
+      const statusAnalysis = deposits.reduce((acc: Record<string, number>, d: any) => {
         acc[d.status] = (acc[d.status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const confirmationAnalysis = deposits.reduce((acc, d) => {
+      const confirmationAnalysis = deposits.reduce((acc: Record<string, number>, d: any) => {
         let key = '';
         if (d.isConfirmed === false) key = 'isConfirmed: false';
         else if (d.is_confirmed === true) key = 'is_confirmed: true (on-chain)';
@@ -1955,7 +2019,7 @@ export default function ProfitCalculator({
         return acc;
       }, {} as Record<string, number>);
 
-      const confirmedByOldLogic = deposits.filter(d => d.status === 'confirmed').length;
+      const confirmedByOldLogic = deposits.filter((d: any) => d.status === 'confirmed').length;
       const confirmedByNewLogic = deposits.filter(isDepositConfirmed).length;
       
       console.log('[analyzeDepositStatuses] Análise completa:', {
@@ -1966,7 +2030,7 @@ export default function ProfitCalculator({
         confirmedByNewLogic,
         difference: confirmedByNewLogic - confirmedByOldLogic,
         allUniqueStatuses: Object.keys(statusAnalysis),
-        sampleDeposits: deposits.slice(0, 5).map(d => ({
+        sampleDeposits: deposits.slice(0, 5).map((d: any) => ({
           id: d.id,
           type: d.type,
           status: d.status,
