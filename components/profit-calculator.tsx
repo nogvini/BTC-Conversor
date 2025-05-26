@@ -3694,7 +3694,11 @@ export default function ProfitCalculator({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <HistoryStatsCard
                     title="Total Investido"
-                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit) * states.currentRates.btcToUsd, 0), states.displayCurrency)}
+                    value={formatCurrency(getFilteredHistoryData.investments.reduce((sum: number, inv: any) => {
+                      const btcAmount = convertToBtc(inv.amount, inv.unit);
+                      const usdValue = btcAmount * states.currentRates.btcToUsd;
+                      return sum + (states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue);
+                    }, 0), states.displayCurrency)}
                     icon={<TrendingDown className="h-4 w-4 text-blue-400" />}
                     valueColor="text-blue-400"
                   />
@@ -3704,7 +3708,8 @@ export default function ProfitCalculator({
                     value={formatCurrency(getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
                       const btcAmount = convertToBtc(profit.amount, profit.unit);
                       const value = profit.isProfit ? btcAmount : -btcAmount;
-                      return sum + (value * states.currentRates.btcToUsd);
+                      const usdValue = value * states.currentRates.btcToUsd;
+                      return sum + (states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue);
                     }, 0), states.displayCurrency)}
                     icon={<TrendingUp className="h-4 w-4 text-green-400" />}
                     valueColor={getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
@@ -3715,7 +3720,11 @@ export default function ProfitCalculator({
                   
                   <HistoryStatsCard
                     title="Saques"
-                    value={formatCurrencyDefault(getFilteredHistoryData.withdrawals.reduce((sum: number, w: any) => sum + convertToBtc(w.amount, w.unit) * states.currentRates.btcToUsd, 0), defaultCurrency)}
+                    value={formatCurrency(getFilteredHistoryData.withdrawals.reduce((sum: number, w: any) => {
+                      const btcAmount = convertToBtc(w.amount, w.unit);
+                      const usdValue = btcAmount * states.currentRates.btcToUsd;
+                      return sum + (states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue);
+                    }, 0), states.displayCurrency)}
                     icon={<Upload className="h-4 w-4 text-orange-400" />}
                     valueColor="text-orange-400"
                   />
@@ -3816,13 +3825,14 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({defaultCurrency})</TableHead>
+                                <TableHead>Valor ({states.displayCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {getFilteredHistoryData.investments.map((investment: any) => {
                                 const btcAmount = convertToBtc(investment.amount, investment.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
                                 
                                 return (
                                   <TableRow key={investment.id}>
@@ -3830,7 +3840,7 @@ export default function ProfitCalculator({
                                     <TableCell>{investment.amount.toLocaleString()}</TableCell>
                                     <TableCell>{investment.unit}</TableCell>
                                     <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell>{formatCurrencyDefault(currencyValue)}</TableCell>
+                                    <TableCell>{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -3856,13 +3866,14 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({defaultCurrency})</TableHead>
+                                <TableHead>Valor ({states.displayCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {getFilteredHistoryData.profits.map((profit: any) => {
                                 const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
                                 
                                 return (
                                   <TableRow key={profit.id}>
@@ -3878,7 +3889,7 @@ export default function ProfitCalculator({
                                       ₿{btcAmount.toFixed(8)}
                                     </TableCell>
                                     <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                      {formatCurrencyDefault(currencyValue)}
+                                      {formatCurrency(currencyValue, states.displayCurrency)}
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -3904,13 +3915,14 @@ export default function ProfitCalculator({
                                 <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({defaultCurrency})</TableHead>
+                                <TableHead>Valor ({states.displayCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {getFilteredHistoryData.withdrawals.map((withdrawal: any) => {
                                 const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
-                                const currencyValue = btcAmount * states.currentRates.btcToUsd * (defaultCurrency === "BRL" ? states.currentRates.brlToUsd : 1);
+                                const usdValue = btcAmount * states.currentRates.btcToUsd;
+                                const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
                                 
                                 return (
                                   <TableRow key={withdrawal.id}>
@@ -3918,7 +3930,7 @@ export default function ProfitCalculator({
                                     <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
                                     <TableCell>{withdrawal.unit}</TableCell>
                                     <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
-                                    <TableCell className="text-orange-400">{formatCurrencyDefault(currencyValue)}</TableCell>
+                                    <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
                                   </TableRow>
                                 );
                               })}

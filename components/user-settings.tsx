@@ -43,7 +43,7 @@ export default function UserSettings() {
   // Estado para controlar se o componente foi montado (evita problemas de hidratação)
   const [isMounted, setIsMounted] = useState(false)
 
-  // Carregar configurações do localStorage e sincronizar com hook de moeda padrão
+  // Carregar configurações do localStorage (apenas uma vez na montagem)
   useEffect(() => {
     setIsMounted(true)
     
@@ -57,12 +57,14 @@ export default function UserSettings() {
             ...parsedSettings,
           }))
           
-          // Sincronizar moeda padrão com o hook global
+          // Sincronizar moeda padrão com o hook global apenas se for diferente
           if (parsedSettings.currency && parsedSettings.currency !== defaultCurrency) {
             setDefaultCurrency(parsedSettings.currency)
           }
         } catch (e) {
           console.error("Erro ao carregar configurações:", e)
+          // Em caso de erro, usar configurações padrão
+          setSettings(defaultSettings)
         }
       } else {
         // Se não há configurações salvas, usar a moeda padrão do hook
@@ -72,7 +74,17 @@ export default function UserSettings() {
         }))
       }
     }
-  }, [defaultCurrency, setDefaultCurrency])
+  }, []) // Remover dependências para evitar loops
+
+  // Effect separado para sincronizar com mudanças externas do defaultCurrency
+  useEffect(() => {
+    if (isMounted && defaultCurrency !== settings.currency) {
+      setSettings(prev => ({
+        ...prev,
+        currency: defaultCurrency as "BRL" | "USD"
+      }))
+    }
+  }, [defaultCurrency, isMounted, settings.currency])
 
   // Salvar configurações
   const saveSettings = () => {
@@ -82,8 +94,10 @@ export default function UserSettings() {
       // Salvar no localStorage
       localStorage.setItem("userSettings", JSON.stringify(settings))
       
-      // Atualizar moeda padrão no hook global
-      setDefaultCurrency(settings.currency)
+      // Atualizar moeda padrão no hook global apenas se for diferente
+      if (settings.currency !== defaultCurrency) {
+        setDefaultCurrency(settings.currency)
+      }
       
       // Aplicar configurações
       applySettings()
@@ -112,7 +126,11 @@ export default function UserSettings() {
   // Redefinir para configurações padrão
   const resetSettings = () => {
     setSettings(defaultSettings)
-    setDefaultCurrency(defaultSettings.currency)
+    
+    // Atualizar moeda padrão apenas se for diferente
+    if (defaultSettings.currency !== defaultCurrency) {
+      setDefaultCurrency(defaultSettings.currency)
+    }
     
     // Salvar as configurações padrão
     localStorage.setItem("userSettings", JSON.stringify(defaultSettings))
@@ -124,8 +142,8 @@ export default function UserSettings() {
     })
   }
 
-  // Se estiver carregando, mostrar um indicador
-  if (isLoading) {
+  // Se não estiver montado ou estiver carregando, mostrar um indicador
+  if (!isMounted || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
@@ -174,8 +192,10 @@ export default function UserSettings() {
                       value={settings.currency}
                       onValueChange={(value: "BRL" | "USD") => {
                         setSettings({ ...settings, currency: value })
-                        // Atualizar imediatamente o hook global para feedback visual
-                        setDefaultCurrency(value)
+                        // Atualizar imediatamente o hook global para feedback visual apenas se for diferente
+                        if (value !== defaultCurrency) {
+                          setDefaultCurrency(value)
+                        }
                       }}
                     >
                       <SelectTrigger>
@@ -189,13 +209,11 @@ export default function UserSettings() {
                     <p className="text-xs text-muted-foreground">
                       Moeda que será exibida por padrão na aplicação.
                     </p>
-                    {isMounted && (
-                      <div className="mt-2 p-2 bg-purple-900/20 rounded border border-purple-700/30">
-                        <p className="text-xs text-purple-300">
-                          💡 Exemplo: {formatCurrency(100000, settings.currency)}
-                        </p>
-                      </div>
-                    )}
+                    <div className="mt-2 p-2 bg-purple-900/20 rounded border border-purple-700/30">
+                      <p className="text-xs text-purple-300">
+                        💡 Exemplo: {isMounted ? formatCurrency(100000, settings.currency) : 'Carregando...'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
