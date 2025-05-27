@@ -3724,8 +3724,8 @@ export default function ProfitCalculator({
                                     <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
                                     <TableCell>{investment.amount.toLocaleString()}</TableCell>
                                     <TableCell>{investment.unit}</TableCell>
-                                    <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
-                                      <TableCell>{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
+                                    <TableCell className="text-blue-400">₿{btcAmount.toFixed(8)}</TableCell>
+                                      <TableCell className="text-blue-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
                                   </TableRow>
                                 );
                                 })
