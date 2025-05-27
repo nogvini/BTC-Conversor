@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getCurrentBitcoinPrice } from "@/lib/client-api";
+import { getCurrentBitcoinPrice, exportReportToPdf } from "@/lib/client-api";
 import { format } from "date-fns";
 import { generateExcelReport, ExcelExportOptions } from "@/lib/excel-export";
 import ExportOptionsDialog, { PDFExportOptions } from "@/components/export-options-dialog";
@@ -2782,34 +2782,26 @@ export default function ProfitCalculator({
       
       // Preparar dados do relatório
       const reportData = {
-        report: {
-          ...baseReport,
-          ...currentActiveReportObjectFromHook,
-          investments: options.includeInvestments ? (currentActiveReportObjectFromHook.investments || []) : [],
-          profits: options.includeProfits ? (currentActiveReportObjectFromHook.profits || []) : [],
-          withdrawals: options.includeWithdrawals ? (currentActiveReportObjectFromHook.withdrawals || []) : []
-        },
-        displayCurrency: options.currency,
-        reportPeriodDescription: options.dateRange 
-          ? `${format(options.dateRange.startDate, "dd/MM/yyyy")} - ${format(options.dateRange.endDate, "dd/MM/yyyy")}`
-          : undefined
+        ...baseReport,
+        ...currentActiveReportObjectFromHook,
+        investments: options.includeInvestments ? (currentActiveReportObjectFromHook.investments || []) : [],
+        profits: options.includeProfits ? (currentActiveReportObjectFromHook.profits || []) : [],
+        withdrawals: options.includeWithdrawals ? (currentActiveReportObjectFromHook.withdrawals || []) : []
       };
       
-      // Chamar a API para gerar o PDF
-      const response = await fetch('/api/export/report-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reportData),
-      });
+      // Definir período do relatório
+      const periodDescription = options.dateRange 
+        ? `${format(options.dateRange.startDate, "dd/MM/yyyy")} - ${format(options.dateRange.endDate, "dd/MM/yyyy")}`
+        : undefined;
       
-      if (!response.ok) {
-        throw new Error('Falha ao gerar o PDF');
+      console.log('Iniciando exportação para PDF com a nova função do client-api');
+      
+      // Usar a nova função do client-api para exportação
+      const blob = await exportReportToPdf(reportData, options.currency, periodDescription);
+      
+      if (!blob) {
+        throw new Error('Falha ao gerar o PDF - resultado vazio');
       }
-      
-      // Obter o blob do PDF
-      const blob = await response.blob();
       
       // Criar um URL para o blob
       const url = URL.createObjectURL(blob);
@@ -2817,7 +2809,7 @@ export default function ProfitCalculator({
       // Criar um link para download
       const link = document.createElement('a');
       link.href = url;
-      link.download = `relatorio-${currentActiveReportObjectFromHook.name.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      link.download = `relatorio-${reportData.name.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2825,7 +2817,7 @@ export default function ProfitCalculator({
       
       toast({
         title: "📄 PDF Exportado!",
-        description: `Relatório "${currentActiveReportObjectFromHook.name}" exportado com sucesso.`,
+        description: `Relatório "${reportData.name}" exportado com sucesso.`,
         variant: "default",
         className: "border-blue-500/50 bg-blue-900/20",
       });
@@ -2833,7 +2825,7 @@ export default function ProfitCalculator({
       console.error('Erro ao exportar PDF:', error);
       toast({
         title: "❌ Erro na exportação",
-        description: "Ocorreu um erro ao exportar o relatório para PDF.",
+        description: `Falha ao gerar o PDF: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
         variant: "destructive",
       });
     } finally {

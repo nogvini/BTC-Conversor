@@ -245,6 +245,16 @@ export function calculateReportMetrics(
     totalWithdrawals: 0,
     totalBalance: { brl: 0, usd: 0, btc: 0 },
     monthlyBreakdown: [],
+    // Adicionar todos os campos necessários para o HTML builder com valores padrão
+    totalInvestmentsInDisplayCurrency: 0,
+    totalWithdrawalsInDisplayCurrency: 0,
+    finalBtcBalance: 0,
+    finalPortfolioValueInUSD: 0,
+    finalPortfolioValueInBRL: 0,
+    realizedPeriodProfitLossInDisplayCurrency: 0,
+    unrealizedPeriodProfitLossInDisplayCurrency: 0,
+    overallPeriodProfitLossInDisplayCurrency: 0,
+    cumulativePeriodROI: 0,
   };
 
   if (!reportDateRange || enrichedOperations.length === 0) {
@@ -459,6 +469,50 @@ export function calculateReportMetrics(
   }
   calculatedMetrics.monthlyBreakdown = monthlyBreakdownData;
   // --- Fim do Detalhamento Mensal ---
+
+  // Completar os campos adicionais necessários para o template HTML
+  calculatedMetrics.finalBtcBalance = calculatedMetrics.totalBalance.btc;
+  calculatedMetrics.finalPortfolioValueInUSD = calculatedMetrics.totalBalance.usd;
+  calculatedMetrics.finalPortfolioValueInBRL = calculatedMetrics.totalBalance.brl;
+  
+  // Valores na moeda de exibição escolhida
+  if (displayCurrency === 'USD') {
+    calculatedMetrics.totalInvestmentsInDisplayCurrency = calculatedMetrics.totalInvestments;
+    calculatedMetrics.totalWithdrawalsInDisplayCurrency = calculatedMetrics.totalWithdrawals;
+    calculatedMetrics.realizedPeriodProfitLossInDisplayCurrency = calculatedMetrics.realizedPeriodProfitLoss;
+    calculatedMetrics.unrealizedPeriodProfitLossInDisplayCurrency = calculatedMetrics.unrealizedPeriodProfitLoss;
+    calculatedMetrics.overallPeriodProfitLossInDisplayCurrency = calculatedMetrics.overallPeriodProfitLoss;
+  } else { // BRL
+    // Converter valores para BRL se necessário
+    const usdToBrlRate = 5.0; // Valor padrão de fallback
+    const lastPriceUsdToBrl = lastPriceBRL && lastPriceUSD ? lastPriceBRL / lastPriceUSD : usdToBrlRate;
+
+    calculatedMetrics.totalInvestmentsInDisplayCurrency = calculatedMetrics.totalInvestments * lastPriceUsdToBrl;
+    calculatedMetrics.totalWithdrawalsInDisplayCurrency = calculatedMetrics.totalWithdrawals * lastPriceUsdToBrl;
+    calculatedMetrics.realizedPeriodProfitLossInDisplayCurrency = calculatedMetrics.realizedPeriodProfitLoss * lastPriceUsdToBrl;
+    calculatedMetrics.unrealizedPeriodProfitLossInDisplayCurrency = calculatedMetrics.unrealizedPeriodProfitLoss * lastPriceUsdToBrl;
+    calculatedMetrics.overallPeriodProfitLossInDisplayCurrency = calculatedMetrics.overallPeriodProfitLoss * lastPriceUsdToBrl;
+  }
+  
+  // Garantir que cumulativePeriodROI esteja definido (importante para o template)
+  calculatedMetrics.cumulativePeriodROI = calculatedMetrics.roiAccumulated;
+
+  // Validação final para garantir que todos os campos usados no template estejam definidos
+  if (isNaN(calculatedMetrics.cumulativePeriodROI)) {
+    calculatedMetrics.cumulativePeriodROI = 0;
+  }
+  
+  // Verificar e garantir que todos os valores numéricos estejam definidos e não sejam NaN
+  for (const month of calculatedMetrics.monthlyBreakdown) {
+    if (isNaN(month.monthlyRoi)) month.monthlyRoi = 0;
+    if (isNaN(month.investmentsInDisplayCurrency)) month.investmentsInDisplayCurrency = 0;
+    if (isNaN(month.withdrawalsInDisplayCurrency)) month.withdrawalsInDisplayCurrency = 0;
+    if (isNaN(month.realizedProfitLossInDisplayCurrency)) month.realizedProfitLossInDisplayCurrency = 0;
+    if (isNaN(month.unrealizedProfitLossInDisplayCurrency)) month.unrealizedProfitLossInDisplayCurrency = 0;
+    if (isNaN(month.overallProfitLossInDisplayCurrency)) month.overallProfitLossInDisplayCurrency = 0;
+    if (isNaN(month.endOfMonthBtcBalance)) month.endOfMonthBtcBalance = 0;
+    if (isNaN(month.endOfMonthBalanceInDisplayCurrency)) month.endOfMonthBalanceInDisplayCurrency = 0;
+  }
 
   console.log("Métricas Finais Completas (com detalhamento mensal):", calculatedMetrics);
 

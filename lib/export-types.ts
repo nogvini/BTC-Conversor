@@ -4,8 +4,8 @@
 export interface ReportMetadata {
   reportName: string;
   periodDescription: string; // Ex: "Janeiro 2024", "2023 Completo", "Últimos 30 dias"
-  generationDate: string; // ISO 8601 date string
-  currencyDisplayUnit: 'BRL' | 'USD' | 'BTC'; // Moeda principal para exibição de totais
+  generatedAt: string; // ISO 8601 date string
+  displayCurrency: 'BRL' | 'USD'; // Moeda principal para exibição de totais
 }
 
 /**
@@ -19,16 +19,17 @@ export interface OperationData {
   type: 'buy' | 'sell';
   asset: string; // Ex: "BTC"
   quantity: number; // Quantidade em BTC
+  btcAmount: number; // Quantidade em BTC (alias para compatibilidade)
   
   // Preço do ativo (BTC) no momento da transação e valor total da transação nessa cotação
+  pricePerUnit?: number; // Valor genérico
   pricePerUnitUSD?: number; // Preço do BTC em USD no dia da transação
+  totalAmount?: number; // Valor genérico
   totalAmountUSD?: number;  // quantity * pricePerUnitUSD
   pricePerUnitBRL?: number; // Preço do BTC em BRL no dia da transação
   totalAmountBRL?: number;  // quantity * pricePerUnitBRL
   
   isProfitContext?: boolean; // Para ProfitRecord, indica se a operação foi um lucro em termos de BTC
-  // O campo 'currency' foi removido; os valores são explicitamente em USD e BRL.
-  // A moeda principal de exibição do relatório virá de ReportMetadata.currencyDisplayUnit.
 }
 
 /**
@@ -42,9 +43,25 @@ export interface QuotationData {
 }
 
 /**
+ * Detalhamento mensal para o relatório
+ */
+export interface MonthlyBreakdown {
+  monthYear: string; // Formato "YYYY-MM"
+  investmentsInDisplayCurrency: number;
+  withdrawalsInDisplayCurrency: number;
+  realizedProfitLossInDisplayCurrency: number;
+  unrealizedProfitLossInDisplayCurrency: number;
+  overallProfitLossInDisplayCurrency: number;
+  endOfMonthBtcBalance: number;
+  endOfMonthBalanceInDisplayCurrency: number;
+  monthlyRoi: number;
+}
+
+/**
  * Dados calculados para o relatório.
  */
 export interface CalculatedReportData {
+  // Valores base
   roiMonthly: Array<{ month: string; percentage: number }>; // Ex: [{ month: "Jan/2024", percentage: 5.2 }]
   roiAccumulated: number; // Percentual
   
@@ -54,7 +71,7 @@ export interface CalculatedReportData {
   overallPeriodProfitLoss: number; // Soma de realized e unrealized P/L
   
   totalInvestments: number; // Total de aportes no período (em valor da moeda principal)
-  totalWithdrawals?: number; // Total de retiradas/vendas (em valor da moeda principal) - opcional, pode ser derivado
+  totalWithdrawals: number; // Total de retiradas/vendas (em valor da moeda principal)
   
   totalBalance: { // Saldo final do período
     brl: number;
@@ -62,15 +79,18 @@ export interface CalculatedReportData {
     btc: number;
   };
   
-  totalInvestmentsInDisplayCurrency: number;
-  totalWithdrawalsInDisplayCurrency: number;
-  finalBtcBalance: number;
-  finalPortfolioValueInUSD: number;
-  finalPortfolioValueInBRL: number;
-  realizedPeriodProfitLossInDisplayCurrency: number;
-  unrealizedPeriodProfitLossInDisplayCurrency: number;
-  overallPeriodProfitLossInDisplayCurrency: number;
-  cumulativePeriodROI: number;
+  // Valores para exibição
+  totalInvestmentsInDisplayCurrency?: number;
+  totalWithdrawalsInDisplayCurrency?: number;
+  finalBtcBalance?: number;
+  finalPortfolioValueInUSD?: number;
+  finalPortfolioValueInBRL?: number;
+  realizedPeriodProfitLossInDisplayCurrency?: number;
+  unrealizedPeriodProfitLossInDisplayCurrency?: number;
+  overallPeriodProfitLossInDisplayCurrency?: number;
+  cumulativePeriodROI?: number;
+  
+  // Detalhamento mensal
   monthlyBreakdown: MonthlyBreakdown[];
 }
 

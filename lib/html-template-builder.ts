@@ -2,13 +2,33 @@ import { ExportedReport, OperationData, MonthlyBreakdown } from './export-types'
 
 // Funções auxiliares de formatação (adaptadas de ReportHtmlTemplate.tsx)
 const formatCurrency = (value: number | undefined | null, currency: 'BRL' | 'USD' | 'BTC') => {
-  if (value === undefined || value === null) return '-';
-  if (currency === 'BTC') {
-    return `${value.toFixed(8)} BTC`;
+  // Se o valor for undefined, null, NaN ou Infinity, retornar um placeholder
+  if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
+    return currency === 'BTC' ? '0.00000000 BTC' : currency === 'BRL' ? 'R$ 0,00' : '$0.00';
   }
+  
+  // Tratar valores muito grandes ou muito pequenos para evitar erros
+  if (Math.abs(value) > 1e15) {
+    return currency === 'BTC' ? 
+      `${value > 0 ? '' : '-'}∞ BTC` : 
+      new Intl.NumberFormat(currency === 'BRL' ? 'pt-BR' : 'en-US', {
+        style: 'currency',
+        currency: currency,
+        maximumFractionDigits: 2,
+      }).format(value > 0 ? 1e15 : -1e15);
+  }
+  
+  // Formatação normal para valores válidos
+  if (currency === 'BTC') {
+    const fixedValue = value.toFixed(8).replace(/\.?0+$/, ''); // Remove zeros à direita
+    return `${fixedValue} BTC`;
+  }
+  
   return new Intl.NumberFormat(currency === 'BRL' ? 'pt-BR' : 'en-US', {
     style: 'currency',
     currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 };
 
@@ -18,6 +38,14 @@ const formatDate = (dateString: string | Date) => {
     month: '2-digit',
     day: '2-digit',
   });
+};
+
+// Função segura para formatar números com verificação de undefined/null
+const safeToFixed = (value: number | undefined | null, digits: number = 2): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0.00';
+  }
+  return value.toFixed(digits);
 };
 
 const getStyles = () => `
@@ -207,12 +235,12 @@ export function buildReportHtml(reportData: ExportedReport): string {
               <td>${month.monthYear}</td>
               <td>${formatCurrency(month.investmentsInDisplayCurrency, displayCurrency)}</td>
               <td>${formatCurrency(month.withdrawalsInDisplayCurrency, displayCurrency)}</td>
-              <td class="${month.realizedProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.realizedProfitLossInDisplayCurrency, displayCurrency)}</td>
-              <td class="${month.unrealizedProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.unrealizedProfitLossInDisplayCurrency, displayCurrency)}</td>
-              <td class="${month.overallProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.overallProfitLossInDisplayCurrency, displayCurrency)}</td>
+              <td class="${(month.realizedProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.realizedProfitLossInDisplayCurrency, displayCurrency)}</td>
+              <td class="${(month.unrealizedProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.unrealizedProfitLossInDisplayCurrency, displayCurrency)}</td>
+              <td class="${(month.overallProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(month.overallProfitLossInDisplayCurrency, displayCurrency)}</td>
               <td>${formatCurrency(month.endOfMonthBtcBalance, 'BTC')}</td>
               <td>${formatCurrency(month.endOfMonthBalanceInDisplayCurrency, displayCurrency)}</td>
-              <td class="${month.monthlyRoi >= 0 ? 'text-green' : 'text-red'}">${month.monthlyRoi.toFixed(2)}%</td>
+              <td class="${(month.monthlyRoi || 0) >= 0 ? 'text-green' : 'text-red'}">${safeToFixed(month.monthlyRoi, 2)}%</td>
             </tr>
           `).join('')}
         </tbody>
@@ -269,26 +297,26 @@ export function buildReportHtml(reportData: ExportedReport): string {
             </div>
             <div class="summary-item">
               <strong>Lucro/Prejuízo Realizado (${displayCurrency})</strong>
-              <span class="${data.realizedPeriodProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">
+              <span class="${(data.realizedPeriodProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">
                 ${formatCurrency(data.realizedPeriodProfitLossInDisplayCurrency, displayCurrency)}
               </span>
             </div>
             <div class="summary-item">
               <strong>Lucro/Prejuízo Não Realizado (${displayCurrency})</strong>
-              <span class="${data.unrealizedPeriodProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">
+              <span class="${(data.unrealizedPeriodProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">
                 ${formatCurrency(data.unrealizedPeriodProfitLossInDisplayCurrency, displayCurrency)}
               </span>
             </div>
             <div class="summary-item">
               <strong>Lucro/Prejuízo Geral do Período (${displayCurrency})</strong>
-              <span class="${data.overallPeriodProfitLossInDisplayCurrency >= 0 ? 'text-green' : 'text-red'}">
+              <span class="${(data.overallPeriodProfitLossInDisplayCurrency || 0) >= 0 ? 'text-green' : 'text-red'}">
                 ${formatCurrency(data.overallPeriodProfitLossInDisplayCurrency, displayCurrency)}
               </span>
             </div>
             <div class="summary-item">
               <strong>ROI Acumulado no Período</strong>
-              <span class="${data.cumulativePeriodROI >= 0 ? 'text-green' : 'text-red'}">
-                ${data.cumulativePeriodROI.toFixed(2)}%
+              <span class="${(data.cumulativePeriodROI || 0) >= 0 ? 'text-green' : 'text-red'}">
+                ${safeToFixed(data.cumulativePeriodROI, 2)}%
               </span>
             </div>
           </div>

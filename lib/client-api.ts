@@ -219,4 +219,79 @@ export async function getHistoricalBitcoinDataForRange(
   }
 }
 
+/**
+ * Exporta um relatório para PDF
+ * @param reportData Dados do relatório a ser exportado
+ * @param displayCurrency Moeda para exibição (USD ou BRL)
+ * @param reportPeriodDescription Descrição opcional do período do relatório
+ * @returns URL do blob do PDF ou nulo em caso de erro
+ */
+export async function exportReportToPdf(
+  reportData: any,
+  displayCurrency: 'BRL' | 'USD',
+  reportPeriodDescription?: string
+): Promise<Blob | null> {
+  try {
+    console.log('Iniciando exportação para PDF...');
+    
+    const url = '/api/export/report-pdf';
+    
+    // Verificações iniciais para evitar enviar dados inválidos
+    if (!reportData || typeof reportData !== 'object') {
+      throw new Error('Dados do relatório inválidos ou ausentes');
+    }
+    
+    if (!reportData.name) {
+      console.warn('Relatório sem nome, adicionando nome padrão');
+      reportData.name = `Relatório Bitcoin ${new Date().toISOString().split('T')[0]}`;
+    }
+    
+    // Garantir que arrays essenciais existam
+    if (!Array.isArray(reportData.investments)) reportData.investments = [];
+    if (!Array.isArray(reportData.profits)) reportData.profits = [];
+    if (!Array.isArray(reportData.withdrawals)) reportData.withdrawals = [];
+    
+    const requestData = {
+      report: reportData,
+      displayCurrency,
+      reportPeriodDescription
+    };
+    
+    console.log('Enviando requisição de PDF...');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+    
+    if (!response.ok) {
+      let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = `${errorData.error}${errorData.details ? `: ${errorData.details}` : ''}`;
+        }
+      } catch (e) {
+        // Se não puder obter detalhes do erro como JSON, apenas use o status
+        console.warn('Não foi possível obter detalhes do erro como JSON');
+      }
+      
+      console.error('Erro na geração do PDF:', errorMessage);
+      throw new Error(`Falha ao gerar o PDF: ${errorMessage}`);
+    }
+    
+    console.log('PDF gerado com sucesso, obtendo blob...');
+    return await response.blob();
+    
+  } catch (error) {
+    console.error('Erro ao exportar relatório para PDF:', error);
+    // Retornar null em vez de lançar o erro, para que o chamador possa tentar tratar
+    throw new Error(`Erro ao exportar PDF: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export { HistoricalDataPoint };

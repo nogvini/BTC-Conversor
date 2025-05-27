@@ -21,12 +21,56 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // Configurações para manifest e ícones
       {
         source: '/site.webmanifest',
         headers: [
           {
             key: 'Content-Type',
             value: 'application/manifest+json',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, s-maxage=86400',
+          },
+        ],
+      },
+      {
+        source: '/favicon.ico',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'image/x-icon',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, s-maxage=86400',
+          },
+        ],
+      },
+      {
+        source: '/favicon-192.png',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'image/png',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, s-maxage=86400',
+          },
+        ],
+      },
+      {
+        source: '/favicon-512.png',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'image/png',
           },
           {
             key: 'Cache-Control',
@@ -47,8 +91,19 @@ const nextConfig = {
           },
         ],
       },
+      // Configurações específicas para APIs
       {
-        source: '/:path*',
+        source: '/api/export/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate',
+          },
+        ],
+      },
+      // Cabeçalhos padrão para outras rotas
+      {
+        source: '/((?!_next|api|favicon|site.webmanifest|browserconfig.xml|favicon-\\d+\\.png).*)',
         headers: [
           {
             key: 'Cache-Control',
