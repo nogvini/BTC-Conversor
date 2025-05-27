@@ -743,7 +743,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </Card>
       )}
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Seleção de Relatórios */}
         <Card className="lg:col-span-1 bg-black/40 border-purple-700/50">
           <CardHeader className="pb-3">
@@ -753,7 +753,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[300px] pr-4 -mr-4">
+            <ScrollArea className="h-[200px] sm:h-[300px] pr-4 -mr-4">
               <div className="space-y-2">
                 {reports.map(report => (
                   <div 
@@ -805,35 +805,38 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           </CardHeader>
           <CardContent className="px-1">
             {selectedReportIds.length === 0 ? (
-              <div className="flex items-center justify-center h-[300px] text-center">
+              <div className="flex items-center justify-center h-[200px] sm:h-[300px] text-center">
                 <div className="space-y-2">
                   <CircleSlash2 className="h-10 w-10 text-gray-500 mx-auto" />
                   <p className="text-gray-400">Selecione pelo menos um relatório para visualizar o gráfico</p>
                 </div>
               </div>
             ) : !comparisonData ? (
-              <div className="flex items-center justify-center h-[300px]">
+              <div className="flex items-center justify-center h-[200px] sm:h-[300px]">
                 <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
               </div>
             ) : (
-              <div className="h-[300px]">
+              <div className="h-[200px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={comparisonData.chartData}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis 
                       dataKey="month" 
                       stroke="#888" 
-                      tick={{ fontSize: 12 }}
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(value) => isMobile ? value.split(' ')[0] : value}
                     />
                     <YAxis 
                       stroke="#888"
+                      fontSize={10}
+                      width={isMobile ? 30 : 40}
                       tickFormatter={(value) => {
                         const converted = convertFromBtc(value);
                         if (displayUnit === "btc") {
-                          return value.toFixed(value < 0.1 ? 4 : 2);
+                          return value.toFixed(value < 0.1 ? 2 : 1);
                         } else {
                           return converted.toFixed(0);
                         }
@@ -843,7 +846,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                       content={<CustomTooltip />}
                       cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                     />
-                    <Legend />
+                    <Legend 
+                      wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
+                    />
                     {generateChartBars()}
                   </BarChart>
                 </ResponsiveContainer>
@@ -861,114 +866,118 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full border-collapse min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-purple-700/30">
-                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-300">Relatório</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Investimento Total</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro/Perda</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Saldo Final</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">
-                      <TooltipProvider>
-                        <UITooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center justify-end gap-1">
-                              ROI
-                              <Info className="h-3 w-3 text-gray-400" />
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs bg-black/90 border-purple-700/50 text-xs">
-                            <p>Return on Investment (Retorno sobre Investimento)</p>
-                            <p className="text-gray-400 mt-1">
-                              Calculado como: (Lucro Total / Investimento Total) × 100
-                            </p>
-                          </TooltipContent>
-                        </UITooltip>
-                      </TooltipProvider>
-                    </th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Data 1º Aporte</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Tempo Invest.</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Anualizado</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro Diário Médio</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Diário Médio</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedReportIds.map(reportId => {
-                    const report = reports.find(r => r.id === reportId);
-                    const stats = comparisonData.statsData[reportId];
-                    
-                    if (!report || !stats) return null;
-                    
-                    const totalInvestments = convertFromBtc(stats.totalInvestments);
-                    const totalProfits = convertFromBtc(stats.totalProfits);
-                    const finalBalance = convertFromBtc(stats.finalBalance);
-                    const roi = stats.roi;
-
-                    // NOVAS MÉTRICAS PARA EXIBIÇÃO
-                    const primeiroAporte = stats.primeiroAporteDate ? format(new Date(stats.primeiroAporteDate), 'dd/MM/yy', { locale: ptBR }) : 'N/A';
-                    const tempoInvest = stats.tempoTotalInvestimento; // Já formatado pelo formatTempoInvestimento
-                    const roiAnualizado = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0 && stats.roiAnualizadoPercent !== -100) 
-                                          ? `${stats.roiAnualizadoPercent.toFixed(2)}%` 
-                                          : (stats.roiAnualizadoPercent === -100 ? '-100.00%' : 'N/A');
-                    const mediaLucro = stats.diasDeInvestimento > 0 
-                                       ? formatValue(convertFromBtc(stats.mediaDiariaLucroBtc)) 
-                                       : 'N/A';
-                    const mediaRoi = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0) 
-                                     ? `${stats.mediaDiariaRoiPercent.toFixed(4)}%` 
-                                     : 'N/A';
-                    
-                    return (
-                      <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: report.color || "#8844ee" }}
-                            />
-                            <span className="font-medium">{report.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right font-medium">
-                          {formatValue(totalInvestments)}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className={cn(
-                            "flex items-center justify-end font-medium",
-                            totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"
-                          )}>
-                            {totalProfits > 0 ? (
-                              <ArrowUp className="h-4 w-4 mr-1" />
-                            ) : totalProfits < 0 ? (
-                              <ArrowDown className="h-4 w-4 mr-1" />
-                            ) : null}
-                            {formatValue(Math.abs(totalProfits))}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right font-medium">
-                          {formatValue(finalBalance)}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <Badge className={cn(
-                            "font-medium",
-                            roi > 0 ? "bg-green-900/50 text-green-300 hover:bg-green-900/70" : 
-                            roi < 0 ? "bg-red-900/50 text-red-300 hover:bg-red-900/70" : 
-                            "bg-gray-700/30 text-gray-300 hover:bg-gray-700/50"
-                          )}>
-                            {roi > 0 ? "+" : ""}
-                            {roi.toFixed(2)}%
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3 text-right text-xs">{primeiroAporte}</td>
-                        <td className="py-3 px-3 text-right text-xs">{tempoInvest}</td>
-                        <td className={cn("py-3 px-3 text-right text-xs", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
-                        <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
-                        <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
+              <ScrollArea className="w-full" orientation="horizontal">
+                <div className="min-w-[960px]">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-700/30">
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-300">Relatório</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Investimento Total</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro/Perda</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Saldo Final</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">
+                          <TooltipProvider>
+                            <UITooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center justify-end gap-1">
+                                  ROI
+                                  <Info className="h-3 w-3 text-gray-400" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs bg-black/90 border-purple-700/50 text-xs">
+                                <p>Return on Investment (Retorno sobre Investimento)</p>
+                                <p className="text-gray-400 mt-1">
+                                  Calculado como: (Lucro Total / Investimento Total) × 100
+                                </p>
+                              </TooltipContent>
+                            </UITooltip>
+                          </TooltipProvider>
+                        </th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Data 1º Aporte</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Tempo Invest.</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Anualizado</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro Diário Médio</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Diário Médio</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {selectedReportIds.map(reportId => {
+                        const report = reports.find(r => r.id === reportId);
+                        const stats = comparisonData.statsData[reportId];
+                        
+                        if (!report || !stats) return null;
+                        
+                        const totalInvestments = convertFromBtc(stats.totalInvestments);
+                        const totalProfits = convertFromBtc(stats.totalProfits);
+                        const finalBalance = convertFromBtc(stats.finalBalance);
+                        const roi = stats.roi;
+
+                        // NOVAS MÉTRICAS PARA EXIBIÇÃO
+                        const primeiroAporte = stats.primeiroAporteDate ? format(new Date(stats.primeiroAporteDate), 'dd/MM/yy', { locale: ptBR }) : 'N/A';
+                        const tempoInvest = stats.tempoTotalInvestimento; // Já formatado pelo formatTempoInvestimento
+                        const roiAnualizado = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0 && stats.roiAnualizadoPercent !== -100) 
+                                              ? `${stats.roiAnualizadoPercent.toFixed(2)}%` 
+                                              : (stats.roiAnualizadoPercent === -100 ? '-100.00%' : 'N/A');
+                        const mediaLucro = stats.diasDeInvestimento > 0 
+                                           ? formatValue(convertFromBtc(stats.mediaDiariaLucroBtc)) 
+                                           : 'N/A';
+                        const mediaRoi = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0) 
+                                         ? `${stats.mediaDiariaRoiPercent.toFixed(4)}%` 
+                                         : 'N/A';
+                        
+                        return (
+                          <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: report.color || "#8844ee" }}
+                                />
+                                <span className="font-medium">{report.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-right font-medium">
+                              {formatValue(totalInvestments)}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <div className={cn(
+                                "flex items-center justify-end font-medium",
+                                totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"
+                              )}>
+                                {totalProfits > 0 ? (
+                                  <ArrowUp className="h-4 w-4 mr-1" />
+                                ) : totalProfits < 0 ? (
+                                  <ArrowDown className="h-4 w-4 mr-1" />
+                                ) : null}
+                                {formatValue(Math.abs(totalProfits))}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-right font-medium">
+                              {formatValue(finalBalance)}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <Badge className={cn(
+                                "font-medium",
+                                roi > 0 ? "bg-green-900/50 text-green-300 hover:bg-green-900/70" : 
+                                roi < 0 ? "bg-red-900/50 text-red-300 hover:bg-red-900/70" : 
+                                "bg-gray-700/30 text-gray-300 hover:bg-gray-700/50"
+                              )}>
+                                {roi > 0 ? "+" : ""}
+                                {roi.toFixed(2)}%
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-3 text-right text-xs">{primeiroAporte}</td>
+                            <td className="py-3 px-3 text-right text-xs">{tempoInvest}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </ScrollArea>
             </div>
           </CardContent>
         </Card>
@@ -1133,62 +1142,69 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             </div>
           )}
           
-          <ScrollArea className="h-[180px] mt-4 rounded-lg border border-purple-800/30">
-            <Table className="min-w-[640px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Relatório</TableHead>
-                  <TableHead>Investimentos</TableHead>
-                  <TableHead>Lucros</TableHead>
-                  <TableHead>ROI</TableHead>
-                  <TableHead>Saldo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {comparisonDataForTabs.summaries.map(summary => (
-                  <TableRow key={summary.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center">
-                        <div 
-                          className="w-3 h-3 rounded-full mr-2" 
-                          style={{ backgroundColor: summary.color }}
-                        ></div>
-                        {summary.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {formatCryptoAmount(summary.investments.btc)} BTC
-                    </TableCell>
-                    <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      {formatCryptoAmount(summary.profits.btc)} BTC
-                    </TableCell>
-                    <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      {summary.roi.toFixed(2)}%
-                    </TableCell>
-                    <TableCell>
-                      {formatCryptoAmount(summary.balance.btc)} BTC
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+          <div className="overflow-x-auto mt-4 rounded-lg border border-purple-800/30">
+            <ScrollArea className="h-[180px] w-full" orientation="both">
+              <div className="min-w-[640px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Relatório</TableHead>
+                      <TableHead>Investimentos</TableHead>
+                      <TableHead>Lucros</TableHead>
+                      <TableHead>ROI</TableHead>
+                      <TableHead>Saldo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparisonDataForTabs.summaries.map(summary => (
+                      <TableRow key={summary.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center">
+                            <div 
+                              className="w-3 h-3 rounded-full mr-2" 
+                              style={{ backgroundColor: summary.color }}
+                            ></div>
+                            {summary.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {formatCryptoAmount(summary.investments.btc)} BTC
+                        </TableCell>
+                        <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                          {formatCryptoAmount(summary.profits.btc)} BTC
+                        </TableCell>
+                        <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                          {summary.roi.toFixed(2)}%
+                        </TableCell>
+                        <TableCell>
+                          {formatCryptoAmount(summary.balance.btc)} BTC
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </ScrollArea>
+          </div>
         </TabsContent>
         
         <TabsContent value="charts" className="pt-2">
           <div className="space-y-6">
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <h4 className="text-sm font-medium mb-3">Comparação de Investimentos e Lucros</h4>
-              <div className="h-[250px]">
+              <div className="h-[200px] sm:h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={comparisonDataForTabs.barChartData}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis 
                       dataKey="name" 
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(value) => value.length > (isMobile ? 6 : 10) ? `${value.substring(0, isMobile ? 6 : 10)}...` : value}
                     />
-                    <YAxis tick={{ fontSize: 10 }} />
+                    <YAxis 
+                      tick={{ fontSize: 10 }} 
+                      width={isMobile ? 30 : 40}
+                    />
                     <Tooltip 
                       formatter={(value, name) => {
                         const formattedValue = `${Number(value).toFixed(8)} BTC`;
@@ -1209,7 +1225,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                       labelStyle={{ color: '#f8fafc' }}
                       cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                     />
-                    <Legend />
+                    <Legend 
+                      wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
+                    />
                     <Bar dataKey="investimentos" name="Investimentos" fill="#8884d8" />
                     <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
                   </BarChart>
@@ -1219,18 +1237,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <h4 className="text-sm font-medium mb-3">Distribuição de Saldo</h4>
-              <div className="h-[250px]">
+              <div className="h-[200px] sm:h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={comparisonDataForTabs.pieData}
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
+                      outerRadius={isMobile ? 60 : 80}
                       dataKey="value"
                       nameKey="name"
-                      label={(entry) => entry.name}
-                      labelLine={true}
+                      label={isMobile ? false : (entry) => entry.name}
+                      labelLine={!isMobile}
                     >
                       {comparisonDataForTabs.pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1248,7 +1266,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                       labelStyle={{ color: '#f8fafc' }}
                       cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
                     />
-                    <Legend />
+                    <Legend 
+                      wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -1257,48 +1277,52 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </TabsContent>
         
         <TabsContent value="details" className="pt-2">
-          <ScrollArea className="h-[400px] rounded-lg border border-purple-800/30">
-            <Table className="min-w-[700px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Relatório</TableHead>
-                  <TableHead>Investimentos (BTC)</TableHead>
-                  <TableHead>Lucros (BTC)</TableHead>
-                  <TableHead>ROI</TableHead>
-                  <TableHead>Saldo (BTC)</TableHead>
-                  <TableHead>Saldo (USD)</TableHead>
-                  <TableHead># Aportes</TableHead>
-                  <TableHead># Lucros</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {comparisonDataForTabs.summaries.map(summary => (
-                  <TableRow key={summary.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center">
-                        <div 
-                          className="w-3 h-3 rounded-full mr-2" 
-                          style={{ backgroundColor: summary.color }}
-                        ></div>
-                        {summary.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
-                    <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      {formatCryptoAmount(summary.profits.btc)}
-                    </TableCell>
-                    <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      {summary.roi.toFixed(2)}%
-                    </TableCell>
-                    <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
-                    <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
-                    <TableCell>{summary.investmentCount}</TableCell>
-                    <TableCell>{summary.profitCount}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+          <div className="overflow-x-auto rounded-lg border border-purple-800/30">
+            <ScrollArea className="h-[400px] w-full" orientation="both">
+              <div className="min-w-[700px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Relatório</TableHead>
+                      <TableHead>Investimentos (BTC)</TableHead>
+                      <TableHead>Lucros (BTC)</TableHead>
+                      <TableHead>ROI</TableHead>
+                      <TableHead>Saldo (BTC)</TableHead>
+                      <TableHead>Saldo (USD)</TableHead>
+                      <TableHead># Aportes</TableHead>
+                      <TableHead># Lucros</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparisonDataForTabs.summaries.map(summary => (
+                      <TableRow key={summary.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center">
+                            <div 
+                              className="w-3 h-3 rounded-full mr-2" 
+                              style={{ backgroundColor: summary.color }}
+                            ></div>
+                            {summary.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
+                        <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                          {formatCryptoAmount(summary.profits.btc)}
+                        </TableCell>
+                        <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                          {summary.roi.toFixed(2)}%
+                        </TableCell>
+                        <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
+                        <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                        <TableCell>{summary.investmentCount}</TableCell>
+                        <TableCell>{summary.profitCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

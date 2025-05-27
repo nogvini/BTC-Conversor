@@ -209,13 +209,16 @@ function ImportProgressIndicator({ progress, type }: { progress: ImportProgress;
     switch (type) {
       case 'trades': return <TrendingUp className={cn("h-4 w-4 transition-all duration-300", 
         progress.status === 'loading' ? "animate-pulse text-blue-400" : 
-        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+        progress.status === 'complete' ? "text-green-400" : 
+        progress.status === 'error' ? "text-red-400" : "text-gray-400")} />;
       case 'deposits': return <Download className={cn("h-4 w-4 transition-all duration-300", 
         progress.status === 'loading' ? "animate-bounce text-blue-400" : 
-        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+        progress.status === 'complete' ? "text-green-400" : 
+        progress.status === 'error' ? "text-red-400" : "text-gray-400")} />;
       case 'withdrawals': return <Upload className={cn("h-4 w-4 transition-all duration-300", 
         progress.status === 'loading' ? "animate-pulse text-blue-400" : 
-        progress.status === 'complete' ? "text-green-400" : "text-gray-400")} />;
+        progress.status === 'complete' ? "text-green-400" : 
+        progress.status === 'error' ? "text-red-400" : "text-gray-400")} />;
       default: return null;
     }
   };
@@ -868,6 +871,23 @@ export default function ProfitCalculator({
 
         if (!response?.success || !response?.data) {
           if (currentOffset === 0) {
+            // Erro na primeira página indica problema com a API
+            console.error('[handleImportTrades] Erro ao acessar a API:', response?.error);
+            setImportProgress(prev => ({
+              ...prev,
+              trades: { 
+                current: 0, 
+                total: 0, 
+                percentage: 0, 
+                status: 'error', 
+                message: 'Erro ao acessar a API' 
+              }
+            }));
+            toast({
+              title: "Erro na API",
+              description: "Não foi possível buscar os dados na API. Por favor, revise os dados inseridos e verifique se sua API possui as permissões necessárias.",
+              variant: "destructive",
+            });
             throw new Error(response?.error || "Erro ao buscar trades");
           } else {
             console.log(`[handleImportTrades] Erro no offset ${currentOffset}, parando busca:`, response?.error);
@@ -1562,6 +1582,23 @@ export default function ProfitCalculator({
 
       if (!response.success || !response.data) {
         console.error('[handleImportDeposits] Falha na resposta da API:', response);
+        // Atualizar status do progresso para erro
+        setImportProgress(prev => ({
+          ...prev,
+          deposits: { 
+            current: 0, 
+            total: 0, 
+            percentage: 0, 
+            status: 'error', 
+            message: 'Erro ao acessar a API' 
+          }
+        }));
+        // Mostrar mensagem de erro para o usuário
+        toast({
+          title: "Erro na API",
+          description: "Não foi possível buscar os dados de depósitos na API. Por favor, revise os dados inseridos e verifique se sua API possui as permissões necessárias.",
+          variant: "destructive",
+        });
         throw new Error(response.error || "Erro ao buscar depósitos");
       }
 
@@ -1890,6 +1927,24 @@ export default function ProfitCalculator({
       });
 
       if (!response.success || !response.data) {
+        console.error('[handleImportWithdrawals] Falha na resposta da API:', response);
+        // Atualizar status do progresso para erro
+        setImportProgress(prev => ({
+          ...prev,
+          withdrawals: { 
+            current: 0, 
+            total: 0, 
+            percentage: 0, 
+            status: 'error', 
+            message: 'Erro ao acessar a API' 
+          }
+        }));
+        // Mostrar mensagem de erro para o usuário
+        toast({
+          title: "Erro na API",
+          description: "Não foi possível buscar os dados de saques na API. Por favor, revise os dados inseridos e verifique se sua API possui as permissões necessárias.",
+          variant: "destructive",
+        });
         throw new Error(response.error || "Erro ao buscar saques");
       }
 
@@ -3224,25 +3279,30 @@ export default function ProfitCalculator({
                 {(!multipleConfigs || multipleConfigs.configs.length === 0) && (
                   <Card className="bg-yellow-900/30 border border-yellow-600/50 mb-4">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-yellow-400">
-                        <AlertTriangle className="h-5 w-5" />
-                        Configuração Necessária
+                      <CardTitle className="flex items-center gap-2 text-yellow-400 text-base sm:text-lg">
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                        <span>Configuração Necessária</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        <p className="text-yellow-200">
+                        <p className="text-yellow-200 text-sm sm:text-base">
                           Você ainda não tem nenhuma configuração de API LN Markets para importação de dados.
                         </p>
-                        <p className="text-sm text-yellow-300/80">
+                        <p className="text-xs sm:text-sm text-yellow-300/80">
                           Para usar as funcionalidades de importação, você precisa configurar suas credenciais de API no seu perfil.
                         </p>
-                        <div className="flex justify-between items-center pt-2">
-                          <Link href="/profile" className="flex items-center gap-2 text-white bg-yellow-700 hover:bg-yellow-600 px-4 py-2 rounded-md transition-colors">
-                            <User className="h-4 w-4" />
-                            Ir para meu Perfil
+                        <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center pt-2">
+                          <Link href="/profile" className="flex items-center justify-center sm:justify-start gap-2 text-white bg-yellow-700 hover:bg-yellow-600 px-4 py-2 rounded-md transition-colors text-sm">
+                            <User className="h-4 w-4 flex-shrink-0" />
+                            <span>Ir para meu Perfil</span>
                           </Link>
-                          <a href="https://lnmarkets.com/en/settings/api" target="_blank" rel="noopener noreferrer" className="text-sm text-yellow-400 hover:text-yellow-300 underline underline-offset-2">
+                          <a 
+                            href="https://lnmarkets.com/en/settings/api" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-xs sm:text-sm text-yellow-400 hover:text-yellow-300 underline underline-offset-2 text-center sm:text-right"
+                          >
                             Criar chaves API no LN Markets
                           </a>
                         </div>
@@ -3616,7 +3676,7 @@ export default function ProfitCalculator({
                         </div>
                       </CardContent>
                     </Card>
-                                    </TabsContent>
+                  </TabsContent>
 
                   <TabsContent value="investments" className="mt-4">
                     <Card className="bg-black/30 border border-purple-700/40">
@@ -3655,19 +3715,19 @@ export default function ProfitCalculator({
                                 </TableRow>
                               ) : (
                                 getFilteredHistoryData.investments.map((investment: any) => {
-                                  const btcAmount = convertToBtc(investment.amount, investment.unit);
+                                const btcAmount = convertToBtc(investment.amount, investment.unit);
                                   const usdValue = btcAmount * states.currentRates.btcToUsd;
                                   const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                  
-                                  return (
-                                    <TableRow key={investment.id}>
-                                      <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
-                                      <TableCell>{investment.amount.toLocaleString()}</TableCell>
-                                      <TableCell>{investment.unit}</TableCell>
-                                      <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
+                                
+                                return (
+                                  <TableRow key={investment.id}>
+                                    <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>{investment.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{investment.unit}</TableCell>
+                                    <TableCell>₿{btcAmount.toFixed(8)}</TableCell>
                                       <TableCell>{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
-                                    </TableRow>
-                                  );
+                                  </TableRow>
+                                );
                                 })
                               )}
                             </TableBody>
@@ -3747,28 +3807,28 @@ export default function ProfitCalculator({
                                 </TableRow>
                               ) : (
                                 getFilteredHistoryData.profits.map((profit: any) => {
-                                  const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                const btcAmount = convertToBtc(profit.amount, profit.unit);
                                   const usdValue = btcAmount * states.currentRates.btcToUsd;
                                   const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                  
-                                  return (
-                                    <TableRow key={profit.id}>
-                                      <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
-                                      <TableCell>
-                                        <Badge variant={profit.isProfit ? "default" : "destructive"}>
-                                          {profit.isProfit ? "Lucro" : "Perda"}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell>{profit.amount.toLocaleString()}</TableCell>
-                                      <TableCell>{profit.unit}</TableCell>
-                                      <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
-                                        ₿{btcAmount.toFixed(8)}
-                                      </TableCell>
-                                      <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                
+                                return (
+                                  <TableRow key={profit.id}>
+                                    <TableCell>{formatDateFn(new Date(profit.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={profit.isProfit ? "default" : "destructive"}>
+                                        {profit.isProfit ? "Lucro" : "Perda"}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>{profit.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{profit.unit}</TableCell>
+                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
+                                      ₿{btcAmount.toFixed(8)}
+                                    </TableCell>
+                                    <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
                                         {formatCurrency(currencyValue, states.displayCurrency)}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
+                                    </TableCell>
+                                  </TableRow>
+                                );
                                 })
                               )}
                             </TableBody>
@@ -3847,19 +3907,19 @@ export default function ProfitCalculator({
                                 </TableRow>
                               ) : (
                                 getFilteredHistoryData.withdrawals.map((withdrawal: any) => {
-                                  const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
+                                const btcAmount = convertToBtc(withdrawal.amount, withdrawal.unit);
                                   const usdValue = btcAmount * states.currentRates.btcToUsd;
                                   const currencyValue = states.displayCurrency === "BRL" ? usdValue * states.currentRates.brlToUsd : usdValue;
-                                  
-                                  return (
-                                    <TableRow key={withdrawal.id}>
-                                      <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
-                                      <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
-                                      <TableCell>{withdrawal.unit}</TableCell>
-                                      <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
+                                
+                                return (
+                                  <TableRow key={withdrawal.id}>
+                                    <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{withdrawal.unit}</TableCell>
+                                    <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
                                       <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
-                                    </TableRow>
-                                  );
+                                  </TableRow>
+                                );
                                 })
                               )}
                             </TableBody>
@@ -4373,17 +4433,17 @@ export default function ProfitCalculator({
                                 backgroundColor: 'rgba(31, 41, 55, 0.85)',
                                 border: '1px solid rgba(124, 58, 237, 0.6)',
                                 borderRadius: '0.5rem',
-                                color: '#F3F4F6',
+                                color: '#FFFFFF',
                                 fontSize: '13px',
                                 boxShadow: '0 8px 16px -2px rgba(0, 0, 0, 0.2)',
                                 padding: '10px'
                               }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                              cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
                               formatter={(value: number, name: string) => {
                                 const formattedValue = formatChartValue(value);
-                                // Colorize based on name - yellow for investments, green for profits
+                                // Mantendo cor para destacar o valor, mas texto do nome agora é branco
                                 const textColor = name === 'Investimentos' ? '#F59E0B' : '#10B981';
-                                return [<span style={{ color: textColor }}>{formattedValue}</span>, name];
+                                return [<span style={{ color: textColor }}>{formattedValue}</span>, <span style={{ color: '#FFFFFF' }}>{name}</span>];
                               }}
                             />
                           </PieChart>

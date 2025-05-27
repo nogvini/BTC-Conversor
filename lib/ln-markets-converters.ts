@@ -152,18 +152,18 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     console.log('[convertTradeToProfit] Trade fechado - usando closed_ts:', timestampToUse);
   } else {
     // Trade aberto ou sem closed_ts: usar fallback
-    const possibleDateFields = {
+  const possibleDateFields = {
       market_filled_ts: trade.market_filled_ts,
       creation_ts: trade.creation_ts,
       last_update_ts: trade.last_update_ts
     };
 
     const { timestamp, source } = selectBestTimestamp(
-      possibleDateFields,
+    possibleDateFields,
       ['market_filled_ts', 'creation_ts', 'last_update_ts'],
       'convertTradeToProfit-fallback'
-    );
-    
+  );
+
     timestampToUse = timestamp;
     dateSource = source;
     console.log('[convertTradeToProfit] Trade aberto/sem closed_ts - usando fallback:', timestampToUse, 'da fonte:', dateSource);
@@ -185,7 +185,7 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     console.error('[convertTradeToProfit] Trade sem identificador válido:', trade);
     throw new Error('Trade deve ter uid ou id válido');
   }
-  
+
   // CORREÇÃO CRÍTICA: Se o ID já tiver o prefixo "trade_", remover para evitar duplicação
   if (typeof tradeIdentifier === 'string' && tradeIdentifier.startsWith('trade_')) {
     tradeIdentifier = tradeIdentifier.substring(6); // Remover o prefixo 'trade_'
@@ -312,7 +312,7 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
     plIdentifier,
     resultingId: compositeId
   });
-  
+
   const result = {
     id: compositeId, // ID composto com validação cruzada
     originalId: `trade_${tradeIdentifier}`, // Manter o originalId original para retrocompatibilidade

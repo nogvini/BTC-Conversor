@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 // Imports para LN Markets
 import type { LNMarketsCredentials, LNMarketsAPIConfig, LNMarketsMultipleConfig } from "@/components/types/ln-markets-types"
@@ -169,6 +170,10 @@ export default function UserProfile() {
     network: "mainnet" as "mainnet" | "testnet",
     isActive: true
   });
+  
+  // Estado para controlar a exibição do diálogo de confirmação de exclusão
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [configToDelete, setConfigToDelete] = useState<{ id: string, name: string } | null>(null)
   
   // Inicializar o formulário com valores vazios
   const profileForm = useForm<ProfileFormValues>({
@@ -462,29 +467,37 @@ export default function UserProfile() {
     }
   };
 
-  const handleRemoveConfig = (configId: string, configName: string) => {
-    if (!user?.email) return;
+  // Função para iniciar o processo de remoção da configuração
+  const initiateRemoveConfig = (configId: string, configName: string) => {
+    setConfigToDelete({ id: configId, name: configName });
+    setDeleteDialogOpen(true);
+  };
 
-    if (window.confirm(`Tem certeza que deseja remover a configuração "${configName}"?`)) {
-      const success = removeLNMarketsConfig(user.email, configId);
+  // Função para confirmar a remoção da configuração
+  const confirmRemoveConfig = () => {
+    if (!user?.email || !configToDelete) return;
+
+    const success = removeLNMarketsConfig(user.email, configToDelete.id);
+    
+    if (success) {
+      const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
+      setMultipleConfigs(updatedConfigs);
       
-      if (success) {
-        const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
-        setMultipleConfigs(updatedConfigs);
-        
-        toast({
-          title: "Configuração Removida",
-          description: `Configuração "${configName}" foi removida com sucesso.`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Erro",
-          description: "Não foi possível remover a configuração.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Configuração Removida",
+        description: `Configuração "${configToDelete.name}" foi removida com sucesso.`,
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover a configuração.",
+        variant: "destructive",
+      });
     }
+
+    // Limpar o estado após a operação
+    setConfigToDelete(null);
   };
 
   const handleSetDefaultConfig = (configId: string) => {
@@ -745,7 +758,7 @@ export default function UserProfile() {
                         </Button>
                         
                         <Button
-                          onClick={() => handleRemoveConfig(config.id, config.name)}
+                          onClick={() => initiateRemoveConfig(config.id, config.name)}
                           size="sm"
                           variant="outline"
                           className="border-red-500 text-red-400 min-w-[40px]"
@@ -931,6 +944,29 @@ export default function UserProfile() {
             )}
           </CardContent>
         </Card>
+
+        {/* Dialog de confirmação para excluir configuração */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent className="bg-zinc-900 border border-purple-700/30">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remover Configuração</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja remover a configuração "{configToDelete?.name}"?
+                <br />
+                <span className="text-yellow-500">Esta ação não pode ser desfeita.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-purple-700/30">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmRemoveConfig}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Remover
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </PageTransition>
   )
