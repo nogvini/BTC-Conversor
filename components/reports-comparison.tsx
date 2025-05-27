@@ -884,11 +884,15 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         <Card className="bg-black/40 border-purple-700/50">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Comparativo de Resultados</CardTitle>
+            <CardDescription className="md:hidden text-xs text-muted-foreground">
+              Deslize para ver mais dados
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <ScrollArea className="w-full" orientation="horizontal">
-                <div className="min-w-[900px] max-w-full">
+                {/* Versão completa para telas grandes */}
+                <div className="hidden lg:block min-w-[900px] max-w-full">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-purple-700/30">
@@ -992,6 +996,97 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             <td className={cn("py-3 px-3 text-right text-xs", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
                             <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
                             <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Versão compacta para telas médias e pequenas */}
+                <div className="block lg:hidden min-w-[650px] max-w-full">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-700/30">
+                        <th className="text-left py-2 px-2 text-sm font-medium text-gray-300">Relatório</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Investimento</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Lucro</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Saldo</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">ROI</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Tempo</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">ROI Anual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedReportIds.map(reportId => {
+                        const report = reports.find(r => r.id === reportId);
+                        const stats = comparisonData.statsData[reportId];
+                        
+                        if (!report || !stats) return null;
+                        
+                        const totalInvestments = convertFromBtc(stats.totalInvestments);
+                        const totalProfits = convertFromBtc(stats.totalProfits);
+                        const finalBalance = convertFromBtc(stats.finalBalance);
+                        const roi = stats.roi;
+
+                        // Formatação compacta para versão móvel
+                        const tempoInvest = stats.diasDeInvestimento > 365 
+                          ? `${Math.floor(stats.diasDeInvestimento/365)}a ${Math.floor((stats.diasDeInvestimento%365)/30)}m`
+                          : stats.diasDeInvestimento > 30 
+                            ? `${Math.floor(stats.diasDeInvestimento/30)}m ${stats.diasDeInvestimento%30}d`
+                            : `${stats.diasDeInvestimento}d`;
+                            
+                        const roiAnualizado = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0 && stats.roiAnualizadoPercent !== -100) 
+                          ? `${stats.roiAnualizadoPercent.toFixed(2)}%` 
+                          : (stats.roiAnualizadoPercent === -100 ? '-100%' : 'N/A');
+                        
+                        return (
+                          <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
+                            <td className="py-2 px-2">
+                              <div className="flex items-center gap-1">
+                                <div 
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: report.color || "#8844ee" }}
+                                />
+                                <span className="font-medium text-sm">{report.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-right font-medium text-sm">
+                              {displayUnit === "btc" && totalInvestments < 0.01 && totalInvestments > 0
+                                ? `丰${(totalInvestments * 100000000).toFixed(0)}`
+                                : formatValue(totalInvestments)}
+                            </td>
+                            <td className="py-2 px-2 text-right text-sm">
+                              <span className={totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"}>
+                                {totalProfits > 0 ? "+" : totalProfits < 0 ? "-" : ""}
+                                {displayUnit === "btc" && Math.abs(totalProfits) < 0.01 && Math.abs(totalProfits) > 0
+                                  ? `丰${(Math.abs(totalProfits) * 100000000).toFixed(0)}`
+                                  : formatValue(Math.abs(totalProfits))}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 text-right font-medium text-sm">
+                              {displayUnit === "btc" && finalBalance < 0.01 && finalBalance > 0
+                                ? `丰${(finalBalance * 100000000).toFixed(0)}`
+                                : formatValue(finalBalance)}
+                            </td>
+                            <td className="py-2 px-2 text-right">
+                              <Badge className={cn(
+                                "font-medium text-xs px-1.5 py-0.5",
+                                roi > 0 ? "bg-green-900/50 text-green-300 hover:bg-green-900/70" : 
+                                roi < 0 ? "bg-red-900/50 text-red-300 hover:bg-red-900/70" : 
+                                "bg-gray-700/30 text-gray-300 hover:bg-gray-700/50"
+                              )}>
+                                {roi > 0 ? "+" : ""}
+                                {roi.toFixed(2)}%
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-2 text-right text-xs">{tempoInvest}</td>
+                            <td className={cn("py-2 px-2 text-right text-xs", 
+                              stats.roiAnualizadoPercent > 0 ? "text-green-400" : 
+                              stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400"
+                            )}>
+                              {roiAnualizado}
+                            </td>
                           </tr>
                         );
                       })}
@@ -1176,10 +1271,13 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[200px]">Relatório</TableHead>
-                      <TableHead>Investimentos</TableHead>
-                      <TableHead>Lucros</TableHead>
+                      <TableHead>Investimentos (BTC)</TableHead>
+                      <TableHead>Lucros (BTC)</TableHead>
                       <TableHead>ROI</TableHead>
-                      <TableHead>Saldo</TableHead>
+                      <TableHead>Saldo (BTC)</TableHead>
+                      <TableHead>Saldo (USD)</TableHead>
+                      <TableHead># Aportes</TableHead>
+                      <TableHead># Lucros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1194,18 +1292,17 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             {summary.name}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {formatCryptoAmount(summary.investments.btc)} BTC
-                        </TableCell>
+                        <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
                         <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
-                          {formatCryptoAmount(summary.profits.btc)} BTC
+                          {formatCryptoAmount(summary.profits.btc)}
                         </TableCell>
                         <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
                           {summary.roi.toFixed(2)}%
                         </TableCell>
-                        <TableCell>
-                          {formatCryptoAmount(summary.balance.btc)} BTC
-                        </TableCell>
+                        <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
+                        <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                        <TableCell>{summary.investmentCount}</TableCell>
+                        <TableCell>{summary.profitCount}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1310,7 +1407,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         <TabsContent value="details" className="pt-2">
           <div className="overflow-x-auto rounded-lg border border-purple-800/30">
             <ScrollArea className="h-[400px] w-full" orientation="both">
-              <div className="min-w-[600px]">
+              {/* Versão para telas grandes */}
+              <div className="hidden lg:block min-w-[600px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1352,7 +1450,80 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* Versão compacta para telas médias e pequenas */}
+              <div className="block lg:hidden min-w-[500px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Relatório</TableHead>
+                      <TableHead>Invest.</TableHead>
+                      <TableHead>Lucro</TableHead>
+                      <TableHead>ROI</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Aportes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparisonDataForTabs.summaries.map(summary => (
+                      <TableRow key={summary.id}>
+                        <TableCell className="font-medium py-2">
+                          <div className="flex items-center">
+                            <div 
+                              className="w-3 h-3 rounded-full mr-1" 
+                              style={{ backgroundColor: summary.color }}
+                            ></div>
+                            <span className="text-sm truncate max-w-[80px]">{summary.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2 text-xs">
+                          {summary.investments.btc < 0.01 && summary.investments.btc > 0
+                            ? `丰${(summary.investments.btc * 100000000).toFixed(0)}`
+                            : formatCryptoAmount(summary.investments.btc)}
+                        </TableCell>
+                        <TableCell className={`py-2 text-xs ${summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {summary.profits.btc < 0.01 && summary.profits.btc > -0.01 && summary.profits.btc !== 0
+                            ? (summary.profits.btc >= 0 ? "+" : "-") + `丰${(Math.abs(summary.profits.btc) * 100000000).toFixed(0)}`
+                            : (summary.profits.btc >= 0 ? "+" : "") + formatCryptoAmount(summary.profits.btc)}
+                        </TableCell>
+                        <TableCell className={`py-2 text-xs ${summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {summary.roi >= 0 ? "+" : ""}{summary.roi.toFixed(2)}%
+                        </TableCell>
+                        <TableCell className="py-2 text-xs">
+                          <TooltipProvider>
+                            <UITooltip>
+                              <TooltipTrigger asChild>
+                                <div>
+                                  {summary.balance.btc < 0.01 && summary.balance.btc > 0
+                                    ? `丰${(summary.balance.btc * 100000000).toFixed(0)}`
+                                    : formatCryptoAmount(summary.balance.btc)}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-black/90 border-purple-700/50 text-xs p-2">
+                                <p>{formatCurrencyAmount(summary.balance.usd, "USD")}</p>
+                                <p>{formatCurrencyAmount(summary.balance.usd * brlToUsd, "BRL")}</p>
+                              </TooltipContent>
+                            </UITooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="py-2 text-xs">
+                          {summary.investmentCount}/{summary.profitCount}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </ScrollArea>
+          </div>
+          
+          <div className="mt-4 text-xs text-muted-foreground">
+            <div className="flex items-center">
+              <Info className="h-3 w-3 mr-1.5" />
+              <span>
+                Valores em BTC. Valores pequenos em satoshis (丰). Use o modo USD/BRL nas configurações para outras moedas.
+              </span>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

@@ -44,9 +44,17 @@ function convertToBTC(amount: number, unit: CurrencyUnit): number {
  * @returns Uma promessa para ProcessedReportFoundation.
  */
 export async function prepareReportFoundationData(
-  input: ReportDataInput
+  input: ReportDataInput | any
 ): Promise<ProcessedReportFoundation> {
-  const { report } = input;
+  // Verificação defensiva: se o input for null/undefined, criar um objeto vazio
+  if (!input) {
+    console.warn('Input is null or undefined in prepareReportFoundationData');
+    input = { report: { investments: [], profits: [], withdrawals: [] } };
+  }
+
+  // Extrair o relatório, com uma verificação defensiva
+  const report = input.report || { investments: [], profits: [], withdrawals: [] };
+  
   const enrichedOperations: OperationData[] = [];
   const historicalQuotesUSD = new Map<string, number>();
   const historicalQuotesBRL = new Map<string, number>();
@@ -85,8 +93,22 @@ export async function prepareReportFoundationData(
         getHistoricalBitcoinDataForRange('brl', minDate, maxDate),
       ]);
 
-      quotesUSD.forEach(q => historicalQuotesUSD.set(q.date, q.price));
-      quotesBRL.forEach(q => historicalQuotesBRL.set(q.date, q.price));
+      // Verificar se as cotações foram retornadas corretamente
+      if (Array.isArray(quotesUSD)) {
+        quotesUSD.forEach(q => {
+          if (q && q.date && typeof q.price === 'number') {
+            historicalQuotesUSD.set(q.date, q.price);
+          }
+        });
+      }
+      
+      if (Array.isArray(quotesBRL)) {
+        quotesBRL.forEach(q => {
+          if (q && q.date && typeof q.price === 'number') {
+            historicalQuotesBRL.set(q.date, q.price);
+          }
+        });
+      }
       
       console.log(`Cotações USD carregadas: ${historicalQuotesUSD.size} registros para o intervalo ${minDate} - ${maxDate}`);
       console.log(`Cotações BRL carregadas: ${historicalQuotesBRL.size} registros para o intervalo ${minDate} - ${maxDate}`);
@@ -96,6 +118,11 @@ export async function prepareReportFoundationData(
       // Prosseguir sem cotações, pricePerUnit e totalAmount serão 0 ou indefinidos.
       // Ou podemos optar por lançar o erro aqui e tratar no nível superior.
     }
+  } else {
+    // Se não houver datas de transação, definir um intervalo padrão para hoje
+    const today = new Date().toISOString().split('T')[0];
+    reportDateRange = { minDate: today, maxDate: today };
+    console.warn('Nenhuma data de transação encontrada no relatório, usando data atual como padrão');
   }
 
   // 3. Transformar Investments em OperationData
@@ -118,12 +145,16 @@ export async function prepareReportFoundationData(
         type: 'buy',
         asset: 'BTC',
         quantity: quantityBTC,
+        btcAmount: quantityBTC, // Adicionado para compatibilidade
         // Se a cotação não estiver disponível, pricePerUnit e totalAmount podem ser 0 ou undefined.
         // A interface OperationData precisará permitir isso ou teremos que tratar.
-        pricePerUnitUSD: btcPriceUSD, // Este é o preço do BTC, não o preço por unidade da compra
-        totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
-        pricePerUnitBRL: btcPriceBRL,
-        totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
+        pricePerUnit: btcPriceUSD || 0, // Fallback para 0
+        pricePerUnitUSD: btcPriceUSD || 0, // Fallback para 0
+        totalAmount: (btcPriceUSD ? quantityBTC * btcPriceUSD : 0), // Fallback para 0
+        totalAmountUSD: (btcPriceUSD ? quantityBTC * btcPriceUSD : 0), // Fallback para 0
+        pricePerUnitBRL: btcPriceBRL || 0, // Fallback para 0
+        totalAmountBRL: (btcPriceBRL ? quantityBTC * btcPriceBRL : 0), // Fallback para 0
+        isProfitContext: false,
         // currency: 'BRL', // A moeda da transação original. Atualmente não temos essa info.
                           // Para a exportação, podemos definir uma moeda principal para exibição.
       });
@@ -151,12 +182,15 @@ export async function prepareReportFoundationData(
         type: 'sell',
         asset: 'BTC',
         quantity: quantityBTC,
-        pricePerUnitUSD: btcPriceUSD,
-        totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : undefined,
-        pricePerUnitBRL: btcPriceBRL,
-        totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : undefined,
+        btcAmount: quantityBTC, // Adicionado para compatibilidade
+        pricePerUnit: btcPriceUSD || 0, // Fallback para 0
+        pricePerUnitUSD: btcPriceUSD || 0, // Fallback para 0
+        totalAmount: (btcPriceUSD ? quantityBTC * btcPriceUSD : 0), // Fallback para 0
+        totalAmountUSD: (btcPriceUSD ? quantityBTC * btcPriceUSD : 0), // Fallback para 0
+        pricePerUnitBRL: btcPriceBRL || 0, // Fallback para 0
+        totalAmountBRL: (btcPriceBRL ? quantityBTC * btcPriceBRL : 0), // Fallback para 0
         // currency: 'BRL',
-        isProfitContext: prof.isProfit, // Adicionar contexto se foi lucro ou prejuízo em BTC
+        isProfitContext: typeof prof.isProfit === 'boolean' ? prof.isProfit : true, // Default para true se não especificado
       });
     });
   }

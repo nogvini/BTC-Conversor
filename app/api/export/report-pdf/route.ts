@@ -33,31 +33,38 @@ export async function POST(request: NextRequest) {
     }
 
     const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription } = parsedBody.data;
+    
+    // Verificação defensiva: se o relatório for null/undefined, retornar erro 400
+    if (!rawReport) {
+      return NextResponse.json({ error: 'Report data is missing' }, { status: 400 });
+    }
+    
     // Realizar um type cast aqui. O ideal é ter o ReportSchema validando a estrutura.
     const report = rawReport as any; // Substituir 'any' pelo tipo 'Report' importado
 
-    if (!report || !report.name) {
-        return NextResponse.json({ error: 'Report data or report name is missing' }, { status: 400 });
+    if (!report.name) {
+        return NextResponse.json({ error: 'Report name is missing' }, { status: 400 });
     }
     
     // Garantir que o relatório tenha as propriedades obrigatórias
-    if (!report.investments) {
-      console.warn('Missing investments array in report, using empty array');
+    if (!Array.isArray(report.investments)) {
+      console.warn('Missing or invalid investments array in report, using empty array');
       report.investments = [];
     }
     
-    if (!report.profits) {
-      console.warn('Missing profits array in report, using empty array');
+    if (!Array.isArray(report.profits)) {
+      console.warn('Missing or invalid profits array in report, using empty array');
       report.profits = [];
     }
     
-    if (!report.withdrawals) {
-      console.warn('Missing withdrawals array in report, using empty array');
+    if (!Array.isArray(report.withdrawals)) {
+      console.warn('Missing or invalid withdrawals array in report, using empty array');
       report.withdrawals = [];
     }
     
     // Log de debug para identificar problemas com a estrutura do relatório
     console.log('Report structure:', {
+      name: report.name,
       hasName: !!report.name,
       hasInvestments: Array.isArray(report.investments),
       investmentsLength: Array.isArray(report.investments) ? report.investments.length : 'N/A',
@@ -72,15 +79,30 @@ export async function POST(request: NextRequest) {
     const foundationData = await prepareReportFoundationData(report);
     // console.log('Foundation Data:', foundationData);
 
+    // Verificação defensiva: se foundationData for null/undefined, inicializar um objeto vazio
+    if (!foundationData) {
+      console.error('Error: foundationData is null or undefined');
+      return NextResponse.json({ error: 'Failed to prepare report foundation data' }, { status: 500 });
+    }
+
+    // Verificações defensivas para evitar acessar propriedades de undefined
+    const enrichedOperations = foundationData.enrichedOperations || [];
+    const historicalQuotesUSD = foundationData.historicalQuotesUSD || {};
+    const historicalQuotesBRL = foundationData.historicalQuotesBRL || {};
+    const reportDateRange = foundationData.reportDateRange || { 
+      minDate: new Date().toISOString().split('T')[0], 
+      maxDate: new Date().toISOString().split('T')[0] 
+    };
+
     // Etapa 2: Calcular métricas financeiras
     // A função calculateReportMetrics já foi fornecida e deve ser mantida.
     const calculatedMetricsInput = {
-        enrichedOperations: foundationData.enrichedOperations,
-        historicalQuotesUSD: foundationData.historicalQuotesUSD,
-        historicalQuotesBRL: foundationData.historicalQuotesBRL,
-        reportDateRange: foundationData.reportDateRange,
+        enrichedOperations,
+        historicalQuotesUSD,
+        historicalQuotesBRL,
+        reportDateRange,
         reportName: report.name, 
-        reportPeriodDescription: customPeriodDescription || `${foundationData.reportDateRange?.minDate} - ${foundationData.reportDateRange?.maxDate}`,
+        reportPeriodDescription: customPeriodDescription || `${reportDateRange?.minDate} - ${reportDateRange?.maxDate}`,
         displayCurrency: displayCurrency,
     };
     const calculatedReportData: CalculatedReportData = calculateReportMetrics(calculatedMetricsInput);
@@ -97,7 +119,7 @@ export async function POST(request: NextRequest) {
     const exportedReportData: ExportedReport = {
       metadata: reportMetadata,
       data: calculatedReportData,
-      operations: foundationData.enrichedOperations as OperationData[],
+      operations: enrichedOperations as OperationData[],
       chartsSvg: { // Gráfico omitido por enquanto
         // monthlyPL: undefined, 
       },
