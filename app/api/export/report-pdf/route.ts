@@ -4,7 +4,8 @@ export const maxDuration = 60; // Aumentar para 60 segundos para permitir o proc
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 // import ReactDOMServer from 'react-dom/server'; // Removido
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 // Removidas importações de React e componentes de UI para o template principal
 // import ReportHtmlTemplate from '@/components/report-html-template'; 
 // import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
@@ -22,22 +23,23 @@ let _browserPromise: Promise<any> | null = null;
 async function getBrowser() {
   if (!_browserPromise) {
     _browserPromise = (async () => {
-      // Configuração otimizada para ambiente serverless
-      return puppeteer.launch({ 
-          headless: 'new', 
-          args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--disable-gpu',
-              '--disable-features=site-per-process',
-              '--disable-extensions',
-              '--single-process'
-          ]
-      });
+      // Verificar o ambiente de execução
+      const isVercel = process.env.VERCEL === '1';
+      console.log(`Ambiente detectado: ${isVercel ? 'Vercel' : 'Local'}`);
+      
+      try {
+        // Configuração otimizada para ambiente serverless
+        return puppeteer.launch({
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        });
+      } catch (error) {
+        console.error('Erro ao inicializar o navegador:', error);
+        throw error;
+      }
     })();
   }
   return _browserPromise;
@@ -167,45 +169,51 @@ export async function POST(request: NextRequest) {
     console.log('HTML gerado com sucesso, iniciando Puppeteer...');
 
     // Etapa 5: Gerar PDF com Puppeteer
-    browser = await getBrowser();
-    console.log('Browser iniciado, criando nova página...');
-    
-    const page = await browser.newPage();
-    console.log('Página criada, configurando conteúdo...');
-    
-    await page.setContent(htmlString, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000 // 30 segundos de timeout
-    });
-    
-    console.log('Conteúdo carregado na página, gerando PDF...');
-    
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20mm',
-        right: '20mm',
-        bottom: '20mm',
-        left: '20mm',
-      },
-      timeout: 30000 // 30 segundos de timeout
-    });
-    
-    console.log('PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
-    
-    await page.close();
-    
-    // Não fechar o browser para permitir reuso
-    // await browser.close();
-
-    return new NextResponse(pdfBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${report.name.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf"`,
-      },
-    });
+    try {
+      browser = await getBrowser();
+      console.log('Browser iniciado, criando nova página...');
+      
+      const page = await browser.newPage();
+      console.log('Página criada, configurando conteúdo...');
+      
+      await page.setContent(htmlString, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 // 30 segundos de timeout
+      });
+      
+      console.log('Conteúdo carregado na página, gerando PDF...');
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20mm',
+          right: '20mm',
+          bottom: '20mm',
+          left: '20mm',
+        },
+        timeout: 30000 // 30 segundos de timeout
+      });
+      
+      console.log('PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
+      
+      await page.close();
+      
+      return new NextResponse(pdfBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${report.name.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf"`,
+        },
+      });
+    } catch (browserError) {
+      console.error('Erro ao processar com Puppeteer:', browserError);
+      
+      // Resetar a promessa do browser para forçar nova instância na próxima chamada
+      _browserPromise = null;
+      
+      throw browserError; // Relançar para tratamento no catch externo
+    }
 
   } catch (error) {
     console.error('Erro fatal ao gerar relatório PDF:', error);

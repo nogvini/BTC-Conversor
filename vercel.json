@@ -55,15 +55,23 @@
   "env": {
     "NEXT_PUBLIC_SWC_MINIFY": "false",
     "DISABLE_SWC": "true",
-    "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-    "PUPPETEER_EXECUTABLE_PATH": "node_modules/@sparticuz/chromium/bin"
+    "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true"
   },
   "build": {
     "env": {
       "NEXT_PUBLIC_SWC_MINIFY": "false",
       "DISABLE_SWC": "true",
-      "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-      "PUPPETEER_EXECUTABLE_PATH": "node_modules/@sparticuz/chromium/bin"
+      "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true"
+    }
+  },
+  "functions": {
+    "app/api/export/report-pdf/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60
+    },
+    "app/api/diagnostics/chromium/route.ts": {
+      "memory": 3008,
+      "maxDuration": 30
     }
   }
 } 

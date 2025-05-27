@@ -36,20 +36,16 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, s-maxage=86400',
-          },
+          }
         ],
       },
       {
         source: '/favicon.ico',
         headers: [
           {
-            key: 'Content-Type',
-            value: 'image/x-icon',
-          },
-          {
             key: 'Cache-Control',
             value: 'public, max-age=86400, s-maxage=86400',
-          },
+          }
         ],
       },
       {
@@ -113,26 +109,13 @@ const nextConfig = {
       },
     ];
   },
-  // Resolver o problema com o Supabase durante o build
-  webpack: (config, { isServer }) => {
+  // Configuração para puppeteer/chromium
+  webpack: (config, { isServer, dev }) => {
+    // Adicionar configurações específicas para o Chromium
     if (isServer) {
-      // Quando estiver no servidor durante o build na Vercel,
-      // ignorar o módulo do Supabase se necessário
-      if (process.env.VERCEL_ENV) {
-        console.log('Configurando build para ambiente Vercel');
-      }
+      config.externals = [...config.externals, 'puppeteer-core'];
     }
     
-    // Adicionar fallbacks básicos para módulos de navegador
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
-
     return config;
   },
   transpilePackages: [

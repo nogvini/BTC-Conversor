@@ -1,168 +1,261 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Check, AlertTriangle, X, Database, RefreshCw, Loader2 } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
-import { PageTransition } from "@/components/page-transition"
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { AlertCircle, CheckCircle, RefreshCw, FileX, ExternalLink } from 'lucide-react';
 
-// Componente cliente para a página de diagnóstico
-export function DiagnosePageClient() {
-  const { session } = useAuth()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isChecking, setIsChecking] = useState(false)
-  const [dbStatus, setDbStatus] = useState<{
-    profiles: boolean;
-    message: string;
-    details?: string;
-  } | null>(null)
+export default function DiagnosePageClient() {
+  const [loading, setLoading] = useState(false);
+  const [chromiumResult, setChromiumResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Verificar se o usuário é administrador
-  useEffect(() => {
-    // Verificar se o usuário atual é um administrador
-    // Na implementação real, você pode verificar um campo específico no perfil ou verificar um email específico
-    if (session.user?.email === "admin@example.com") {
-      setIsAdmin(true)
-    }
-  }, [session.user])
-
-  const checkDatabaseStructure = async () => {
-    setIsChecking(true)
+  const testChromium = async () => {
+    setLoading(true);
+    setError(null);
     
     try {
-      const res = await fetch('/api/init-db')
-      const data = await res.json()
+      const response = await fetch('/api/diagnostics/chromium');
+      const data = await response.json();
       
-      if (data.success) {
-        setDbStatus({
-          profiles: true,
-          message: data.message || "Banco de dados verificado com sucesso!",
-        })
-      } else {
-        setDbStatus({
-          profiles: false,
-          message: "Erro ao verificar banco de dados",
-          details: data.message,
-        })
+      setChromiumResult(data);
+      
+      if (!response.ok) {
+        setError(`Erro ${response.status}: ${data.error || 'Falha no diagnóstico'}`);
       }
-    } catch (error) {
-      console.error("Erro ao verificar banco de dados:", error)
-      setDbStatus({
-        profiles: false,
-        message: "Erro ao verificar banco de dados",
-        details: error instanceof Error ? error.message : "Erro desconhecido",
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
-      setIsChecking(false)
+      setLoading(false);
     }
-  }
+  };
 
-  if (!isAdmin) {
-    return (
-      <PageTransition>
-        <Card className="max-w-lg mx-auto mt-8">
-          <CardHeader>
-            <CardTitle className="text-xl">Acesso Restrito</CardTitle>
-            <CardDescription>
-              Esta página de diagnóstico é restrita a administradores.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-300">
-              <AlertTriangle className="h-5 w-5" />
-              <AlertTitle>Acesso Negado</AlertTitle>
-              <AlertDescription>
-                Você não tem permissão para acessar esta página.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      </PageTransition>
-    )
-  }
+  const testPdfExport = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Dados mínimos para teste de PDF
+      const testReport = {
+        id: 'test-report',
+        name: 'Relatório de Teste',
+        description: 'Relatório para teste de exportação PDF',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isActive: true,
+        investments: [
+          {
+            id: 'test-inv-1',
+            date: new Date().toISOString(),
+            amount: 1000,
+            unit: 'BTC',
+          }
+        ],
+        profits: [],
+        withdrawals: []
+      };
+      
+      const requestData = {
+        report: testReport,
+        displayCurrency: 'USD',
+        reportPeriodDescription: 'Teste de diagnóstico'
+      };
+      
+      const response = await fetch('/api/export/report-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Erro ${response.status}: ${errorData.error || errorData.details || 'Falha na exportação'}`);
+      }
+      
+      // Se chegou aqui, o PDF foi gerado com sucesso
+      const blob = await response.blob();
+      
+      // Criar um URL para download
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'teste-relatorio.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setChromiumResult({
+        pdfTest: {
+          success: true,
+          message: 'PDF gerado com sucesso',
+          size: `${(blob.size / 1024).toFixed(2)} KB`
+        }
+      });
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      setChromiumResult({
+        pdfTest: {
+          success: false,
+          error: err instanceof Error ? err.message : 'Erro desconhecido'
+        }
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <PageTransition>
-      <Card className="max-w-xl mx-auto mt-8">
+    <div className="container mx-auto p-4 max-w-4xl">
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-xl">Diagnóstico do Sistema</CardTitle>
+          <CardTitle>Diagnóstico do Sistema</CardTitle>
           <CardDescription>
-            Verifique o status do banco de dados e outras dependências do sistema.
+            Ferramentas para diagnosticar problemas no ambiente serverless
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium flex items-center">
-              <Database className="mr-2 h-5 w-5" />
-              Status do Banco de Dados
-            </h3>
+          <div className="flex gap-2">
             <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={checkDatabaseStructure}
-              disabled={isChecking}
+              onClick={testChromium} 
+              disabled={loading}
+              variant="outline"
             >
-              {isChecking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verificando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Verificar
-                </>
-              )}
+              {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Testar Chromium
+            </Button>
+            
+            <Button 
+              onClick={testPdfExport} 
+              disabled={loading}
+              variant="default"
+            >
+              {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Testar Exportação PDF
             </Button>
           </div>
-
-          {dbStatus ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-3 rounded-md border bg-card">
-                <div className="flex items-center">
-                  <span className="font-medium">Tabela de Perfis</span>
-                </div>
-                {dbStatus.profiles ? (
-                  <div className="bg-green-500/20 text-green-400 p-1 rounded-full">
-                    <Check className="h-5 w-5" />
-                  </div>
-                ) : (
-                  <div className="bg-red-500/20 text-red-400 p-1 rounded-full">
-                    <X className="h-5 w-5" />
-                  </div>
-                )}
-              </div>
-              
-              <Alert className={dbStatus.profiles ? "bg-green-900/20 border border-green-700/50 text-green-300" : "bg-red-900/20 border border-red-700/50 text-red-300"}>
-                {dbStatus.profiles ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  <AlertTriangle className="h-5 w-5" />
-                )}
-                <AlertTitle>
-                  {dbStatus.profiles ? "Verificação Concluída" : "Problemas Encontrados"}
-                </AlertTitle>
-                <AlertDescription>
-                  {dbStatus.message}
-                  {dbStatus.details && (
-                    <div className="mt-2 text-sm">
-                      <p>Detalhes: {dbStatus.details}</p>
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            </div>
-          ) : (
-            <Alert className="bg-blue-900/20 border border-blue-700/50 text-blue-300">
-              <AlertDescription>
-                Clique em "Verificar" para diagnosticar a estrutura do banco de dados.
-              </AlertDescription>
+          
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          
+          {chromiumResult && (
+            <div className="space-y-4 mt-4">
+              <h3 className="text-lg font-medium">Resultado do Diagnóstico</h3>
+              
+              {chromiumResult.chromiumTest && (
+                <div className="rounded-md border p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Chromium</h4>
+                    <Badge variant={chromiumResult.chromiumTest.success ? "success" : "destructive"}>
+                      {chromiumResult.chromiumTest.success ? (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <FileX className="h-3 w-3 mr-1" />
+                      )}
+                      {chromiumResult.chromiumTest.success ? "OK" : "Falha"}
+                    </Badge>
+                  </div>
+                  
+                  <Separator className="my-2" />
+                  
+                  <div className="space-y-2 text-sm">
+                    {chromiumResult.chromiumTest.success ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-medium">Caminho:</span>
+                          <span className="col-span-2 break-all">{chromiumResult.chromiumTest.executablePath}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-medium">Versão:</span>
+                          <span className="col-span-2">{chromiumResult.chromiumTest.browserVersion}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-medium">Erro:</span>
+                          <span className="col-span-2 text-red-500">{chromiumResult.chromiumTest.error}</span>
+                        </div>
+                      </>
+                    )}
+                    
+                    <div className="grid grid-cols-3 gap-1">
+                      <span className="font-medium">Ambiente:</span>
+                      <span className="col-span-2">
+                        {chromiumResult.environment?.isVercel ? 'Vercel' : 'Local'} ({chromiumResult.environment?.nodeEnv})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {chromiumResult.pdfTest && (
+                <div className="rounded-md border p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Teste de PDF</h4>
+                    <Badge variant={chromiumResult.pdfTest.success ? "success" : "destructive"}>
+                      {chromiumResult.pdfTest.success ? (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <FileX className="h-3 w-3 mr-1" />
+                      )}
+                      {chromiumResult.pdfTest.success ? "OK" : "Falha"}
+                    </Badge>
+                  </div>
+                  
+                  <Separator className="my-2" />
+                  
+                  <div className="space-y-2 text-sm">
+                    {chromiumResult.pdfTest.success ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-medium">Status:</span>
+                          <span className="col-span-2">{chromiumResult.pdfTest.message}</span>
+                        </div>
+                        {chromiumResult.pdfTest.size && (
+                          <div className="grid grid-cols-3 gap-1">
+                            <span className="font-medium">Tamanho:</span>
+                            <span className="col-span-2">{chromiumResult.pdfTest.size}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-medium">Erro:</span>
+                          <span className="col-span-2 text-red-500">{chromiumResult.pdfTest.error}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
+        <CardFooter className="text-sm text-muted-foreground flex justify-between">
+          <span>Última verificação: {chromiumResult?.timestamp ? new Date(chromiumResult.timestamp).toLocaleString() : 'Nunca'}</span>
+          <a 
+            href="https://vercel.com/docs/functions/serverless-functions/runtimes/node-js#nodejs-function-limitations" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center text-blue-500 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Documentação
+          </a>
+        </CardFooter>
       </Card>
-    </PageTransition>
-  )
+    </div>
+  );
 } 
