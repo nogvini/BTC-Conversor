@@ -1,4 +1,5 @@
 export const runtime = 'nodejs'; // Forçar o runtime Node.js para esta rota
+export const maxDuration = 60; // Aumentar para 60 segundos para permitir o processamento
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -14,6 +15,34 @@ import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/repor
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
 // import { Report } from '@/lib/calculator-types';
 
+// Usar o Chromium otimizado para Vercel e similares
+let _browserPromise: Promise<any> | null = null;
+
+// Função para obter uma instância do navegador
+async function getBrowser() {
+  if (!_browserPromise) {
+    _browserPromise = (async () => {
+      // Configuração otimizada para ambiente serverless
+      return puppeteer.launch({ 
+          headless: 'new', 
+          args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--no-first-run',
+              '--no-zygote',
+              '--disable-gpu',
+              '--disable-features=site-per-process',
+              '--disable-extensions',
+              '--single-process'
+          ]
+      });
+    })();
+  }
+  return _browserPromise;
+}
+
 // TODO: Substituir z.any() por um schema Zod detalhado para o objeto Report 
 // quando a estrutura de lib/calculator-types.ts -> Report estiver totalmente definida.
 const exportRequestSchema = z.object({
@@ -24,78 +53,78 @@ const exportRequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  let browser = null;
+  
   try {
-    const body = await request.json();
+    console.log('Iniciando processamento de exportação PDF');
+    
+    const body = await request.json().catch(e => {
+      console.error('Erro ao fazer parse do corpo da requisição:', e);
+      return null;
+    });
+    
+    if (!body) {
+      return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 });
+    }
+    
     const parsedBody = exportRequestSchema.safeParse(body);
 
     if (!parsedBody.success) {
-      return NextResponse.json({ error: 'Invalid request body', details: parsedBody.error.errors }, { status: 400 });
+      console.error('Validação de schema falhou:', parsedBody.error.errors);
+      return NextResponse.json({ error: 'Dados de requisição inválidos', details: parsedBody.error.errors }, { status: 400 });
     }
 
     const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription } = parsedBody.data;
     
-    // Verificação defensiva: se o relatório for null/undefined, retornar erro 400
     if (!rawReport) {
-      return NextResponse.json({ error: 'Report data is missing' }, { status: 400 });
+      return NextResponse.json({ error: 'Dados do relatório ausentes' }, { status: 400 });
     }
     
-    // Realizar um type cast aqui. O ideal é ter o ReportSchema validando a estrutura.
-    const report = rawReport as any; // Substituir 'any' pelo tipo 'Report' importado
+    const report = rawReport as any;
 
     if (!report.name) {
-        return NextResponse.json({ error: 'Report name is missing' }, { status: 400 });
+        return NextResponse.json({ error: 'Nome do relatório ausente' }, { status: 400 });
     }
     
     // Garantir que o relatório tenha as propriedades obrigatórias
     if (!Array.isArray(report.investments)) {
-      console.warn('Missing or invalid investments array in report, using empty array');
+      console.warn('Array de investimentos ausente ou inválido, usando array vazio');
       report.investments = [];
     }
     
     if (!Array.isArray(report.profits)) {
-      console.warn('Missing or invalid profits array in report, using empty array');
+      console.warn('Array de lucros ausente ou inválido, usando array vazio');
       report.profits = [];
     }
     
     if (!Array.isArray(report.withdrawals)) {
-      console.warn('Missing or invalid withdrawals array in report, using empty array');
+      console.warn('Array de saques ausente ou inválido, usando array vazio');
       report.withdrawals = [];
     }
     
-    // Log de debug para identificar problemas com a estrutura do relatório
-    console.log('Report structure:', {
-      name: report.name,
-      hasName: !!report.name,
-      hasInvestments: Array.isArray(report.investments),
-      investmentsLength: Array.isArray(report.investments) ? report.investments.length : 'N/A',
-      hasProfits: Array.isArray(report.profits),
-      profitsLength: Array.isArray(report.profits) ? report.profits.length : 'N/A',
-      hasWithdrawals: Array.isArray(report.withdrawals),
-      withdrawalsLength: Array.isArray(report.withdrawals) ? report.withdrawals.length : 'N/A'
+    console.log('Estrutura do relatório validada, preparando dados de fundação...');
+
+    // Etapa 1: Preparar dados base
+    const foundationData = await prepareReportFoundationData(report).catch(e => {
+      console.error('Erro ao preparar dados de fundação:', e);
+      return null;
     });
-
-    // Etapa 1: Preparar dados base (enriquecer operações, buscar cotações)
-    // A função prepareReportFoundationData já foi fornecida e deve ser mantida.
-    const foundationData = await prepareReportFoundationData(report);
-    // console.log('Foundation Data:', foundationData);
-
-    // Verificação defensiva: se foundationData for null/undefined, inicializar um objeto vazio
+    
     if (!foundationData) {
-      console.error('Error: foundationData is null or undefined');
-      return NextResponse.json({ error: 'Failed to prepare report foundation data' }, { status: 500 });
+      return NextResponse.json({ error: 'Falha ao preparar dados base do relatório' }, { status: 500 });
     }
 
-    // Verificações defensivas para evitar acessar propriedades de undefined
     const enrichedOperations = foundationData.enrichedOperations || [];
-    const historicalQuotesUSD = foundationData.historicalQuotesUSD || {};
-    const historicalQuotesBRL = foundationData.historicalQuotesBRL || {};
+    const historicalQuotesUSD = foundationData.historicalQuotesUSD || new Map();
+    const historicalQuotesBRL = foundationData.historicalQuotesBRL || new Map();
     const reportDateRange = foundationData.reportDateRange || { 
       minDate: new Date().toISOString().split('T')[0], 
       maxDate: new Date().toISOString().split('T')[0] 
     };
 
+    console.log('Dados de fundação processados, calculando métricas...');
+
     // Etapa 2: Calcular métricas financeiras
-    // A função calculateReportMetrics já foi fornecida e deve ser mantida.
     const calculatedMetricsInput = {
         enrichedOperations,
         historicalQuotesUSD,
@@ -105,47 +134,52 @@ export async function POST(request: NextRequest) {
         reportPeriodDescription: customPeriodDescription || `${reportDateRange?.minDate} - ${reportDateRange?.maxDate}`,
         displayCurrency: displayCurrency,
     };
+    
     const calculatedReportData: CalculatedReportData = calculateReportMetrics(calculatedMetricsInput);
-    // console.log('Calculated Report Data:', calculatedReportData);
+
+    console.log('Métricas calculadas, construindo objeto de relatório exportado...');
 
     // Etapa 3: Montar o objeto ExportedReport
     const reportMetadata: ReportMetadata = {
       reportName: report.name,
-      generatedAt: new Date().toISOString(), // Corrigido para metadata
-      periodDescription: calculatedMetricsInput.reportPeriodDescription, // Corrigido para metadata
-      displayCurrency: displayCurrency, // Corrigido para metadata
+      generatedAt: new Date().toISOString(),
+      periodDescription: calculatedMetricsInput.reportPeriodDescription,
+      displayCurrency: displayCurrency,
     };
 
     const exportedReportData: ExportedReport = {
       metadata: reportMetadata,
       data: calculatedReportData,
       operations: enrichedOperations as OperationData[],
-      chartsSvg: { // Gráfico omitido por enquanto
-        // monthlyPL: undefined, 
-      },
+      chartsSvg: {},
     };
-    // console.log('Exported Report Data for HTML builder:', exportedReportData);
 
-    // Etapa 4: Gerar HTML usando o construtor manual
+    console.log('Objeto de relatório exportado construído, gerando HTML...');
+
+    // Etapa 4: Gerar HTML
     const htmlString = buildReportHtml(exportedReportData);
-    // console.log('Generated HTML String:', htmlString.substring(0, 500)); // Logar início do HTML
+    
+    if (!htmlString || htmlString.length < 100) {
+      console.error('HTML gerado inválido ou muito curto');
+      return NextResponse.json({ error: 'Falha ao gerar HTML do relatório' }, { status: 500 });
+    }
 
-    // Etapa 5: Gerar PDF com Puppeteer (lógica existente mantida)
-    const browser = await puppeteer.launch({ 
-        headless: 'new', 
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage', // Adicionado para ambientes restritos
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            // '--single-process', // Comentado, geralmente não necessário e pode impactar performance
-            '--disable-gpu' // Adicionado para ambientes server/CI
-        ]
-    });
+    console.log('HTML gerado com sucesso, iniciando Puppeteer...');
+
+    // Etapa 5: Gerar PDF com Puppeteer
+    browser = await getBrowser();
+    console.log('Browser iniciado, criando nova página...');
+    
     const page = await browser.newPage();
-    await page.setContent(htmlString, { waitUntil: 'networkidle0' }); 
+    console.log('Página criada, configurando conteúdo...');
+    
+    await page.setContent(htmlString, { 
+      waitUntil: 'networkidle0',
+      timeout: 30000 // 30 segundos de timeout
+    });
+    
+    console.log('Conteúdo carregado na página, gerando PDF...');
+    
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -155,8 +189,15 @@ export async function POST(request: NextRequest) {
         bottom: '20mm',
         left: '20mm',
       },
+      timeout: 30000 // 30 segundos de timeout
     });
-    await browser.close();
+    
+    console.log('PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
+    
+    await page.close();
+    
+    // Não fechar o browser para permitir reuso
+    // await browser.close();
 
     return new NextResponse(pdfBuffer, {
       status: 200,
@@ -167,8 +208,28 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error generating PDF report:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Failed to generate PDF report', details: errorMessage }, { status: 500 });
+    console.error('Erro fatal ao gerar relatório PDF:', error);
+    
+    // Garantir que a página seja fechada em caso de erro
+    if (browser) {
+      try {
+        const pages = await browser.pages();
+        await Promise.all(pages.map(page => page.close()));
+      } catch (closeError) {
+        console.error('Erro ao fechar páginas do browser:', closeError);
+      }
+    }
+    
+    // Resetar a promessa do browser para forçar nova instância na próxima chamada
+    _browserPromise = null;
+    
+    const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
+    const errorStack = error instanceof Error ? error.stack : 'Stack não disponível';
+    
+    return NextResponse.json({ 
+      error: 'Falha ao gerar relatório PDF', 
+      details: errorMessage,
+      stack: errorStack
+    }, { status: 500 });
   }
 } 
