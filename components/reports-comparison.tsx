@@ -541,7 +541,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: entry.color }}
                 />
-                <span className="text-xs text-gray-300">{entry.name}:</span>
+                <span className="text-xs text-white">{entry.name}:</span>
                 <span className="text-xs font-medium text-white">
                   {formatValue(convertFromBtc(entry.value))}
                 </span>
@@ -660,6 +660,14 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             <p className="text-muted-foreground">
               Crie mais relatórios para visualizar comparações de desempenho
             </p>
+            <Button 
+              variant="default" 
+              className="mt-4 bg-purple-700 hover:bg-purple-800" 
+              onClick={onBack}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Voltar
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -667,12 +675,25 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6 pb-20">
+      {/* Botão voltar fixo para dispositivos móveis */}
+      <div className="md:hidden fixed bottom-4 right-4 z-50">
+        <Button 
+          variant="default" 
+          size="lg" 
+          className="rounded-full shadow-lg bg-purple-700 hover:bg-purple-800" 
+          onClick={onBack}
+        >
+          <ChevronLeft className="mr-1 h-5 w-5" />
+          Voltar
+        </Button>
+      </div>
+      
       <div className="flex justify-between items-center">
         <Button 
           variant="ghost" 
           size="sm" 
-          className="px-2" 
+          className="px-2 hidden md:flex" 
           onClick={onBack}
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
@@ -844,7 +865,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                     />
                     <Tooltip 
                       content={<CustomTooltip />}
-                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
                     />
                     <Legend 
                       wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
@@ -864,10 +885,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Comparativo de Resultados</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto -mx-4 px-4">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
               <ScrollArea className="w-full" orientation="horizontal">
-                <div className="min-w-[960px]">
+                <div className="min-w-[900px] max-w-full">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-purple-700/30">
@@ -1006,7 +1027,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </TabsList>
         
         <TabsContent value="summary" className="pt-2">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
               <div className="text-xl font-bold">
@@ -1053,7 +1074,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
               <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
               <div className="text-xl font-bold">
@@ -1097,46 +1118,52 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
               <h3 className="text-md font-semibold mb-3 text-gray-200">Resumo Agregado Detalhado</h3>
               <Card className="bg-black/20 border-purple-700/30">
                 <CardContent className="p-0">
-                  <Table>
-                    <TableBody>
-                      <TableRow className="border-purple-700/20">
-                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Primeiro Aporte Agregado</TableCell>
-                        <TableCell className="text-right text-xs py-2.5">
-                          {comparisonData.aggregatedPrimeiroAporteDate 
-                            ? format(new Date(comparisonData.aggregatedPrimeiroAporteDate), 'dd MMM yyyy', { locale: ptBR }) 
-                            : 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className="border-purple-700/20">
-                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Tempo Total de Investimento (Agregado)</TableCell>
-                        <TableCell className="text-right text-xs py-2.5">{comparisonData.aggregatedTempoTotalInvestimento || 'N/A'}</TableCell>
-                      </TableRow>
-                      <TableRow className="border-purple-700/20">
-                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">ROI Anualizado Estimado (Agregado)</TableCell>
-                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedRoiAnualizadoPercent > 0 ? "text-green-400" : comparisonData.aggregatedRoiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>
-                          {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0 && comparisonData.aggregatedRoiAnualizadoPercent !== -100)
-                            ? `${comparisonData.aggregatedRoiAnualizadoPercent.toFixed(2)}%`
-                            : (comparisonData.aggregatedRoiAnualizadoPercent === -100 ? '-100.00%' : 'N/A')}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className="border-purple-700/20">
-                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de Lucro (BTC Agregado)</TableCell>
-                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaLucroBtc > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>
-                          {comparisonData.aggregatedDiasDeInvestimento > 0
-                            ? formatValue(convertFromBtc(comparisonData.aggregatedMediaDiariaLucroBtc)) // Reusa formatValue para consistência de unidade
-                            : 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className="border-b-0"> {/* Remover borda da última linha */}
-                        <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de ROI (Agregado)</TableCell>
-                        <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
-                          {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0)
-                            ? `${comparisonData.aggregatedMediaDiariaRoiPercent.toFixed(4)}%`
-                            : 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                  <div className="overflow-x-auto">
+                    <ScrollArea className="w-full" orientation="horizontal">
+                      <div className="min-w-[400px] max-w-full">
+                        <Table>
+                          <TableBody>
+                            <TableRow className="border-purple-700/20">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Primeiro Aporte Agregado</TableCell>
+                              <TableCell className="text-right text-xs py-2.5">
+                                {comparisonData.aggregatedPrimeiroAporteDate 
+                                  ? format(new Date(comparisonData.aggregatedPrimeiroAporteDate), 'dd MMM yyyy', { locale: ptBR }) 
+                                  : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow className="border-purple-700/20">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Tempo Total de Investimento</TableCell>
+                              <TableCell className="text-right text-xs py-2.5">{comparisonData.aggregatedTempoTotalInvestimento || 'N/A'}</TableCell>
+                            </TableRow>
+                            <TableRow className="border-purple-700/20">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">ROI Anualizado Estimado</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedRoiAnualizadoPercent > 0 ? "text-green-400" : comparisonData.aggregatedRoiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                                {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0 && comparisonData.aggregatedRoiAnualizadoPercent !== -100)
+                                  ? `${comparisonData.aggregatedRoiAnualizadoPercent.toFixed(2)}%`
+                                  : (comparisonData.aggregatedRoiAnualizadoPercent === -100 ? '-100.00%' : 'N/A')}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow className="border-purple-700/20">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de Lucro</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaLucroBtc > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>
+                                {comparisonData.aggregatedDiasDeInvestimento > 0
+                                  ? formatValue(convertFromBtc(comparisonData.aggregatedMediaDiariaLucroBtc))
+                                  : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow className="border-b-0">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de ROI</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                                {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0)
+                                  ? `${comparisonData.aggregatedMediaDiariaRoiPercent.toFixed(4)}%`
+                                  : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </ScrollArea>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1144,7 +1171,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           
           <div className="overflow-x-auto mt-4 rounded-lg border border-purple-800/30">
             <ScrollArea className="h-[180px] w-full" orientation="both">
-              <div className="min-w-[640px]">
+              <div className="min-w-[500px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1221,9 +1248,9 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                         borderRadius: '0.375rem',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                       }}
-                      itemStyle={{ color: '#e2e8f0' }}
-                      labelStyle={{ color: '#f8fafc' }}
-                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                      itemStyle={{ color: '#FFFFFF' }}
+                      labelStyle={{ color: '#FFFFFF' }}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
                     />
                     <Legend 
                       wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
@@ -1255,16 +1282,20 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number) => [`${value.toFixed(8)} BTC`, 'Saldo']}
+                      formatter={(value: number, name: string) => {
+                        return [
+                          <span style={{ color: '#FFFFFF' }}>{`${value.toFixed(8)} BTC`}</span>, 
+                          <span style={{ color: '#FFFFFF' }}>{name}</span>
+                        ];
+                      }}
                       contentStyle={{ 
                         backgroundColor: 'rgba(0, 0, 0, 0.9)',
                         borderColor: 'rgba(124, 58, 237, 0.5)',
                         borderRadius: '0.375rem',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        color: '#FFFFFF'
                       }}
-                      itemStyle={{ color: '#e2e8f0' }}
-                      labelStyle={{ color: '#f8fafc' }}
-                      cursor={{ fill: 'rgba(124, 58, 237, 0.15)' }}
+                      cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
                     />
                     <Legend 
                       wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
@@ -1279,7 +1310,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         <TabsContent value="details" className="pt-2">
           <div className="overflow-x-auto rounded-lg border border-purple-800/30">
             <ScrollArea className="h-[400px] w-full" orientation="both">
-              <div className="min-w-[700px]">
+              <div className="min-w-[600px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
