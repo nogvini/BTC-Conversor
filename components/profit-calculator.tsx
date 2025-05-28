@@ -4633,7 +4633,7 @@ export default function ProfitCalculator({
                           )
                         ) : (
                           // Visualização de todos os relatórios
-                          !appData || !appData.reports || appData.reports.length === 0 ? (
+                          !appData || !(appData as any).reports || (appData as any).reports.length === 0 ? (
                             <div className="text-center py-8">
                               <div className="text-gray-400 text-sm">
                                 Nenhum relatório disponível
@@ -4647,8 +4647,9 @@ export default function ProfitCalculator({
                               
                               // Iterar sobre os relatórios com segurança de tipos
                               try {
-                                if (Array.isArray(appData.reports)) {
-                                  appData.reports.forEach((report: any) => {
+                                const reports = (appData as any).reports;
+                                if (Array.isArray(reports)) {
+                                  reports.forEach((report: any) => {
                                     if (report?.summary) {
                                       totalInvestmentsBtc += report.summary.totalInvestmentsBtc || 0;
                                       totalOperationalProfitBtc += report.summary.operationalProfitBtc || 0;
