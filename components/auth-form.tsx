@@ -9,6 +9,7 @@ import { AlertTriangle } from "lucide-react"
 import { RefreshCw } from "lucide-react"
 import { AlertCircle } from "lucide-react"
 import { XCircle } from "lucide-react"
+import { Mail } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -61,6 +62,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
   const [hasExpiredEmailLink, setHasExpiredEmailLink] = useState(false)
   const [emailForVerification, setEmailForVerification] = useState("")
   const [showNoProfileDialog, setShowNoProfileDialog] = useState(false)
+  const [showEmailVerificationDialog, setShowEmailVerificationDialog] = useState(false)
   const [loginEmail, setLoginEmail] = useState("")
   const [loginError, setLoginError] = useState<string | null>(null)
   const [registerError, setRegisterError] = useState<string | null>(null)
@@ -328,6 +330,9 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       // Ativar alerta de verificação de email e salvar o email
       setShowEmailVerification(true)
       setEmailForVerification(data.email)
+
+      // NOVO: Mostrar o diálogo de verificação de email
+      setShowEmailVerificationDialog(true)
       
       toast({
         title: "Cadastro realizado com sucesso",
@@ -532,6 +537,40 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
           <AlertDialogFooter>
             <AlertDialogAction onClick={handleNoProfileDialogClose}>
               Ir para o cadastro
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* NOVO: AlertDialog para verificação de email */}
+      <AlertDialog open={showEmailVerificationDialog} onOpenChange={setShowEmailVerificationDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-blue-500">
+              <Mail className="h-5 w-5" />
+              Verifique seu email
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="font-medium text-white">
+                Enviamos um link de confirmação para: <span className="text-blue-400">{emailForVerification}</span>
+              </p>
+              <div className="bg-blue-950/30 p-4 rounded-md border border-blue-500/20 mt-3">
+                <h4 className="font-medium text-blue-400 mb-2">Instruções:</h4>
+                <ol className="list-decimal pl-5 space-y-1 text-sm">
+                  <li>Verifique sua caixa de entrada e também a pasta de spam</li>
+                  <li>Clique no link de confirmação no email</li>
+                  <li>Após confirmar seu email, você poderá fazer login no sistema</li>
+                </ol>
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                O link de confirmação expira em 24 horas. Se você não receber o email, 
+                verifique sua pasta de spam ou tente criar uma nova conta com outro email.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="bg-blue-600 hover:bg-blue-700">
+              Entendi
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

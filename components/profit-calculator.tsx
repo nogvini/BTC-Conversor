@@ -413,6 +413,7 @@ export default function ProfitCalculator({
   const [chartDisplayUnit, setChartDisplayUnit] = useState<"btc" | "usd" | "brl">("btc");
   const [chartType, setChartType] = useState<"line" | "bar" | "area">("bar");
   const [chartTimeframe, setChartTimeframe] = useState<"daily" | "monthly">("monthly");
+  const [chartViewMode, setChartViewMode] = useState<HistoryViewMode>("active"); // NOVO: Estado para controlar visualização do gráfico
   const [chartVisibleSeries, setChartVisibleSeries] = useState({
     investments: true,
     profits: true,
@@ -2540,105 +2541,209 @@ export default function ProfitCalculator({
 
   // Função otimizada para processar dados para os gráficos com cache
   const getChartData = useMemo((): ChartDataPoint[] => {
-    const cacheKey = `${currentActiveReportObjectFromHook?.id || 'none'}-${chartTimeframe}-${currentActiveReportObjectFromHook?.investments?.length || 0}-${currentActiveReportObjectFromHook?.profits?.length || 0}`;
+    const cacheKey = `chart-${chartTimeframe}-${chartViewMode}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}-${localForceUpdate}`;
     
     if (chartDataCache.current.has(cacheKey)) {
-      return chartDataCache.current.get(cacheKey)!;
+      return chartDataCache.current.get(cacheKey) || [];
     }
-
-    if (!currentActiveReportObjectFromHook) {
-      const emptyResult: ChartDataPoint[] = [];
-      chartDataCache.current.set(cacheKey, emptyResult);
-      return emptyResult;
-    }
-
-    // Verificar se há dados suficientes para gerar gráfico
-    const hasInvestments = currentActiveReportObjectFromHook.investments && currentActiveReportObjectFromHook.investments.length > 0;
-    const hasProfits = currentActiveReportObjectFromHook.profits && currentActiveReportObjectFromHook.profits.length > 0;
     
-    if (!hasInvestments && !hasProfits) {
-      const emptyResult: ChartDataPoint[] = [];
-      chartDataCache.current.set(cacheKey, emptyResult);
-      return emptyResult;
+    if (!currentActiveReportObjectFromHook && chartViewMode === "active") {
+      chartDataCache.current.set(cacheKey, []);
+      return [];
     }
-
-    const investments = currentActiveReportObjectFromHook.investments || [];
-    const profits = currentActiveReportObjectFromHook.profits || [];
-
-    // Usar Web Workers para processamento pesado em datasets grandes
-    const shouldUseWebWorker = investments.length + profits.length > 1000;
     
-    // Criar mapa de dados por mês
-    const monthlyData = new Map<string, { investments: number; profits: number; }>();
-
-    // Processar investimentos
-    investments.forEach(inv => {
-      const date = new Date(inv.date);
-      const monthKey = chartTimeframe === "monthly" 
-        ? formatDateFn(startOfMonth(date), 'yyyy-MM')
-        : formatDateFn(date, 'yyyy-MM-dd');
-      
-      const btcAmount = inv.unit === 'SATS' ? inv.amount / 100000000 : inv.amount;
-      
-      if (!monthlyData.has(monthKey)) {
-        monthlyData.set(monthKey, { investments: 0, profits: 0 });
-      }
-      const data = monthlyData.get(monthKey)!;
-      data.investments += btcAmount;
+    // Determinar quais relatórios processar com base no modo de visualização
+    const reportsToProcess = chartViewMode === "active" 
+      ? (currentActiveReportObjectFromHook ? [currentActiveReportObjectFromHook] : [])
+      : (allReportsFromHook || []);
+    
+    if (reportsToProcess.length === 0) {
+      chartDataCache.current.set(cacheKey, []);
+      return [];
+    }
+    
+    // Coletar todos os dados relevantes de todos os relatórios selecionados
+    const allInvestments: Investment[] = [];
+    const allProfits: ProfitRecord[] = [];
+    const allWithdrawals: any[] = [];
+    
+    reportsToProcess.forEach(report => {
+      if (report.investments) allInvestments.push(...report.investments);
+      if (report.profits) allProfits.push(...report.profits);
+      if (report.withdrawals) allWithdrawals.push(...report.withdrawals);
     });
-
-    // Processar lucros/perdas
-    profits.forEach(profit => {
-      const date = new Date(profit.date);
-      const monthKey = chartTimeframe === "monthly" 
-        ? formatDateFn(startOfMonth(date), 'yyyy-MM')
-        : formatDateFn(date, 'yyyy-MM-dd');
+    
+    // Ordenar todos os dados por data
+    allInvestments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    allProfits.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    allWithdrawals.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    // O resto da lógica existente para processamento de dados de gráficos
+    const result: ChartDataPoint[] = [];
+    
+    if (allInvestments.length === 0 && allProfits.length === 0) {
+      chartDataCache.current.set(cacheKey, []);
+      return [];
+    }
+    
+    // Continue com o processamento de dados como antes...
+    // (manter o código existente para processamento de datas, cálculos, etc.)
+    
+    // Exemplo para diário
+    if (chartTimeframe === "daily") {
+      // Encontrar a primeira e última data
+      const allDates = [
+        ...allInvestments.map(inv => new Date(inv.date).getTime()),
+        ...allProfits.map(profit => new Date(profit.date).getTime()),
+        ...allWithdrawals.map(w => new Date(w.date).getTime())
+      ];
       
-      const btcAmount = profit.unit === 'SATS' ? profit.amount / 100000000 : profit.amount;
-      const adjustedAmount = profit.isProfit ? btcAmount : -btcAmount;
-      
-      if (!monthlyData.has(monthKey)) {
-        monthlyData.set(monthKey, { investments: 0, profits: 0 });
+      if (allDates.length === 0) {
+        chartDataCache.current.set(cacheKey, []);
+        return [];
       }
-      const data = monthlyData.get(monthKey)!;
-      data.profits += adjustedAmount;
-    });
-
-    // Converter para array e calcular saldo acumulado
-    const chartData: ChartDataPoint[] = [];
-    let accumulatedInvestments = 0;
-    let accumulatedProfits = 0;
-
-    Array.from(monthlyData.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([monthKey, data]) => {
-        accumulatedInvestments += data.investments;
-        accumulatedProfits += data.profits;
+      
+      // Data mais antiga e mais recente
+      const minDate = new Date(Math.min(...allDates));
+      const maxDate = new Date(Math.max(...allDates));
+      
+      // Limitar período para evitar gráficos muito grandes
+      let startDate = minDate;
+      const endDate = maxDate;
+      
+      // Se o período for muito grande, limitar para os últimos 60 dias
+      const daysDiff = differenceInDays(endDate, startDate);
+      if (daysDiff > 60) {
+        startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 60);
+      }
+      
+      // Para cada dia no período
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dateString = formatDateFn(currentDate, "yyyy-MM-dd");
+        const month = formatDateFn(currentDate, "MMM yyyy", { locale: ptBR });
         
-        const dateObj = chartTimeframe === "monthly" 
-          ? new Date(monthKey + '-01')
-          : new Date(monthKey);
+        // Investimentos até este dia
+        const investmentsUntilDate = allInvestments.filter(
+          inv => new Date(inv.date) <= currentDate
+        );
+        const investmentsTotal = investmentsUntilDate.reduce(
+          (sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0
+        );
         
-        chartData.push({
-          date: monthKey,
-          month: formatDateFn(dateObj, chartTimeframe === "monthly" ? 'MMM yyyy' : 'dd/MM', { locale: ptBR }),
-          investments: accumulatedInvestments,
-          profits: accumulatedProfits,
-          balance: accumulatedInvestments + accumulatedProfits
+        // Lucros/perdas até este dia
+        const profitsUntilDate = allProfits.filter(
+          profit => new Date(profit.date) <= currentDate
+        );
+        const profitsTotal = profitsUntilDate.reduce((sum, profit) => {
+          const btcAmount = convertToBtc(profit.amount, profit.unit);
+          return sum + (profit.isProfit ? btcAmount : -btcAmount);
+        }, 0);
+        
+        // Saques até este dia
+        const withdrawalsUntilDate = allWithdrawals.filter(
+          w => new Date(w.date) <= currentDate
+        );
+        const withdrawalsTotal = withdrawalsUntilDate.reduce(
+          (sum, w) => sum + convertToBtc(w.amount, w.unit), 0
+        );
+        
+        // Calcular saldo
+        const balance = investmentsTotal + profitsTotal - withdrawalsTotal;
+        
+        // Adicionar ponto de dados
+        result.push({
+          date: dateString,
+          month,
+          investments: investmentsTotal,
+          profits: profitsTotal,
+          balance
         });
-      });
-
-    // Limitar cache para evitar memory leak
-    if (chartDataCache.current.size > 10) {
-      const firstKey = chartDataCache.current.keys().next().value;
-      if (firstKey) {
-      chartDataCache.current.delete(firstKey);
+        
+        // Avançar para o próximo dia
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    } else {
+      // Processamento mensal existente...
+      // Encontrar a primeira e última data
+      const allDates = [
+        ...allInvestments.map(inv => new Date(inv.date).getTime()),
+        ...allProfits.map(profit => new Date(profit.date).getTime()),
+        ...allWithdrawals.map(w => new Date(w.date).getTime())
+      ];
+      
+      if (allDates.length === 0) {
+        chartDataCache.current.set(cacheKey, []);
+        return [];
+      }
+      
+      // Data mais antiga e mais recente
+      const minDate = new Date(Math.min(...allDates));
+      const maxDate = new Date(Math.max(...allDates));
+      
+      // Para cada mês no período
+      let currentMonth = startOfMonth(minDate);
+      const lastMonth = endOfMonth(maxDate);
+      
+      while (currentMonth <= lastMonth) {
+        const monthEnd = endOfMonth(currentMonth);
+        const monthString = formatDateFn(currentMonth, "MMM yyyy", { locale: ptBR });
+        const dateString = formatDateFn(currentMonth, "yyyy-MM-dd");
+        
+        // Investimentos até este mês
+        const investmentsUntilMonth = allInvestments.filter(
+          inv => new Date(inv.date) <= monthEnd
+        );
+        const investmentsTotal = investmentsUntilMonth.reduce(
+          (sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0
+        );
+        
+        // Lucros/perdas até este mês
+        const profitsUntilMonth = allProfits.filter(
+          profit => new Date(profit.date) <= monthEnd
+        );
+        const profitsTotal = profitsUntilMonth.reduce((sum, profit) => {
+          const btcAmount = convertToBtc(profit.amount, profit.unit);
+          return sum + (profit.isProfit ? btcAmount : -btcAmount);
+        }, 0);
+        
+        // Saques até este mês
+        const withdrawalsUntilMonth = allWithdrawals.filter(
+          w => new Date(w.date) <= monthEnd
+        );
+        const withdrawalsTotal = withdrawalsUntilMonth.reduce(
+          (sum, w) => sum + convertToBtc(w.amount, w.unit), 0
+        );
+        
+        // Calcular saldo
+        const balance = investmentsTotal + profitsTotal - withdrawalsTotal;
+        
+        // Adicionar ponto de dados
+        result.push({
+          date: dateString,
+          month: monthString,
+          investments: investmentsTotal,
+          profits: profitsTotal,
+          balance
+        });
+        
+        // Avançar para o próximo mês
+        currentMonth = new Date(currentMonth);
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
       }
     }
     
-    chartDataCache.current.set(cacheKey, chartData);
-    return chartData;
-  }, [currentActiveReportObjectFromHook, chartTimeframe]);
+    // Armazenar em cache
+    chartDataCache.current.set(cacheKey, result);
+    return result;
+  }, [
+    chartTimeframe, 
+    chartViewMode, // NOVO: Considerar o modo de visualização na dependência
+    currentActiveReportObjectFromHook, 
+    allReportsFromHook,
+    localForceUpdate
+  ]);
 
   // Limpar cache quando dados importantes mudam
   useEffect(() => {
@@ -4010,7 +4115,22 @@ export default function ProfitCalculator({
                         </Select>
                       </div>
                       
-                      <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+                      {/* NOVO: Modo de Visualização */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Modo de Visualização</Label>
+                        <Select value={chartViewMode} onValueChange={(value: HistoryViewMode) => setChartViewMode(value)}>
+                          <SelectTrigger className="h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Relatório Ativo</SelectItem>
+                            <SelectItem value="all">Todos os Relatórios</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Cotação Atual agora em nova linha para manter layout consistente */}
+                      <div className="space-y-2 sm:col-span-2 xl:col-span-4">
                         <Label className="text-sm font-medium">Cotação Atual</Label>
                         <div className="text-xs bg-black/40 p-3 rounded border border-purple-700/30 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -4028,329 +4148,293 @@ export default function ProfitCalculator({
                           )}
                         </div>
                       </div>
-                      
-                      {/* Controles de Séries Visíveis - Responsivo */}
-                      <div className="mt-6 pt-4 border-t border-purple-700/30 sm:col-span-2 xl:col-span-4">
-                        <Label className="text-sm font-medium mb-4 block">Séries Visíveis nos Gráficos</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-blue-700/30">
-                            <Switch
-                              id="show-investments"
-                              checked={chartVisibleSeries.investments}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, investments: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-investments" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
-                              <span>Investimentos</span>
-                            </Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-green-700/30">
-                            <Switch
-                              id="show-profits"
-                              checked={chartVisibleSeries.profits}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, profits: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-profits" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
-                              <span>Lucros/Perdas</span>
-                            </Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-yellow-700/30">
-                            <Switch
-                              id="show-balance"
-                              checked={chartVisibleSeries.balance}
-                              onCheckedChange={(checked) => 
-                                setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
-                              }
-                            />
-                            <Label htmlFor="show-balance" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
-                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                              <span>Saldo Total</span>
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Gráfico de Evolução */}
+                {/* Gráfico Principal */}
                 <Card className="bg-black/30 border border-purple-700/40">
                   <CardHeader>
-                    <CardTitle>Evolução Patrimonial</CardTitle>
+                    <CardTitle>
+                      {chartTimeframe === "monthly" ? "Evolução Mensal" : "Evolução Diária"}
+                      {chartViewMode === "active" ? " do Relatório Ativo" : " de Todos os Relatórios"}
+                    </CardTitle>
                     <CardDescription>
-                      Acompanhe a evolução dos seus investimentos e lucros ao longo do tempo
+                      Visualização da evolução do patrimônio ao longo do tempo em {chartDisplayUnit === "btc" ? "Bitcoin" : chartDisplayUnit === "usd" ? "Dólares" : "Reais"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {getChartData.length === 0 ? (
-                      <div className="h-[400px] w-full flex items-center justify-center">
-                        <div className="text-center space-y-4">
+                      <div className="h-[350px] w-full flex items-center justify-center">
+                        <div className="text-center space-y-3">
                           <div className="text-gray-400 text-lg">📊</div>
-                          <div className="text-gray-400">
-                            Nenhum dado disponível para exibir gráficos
+                          <div className="text-gray-400 text-sm">
+                            {chartViewMode === "active" 
+                              ? "Não há dados suficientes no relatório ativo para gerar um gráfico"
+                              : "Não há dados suficientes em nenhum relatório para gerar um gráfico"}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            Adicione investimentos ou lucros/perdas para visualizar os gráficos
-                          </div>
+                          {chartViewMode === "active" && !currentActiveReportObjectFromHook && (
+                            <div className="text-purple-400 text-xs mt-2">
+                              Selecione um relatório ativo para visualizar seu gráfico
+                            </div>
+                          )}
+                          {chartViewMode === "all" && (!allReportsFromHook || allReportsFromHook.length === 0) && (
+                            <div className="text-purple-400 text-xs mt-2">
+                              Nenhum relatório encontrado no sistema
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
-                      <div className="h-[300px] sm:h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        {chartType === "area" ? (
-                          <AreaChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 10 }}
-                              interval="preserveStartEnd"
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
-                                }
-                                return value;
-                              }}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 9 }}
-                              width={isMobile ? 60 : 80}
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  // Formato mais compacto para mobile
-                                  switch (chartDisplayUnit) {
-                                    case "usd":
-                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
-                                    case "brl":
-                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
-                                    case "btc":
-                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
-                                    default:
-                                      return formatChartValue(value);
+                      <div className="h-[350px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          {chartType === "area" ? (
+                            <AreaChart data={getChartData.map(point => ({
+                              ...point,
+                              investments: convertChartValue(point.investments),
+                              profits: convertChartValue(point.profits),
+                              balance: convertChartValue(point.balance)
+                            }))}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                              <XAxis 
+                                dataKey={chartTimeframe === "monthly" ? "month" : "date"} 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fontSize: 10 }}
+                                interval="preserveStartEnd"
+                                tickFormatter={(value) => {
+                                  if (isMobile) {
+                                    return value.length > 6 ? `${value.substring(0, 6)}...` : value;
                                   }
-                                }
-                                return formatChartValue(value);
-                              }}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                                border: '1px solid rgba(124, 58, 237, 0.5)',
-                                borderRadius: '0.375rem',
-                                color: '#F3F4F6',
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                              }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
-                              formatter={(value: number, name: string) => [
-                                formatChartValue(value),
-                                name === 'investments' ? 'Investimentos' :
-                                name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
-                              ]}
-                            />
-                            <Legend />
-                            {chartVisibleSeries.investments && (
-                            <Area 
-                              type="monotone" 
-                              dataKey="investments" 
-                              stackId="1"
-                              stroke="#3B82F6" 
-                              fill="#3B82F6" 
-                              fillOpacity={0.6}
-                              name="Investimentos"
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                            <Area 
-                              type="monotone" 
-                              dataKey="profits" 
-                              stackId="1"
-                              stroke="#10B981" 
-                              fill="#10B981" 
-                              fillOpacity={0.6}
-                              name="Lucros/Perdas"
-                            />
-                            )}
-                          </AreaChart>
-                        ) : chartType === "bar" ? (
-                          <BarChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 10 }}
-                              interval="preserveStartEnd"
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  return value.length > 6 ? `${value.substring(0, 6)}...` : value;
-                                }
-                                return value;
-                              }}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={10}
-                              tick={{ fontSize: 9 }}
-                              width={isMobile ? 60 : 80}
-                              tickFormatter={(value) => {
-                                if (isMobile) {
-                                  // Formato mais compacto para mobile
-                                  switch (chartDisplayUnit) {
-                                    case "usd":
-                                      return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
-                                    case "brl":
-                                      return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
-                                    case "btc":
-                                      return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
-                                    default:
-                                      return formatChartValue(value);
+                                  return value;
+                                }}
+                              />
+                              <YAxis 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fontSize: 9 }}
+                                width={isMobile ? 60 : 80}
+                                tickFormatter={(value) => {
+                                  if (isMobile) {
+                                    // Formato mais compacto para mobile
+                                    switch (chartDisplayUnit) {
+                                      case "usd":
+                                        return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
+                                      case "brl":
+                                        return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
+                                      case "btc":
+                                        return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                      default:
+                                        return formatChartValue(value);
+                                    }
                                   }
-                                }
-                                return formatChartValue(value);
-                              }}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #7C3AED',
-                                borderRadius: '8px',
-                                color: '#F3F4F6',
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                              }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
-                              formatter={(value: number, name: string) => {
-                                const formattedValue = formatChartValue(value);
-                                const formattedName = 
-                                name === 'investments' ? 'Investimentos' :
-                                  name === 'profits' ? 'Lucros/Perdas' : 
-                                  name === 'balance' ? 'Saldo Total' : name;
-                                const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
-                                return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
-                              }}
-                              labelFormatter={(label: string) => `Período: ${label}`}
-                            />
-                            <Legend 
-                              wrapperStyle={{ paddingTop: '20px' }}
-                              iconType="rect"
-                            />
-                            {chartVisibleSeries.investments && (
-                              <Bar 
-                              dataKey="investments" 
+                                  return formatChartValue(value);
+                                }}
+                              />
+                              <Tooltip 
+                                contentStyle={{
+                                  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                  border: '1px solid rgba(124, 58, 237, 0.5)',
+                                  borderRadius: '0.375rem',
+                                  color: '#F3F4F6',
+                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                                }}
+                                cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                                formatter={(value: number, name: string) => [
+                                  formatChartValue(value),
+                                  name === 'investments' ? 'Investimentos' :
+                                  name === 'profits' ? 'Lucros/Perdas' : 'Saldo Total'
+                                ]}
+                              />
+                              <Legend />
+                              {chartVisibleSeries.investments && (
+                              <Area 
+                                type="monotone" 
+                                dataKey="investments" 
+                                stackId="1"
+                                stroke="#3B82F6" 
                                 fill="#3B82F6" 
-                              name="Investimentos"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                              <Bar 
-                              dataKey="profits" 
+                                fillOpacity={0.6}
+                                name="Investimentos"
+                              />
+                              )}
+                              {chartVisibleSeries.profits && (
+                              <Area 
+                                type="monotone" 
+                                dataKey="profits" 
+                                stackId="1"
+                                stroke="#10B981" 
                                 fill="#10B981" 
-                              name="Lucros/Perdas"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.balance && (
+                                fillOpacity={0.6}
+                                name="Lucros/Perdas"
+                              />
+                              )}
+                            </AreaChart>
+                          ) : chartType === "bar" ? (
+                            <BarChart data={getChartData.map(point => ({
+                              ...point,
+                              investments: convertChartValue(point.investments),
+                              profits: convertChartValue(point.profits),
+                              balance: convertChartValue(point.balance)
+                            }))}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                              <XAxis 
+                                dataKey={chartTimeframe === "monthly" ? "month" : "date"} 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fontSize: 10 }}
+                                interval="preserveStartEnd"
+                                tickFormatter={(value) => {
+                                  if (isMobile) {
+                                    return value.length > 6 ? `${value.substring(0, 6)}...` : value;
+                                  }
+                                  return value;
+                                }}
+                              />
+                              <YAxis 
+                                stroke="#9CA3AF"
+                                fontSize={10}
+                                tick={{ fontSize: 9 }}
+                                width={isMobile ? 60 : 80}
+                                tickFormatter={(value) => {
+                                  if (isMobile) {
+                                    // Formato mais compacto para mobile
+                                    switch (chartDisplayUnit) {
+                                      case "usd":
+                                        return value >= 1000 ? `$${(value/1000).toFixed(0)}k` : `$${value.toFixed(0)}`;
+                                      case "brl":
+                                        return value >= 1000 ? `R$${(value/1000).toFixed(0)}k` : `R$${value.toFixed(0)}`;
+                                      case "btc":
+                                        return value >= 0.01 ? `₿${value.toFixed(2)}` : `${(value * 100000000).toFixed(0)}s`;
+                                      default:
+                                        return formatChartValue(value);
+                                    }
+                                  }
+                                  return formatChartValue(value);
+                                }}
+                              />
+                              <Tooltip 
+                                contentStyle={{
+                                  backgroundColor: '#1F2937',
+                                  border: '1px solid #7C3AED',
+                                  borderRadius: '8px',
+                                  color: '#F3F4F6',
+                                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                }}
+                                cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                                formatter={(value: number, name: string) => {
+                                  const formattedValue = formatChartValue(value);
+                                  const formattedName = 
+                                  name === 'investments' ? 'Investimentos' :
+                                    name === 'profits' ? 'Lucros/Perdas' : 
+                                    name === 'balance' ? 'Saldo Total' : name;
+                                  const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
+                                  return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
+                                }}
+                                labelFormatter={(label: string) => `Período: ${label}`}
+                              />
+                              <Legend 
+                                wrapperStyle={{ paddingTop: '20px' }}
+                                iconType="rect"
+                              />
+                              {chartVisibleSeries.investments && (
+                                <Bar 
+                                dataKey="investments" 
+                                  fill="#3B82F6" 
+                                name="Investimentos"
+                                  radius={[4, 4, 0, 0]}
+                                  maxBarSize={60}
+                              />
+                              )}
+                              {chartVisibleSeries.profits && (
+                                <Bar 
+                                dataKey="profits" 
+                                  fill="#10B981" 
+                                name="Lucros/Perdas"
+                                  radius={[4, 4, 0, 0]}
+                                  maxBarSize={60}
+                              />
+                              )}
+                              {chartVisibleSeries.balance && (
+                                <Bar 
+                                dataKey="balance" 
+                                  fill="#F59E0B" 
+                                name="Saldo Total"
+                                  radius={[4, 4, 0, 0]}
+                                  maxBarSize={60}
+                                  opacity={0.8}
+                              />
+                              )}
+                            </BarChart>
+                          ) : (
+                            <BarChart data={getChartData.map(point => ({
+                              ...point,
+                              investments: convertChartValue(point.investments),
+                              profits: convertChartValue(point.profits),
+                              balance: convertChartValue(point.balance)
+                            }))}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                              <XAxis 
+                                dataKey={chartTimeframe === "monthly" ? "month" : "date"} 
+                                stroke="#9CA3AF"
+                                fontSize={12}
+                                tick={{ fontSize: 11 }}
+                                tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                              />
+                              <YAxis 
+                                stroke="#9CA3AF"
+                                fontSize={12}
+                                tick={{ fontSize: 10 }}
+                                tickFormatter={formatChartValue}
+                              />
+                              <Tooltip 
+                                contentStyle={{
+                                  backgroundColor: '#1F2937',
+                                  border: '1px solid #7C3AED',
+                                  borderRadius: '8px',
+                                  color: '#F3F4F6',
+                                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                }}
+                                cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                                formatter={(value: number, name: string) => {
+                                  const formattedValue = formatChartValue(value);
+                                  const formattedName = 
+                                  name === 'investments' ? 'Investimentos' :
+                                    name === 'profits' ? 'Lucros/Perdas' : 
+                                    name === 'balance' ? 'Saldo Total' : name;
+                                  const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
+                                  return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
+                                }}
+                                labelFormatter={(label: string) => `Período: ${label}`}
+                              />
+                              <Legend 
+                                wrapperStyle={{ paddingTop: '20px' }}
+                                iconType="rect"
+                              />
+                              {chartVisibleSeries.investments && (
                               <Bar 
-                              dataKey="balance" 
-                                fill="#F59E0B" 
-                              name="Saldo Total"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                                opacity={0.8}
-                            />
-                            )}
-                          </BarChart>
-                        ) : (
-                          <BarChart data={getChartData.map(point => ({
-                            ...point,
-                            investments: convertChartValue(point.investments),
-                            profits: convertChartValue(point.profits),
-                            balance: convertChartValue(point.balance)
-                          }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                            <XAxis 
-                              dataKey="month" 
-                              stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 11 }}
-                              tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              fontSize={12}
-                              tick={{ fontSize: 10 }}
-                              tickFormatter={formatChartValue}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #7C3AED',
-                                borderRadius: '8px',
-                                color: '#F3F4F6',
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                              }}
-                              cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
-                              formatter={(value: number, name: string) => {
-                                const formattedValue = formatChartValue(value);
-                                const formattedName = 
-                                name === 'investments' ? 'Investimentos' :
-                                  name === 'profits' ? 'Lucros/Perdas' : 
-                                  name === 'balance' ? 'Saldo Total' : name;
-                                const textColor = name === 'investments' ? '#F59E0B' : name === 'profits' ? '#10B981' : name === 'balance' ? '#8B5CF6' : '#F3F4F6';
-                                return [<span style={{ color: textColor }}>{formattedValue}</span>, formattedName];
-                              }}
-                              labelFormatter={(label: string) => `Período: ${label}`}
-                            />
-                            <Legend 
-                              wrapperStyle={{ paddingTop: '20px' }}
-                              iconType="rect"
-                            />
-                            {chartVisibleSeries.investments && (
-                            <Bar 
-                              dataKey="investments" 
-                                stackId="stack"
-                              fill="#3B82F6" 
-                              name="Investimentos"
-                                radius={[0, 0, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                            {chartVisibleSeries.profits && (
-                            <Bar 
-                              dataKey="profits" 
-                                stackId="stack"
-                              fill="#10B981" 
-                              name="Lucros/Perdas"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={60}
-                            />
-                            )}
-                          </BarChart>
-                        )}
-                      </ResponsiveContainer>
-                    </div>
+                                dataKey="investments" 
+                                  stackId="stack"
+                                fill="#3B82F6" 
+                                name="Investimentos"
+                                  radius={[0, 0, 0, 0]}
+                                  maxBarSize={60}
+                              />
+                              )}
+                              {chartVisibleSeries.profits && (
+                              <Bar 
+                                dataKey="profits" 
+                                  stackId="stack"
+                                fill="#10B981" 
+                                name="Lucros/Perdas"
+                                  radius={[4, 4, 0, 0]}
+                                  maxBarSize={60}
+                              />
+                              )}
+                            </BarChart>
+                          )}
+                        </ResponsiveContainer>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -4362,13 +4446,17 @@ export default function ProfitCalculator({
                     <CardHeader>
                       <CardTitle>Composição do Patrimônio</CardTitle>
                       <CardDescription>
-                        Distribuição entre investimentos e lucros/perdas
+                        {chartViewMode === "active" 
+                          ? "Distribuição entre investimentos e lucros/perdas do relatório ativo" 
+                          : "Distribuição entre investimentos e lucros/perdas de todos os relatórios"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {!currentActiveReportObjectFromHook || 
-                       ((!currentActiveReportObjectFromHook.investments || currentActiveReportObjectFromHook.investments.length === 0) &&
-                        (!currentActiveReportObjectFromHook.profits || currentActiveReportObjectFromHook.profits.length === 0)) ? (
+                      {(chartViewMode === "active" && !currentActiveReportObjectFromHook) || 
+                       (chartViewMode === "active" &&
+                        (!currentActiveReportObjectFromHook.investments || currentActiveReportObjectFromHook.investments.length === 0) &&
+                        (!currentActiveReportObjectFromHook.profits || currentActiveReportObjectFromHook.profits.length === 0)) ||
+                       (chartViewMode === "all" && (!allReportsFromHook || allReportsFromHook.length === 0)) ? (
                         <div className="h-[250px] sm:h-[300px] w-full flex items-center justify-center">
                           <div className="text-center space-y-2">
                             <div className="text-gray-400 text-lg">🥧</div>
@@ -4386,19 +4474,28 @@ export default function ProfitCalculator({
                                 {
                                   name: 'Investimentos',
                                   value: convertChartValue(
-                                    (currentActiveReportObjectFromHook?.investments || [])
-                                      .reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0)
+                                    chartViewMode === "active" 
+                                      ? (currentActiveReportObjectFromHook?.investments || [])
+                                          .reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0)
+                                      : (allReportsFromHook || []).flatMap(report => report.investments || [])
+                                          .reduce((sum, inv) => sum + convertToBtc(inv.amount, inv.unit), 0)
                                   ),
                                   fill: '#3B82F6'
                                 },
                                 {
                                   name: 'Lucros/Perdas',
                                   value: Math.abs(convertChartValue(
-                                    (currentActiveReportObjectFromHook?.profits || [])
-                                      .reduce((sum, profit) => {
-                                        const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                        return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                      }, 0)
+                                    chartViewMode === "active"
+                                      ? (currentActiveReportObjectFromHook?.profits || [])
+                                          .reduce((sum, profit) => {
+                                            const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                            return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                          }, 0)
+                                      : (allReportsFromHook || []).flatMap(report => report.profits || [])
+                                          .reduce((sum, profit) => {
+                                            const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                            return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                          }, 0)
                                   )),
                                   fill: '#10B981'
                                 }
@@ -4450,87 +4547,159 @@ export default function ProfitCalculator({
                     <CardHeader>
                       <CardTitle>Estatísticas do Período</CardTitle>
                       <CardDescription>
-                        Métricas principais dos investimentos
+                        Métricas principais {chartViewMode === "active" ? "do relatório ativo" : "de todos os relatórios"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {!reportSummaryData ? (
-                          <div className="text-center py-8">
-                            <div className="text-gray-400 text-sm">
-                              Nenhum relatório ativo selecionado
+                        {chartViewMode === "active" ? (
+                          // Visualização apenas do relatório ativo
+                          !reportSummaryData ? (
+                            <div className="text-center py-8">
+                              <div className="text-gray-400 text-sm">
+                                Nenhum relatório ativo selecionado
+                              </div>
                             </div>
-                          </div>
-                        ) : reportSummaryData.totalInvestmentsBtc === 0 && reportSummaryData.operationalProfitBtc === 0 ? (
-                          <div className="text-center py-8">
-                            <div className="text-gray-400 text-sm">
-                              Adicione investimentos ou lucros/perdas para ver as estatísticas
+                          ) : reportSummaryData.totalInvestmentsBtc === 0 && reportSummaryData.operationalProfitBtc === 0 ? (
+                            <div className="text-center py-8">
+                              <div className="text-gray-400 text-sm">
+                                Adicione investimentos ou lucros/perdas para ver as estatísticas
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-400">Total Investido:</span>
+                                <span className="text-blue-400 font-medium">
+                                  {formatChartValue(convertChartValue(reportSummaryData.totalInvestmentsBtc))}
+                                </span>
+                              </div>
+                              
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-400">Lucro/Perda Operacional:</span>
+                                <span className={`font-medium ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {formatChartValue(convertChartValue(reportSummaryData.operationalProfitBtc))}
+                                </span>
+                              </div>
+                              
+                              {reportSummaryData.hasWithdrawals && (
+                                <>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-400">Total Sacado:</span>
+                                    <span className="text-orange-400 font-medium">
+                                      {formatChartValue(convertChartValue(reportSummaryData.totalWithdrawalsBtc))}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-400">Saldo Atual:</span>
+                                    <span className="text-purple-400 font-medium">
+                                      {formatChartValue(convertChartValue(reportSummaryData.currentBalanceBtc))}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              <div className="border-t border-purple-700/30 pt-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">ROI:</span>
+                                  <span className={`font-bold ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {reportSummaryData.totalInvestmentsBtc > 0 
+                                      ? `${((reportSummaryData.operationalProfitBtc / reportSummaryData.totalInvestmentsBtc) * 100).toFixed(2)}%`
+                                      : '0.00%'
+                                    }
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {reportSummaryData.averageBuyPriceUsd > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Preço Médio de Compra:</span>
+                                  <span className="text-yellow-400 font-medium">
+                                    ${reportSummaryData.averageBuyPriceUsd.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                                  
+                              {reportSummaryData.valuationProfitUsd !== 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Lucro de Valorização:</span>
+                                  <span className={`font-medium ${reportSummaryData.valuationProfitUsd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    ${reportSummaryData.valuationProfitUsd.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          )
                         ) : (
-                          <>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-400">Total Investido:</span>
-                              <span className="text-blue-400 font-medium">
-                                {formatChartValue(convertChartValue(reportSummaryData.totalInvestmentsBtc))}
-                              </span>
-                            </div>
-                            
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-gray-400">Lucro/Perda Operacional:</span>
-                              <span className={`font-medium ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {formatChartValue(convertChartValue(reportSummaryData.operationalProfitBtc))}
-                              </span>
-                            </div>
-                            
-                            {reportSummaryData.hasWithdrawals && (
-                              <>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-400">Total Sacado:</span>
-                                  <span className="text-orange-400 font-medium">
-                                    {formatChartValue(convertChartValue(reportSummaryData.totalWithdrawalsBtc))}
-                                  </span>
-                                </div>
-                                
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-400">Saldo Atual:</span>
-                                  <span className="text-purple-400 font-medium">
-                                    {formatChartValue(convertChartValue(reportSummaryData.currentBalanceBtc))}
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                            
-                            <div className="border-t border-purple-700/30 pt-3">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">ROI:</span>
-                                <span className={`font-bold ${reportSummaryData.operationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {reportSummaryData.totalInvestmentsBtc > 0 
-                                    ? `${((reportSummaryData.operationalProfitBtc / reportSummaryData.totalInvestmentsBtc) * 100).toFixed(2)}%`
-                                    : '0.00%'
-                                  }
-                                </span>
+                          // Visualização de todos os relatórios
+                          !appData || !appData.reports || appData.reports.length === 0 ? (
+                            <div className="text-center py-8">
+                              <div className="text-gray-400 text-sm">
+                                Nenhum relatório disponível
                               </div>
                             </div>
-                            
-                            {reportSummaryData.averageBuyPriceUsd > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">Preço Médio de Compra:</span>
-                                <span className="text-yellow-400 font-medium">
-                                  ${reportSummaryData.averageBuyPriceUsd.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {reportSummaryData.valuationProfitUsd !== 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-400">Lucro de Valorização:</span>
-                                <span className={`font-medium ${reportSummaryData.valuationProfitUsd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  ${reportSummaryData.valuationProfitUsd.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
-                          </>
+                          ) : (
+                            (() => {
+                              // Calcular valores totais de todos os relatórios de forma segura
+                              let totalInvestmentsBtc = 0;
+                              let totalOperationalProfitBtc = 0;
+                              
+                              // Iterar sobre os relatórios com segurança de tipos
+                              try {
+                                if (Array.isArray(appData.reports)) {
+                                  appData.reports.forEach((report: any) => {
+                                    if (report?.summary) {
+                                      totalInvestmentsBtc += report.summary.totalInvestmentsBtc || 0;
+                                      totalOperationalProfitBtc += report.summary.operationalProfitBtc || 0;
+                                    }
+                                  });
+                                }
+                              } catch (err) {
+                                console.error("Erro ao calcular estatísticas consolidadas:", err);
+                              }
+                              
+                              if (totalInvestmentsBtc === 0 && totalOperationalProfitBtc === 0) {
+                                return (
+                                  <div className="text-center py-8">
+                                    <div className="text-gray-400 text-sm">
+                                      Nenhum dado disponível nos relatórios
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-400">Total Investido (Todos):</span>
+                                    <span className="text-blue-400 font-medium">
+                                      {formatChartValue(convertChartValue(totalInvestmentsBtc))}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-400">Lucro/Perda (Todos):</span>
+                                    <span className={`font-medium ${totalOperationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {formatChartValue(convertChartValue(totalOperationalProfitBtc))}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="border-t border-purple-700/30 pt-3">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm text-gray-400">ROI Total:</span>
+                                      <span className={`font-bold ${totalOperationalProfitBtc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {totalInvestmentsBtc > 0 
+                                          ? `${((totalOperationalProfitBtc / totalInvestmentsBtc) * 100).toFixed(2)}%`
+                                          : '0.00%'
+                                        }
+                                      </span>
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()
+                          )
                         )}
                       </div>
                     </CardContent>
@@ -4583,6 +4752,54 @@ export default function ProfitCalculator({
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Controles de Séries Visíveis - Responsivo */}
+                <div className="mt-6 pt-4 border-t border-purple-700/30 sm:col-span-2 xl:col-span-4">
+                  <Label className="text-sm font-medium mb-4 block">Séries Visíveis nos Gráficos</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-blue-700/30">
+                      <Switch
+                        id="show-investments"
+                        checked={chartVisibleSeries.investments}
+                        onCheckedChange={(checked) => 
+                          setChartVisibleSeries(prev => ({ ...prev, investments: checked }))
+                        }
+                      />
+                      <Label htmlFor="show-investments" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-blue-400 rounded-full flex-shrink-0"></div>
+                        <span>Investimentos</span>
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-green-700/30">
+                      <Switch
+                        id="show-profits"
+                        checked={chartVisibleSeries.profits}
+                        onCheckedChange={(checked) => 
+                          setChartVisibleSeries(prev => ({ ...prev, profits: checked }))
+                        }
+                      />
+                      <Label htmlFor="show-profits" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-green-400 rounded-full flex-shrink-0"></div>
+                        <span>Lucros/Perdas</span>
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 bg-black/20 rounded-lg border border-yellow-700/30">
+                      <Switch
+                        id="show-balance"
+                        checked={chartVisibleSeries.balance}
+                        onCheckedChange={(checked) => 
+                          setChartVisibleSeries(prev => ({ ...prev, balance: checked }))
+                        }
+                      />
+                      <Label htmlFor="show-balance" className="text-sm flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                        <span>Saldo Total</span>
+                      </Label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
