@@ -144,7 +144,7 @@ import { useDefaultCurrency } from "@/hooks/use-default-currency";
 // Imports para o sistema de relatórios integrado
 import { ReportManager } from "@/components/report-manager";
 import { ReportsComparison } from "@/components/reports-comparison";
-import { DisplayCurrency, CurrencyUnit, Investment, ProfitRecord } from "@/lib/calculator-types";
+import { DisplayCurrency, CurrencyUnit, Investment, ProfitRecord, WithdrawalRecord, Report, STORAGE_KEYS, getLastUsedConfigId as getLastUsedConfigIdFromLib } from "@/lib/calculator-types";
 import AnimatedCounter from "./animated-counter";
 
 // NOVOS TIPOS PARA O SISTEMA MELHORADO
@@ -358,27 +358,35 @@ export default function ProfitCalculator({
   // NOVO: Estado local para forçar re-renders (do MultiReportCalculator)
   const [localForceUpdate, setLocalForceUpdate] = useState(0);
 
-  // Hook de relatórios - com controle de sincronização
-  const {
-    reports: allReportsFromHook,
-    activeReportId: activeReportIdFromHook,
+  // Hooks para relatórios
+  const { 
+    reports: reportsCollection, 
     activeReport: currentActiveReportObjectFromHook,
+    activeReportId: activeReportIdFromHook,
     isLoaded: reportsDataLoaded,
     addReport,
-    selectReport,
+    deleteReport,
     addInvestment,
     addProfitRecord,
     addWithdrawal,
     deleteInvestment,
     deleteProfitRecord,
     deleteWithdrawal,
-    updateReportData,
     updateReport,
-    importData,
+    updateReportData,
+    selectReport,
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
     deleteAllWithdrawalsFromReport,
+    // Novas funções para múltiplas APIs
+    associateAPIToReport,
+    getReportAssociatedAPIs,
+    hasMultipleAPIs,
+    updateRecordSource
   } = useReports();
+  
+  // Obter a lista completa de relatórios para uso em visualizações múltiplas
+  const allReportsFromHook = reportsCollection;
 
   // Hook de estados (FIXO - todos os hooks sempre no mesmo local e ordem)
   const states = useProfitCalculatorStates();
@@ -450,7 +458,7 @@ export default function ProfitCalculator({
   const isMobile = useIsMobile();
 
   // Determinar qual fonte de dados usar (props ou hook)
-  const effectiveActiveReportId = activeReportData?.id || activeReportIdFromHook;
+  const effectiveActiveReportId = activeReportData?.id || currentActiveReportObjectFromHook?.id;
   const effectiveActiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
 
   // NOVO: Effect principal para sincronização de dados
@@ -622,21 +630,21 @@ export default function ProfitCalculator({
       }
     }
 
-    if (reportsDataLoaded && allReportsFromHook && allReportsFromHook.length > 0) {
+    if (reportsDataLoaded && reportsCollection && reportsCollection.length > 0) {
       if (states.selectedReportIdsForHistoryView.length === 0) {
-        const initialHistorySelection = activeReportIdFromHook 
-          ? [activeReportIdFromHook]
-          : (allReportsFromHook.length > 0 ? [allReportsFromHook[0].id] : []);
+        const initialHistorySelection = currentActiveReportObjectFromHook 
+          ? [currentActiveReportObjectFromHook.id]
+          : (reportsCollection.length > 0 ? [reportsCollection[0].id] : []);
         states.setSelectedReportIdsForHistoryView(initialHistorySelection);
       } else {
         states.setSelectedReportIdsForHistoryView(prev => 
-          prev.filter(id => allReportsFromHook.some(r => r.id === id))
+          prev.filter(id => reportsCollection.some((r: Report) => r.id === id))
         );
       }
-    } else if (reportsDataLoaded && (!allReportsFromHook || allReportsFromHook.length === 0)) {
+    } else if (reportsDataLoaded && (!reportsCollection || reportsCollection.length === 0)) {
       states.setSelectedReportIdsForHistoryView([]);
     }
-  }, [reportsDataLoaded, allReportsFromHook, activeReportIdFromHook]);
+  }, [reportsDataLoaded, reportsCollection, currentActiveReportObjectFromHook]);
 
   // Effect para salvar displayCurrency
   useEffect(() => {
@@ -1206,14 +1214,18 @@ export default function ProfitCalculator({
             // MODIFICADO: Envolver em try/catch específico para conversão
             let profitRecord;
             try {
-              profitRecord = convertTradeToProfit(trade);
+              // Passar informações de origem para a função de conversão
+              profitRecord = convertTradeToProfit(trade, {
+                configId: config.id,
+                configName: config.name
+              });
               console.log('[handleImportTrades] Registro convertido com sucesso:', {
-              id: profitRecord.id,
-              originalId: profitRecord.originalId,
-              date: profitRecord.date,
-              amount: profitRecord.amount,
-              isProfit: profitRecord.isProfit
-            });
+                id: profitRecord.id,
+                originalId: profitRecord.originalId,
+                date: profitRecord.date,
+                amount: profitRecord.amount,
+                isProfit: profitRecord.isProfit
+              });
             
               // IMPORTANTE: Adicionar ao array de fallback
               if (fallbackEnabled) {
@@ -1516,7 +1528,7 @@ export default function ProfitCalculator({
     }
     
     // Para depósitos bitcoin sem is_confirmed explícito, verificar se tem tx_id (indica confirmação)
-    if (deposit.type === 'bitcoin' && deposit.tx_id && !deposit.hasOwnProperty('is_confirmed')) {
+    if (deposit.type === 'bitcoin' && deposit.tx_id && !('is_confirmed' in deposit)) {
       console.log('[isDepositConfirmed] ✅ Confirmado: depósito bitcoin com tx_id (assumindo confirmado)');
       return true;
     }
@@ -1686,36 +1698,45 @@ export default function ProfitCalculator({
 
         if (isConfirmed) {
           try {
-            const investment = convertDepositToInvestment(deposit);
+            // MODIFICADO: Envolver em try/catch específico para conversão
+            let investmentRecord;
+            try {
+              // Passar informações de origem para a função de conversão
+              investmentRecord = convertDepositToInvestment(deposit, {
+                configId: config.id,
+                configName: config.name
+              });
+              console.log('[handleImportDeposits] Registro convertido com sucesso:', {
+                id: investmentRecord.id,
+                originalId: investmentRecord.originalId,
+                date: investmentRecord.date,
+                amount: investmentRecord.amount
+              });
             
-            console.log('[handleImportDeposits] Investimento convertido:', {
-              id: investment.id,
-              originalId: investment.originalId,
-              date: investment.date,
-              amount: investment.amount,
-              unit: investment.unit
-            });
+              console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
             
-            console.log('[handleImportDeposits] Tentando adicionar novo investimento...');
+              const result = addInvestment(investmentRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
             
-            const result = addInvestment(investment, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-            console.log('[handleImportDeposits] Resultado da adição:', {
-              status: result.status,
-              id: result.id,
-              originalId: result.originalId,
-              message: result.message
-            });
-          
-            if (result.status === 'added') {
-              imported++;
-              console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
-            } else if (result.status === 'duplicate') {
-              duplicated++;
-              console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
-            } else {
+              console.log('[handleImportDeposits] Resultado da adição:', {
+                status: result.status,
+                id: result.id,
+                originalId: result.originalId,
+                message: result.message
+              });
+            
+              if (result.status === 'added') {
+                imported++;
+                console.log('[handleImportDeposits] ✅ Investimento adicionado com sucesso:', result.id);
+              } else if (result.status === 'duplicate') {
+                duplicated++;
+                console.log('[handleImportDeposits] ⚠️ Investimento duplicado detectado:', result.originalId);
+              } else {
+                errors++;
+                console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
+              }
+            } catch (conversionError) {
+              console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
               errors++;
-              console.error('[handleImportDeposits] ❌ Erro ao adicionar investimento:', result);
             }
           } catch (conversionError) {
             console.error('[handleImportDeposits] Erro na conversão do depósito:', conversionError);
@@ -1978,37 +1999,67 @@ export default function ProfitCalculator({
         
         // NOVO: Importar todos os saques independente do status
         try {
-          const withdrawalRecord = convertWithdrawalToRecord(withdrawal);
-          
-          console.log('[handleImportWithdrawals] Saque convertido:', {
-            id: withdrawalRecord.id,
-            originalId: withdrawalRecord.originalId,
-            date: withdrawalRecord.date,
-            amount: withdrawalRecord.amount,
-            unit: withdrawalRecord.unit,
-            originalStatus: withdrawal.status
-          });
-          
-          console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
-          
-          const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
-          
-          console.log('[handleImportWithdrawals] Resultado da adição:', {
-            status: result.status,
-            id: result.id,
-            originalId: result.originalId,
-            message: result.message
-          });
-          
-          if (result.status === 'added') {
-            imported++;
-            console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
-          } else if (result.status === 'duplicate') {
-            duplicated++;
-            console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
-          } else {
+          // MODIFICADO: Envolver em try/catch específico para conversão
+          let withdrawalRecord;
+          try {
+            // Passar informações de origem para a função de conversão
+            withdrawalRecord = convertWithdrawalToRecord(withdrawal, {
+              configId: config.id,
+              configName: config.name
+            });
+            console.log('[handleImportWithdrawals] Registro convertido com sucesso:', {
+              id: withdrawalRecord.id,
+              originalId: withdrawalRecord.originalId,
+              date: withdrawalRecord.date,
+              amount: withdrawalRecord.amount
+            });
+            
+            console.log('[handleImportWithdrawals] Tentando adicionar novo saque...');
+            
+            const result = addWithdrawal(withdrawalRecord, currentActiveReportObjectFromHook.id, { suppressToast: true });
+            
+            console.log('[handleImportWithdrawals] Resultado da adição:', {
+              status: result.status,
+              id: result.id,
+              originalId: result.originalId,
+              message: result.message
+            });
+            
+            if (result.status === 'added') {
+              imported++;
+              console.log('[handleImportWithdrawals] ✅ Saque adicionado com sucesso:', result.id);
+            } else if (result.status === 'duplicate') {
+              duplicated++;
+              console.log('[handleImportWithdrawals] ⚠️ Saque duplicado detectado:', result.originalId);
+            } else {
+              errors++;
+              console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
+            }
+          } catch (conversionError) {
+            console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
             errors++;
-            console.error('[handleImportWithdrawals] ❌ Erro ao adicionar saque:', result);
+          }
+          
+          processed++;
+          const percentage = (processed / totalWithdrawals) * 100;
+          
+          // Atualizar progresso a cada 5 items ou no final
+          if (processed % 5 === 0 || processed === totalWithdrawals) {
+            setImportProgress(prev => ({
+              ...prev,
+              withdrawals: {
+                current: processed,
+                total: totalWithdrawals,
+                percentage,
+                status: 'loading',
+                message: `Processando... ${imported} importados, ${duplicated} duplicados`
+              }
+            }));
+            
+            // Pequeno delay para permitir atualização da UI
+            if (processed % 25 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
           }
         } catch (conversionError) {
           console.error('[handleImportWithdrawals] Erro na conversão do saque:', conversionError);
@@ -2175,18 +2226,33 @@ export default function ProfitCalculator({
     const config = multipleConfigs?.configs.find(c => c.id === configId);
     if (!config) return;
 
-    const success = updateReport(currentActiveReportObjectFromHook.id, {
-      associatedLNMarketsConfigId: configId,
-      associatedLNMarketsConfigName: config.name
-    });
+    // Usar nova função de associação múltipla, se disponível
+    if (typeof associateAPIToReport === 'function') {
+      const success = associateAPIToReport(currentActiveReportObjectFromHook.id, configId, config.name);
+      
+      if (success) {
+        setSelectedConfigForImport(configId);
+        toast({
+          title: "Configuração Associada",
+          description: `Relatório agora associado à configuração "${config.name}".`,
+          variant: "default",
+        });
+      }
+    } else {
+      // Fallback para método legado
+      const success = updateReport(currentActiveReportObjectFromHook.id, {
+        associatedLNMarketsConfigId: configId,
+        associatedLNMarketsConfigName: config.name
+      });
 
-    if (success) {
-      setSelectedConfigForImport(configId);
-            toast({
-        title: "Configuração Associada",
-        description: `Relatório agora está associado à configuração "${config.name}".`,
-              variant: "default",
-            });
+      if (success) {
+        setSelectedConfigForImport(configId);
+        toast({
+          title: "Configuração Associada",
+          description: `Relatório agora está associado à configuração "${config.name}".`,
+          variant: "default",
+        });
+      }
     }
   };
 
@@ -2322,9 +2388,8 @@ export default function ProfitCalculator({
 
   // NOVA: Função para forçar atualização (do MultiReportCalculator)
   const forceUpdate = useCallback(() => {
+    setLocalForceUpdate(prev => prev + 1);
     forceUpdateCountRef.current += 1;
-    setLocalForceUpdate(forceUpdateCountRef.current);
-    console.log('[ProfitCalculator] Forçando atualização:', forceUpdateCountRef.current);
   }, []);
 
   // NOVO: Effect principal para detectar mudanças no relatório ativo (do MultiReportCalculator)
@@ -2388,7 +2453,7 @@ export default function ProfitCalculator({
     return result;
   }, [addInvestment, forceUpdate]);
 
-  const handleAddProfitRecordSynced = useCallback((
+  const handleAddProfitSynced = useCallback((
     date: string,
     amount: number,
     unit: CurrencyUnit,
@@ -3027,6 +3092,50 @@ export default function ProfitCalculator({
     }
   }, [syncedData, activeReportData]);
 
+  // Função local para obter última configuração utilizada
+  const getLastUsedConfigId = useCallback((report: Report) => {
+    return getLastUsedConfigIdFromLib(report);
+  }, []);
+
+  // Effect para sincronizar config LN Markets selecionada com configuração associada ao relatório
+  useEffect(() => {
+    if (reportsDataLoaded && multipleConfigs && user?.email) {
+      const configs = multipleConfigs;
+      
+      // Verificar se há uma função para obter a última API utilizada
+      if (typeof getReportAssociatedAPIs === 'function' && typeof getLastUsedConfigId === 'function' && currentActiveReportObjectFromHook) {
+        // Usar a nova lógica de múltiplas APIs
+        const lastUsedConfigId = getLastUsedConfigId(currentActiveReportObjectFromHook);
+                // Se houver uma última API utilizada e ela ainda existir nas configurações
+        if (lastUsedConfigId && configs.configs.some(c => c.id === lastUsedConfigId)) {
+          setSelectedConfigForImport(lastUsedConfigId);
+          console.log('[ProfitCalculator] Usando última API utilizada:', {
+            configId: lastUsedConfigId,
+            configName: configs.configs.find(c => c.id === lastUsedConfigId)?.name
+          });
+          return;
+        }
+      }
+      
+      // Se não houver função de múltiplas APIs ou não houver última API, continuar com o fluxo legado
+      // Se o relatório já tem uma configuração associada, verificar se ainda existe
+      if (currentActiveReportObjectFromHook?.associatedLNMarketsConfigId) {
+        const associatedConfig = configs?.configs.find(
+          c => c.id === currentActiveReportObjectFromHook.associatedLNMarketsConfigId
+        );
+        if (associatedConfig) {
+          setSelectedConfigForImport(associatedConfig.id);
+        } else {
+          // Configuração associada não existe mais, usar a padrão se disponível
+          setSelectedConfigForImport(configs?.defaultConfigId || null);
+        }
+      } else {
+        // Usar configuração padrão se disponível
+        setSelectedConfigForImport(configs?.defaultConfigId || null);
+      }
+    }
+  }, [user?.email, reportsDataLoaded, currentActiveReportObjectFromHook, multipleConfigs, getReportAssociatedAPIs, getLastUsedConfigId]);
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -3351,21 +3460,54 @@ export default function ProfitCalculator({
                             <SelectContent>
                               {multipleConfigs.configs
                                 .filter(config => config.isActive)
-                                .map((config) => (
-                                  <SelectItem key={config.id} value={config.id}>
-                                    <div className="flex items-center gap-2">
-                                      <span>{config.name}</span>
-                                      {config.id === multipleConfigs.defaultConfigId && (
-                                        <Badge variant="outline" className="text-xs">Padrão</Badge>
-                                      )}
-                                      {currentActiveReportObjectFromHook?.associatedLNMarketsConfigId === config.id && (
-                                        <Badge variant="default" className="text-xs">Associado</Badge>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                ))}
+                                .map((config) => {
+                                  // Verificar se esta API está associada ao relatório ativo
+                                  const isAssociated = typeof getReportAssociatedAPIs === 'function' && 
+                                    currentActiveReportObjectFromHook ? 
+                                    getReportAssociatedAPIs(currentActiveReportObjectFromHook.id).includes(config.id) : 
+                                    currentActiveReportObjectFromHook?.associatedLNMarketsConfigId === config.id;
+                                  
+                                  // Verificar se é a última API utilizada
+                                  const isLastUsed = typeof getLastUsedConfigId === 'function' && 
+                                    currentActiveReportObjectFromHook ?
+                                    getLastUsedConfigId(currentActiveReportObjectFromHook) === config.id :
+                                    false;
+                                  
+                                  return (
+                                    <SelectItem key={config.id} value={config.id}>
+                                      <div className="flex items-center gap-2">
+                                        <span>{config.name}</span>
+                                        {config.id === multipleConfigs.defaultConfigId && (
+                                          <Badge variant="outline" className="text-xs">Padrão</Badge>
+                                        )}
+                                        {isAssociated && (
+                                          <Badge variant="default" className="text-xs bg-blue-600">Associada</Badge>
+                                        )}
+                                        {isLastUsed && (
+                                          <Badge variant="default" className="text-xs bg-green-600">Última Usada</Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
+                          
+                          {/* Alerta para múltiplas APIs */}
+                          {typeof hasMultipleAPIs === 'function' && 
+                           currentActiveReportObjectFromHook && 
+                           hasMultipleAPIs(currentActiveReportObjectFromHook.id) && (
+                            <Alert variant="default" className="mt-4 bg-yellow-900/20 border border-yellow-700/40">
+                              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                              <AlertDescription>
+                                <p className="text-yellow-200 text-sm font-medium">Múltiplas fontes de dados</p>
+                                <p className="text-yellow-100/80 text-xs mt-1">
+                                  Este relatório contém dados de múltiplas configurações de API. 
+                                  A API selecionada será usada para novas importações.
+                                </p>
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -4818,11 +4960,3 @@ export default function ProfitCalculator({
     </div>
   );
 }
-
-
-
-
-
-
-
-

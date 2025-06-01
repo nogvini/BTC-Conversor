@@ -10,7 +10,9 @@ import {
   STORAGE_KEYS, 
   generateId, 
   createNewReport,
-  migrateFromLegacyData
+  migrateFromLegacyData,
+  migrateReportToMultipleAPIs,
+  getUsedConfigIds
 } from "@/lib/calculator-types";
 import { toast } from "@/components/ui/use-toast";
 import { useReportEvents } from "@/contexts/report-events-context";
@@ -29,6 +31,9 @@ export function useReports() {
   
   // Estado para controlar a migração de dados legados
   const [isMigrated, setIsMigrated] = useState(false);
+  
+  // Estado para controlar a migração para múltiplas APIs
+  const [isMultiAPIMigrated, setIsMultiAPIMigrated] = useState(false);
   
   // Usar o contexto de eventos para notificar mudanças
   const { emitEvent } = useReportEvents();
@@ -157,6 +162,44 @@ export function useReports() {
     }
   }, [emitEvent]);
   
+  // Migrar relatórios para formato de múltiplas APIs
+  useEffect(() => {
+    if (isLoaded && !isMultiAPIMigrated && collection.reports.length > 0) {
+      // Verificar se algum relatório precisa ser migrado para o formato de múltiplas APIs
+      let needsMigration = false;
+      const migratedReports = collection.reports.map(report => {
+        // Verificar se precisa migrar
+        if (!report.associatedLNMarketsConfigIds && report.associatedLNMarketsConfigId) {
+          needsMigration = true;
+          return migrateReportToMultipleAPIs(report);
+        }
+        return report;
+      });
+      
+      // Se algum relatório foi migrado, atualizar a coleção
+      if (needsMigration) {
+        console.log('[useReports] Migrando relatórios para suporte a múltiplas APIs');
+        
+        const updatedCollection = {
+          ...collection,
+          reports: migratedReports,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        setCollection(updatedCollection);
+        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(updatedCollection));
+        
+        toast({
+          title: "Suporte a múltiplas APIs ativado",
+          description: "Seus relatórios foram atualizados para suportar múltiplas configurações de API.",
+          duration: 5000,
+        });
+      }
+      
+      setIsMultiAPIMigrated(true);
+    }
+  }, [isLoaded, isMultiAPIMigrated, collection]);
+  
   // Salva a coleção no localStorage quando ela é alterada - MELHORADO
   useEffect(() => {
     if (isLoaded && collection.reports.length > 0) {
@@ -198,153 +241,68 @@ export function useReports() {
       // Atualizar todos os relatórios para não estarem ativos
       const updatedReports = prevCollection.reports.map(report => ({
         ...report,
-        isActive: false,
+        isActive: false
       }));
       
-      // Novo array com todos os relatórios atualizados e o novo relatório
-      const allReports = [...updatedReports, newReport];
-      
-      // Log de debug para verificação
-      console.log('[addReport] Criando novo relatório:', {
-        reportId: newReport.id,
-        reportName: newReport.name,
-        numReports: allReports.length,
-        reportNames: allReports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`),
-        activeReportId: newReport.id
-      });
-      
-      const newCollection = {
+      // Adicionar o novo relatório como ativo
+      return {
         ...prevCollection,
-        reports: allReports,
+        reports: [...updatedReports, newReport],
         activeReportId: newReport.id,
         lastUpdated: new Date().toISOString()
       };
-      
-      // Garantir que a coleção seja salva imediatamente
-      try {
-        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(newCollection));
-        console.log('[addReport] Coleção salva no localStorage com sucesso');
-      } catch (error) {
-        console.error('[addReport] Erro ao salvar coleção no localStorage:', error);
-      }
-      
-      return newCollection;
     });
     
-    toast({
-      title: "Relatório criado",
-      description: `O relatório "${name}" foi criado com sucesso`,
-      duration: 3000,
-    });
+    emitEvent('report-added', name);
+  }, [emitEvent]);
+
+  // NOVA: Função para associar múltiplas APIs a um relatório
+  const associateAPIToReport = useCallback((reportId: string, configId: string, configName: string) => {
+    if (!reportId || !configId) return false;
     
-    return true;
-  }, []);
-  
-  // Função para selecionar um relatório - CORRIGIDA
-  const selectReport = useCallback((reportId: string) => {
     setCollection(prevCollection => {
-      // Verificar se o relatório existe
-      const reportExists = prevCollection.reports.some(r => r.id === reportId);
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
+      if (reportIndex === -1) return prevCollection;
       
-      if (!reportExists) {
-        toast({
-          title: "Relatório não encontrado",
-          description: "O relatório selecionado não foi encontrado",
-          variant: "destructive",
-          duration: 3000,
-        });
-        return prevCollection;
+      const report = prevCollection.reports[reportIndex];
+      
+      // Inicializar array se não existir
+      const associatedLNMarketsConfigIds = report.associatedLNMarketsConfigIds || [];
+      
+      // Verificar se a configuração já está associada
+      if (associatedLNMarketsConfigIds.includes(configId)) {
+        // Apenas atualizar lastUsedConfigId
+        const updatedReport = {
+          ...report,
+          lastUsedConfigId: configId
+        };
+        
+        const updatedReports = [...prevCollection.reports];
+        updatedReports[reportIndex] = updatedReport;
+        
+        return {
+          ...prevCollection,
+          reports: updatedReports,
+          lastUpdated: new Date().toISOString()
+        };
       }
       
-      // Atualizar estado de ativo para todos os relatórios
-      const updatedReports = prevCollection.reports.map(report => ({
+      // Adicionar nova configuração
+      const updatedReport = {
         ...report,
-        isActive: report.id === reportId,
-        updatedAt: report.id === reportId ? new Date().toISOString() : report.updatedAt
-      }));
+        associatedLNMarketsConfigIds: [...associatedLNMarketsConfigIds, configId],
+        lastUsedConfigId: configId,
+        // Manter o campo legado por compatibilidade
+        associatedLNMarketsConfigId: configId,
+        associatedLNMarketsConfigName: configName
+      };
       
-      // Log de debug para verificação
-      console.log('[selectReport] Selecionando relatório:', {
-        reportId,
-        numReports: updatedReports.length,
-        reportNames: updatedReports.map(r => `${r.name}${r.isActive ? ' (ativo)' : ''}`),
-        activeReportId: reportId
-      });
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
       
-      const newCollection = {
+      return {
         ...prevCollection,
         reports: updatedReports,
-        activeReportId: reportId,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      // Garantir que a coleção seja salva imediatamente
-      try {
-        localStorage.setItem(STORAGE_KEYS.REPORTS_COLLECTION, JSON.stringify(newCollection));
-        console.log('[selectReport] Coleção salva no localStorage com sucesso');
-      } catch (error) {
-        console.error('[selectReport] Erro ao salvar coleção no localStorage:', error);
-      }
-      
-      // Emitir evento de relatório selecionado
-      emitEvent('report-selected', reportId);
-      
-      return newCollection;
-    });
-    
-    return true;
-  }, [emitEvent]);
-  
-  // Função para excluir um relatório
-  const deleteReport = useCallback((reportId: string) => {
-    setCollection(prevCollection => {
-      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
-      
-      if (reportIndex === -1) {
-        toast({
-          title: "Relatório não encontrado",
-          description: "O relatório que você tentou excluir não foi encontrado",
-          variant: "destructive",
-          duration: 3000,
-        });
-        return prevCollection;
-      }
-      
-      // Filtrar a lista de relatórios para remover o relatório excluído
-      let updatedReportsArray = prevCollection.reports.filter(r => r.id !== reportId);
-      
-      let newActiveReportId = prevCollection.activeReportId;
-
-      // Se o relatório excluído era o ativo, ou se não há mais relatório ativo válido
-      // definir um novo relatório ativo (o primeiro da lista atualizada, se houver)
-      const currentActiveStillExists = updatedReportsArray.some(r => r.id === newActiveReportId);
-
-      if ((newActiveReportId === reportId || !currentActiveStillExists) && updatedReportsArray.length > 0) {
-        newActiveReportId = updatedReportsArray[0].id;
-      }
-      
-      // Garantir que isActive seja definido corretamente no novo array de relatórios
-      updatedReportsArray = updatedReportsArray.map(report => ({
-        ...report,
-        isActive: report.id === newActiveReportId,
-      }));
-      
-      // Se, após a exclusão, não houver mais relatórios, o activeReportId pode ser undefined
-      if (updatedReportsArray.length === 0) {
-        newActiveReportId = undefined;
-      }
-
-      const reportName = prevCollection.reports[reportIndex].name;
-      toast({
-        title: "Relatório excluído",
-        description: `O relatório "${reportName}" foi excluído com sucesso`,
-        duration: 3000,
-      });
-      
-      return {
-        ...prevCollection,
-        reports: updatedReportsArray,
-        activeReportId: newActiveReportId,
         lastUpdated: new Date().toISOString()
       };
     });
@@ -352,58 +310,100 @@ export function useReports() {
     return true;
   }, []);
   
-  // Função para atualizar um relatório
-  const updateReport = useCallback((reportId: string, updates: Partial<Report>) => {
+  // NOVA: Função para obter APIs associadas a um relatório
+  const getReportAssociatedAPIs = useCallback((reportId: string) => {
+    const report = collection.reports.find(r => r.id === reportId);
+    if (!report) return [];
+    
+    return getUsedConfigIds(report);
+  }, [collection.reports]);
+  
+  // NOVA: Função para verificar se um relatório tem múltiplas APIs
+  const hasMultipleAPIs = useCallback((reportId: string) => {
+    const apis = getReportAssociatedAPIs(reportId);
+    return apis.length > 1;
+  }, [getReportAssociatedAPIs]);
+  
+  // NOVA: Função para atualizar fonte de um registro
+  const updateRecordSource = useCallback((
+    reportId: string, 
+    recordId: string, 
+    recordType: 'investment' | 'profit' | 'withdrawal',
+    sourceInfo: { configId: string, configName: string }
+  ) => {
+    if (!reportId || !recordId || !sourceInfo.configId) return false;
+    
     setCollection(prevCollection => {
       const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
-
-      if (reportIndex === -1) {
-        toast({
-          title: "Relatório não encontrado",
-          description: "O relatório que você tentou atualizar não foi encontrado",
-          variant: "destructive",
-          duration: 3000,
-        });
-        return prevCollection;
-      }
-
-      // Verificar e impedir alteração de investments e profits diretamente por esta função
-      const safeUpdates = { ...updates };
-      delete safeUpdates.investments;
-      delete safeUpdates.profits;
-
-      const updatedReportsArray = prevCollection.reports.map((report, index) => {
-        if (index === reportIndex) {
-          return {
-            ...report,
-            ...safeUpdates, // Aplicar apenas atualizações seguras
-            updatedAt: new Date().toISOString(), // Atualizar a data de modificação
-          };
-        }
-        return report;
-      });
+      if (reportIndex === -1) return prevCollection;
       
-      const reportName = updatedReportsArray[reportIndex].name;
-
-      // Não mostrar toast para cada atualização (ex: reordenar)
-      // Apenas se for uma edição de nome ou descrição vinda do ReportManager
-      if (updates.name || updates.description) {
-        toast({
-          title: "Relatório atualizado",
-          description: `O relatório "${reportName}" foi atualizado.`,
-          duration: 3000,
-        });
+      const report = prevCollection.reports[reportIndex];
+      const now = new Date().toISOString();
+      
+      // Clonar relatório para modificação
+      let updatedReport = {...report};
+      
+      // Atualizar o registro de acordo com o tipo
+      if (recordType === 'investment') {
+        updatedReport.investments = updatedReport.investments.map(inv => 
+          inv.id === recordId 
+            ? { 
+                ...inv, 
+                sourceConfigId: sourceInfo.configId, 
+                sourceConfigName: sourceInfo.configName,
+                importedAt: now
+              }
+            : inv
+        );
+      } else if (recordType === 'profit') {
+        updatedReport.profits = updatedReport.profits.map(profit => 
+          profit.id === recordId 
+            ? { 
+                ...profit, 
+                sourceConfigId: sourceInfo.configId, 
+                sourceConfigName: sourceInfo.configName,
+                importedAt: now
+              }
+            : profit
+        );
+      } else if (recordType === 'withdrawal') {
+        updatedReport.withdrawals = updatedReport.withdrawals.map(withdrawal => 
+          withdrawal.id === recordId 
+            ? { 
+                ...withdrawal, 
+                sourceConfigId: sourceInfo.configId, 
+                sourceConfigName: sourceInfo.configName,
+                importedAt: now
+              }
+            : withdrawal
+        );
       }
+      
+      // Atualizar mapeamento de fonte de dados
+      if (!updatedReport.dataSourceMapping) {
+        updatedReport.dataSourceMapping = {};
+      }
+      
+      updatedReport.dataSourceMapping[recordId] = {
+        configId: sourceInfo.configId,
+        configName: sourceInfo.configName,
+        importDate: now,
+        recordType: recordType === 'investment' 
+          ? 'deposit' 
+          : (recordType === 'profit' ? 'trade' : 'withdrawal')
+      };
+      
+      // Atualizar relatório na coleção
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = updatedReport;
       
       return {
         ...prevCollection,
-        reports: updatedReportsArray, // Usar o novo array mapeado
-        lastUpdated: new Date().toISOString(),
-        // Manter o activeReportId, a menos que o updateReport especificamente mude o report ativo
-        activeReportId: safeUpdates.isActive === true ? reportId : safeUpdates.isActive === false && prevCollection.activeReportId === reportId ? undefined : prevCollection.activeReportId,
+        reports: updatedReports,
+        lastUpdated: now
       };
     });
-
+    
     return true;
   }, []);
   
@@ -1051,6 +1051,7 @@ export function useReports() {
     activeReportId: collection.activeReportId,
     isLoaded,
     isMigrated,
+    isMultiAPIMigrated,
     
     // Funções para gerenciamento de relatórios
     addReport,
@@ -1070,5 +1071,11 @@ export function useReports() {
     deleteAllInvestmentsFromReport,
     deleteAllProfitsFromReport,
     deleteAllWithdrawalsFromReport,
+    
+    // Novas funções para suporte a múltiplas APIs
+    associateAPIToReport,
+    getReportAssociatedAPIs,
+    hasMultipleAPIs,
+    updateRecordSource
   };
 } 

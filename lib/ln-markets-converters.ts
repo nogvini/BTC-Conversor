@@ -123,7 +123,7 @@ function selectBestTimestamp(
 /**
  * Converte trade LN Markets para registro de lucro/perda
  */
-export function convertTradeToProfit(trade: LNMarketsTrade) {
+export function convertTradeToProfit(trade: LNMarketsTrade, sourceInfo?: { configId: string; configName: string }) {
   console.log('[convertTradeToProfit] Trade completo recebido:', trade);
   console.log('[convertTradeToProfit] Campos de data disponíveis:', {
     id: trade.id,
@@ -248,297 +248,235 @@ export function convertTradeToProfit(trade: LNMarketsTrade) {
       });
     } else {
       // Não foi possível calcular
-      console.warn('[convertTradeToProfit] Impossível calcular PL, usando valor padrão');
-      plValue = 0;
+      console.warn('[convertTradeToProfit] Impossível calcular PL de side/quantity/price - usando valor padrão');
+      plValue = 0.0001; // Valor mínimo positivo como fallback
     }
+  } else {
+    // Não foi possível determinar o PL - usar valor mínimo como fallback
+    console.warn('[convertTradeToProfit] PL indeterminado - usando valor padrão mínimo');
+    plValue = 0.0001; // Valor mínimo positivo como fallback
   }
-  // CASO 3: Nenhum dado disponível
-  else {
-    console.warn('[convertTradeToProfit] Sem dados para calcular PL, usando valor padrão');
-    plValue = 0;
-  }
-
-  // Calcular lucro líquido: PL - fees (opening_fee + closing_fee + sum_carry_fees)
-  const openingFee = Number(trade.opening_fee) || 0;
-  const closingFee = Number(trade.closing_fee) || 0;
-  const carryFees = Number(trade.sum_carry_fees) || 0;
-  const totalFees = openingFee + closingFee + carryFees;
-  const netProfit = plValue - totalFees;
-
-  console.log('[convertTradeToProfit] Cálculo de lucro:', {
-    pl_original: trade.pl,
-    pl_adjusted: plValue,
-    opening_fee: openingFee,
-    closing_fee: closingFee,
-    sum_carry_fees: carryFees,
-    total_fees: totalFees,
-    net_profit: netProfit,
-    side: trade.side,
-    quantity: trade.quantity
+  
+  // Verificar se o PL é positivo ou negativo
+  const isProfit = trade.pl > 0;
+  
+  // Log detalhado do processo
+  console.log('[convertTradeToProfit] Trade processado:', {
+    id: tradeIdentifier,
+    date: tradeDate.toISOString(),
+    pl: plValue,
+    isProfit,
+    btcAmount: Math.abs(plValue) / 100000000
   });
-
-  // Validação super permissiva - aceitar qualquer valor
-  if (isNaN(plValue)) {
-    console.warn('[convertTradeToProfit] Valor PL inválido após todas as tentativas, usando 1 satoshi:', {
-      pl_original: trade.pl,
-      pl_calculated: plValue
-    });
-    // Usar valor de fallback em vez de lançar erro - 1 satoshi para evitar 0
-    plValue = 1;
-  }
   
-  // GARANTIA EXTRA: Forçar PL não-zero
-  // Se após todas as tentativas ainda for zero, usar 1 satoshi
-  if (plValue === 0) {
-    console.warn('[convertTradeToProfit] PL zero após todas as tentativas, usando 1 satoshi');
-    plValue = 1;
-  }
-
-  // VALIDAÇÃO CRUZADA: Usar ID + data de saída + PL para identificação única
-  // Isso garante que trades com a mesma combinação de ID+data+PL sejam considerados iguais
-  // e trades com qualquer diferença em algum desses valores sejam considerados diferentes
-  const plIdentifier = Math.round(plValue); // Arredondar para inteiro para maior estabilidade
-  
-  // Extrair o timestamp no formato mais compacto (dias desde 1/1/2000)
-  const referenceDate = new Date(2000, 0, 1).getTime();
-  const daysSinceReference = Math.floor((tradeDate.getTime() - referenceDate) / (1000 * 60 * 60 * 24));
-  
-  // Criar ID composto com os três atributos (ID + data + PL)
-  const compositeId = `lnm_${tradeIdentifier}_d${daysSinceReference}_pl${plIdentifier}`;
-  
-  console.log('[convertTradeToProfit] Gerando ID com validação cruzada:', {
-    tradeIdentifier,
-    daysSinceReference,
-    plIdentifier,
-    resultingId: compositeId
-  });
-
+  // Criar o objeto de retorno
   const result = {
-    id: compositeId, // ID composto com validação cruzada
-    originalId: `trade_${tradeIdentifier}`, // Manter o originalId original para retrocompatibilidade
-    date: tradeDate.toISOString().split('T')[0],
-    amount: Math.abs(netProfit), // Usar lucro líquido (PL - fees)
-    unit: 'SATS' as const,
-    isProfit: netProfit > 0, // Baseado no lucro líquido
-    // Adicionar metadados para debug
-    _debug: {
-      originalTimestamp: timestampToUse,
-      dateSource: dateSource,
-      tradeId: trade.id,
-      tradeUid: trade.uid,
-      closed: trade.closed,
-      side: trade.side,
-      quantity: trade.quantity,
-      grossPL: trade.pl,
-      adjustedPL: plValue,
-      openingFee: openingFee,
-      closingFee: closingFee,
-      carryFees: carryFees,
-      totalFees: totalFees,
-      netProfit: netProfit,
-      allTimestamps: {
-        closed_ts: trade.closed_ts,
-        market_filled_ts: trade.market_filled_ts,
-        last_update_ts: trade.last_update_ts,
-        creation_ts: trade.creation_ts
-      }
-    }
+    id: `trade_${tradeIdentifier}`, // Prefixo para evitar colisões com outros IDs
+    originalId: tradeIdentifier.toString(),
+    date: tradeDate.toISOString(),
+    amount: Math.abs(plValue) / 100000000, // Converter satoshis para BTC
+    unit: "BTC" as "BTC" | "SATS",
+    isProfit: isProfit,
+    // Incluir informações de origem, se fornecidas
+    sourceConfigId: sourceInfo?.configId,
+    sourceConfigName: sourceInfo?.configName,
+    importedAt: new Date().toISOString()
   };
-  
-  console.log('[convertTradeToProfit] Resultado da conversão:', result);
+
   return result;
 }
 
 /**
- * Converte depósito LN Markets para investimento
+ * Converte depósito LN Markets para registro de investimento
  */
-export function convertDepositToInvestment(deposit: LNMarketsDeposit) {
+export function convertDepositToInvestment(deposit: LNMarketsDeposit, sourceInfo?: { configId: string; configName: string }) {
   console.log('[convertDepositToInvestment] Depósito completo recebido:', deposit);
-  console.log('[convertDepositToInvestment] Campos de data disponíveis:', {
-    id: deposit.id,
-    type: deposit.type,
-    created_at: deposit.created_at,
-    updated_at: deposit.updated_at,
-    ts: deposit.ts,
-    amount: deposit.amount,
-    status: deposit.status,
-    deposit_type: deposit.deposit_type,
-    txid: deposit.txid,
-    tx_id: deposit.tx_id,
-    from_username: deposit.from_username,
-    is_confirmed: deposit.is_confirmed,
-    isConfirmed: deposit.isConfirmed,
-    success: deposit.success
-  });
 
-  // Validação básica dos dados de entrada
-  if (!deposit.id) {
-    console.error('[convertDepositToInvestment] ID do depósito ausente');
-    throw new Error('ID do depósito é obrigatório');
-  }
+  // Prioridade para timestamp de confirmação
+  let timestampToUse: string | number | undefined;
+  let dateSource: string;
 
-  if (!deposit.amount || deposit.amount <= 0) {
-    console.error('[convertDepositToInvestment] Valor do depósito inválido:', deposit.amount);
-    throw new Error('Valor do depósito deve ser maior que zero');
-  }
-
-  // Escolher a melhor data disponível com prioridade criteriosa
   const possibleDateFields = {
-    ts: deposit.ts,                     // Timestamp mais preciso (usado em novos formatos)
-    created_at: deposit.created_at,     // Data de criação tradicional
-    updated_at: deposit.updated_at      // Data de atualização como fallback
+    confirmed_at: deposit.confirmed_at,
+    timestamp: deposit.timestamp,
+    created_at: deposit.created_at,
+    updated_at: deposit.updated_at
   };
 
-  console.log('[convertDepositToInvestment] Campos de data encontrados:', possibleDateFields);
-
-  // Prioridade: ts > created_at > updated_at
-  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
+  const { timestamp, source } = selectBestTimestamp(
     possibleDateFields,
-    ['ts', 'created_at', 'updated_at'],
+    ['confirmed_at', 'timestamp', 'created_at', 'updated_at'],
     'convertDepositToInvestment'
   );
 
-  console.log('[convertDepositToInvestment] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
+  timestampToUse = timestamp;
+  dateSource = source;
 
+  // Parsear data
   const depositDate = parseTimestamp(timestampToUse, `convertDepositToInvestment-${dateSource}`);
   
   console.log('[convertDepositToInvestment] Data parseada:', {
     originalTimestamp: timestampToUse,
     parsedDate: depositDate,
-    formattedDate: depositDate.toISOString().split('T')[0],
-    dateSource: dateSource,
-    depositType: deposit.type || deposit.deposit_type
+    formattedDate: depositDate.toISOString(),
+    dateSource
   });
-  
-  const result = {
-    id: `lnm_deposit_${deposit.id}`,
-    originalId: `deposit_${deposit.id}`, // Prefixo para evitar conflitos
-    date: depositDate.toISOString().split('T')[0],
-    amount: deposit.amount,
-    unit: 'SATS' as const,
-    // Adicionar metadados para debug
-    _debug: {
-      originalTimestamp: timestampToUse,
-      dateSource: dateSource,
-      depositId: deposit.id,
-      status: deposit.status,
-      type: deposit.type || deposit.deposit_type,
-      is_confirmed: deposit.is_confirmed,
-      isConfirmed: deposit.isConfirmed,
-      success: deposit.success
-    }
-  };
-  
-  console.log('[convertDepositToInvestment] Resultado da conversão:', result);
-  
-  // Validação final do resultado
-  if (!result.id || !result.originalId || !result.date || !result.amount || !result.unit) {
-    console.error('[convertDepositToInvestment] Resultado da conversão incompleto:', result);
-    throw new Error('Falha na conversão do depósito: resultado incompleto');
+
+  // Validar e criar ID único
+  let depositIdentifier = deposit.uuid || deposit.id;
+  if (!depositIdentifier) {
+    console.error('[convertDepositToInvestment] Depósito sem identificador válido:', deposit);
+    throw new Error('Depósito deve ter uuid ou id válido');
   }
+
+  // Se o ID já tiver o prefixo "deposit_", remover para evitar duplicação
+  if (typeof depositIdentifier === 'string' && depositIdentifier.startsWith('deposit_')) {
+    depositIdentifier = depositIdentifier.substring(8); // Remover o prefixo 'deposit_'
+    console.log('[convertDepositToInvestment] ID já tem prefixo, removendo:', depositIdentifier);
+  }
+
+  // Extrair valor do depósito
+  let amountValue: number;
+  if (typeof deposit.amount === 'number') {
+    amountValue = deposit.amount;
+  } else if (typeof deposit.amount === 'string') {
+    // Remover caracteres não numéricos e converter
+    const cleanedAmount = deposit.amount.replace(/[^0-9.]/g, '');
+    amountValue = parseFloat(cleanedAmount);
+  } else {
+    console.warn('[convertDepositToInvestment] Valor do depósito inválido, usando fallback:', deposit.amount);
+    amountValue = 0;
+  }
+
+  // Determinar unidade (BTC ou SATS)
+  const unit = amountValue > 1 ? 'SATS' : 'BTC';
   
+  // Converter para BTC se necessário
+  if (unit === 'SATS') {
+    amountValue = amountValue / 100000000;
+  }
+
+  // Criar o objeto de retorno
+  const result = {
+    id: `deposit_${depositIdentifier}`,
+    originalId: depositIdentifier.toString(),
+    date: depositDate.toISOString(),
+    amount: amountValue,
+    unit: "BTC" as "BTC" | "SATS",
+    // Incluir informações de origem, se fornecidas
+    sourceConfigId: sourceInfo?.configId,
+    sourceConfigName: sourceInfo?.configName,
+    importedAt: new Date().toISOString()
+  };
+
+  console.log('[convertDepositToInvestment] Resultado da conversão:', result);
   return result;
 }
 
 /**
  * Converte saque LN Markets para registro de saque
  */
-export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal) {
+export function convertWithdrawalToRecord(withdrawal: LNMarketsWithdrawal, sourceInfo?: { configId: string; configName: string }) {
   console.log('[convertWithdrawalToRecord] Saque completo recebido:', withdrawal);
-  console.log('[convertWithdrawalToRecord] Campos de data disponíveis:', {
-    id: withdrawal.id,
-    type: withdrawal.type,
-    created_at: withdrawal.created_at,
-    updated_at: withdrawal.updated_at,
-    ts: withdrawal.ts,
-    amount: withdrawal.amount,
-    status: withdrawal.status,
-    withdrawal_type: withdrawal.withdrawal_type,
-    fees: withdrawal.fees,
-    txid: withdrawal.txid,
-    tx_id: withdrawal.tx_id
-  });
 
-  // Validação básica dos dados de entrada
-  if (!withdrawal.id) {
-    console.error('[convertWithdrawalToRecord] ID do saque ausente');
-    throw new Error('ID do saque é obrigatório');
-  }
+  // Prioridade para timestamp de confirmação
+  let timestampToUse: string | number | undefined;
+  let dateSource: string;
 
-  if (!withdrawal.amount || withdrawal.amount <= 0) {
-    console.error('[convertWithdrawalToRecord] Valor do saque inválido:', withdrawal.amount);
-    throw new Error('Valor do saque deve ser maior que zero');
-  }
-
-  // Escolher a melhor data disponível com prioridade criteriosa
   const possibleDateFields = {
-    ts: withdrawal.ts,                     // Timestamp mais preciso (usado em novos formatos)
-    created_at: withdrawal.created_at,     // Data de criação tradicional
-    updated_at: withdrawal.updated_at      // Data de atualização como fallback
+    confirmed_at: withdrawal.confirmed_at,
+    timestamp: withdrawal.timestamp,
+    created_at: withdrawal.created_at,
+    updated_at: withdrawal.updated_at
   };
 
-  console.log('[convertWithdrawalToRecord] Campos de data encontrados:', possibleDateFields);
-
-  // Prioridade: ts > created_at > updated_at
-  const { timestamp: timestampToUse, source: dateSource } = selectBestTimestamp(
+  const { timestamp, source } = selectBestTimestamp(
     possibleDateFields,
-    ['ts', 'created_at', 'updated_at'],
+    ['confirmed_at', 'timestamp', 'created_at', 'updated_at'],
     'convertWithdrawalToRecord'
   );
 
-  console.log('[convertWithdrawalToRecord] Timestamp selecionado:', timestampToUse, 'da fonte:', dateSource);
+  timestampToUse = timestamp;
+  dateSource = source;
 
+  // Parsear data
   const withdrawalDate = parseTimestamp(timestampToUse, `convertWithdrawalToRecord-${dateSource}`);
-  
-  // Determinar tipo de saque com mais flexibilidade
-  let withdrawalType: 'lightning' | 'onchain' = 'onchain'; // padrão
-  if (withdrawal.withdrawal_type === 'ln' || withdrawal.type === 'lightning') {
-    withdrawalType = 'lightning';
-  } else if (withdrawal.withdrawal_type === 'onchain' || withdrawal.type === 'bitcoin' || withdrawal.txid || withdrawal.tx_id) {
-    withdrawalType = 'onchain';
-  }
   
   console.log('[convertWithdrawalToRecord] Data parseada:', {
     originalTimestamp: timestampToUse,
     parsedDate: withdrawalDate,
-    formattedDate: withdrawalDate.toISOString().split('T')[0],
-    dateSource: dateSource,
-    withdrawalType: withdrawalType,
-    originalType: withdrawal.type || withdrawal.withdrawal_type
+    formattedDate: withdrawalDate.toISOString(),
+    dateSource
   });
-  
-  const result = {
-    id: `lnm_withdrawal_${withdrawal.id}`,
-    originalId: `withdrawal_${withdrawal.id}`, // Prefixo para evitar conflitos
-    date: withdrawalDate.toISOString().split('T')[0],
-    amount: withdrawal.amount,
-    unit: 'SATS' as const,
-    fee: withdrawal.fees || 0,
-    type: withdrawalType,
-    txid: withdrawal.txid || withdrawal.tx_id,
-    // Adicionar metadados para debug
-    _debug: {
-      originalTimestamp: timestampToUse,
-      dateSource: dateSource,
-      withdrawalId: withdrawal.id,
-      status: withdrawal.status,
-      type: withdrawal.type,
-      withdrawalType: withdrawal.withdrawal_type,
-      allTimestamps: {
-        ts: withdrawal.ts,
-        created_at: withdrawal.created_at,
-        updated_at: withdrawal.updated_at
-      }
-    }
-  };
-  
-  console.log('[convertWithdrawalToRecord] Resultado da conversão:', result);
-  
-  // Validação final do resultado
-  if (!result.id || !result.originalId || !result.date || !result.amount || !result.unit) {
-    console.error('[convertWithdrawalToRecord] Resultado da conversão incompleto:', result);
-    throw new Error('Falha na conversão do saque: resultado incompleto');
+
+  // Validar e criar ID único
+  let withdrawalIdentifier = withdrawal.uuid || withdrawal.id;
+  if (!withdrawalIdentifier) {
+    console.error('[convertWithdrawalToRecord] Saque sem identificador válido:', withdrawal);
+    throw new Error('Saque deve ter uuid ou id válido');
   }
+
+  // Se o ID já tiver o prefixo "withdrawal_", remover para evitar duplicação
+  if (typeof withdrawalIdentifier === 'string' && withdrawalIdentifier.startsWith('withdrawal_')) {
+    withdrawalIdentifier = withdrawalIdentifier.substring(11); // Remover o prefixo 'withdrawal_'
+    console.log('[convertWithdrawalToRecord] ID já tem prefixo, removendo:', withdrawalIdentifier);
+  }
+
+  // Extrair valor do saque
+  let amountValue: number;
+  if (typeof withdrawal.amount === 'number') {
+    amountValue = withdrawal.amount;
+  } else if (typeof withdrawal.amount === 'string') {
+    // Remover caracteres não numéricos e converter
+    const cleanedAmount = withdrawal.amount.replace(/[^0-9.]/g, '');
+    amountValue = parseFloat(cleanedAmount);
+  } else {
+    console.warn('[convertWithdrawalToRecord] Valor do saque inválido, usando fallback:', withdrawal.amount);
+    amountValue = 0;
+  }
+
+  // Extrair valor da taxa, se disponível
+  let feeValue: number | undefined;
+  if (withdrawal.fee !== undefined) {
+    if (typeof withdrawal.fee === 'number') {
+      feeValue = withdrawal.fee;
+    } else if (typeof withdrawal.fee === 'string') {
+      // Remover caracteres não numéricos e converter
+      const cleanedFee = withdrawal.fee.replace(/[^0-9.]/g, '');
+      feeValue = parseFloat(cleanedFee);
+    }
+  }
+
+  // Determinar unidade (BTC ou SATS)
+  const unit = amountValue > 1 ? 'SATS' : 'BTC';
   
+  // Converter para BTC se necessário
+  if (unit === 'SATS') {
+    amountValue = amountValue / 100000000;
+    if (feeValue !== undefined) {
+      feeValue = feeValue / 100000000;
+    }
+  }
+
+  // Determinar tipo de saque (lightning ou onchain)
+  const type = withdrawal.type === 'onchain' ? 'onchain' : 'lightning';
+
+  // Criar o objeto de retorno
+  const result = {
+    id: `withdrawal_${withdrawalIdentifier}`,
+    originalId: withdrawalIdentifier.toString(),
+    date: withdrawalDate.toISOString(),
+    amount: amountValue,
+    unit: "BTC" as "BTC" | "SATS",
+    fee: feeValue,
+    type: type as 'onchain' | 'lightning',
+    txid: withdrawal.txid,
+    // Incluir informações de origem, se fornecidas
+    sourceConfigId: sourceInfo?.configId,
+    sourceConfigName: sourceInfo?.configName,
+    importedAt: new Date().toISOString()
+  };
+
+  console.log('[convertWithdrawalToRecord] Resultado da conversão:', result);
   return result;
 } 
