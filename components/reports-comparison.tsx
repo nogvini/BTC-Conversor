@@ -144,6 +144,27 @@ const formatTempoInvestimento = (dias: number): string => {
     return str.trim() || "N/A"; // Fallback para N/A se str estiver vazia por algum motivo inesperado
 };
 
+/**
+ * COMPONENTE: ReportsComparison - Comparação de múltiplos relatórios
+ * 
+ * MELHORIAS DE RESPONSIVIDADE IMPLEMENTADAS:
+ * 
+ * 1. TABELA PRINCIPAL DE COMPARAÇÃO:
+ *    - Desktop (lg+): Tabela completa com sticky column e todas as métricas
+ *    - Tablet (md): Tabela compacta com colunas principais otimizadas 
+ *    - Mobile (sm): Versão ultra-compacta com tooltips informativos
+ *    - ScrollArea bidirecional para navegação completa
+ * 
+ * 2. SISTEMA DE ABAS RESPONSIVO:
+ *    - Cards com overflow horizontal em telas pequenas
+ *    - Gráficos com ResponsiveContainer e adaptações mobile
+ *    - Tabelas detalhadas com sticky columns e scroll otimizado
+ * 
+ * 3. UX MELHORADA:
+ *    - Indicações visuais de scroll horizontal
+ *    - Tooltips com informações extras em versões compactas
+ *    - Formatação adaptativa (Satoshis para valores pequenos)
+ */
 export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsComparisonProps) {
   const { reports } = useReports();
   const { syncedData } = useReportSync();
@@ -885,22 +906,22 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Comparativo de Resultados</CardTitle>
             <CardDescription className="md:hidden text-xs text-muted-foreground">
-              Deslize para ver mais dados
+              Deslize horizontalmente para ver mais dados
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <ScrollArea className="w-full" orientation="horizontal">
+            <div className="overflow-x-auto rounded-lg">
+              <ScrollArea className="w-full max-h-[400px]" orientation="both">
                 {/* Versão completa para telas grandes */}
-                <div className="hidden lg:block min-w-[900px] max-w-full">
+                <div className="hidden lg:block min-w-[900px]">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-purple-700/30">
-                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-300">Relatório</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Investimento Total</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro/Perda</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Saldo Final</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">
+                        <th className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 text-left py-2 px-3 text-sm font-medium text-gray-300 border-r border-purple-700/20">Relatório</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Investimento Total</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Lucro/Perda</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Saldo Final</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">
                           <TooltipProvider>
                             <UITooltip>
                               <TooltipTrigger asChild>
@@ -918,11 +939,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             </UITooltip>
                           </TooltipProvider>
                         </th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Data 1º Aporte</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Tempo Invest.</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Anualizado</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">Lucro Diário Médio</th>
-                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300">ROI Diário Médio</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Data 1º Aporte</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Tempo Invest.</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">ROI Anualizado</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">Lucro Diário Médio</th>
+                        <th className="text-right py-2 px-3 text-sm font-medium text-gray-300 whitespace-nowrap">ROI Diário Médio</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -952,19 +973,19 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                         
                         return (
                           <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
-                            <td className="py-3 px-3">
+                            <td className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 py-3 px-3 border-r border-purple-700/20">
                               <div className="flex items-center gap-2">
                                 <div 
                                   className="w-3 h-3 rounded-full"
                                   style={{ backgroundColor: report.color || "#8844ee" }}
                                 />
-                                <span className="font-medium">{report.name}</span>
+                                <span className="font-medium truncate max-w-[120px]">{report.name}</span>
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-right font-medium">
+                            <td className="py-3 px-3 text-right font-medium whitespace-nowrap">
                               {formatValue(totalInvestments)}
                             </td>
-                            <td className="py-3 px-3 text-right">
+                            <td className="py-3 px-3 text-right whitespace-nowrap">
                               <div className={cn(
                                 "flex items-center justify-end font-medium",
                                 totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"
@@ -977,10 +998,10 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                                 {formatValue(Math.abs(totalProfits))}
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-right font-medium">
+                            <td className="py-3 px-3 text-right font-medium whitespace-nowrap">
                               {formatValue(finalBalance)}
                             </td>
-                            <td className="py-3 px-3 text-right">
+                            <td className="py-3 px-3 text-right whitespace-nowrap">
                               <Badge className={cn(
                                 "font-medium",
                                 roi > 0 ? "bg-green-900/50 text-green-300 hover:bg-green-900/70" : 
@@ -991,11 +1012,11 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                                 {roi.toFixed(2)}%
                               </Badge>
                             </td>
-                            <td className="py-3 px-3 text-right text-xs">{primeiroAporte}</td>
-                            <td className="py-3 px-3 text-right text-xs">{tempoInvest}</td>
-                            <td className={cn("py-3 px-3 text-right text-xs", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
-                            <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
-                            <td className={cn("py-3 px-3 text-right text-xs", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
+                            <td className="py-3 px-3 text-right text-xs whitespace-nowrap">{primeiroAporte}</td>
+                            <td className="py-3 px-3 text-right text-xs whitespace-nowrap">{tempoInvest}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs whitespace-nowrap", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs whitespace-nowrap", stats.mediaDiariaLucroBtc > 0 ? "text-green-400" : stats.mediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>{mediaLucro}</td>
+                            <td className={cn("py-3 px-3 text-right text-xs whitespace-nowrap", stats.mediaDiariaRoiPercent > 0 ? "text-green-400" : stats.mediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>{mediaRoi}</td>
                           </tr>
                         );
                       })}
@@ -1003,18 +1024,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                   </table>
                 </div>
                 
-                {/* Versão compacta para telas médias e pequenas */}
-                <div className="block lg:hidden min-w-[650px] max-w-full">
+                {/* Versão compacta para telas médias */}
+                <div className="hidden md:block lg:hidden min-w-[750px]">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-purple-700/30">
-                        <th className="text-left py-2 px-2 text-sm font-medium text-gray-300">Relatório</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Investimento</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Lucro</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Saldo</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">ROI</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">Tempo</th>
-                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300">ROI Anual</th>
+                        <th className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 text-left py-2 px-2 text-sm font-medium text-gray-300 border-r border-purple-700/20">Relatório</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">Investimento</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">Lucro</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">Saldo</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">ROI</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">Tempo</th>
+                        <th className="text-right py-2 px-2 text-sm font-medium text-gray-300 whitespace-nowrap">ROI Anual</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1029,7 +1050,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                         const finalBalance = convertFromBtc(stats.finalBalance);
                         const roi = stats.roi;
 
-                        // Formatação compacta para versão móvel
+                        // Formatação compacta para versão média
                         const tempoInvest = stats.diasDeInvestimento > 365 
                           ? `${Math.floor(stats.diasDeInvestimento/365)}a ${Math.floor((stats.diasDeInvestimento%365)/30)}m`
                           : stats.diasDeInvestimento > 30 
@@ -1037,39 +1058,40 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             : `${stats.diasDeInvestimento}d`;
                             
                         const roiAnualizado = (stats.diasDeInvestimento > 0 && stats.totalInvestments > 0 && stats.roiAnualizadoPercent !== -100) 
-                          ? `${stats.roiAnualizadoPercent.toFixed(2)}%` 
+                          ? `${stats.roiAnualizadoPercent.toFixed(1)}%` 
                           : (stats.roiAnualizadoPercent === -100 ? '-100%' : 'N/A');
                         
                         return (
                           <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
-                            <td className="py-2 px-2">
+                            <td className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 py-2 px-2 border-r border-purple-700/20">
                               <div className="flex items-center gap-1">
                                 <div 
                                   className="w-3 h-3 rounded-full"
                                   style={{ backgroundColor: report.color || "#8844ee" }}
                                 />
-                                <span className="font-medium text-sm">{report.name}</span>
+                                <span className="font-medium text-sm truncate max-w-[100px]">{report.name}</span>
                               </div>
                             </td>
-                            <td className="py-2 px-2 text-right font-medium text-sm">
-                              {displayUnit === "btc" && totalInvestments < 0.01 && totalInvestments > 0
-                                ? `丰${(totalInvestments * 100000000).toFixed(0)}`
-                                : formatValue(totalInvestments)}
+                            <td className="py-2 px-2 text-right font-medium text-xs whitespace-nowrap">
+                              {formatValue(totalInvestments)}
                             </td>
-                            <td className="py-2 px-2 text-right text-sm">
-                              <span className={totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"}>
-                                {totalProfits > 0 ? "+" : totalProfits < 0 ? "-" : ""}
-                                {displayUnit === "btc" && Math.abs(totalProfits) < 0.01 && Math.abs(totalProfits) > 0
-                                  ? `丰${(Math.abs(totalProfits) * 100000000).toFixed(0)}`
-                                  : formatValue(Math.abs(totalProfits))}
-                              </span>
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
+                              <div className={cn(
+                                "flex items-center justify-end font-medium",
+                                totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"
+                              )}>
+                                {totalProfits > 0 ? (
+                                  <ArrowUp className="h-3 w-3 mr-1" />
+                                ) : totalProfits < 0 ? (
+                                  <ArrowDown className="h-3 w-3 mr-1" />
+                                ) : null}
+                                {formatValue(Math.abs(totalProfits))}
+                              </div>
                             </td>
-                            <td className="py-2 px-2 text-right font-medium text-sm">
-                              {displayUnit === "btc" && finalBalance < 0.01 && finalBalance > 0
-                                ? `丰${(finalBalance * 100000000).toFixed(0)}`
-                                : formatValue(finalBalance)}
+                            <td className="py-2 px-2 text-right font-medium text-xs whitespace-nowrap">
+                              {formatValue(finalBalance)}
                             </td>
-                            <td className="py-2 px-2 text-right">
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
                               <Badge className={cn(
                                 "font-medium text-xs px-1.5 py-0.5",
                                 roi > 0 ? "bg-green-900/50 text-green-300 hover:bg-green-900/70" : 
@@ -1077,15 +1099,125 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                                 "bg-gray-700/30 text-gray-300 hover:bg-gray-700/50"
                               )}>
                                 {roi > 0 ? "+" : ""}
-                                {roi.toFixed(2)}%
+                                {roi.toFixed(1)}%
                               </Badge>
                             </td>
-                            <td className="py-2 px-2 text-right text-xs">{tempoInvest}</td>
-                            <td className={cn("py-2 px-2 text-right text-xs", 
-                              stats.roiAnualizadoPercent > 0 ? "text-green-400" : 
-                              stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400"
-                            )}>
-                              {roiAnualizado}
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">{tempoInvest}</td>
+                            <td className={cn("py-2 px-2 text-right text-xs whitespace-nowrap", stats.roiAnualizadoPercent > 0 ? "text-green-400" : stats.roiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>{roiAnualizado}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Versão mobile - ultra compacta */}
+                <div className="block md:hidden min-w-[500px]">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-purple-700/30">
+                        <th className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 text-left py-2 px-2 text-xs font-medium text-gray-300 border-r border-purple-700/20">Relatório</th>
+                        <th className="text-right py-2 px-2 text-xs font-medium text-gray-300 whitespace-nowrap">Invest.</th>
+                        <th className="text-right py-2 px-2 text-xs font-medium text-gray-300 whitespace-nowrap">Lucro</th>
+                        <th className="text-right py-2 px-2 text-xs font-medium text-gray-300 whitespace-nowrap">ROI</th>
+                        <th className="text-right py-2 px-2 text-xs font-medium text-gray-300 whitespace-nowrap">Saldo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedReportIds.map(reportId => {
+                        const report = reports.find(r => r.id === reportId);
+                        const stats = comparisonData.statsData[reportId];
+                        
+                        if (!report || !stats) return null;
+                        
+                        const totalInvestments = convertFromBtc(stats.totalInvestments);
+                        const totalProfits = convertFromBtc(stats.totalProfits);
+                        const finalBalance = convertFromBtc(stats.finalBalance);
+                        const roi = stats.roi;
+                        
+                        return (
+                          <tr key={reportId} className="border-b border-purple-700/20 hover:bg-purple-900/10">
+                            <td className="sticky left-0 bg-black/60 backdrop-blur-sm z-10 py-2 px-2 border-r border-purple-700/20">
+                              <div className="flex items-center gap-1">
+                                <div 
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: report.color || "#8844ee" }}
+                                />
+                                <span className="font-medium text-xs truncate max-w-[80px]">{report.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
+                              <TooltipProvider>
+                                <UITooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="font-medium">
+                                      {displayUnit === "btc" && totalInvestments < 0.01 
+                                        ? `丰${(totalInvestments * 100000000).toFixed(0)}`
+                                        : formatValue(totalInvestments).length > 8 
+                                          ? formatValue(totalInvestments).substring(0, 8) + "..."
+                                          : formatValue(totalInvestments)
+                                      }
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-black/90 border-purple-700/50 text-xs">
+                                    <p>{formatValue(totalInvestments)}</p>
+                                  </TooltipContent>
+                                </UITooltip>
+                              </TooltipProvider>
+                            </td>
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
+                              <TooltipProvider>
+                                <UITooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className={cn(
+                                      "font-medium",
+                                      totalProfits > 0 ? "text-green-400" : totalProfits < 0 ? "text-red-400" : "text-gray-400"
+                                    )}>
+                                      {totalProfits > 0 ? "+" : totalProfits < 0 ? "-" : ""}
+                                      {displayUnit === "btc" && Math.abs(totalProfits) < 0.01 && totalProfits !== 0
+                                        ? `丰${(Math.abs(totalProfits) * 100000000).toFixed(0)}`
+                                        : formatValue(Math.abs(totalProfits)).length > 6
+                                          ? formatValue(Math.abs(totalProfits)).substring(0, 6) + "..."
+                                          : formatValue(Math.abs(totalProfits))
+                                      }
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-black/90 border-purple-700/50 text-xs">
+                                    <p>{totalProfits >= 0 ? "+" : ""}{formatValue(totalProfits)}</p>
+                                  </TooltipContent>
+                                </UITooltip>
+                              </TooltipProvider>
+                            </td>
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
+                              <span className={cn(
+                                "font-medium text-xs",
+                                roi > 0 ? "text-green-400" : roi < 0 ? "text-red-400" : "text-gray-400"
+                              )}>
+                                {roi > 0 ? "+" : ""}
+                                {roi.toFixed(1)}%
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 text-right text-xs whitespace-nowrap">
+                              <TooltipProvider>
+                                <UITooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="font-medium">
+                                      {displayUnit === "btc" && finalBalance < 0.01 
+                                        ? `丰${(finalBalance * 100000000).toFixed(0)}`
+                                        : formatValue(finalBalance).length > 8
+                                          ? formatValue(finalBalance).substring(0, 8) + "..."
+                                          : formatValue(finalBalance)
+                                      }
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-black/90 border-purple-700/50 text-xs">
+                                    <p>{formatValue(finalBalance)}</p>
+                                    <p className="text-gray-400 mt-1">
+                                      Tempo: {stats.tempoTotalInvestimento}
+                                    </p>
+                                  </TooltipContent>
+                                </UITooltip>
+                              </TooltipProvider>
                             </td>
                           </tr>
                         );
@@ -1103,152 +1235,157 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         <TabsList className="grid grid-cols-3 h-auto gap-2 bg-transparent">
           <TabsTrigger
             value="summary"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
           >
             Resumo
           </TabsTrigger>
           <TabsTrigger
             value="charts"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
           >
             Gráficos
           </TabsTrigger>
           <TabsTrigger
             value="details"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
           >
             Detalhes
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="summary" className="pt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
-              <div className="text-xl font-bold">
-                <AnimatedCounter 
-                  value={(() => {
-                    const val = comparisonData?.totalInvestmentsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
-                  })()}
-                  prefix={(() => {
-                    const val = comparisonData?.totalInvestmentsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
-                  })()}
-                  decimals={(() => {
-                    const val = comparisonData?.totalInvestmentsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
-                  })()}
-                />
+          {/* Cards de resumo com scrolling horizontal em telas pequenas */}
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 min-w-[300px]">
+              <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30 min-w-[280px] sm:min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">Total de Investimentos</div>
+                <div className="text-xl font-bold">
+                  <AnimatedCounter 
+                    value={(() => {
+                      const val = comparisonData?.totalInvestmentsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                    })()}
+                    prefix={(() => {
+                      const val = comparisonData?.totalInvestmentsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                    })()}
+                    decimals={(() => {
+                      const val = comparisonData?.totalInvestmentsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                    })()}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatCurrencyAmount((comparisonData?.totalInvestmentsBtc || 0) * btcToUsd, "USD")}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount((comparisonData?.totalInvestmentsBtc || 0) * btcToUsd, "USD")}
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
-              <div className={`text-xl font-bold ${(comparisonData?.totalProfitsBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter 
-                  value={(() => {
-                    const val = comparisonData?.totalProfitsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
-                  })()}
-                  prefix={(() => {
-                    const val = comparisonData?.totalProfitsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
-                  })()}
-                  decimals={(() => {
-                    const val = comparisonData?.totalProfitsBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
-                  })()}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount((comparisonData?.totalProfitsBtc || 0) * btcToUsd, "USD")}
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
-              <div className="text-xl font-bold">
-                <AnimatedCounter 
-                  value={(() => {
-                    const val = comparisonData?.totalBalanceBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
-                  })()}
-                  prefix={(() => {
-                    const val = comparisonData?.totalBalanceBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
-                  })()}
-                  decimals={(() => {
-                    const val = comparisonData?.totalBalanceBtc || 0;
-                    return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
-                  })()}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {formatCurrencyAmount((comparisonData?.totalBalanceBtc || 0) * btcToUsd, "USD")}
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
-              <div className={`text-xl font-bold ${(comparisonData?.totalRoi || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                <AnimatedCounter 
-                  value={comparisonData?.totalRoi || 0} 
-                  suffix="%"
-                  decimals={2}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Retorno sobre investimento
+              <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30 min-w-[280px] sm:min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">Total de Lucros</div>
+                <div className={`text-xl font-bold ${(comparisonData?.totalProfitsBtc || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  <AnimatedCounter 
+                    value={(() => {
+                      const val = comparisonData?.totalProfitsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                    })()}
+                    prefix={(() => {
+                      const val = comparisonData?.totalProfitsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                    })()}
+                    decimals={(() => {
+                      const val = comparisonData?.totalProfitsBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                    })()}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatCurrencyAmount((comparisonData?.totalProfitsBtc || 0) * btcToUsd, "USD")}
+                </div>
               </div>
             </div>
           </div>
           
-          {/* TABELA DE RESUMO DETALHADO AGREGADO - NOVA SEÇÃO */}
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 min-w-[300px]">
+              <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30 min-w-[280px] sm:min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">Saldo Total</div>
+                <div className="text-xl font-bold">
+                  <AnimatedCounter 
+                    value={(() => {
+                      const val = comparisonData?.totalBalanceBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? val * 100000000 : val;
+                    })()}
+                    prefix={(() => {
+                      const val = comparisonData?.totalBalanceBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? "丰 " : "₿ ";
+                    })()}
+                    decimals={(() => {
+                      const val = comparisonData?.totalBalanceBtc || 0;
+                      return val < 0.01 && val > -0.01 && val !== 0 ? 0 : 8;
+                    })()}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatCurrencyAmount((comparisonData?.totalBalanceBtc || 0) * btcToUsd, "USD")}
+                </div>
+              </div>
+              <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30 min-w-[280px] sm:min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">ROI Médio</div>
+                <div className={`text-xl font-bold ${(comparisonData?.totalRoi || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  <AnimatedCounter 
+                    value={comparisonData?.totalRoi || 0} 
+                    suffix="%"
+                    decimals={2}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Retorno sobre investimento
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* TABELA DE RESUMO DETALHADO AGREGADO - MELHORADA PARA MOBILE */}
           {comparisonData && selectedReportIds.length > 0 && (
             <div className="mt-6">
               <h3 className="text-md font-semibold mb-3 text-gray-200">Resumo Agregado Detalhado</h3>
               <Card className="bg-black/20 border-purple-700/30">
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <ScrollArea className="w-full" orientation="horizontal">
-                      <div className="min-w-[400px] max-w-full">
+                    <ScrollArea className="w-full max-h-[300px]" orientation="both">
+                      <div className="min-w-[350px]">
                         <Table>
                           <TableBody>
                             <TableRow className="border-purple-700/20">
-                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Primeiro Aporte Agregado</TableCell>
-                              <TableCell className="text-right text-xs py-2.5">
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5 whitespace-nowrap">Primeiro Aporte Agregado</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 whitespace-nowrap">
                                 {comparisonData.aggregatedPrimeiroAporteDate 
                                   ? format(new Date(comparisonData.aggregatedPrimeiroAporteDate), 'dd MMM yyyy', { locale: ptBR }) 
                                   : 'N/A'}
                               </TableCell>
                             </TableRow>
                             <TableRow className="border-purple-700/20">
-                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Tempo Total de Investimento</TableCell>
-                              <TableCell className="text-right text-xs py-2.5">{comparisonData.aggregatedTempoTotalInvestimento || 'N/A'}</TableCell>
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5 whitespace-nowrap">Tempo Total de Investimento</TableCell>
+                              <TableCell className="text-right text-xs py-2.5 whitespace-nowrap">{comparisonData.aggregatedTempoTotalInvestimento || 'N/A'}</TableCell>
                             </TableRow>
                             <TableRow className="border-purple-700/20">
-                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">ROI Anualizado Estimado</TableCell>
-                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedRoiAnualizadoPercent > 0 ? "text-green-400" : comparisonData.aggregatedRoiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5 whitespace-nowrap">ROI Anualizado Estimado</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5 whitespace-nowrap", comparisonData.aggregatedRoiAnualizadoPercent > 0 ? "text-green-400" : comparisonData.aggregatedRoiAnualizadoPercent < 0 ? "text-red-400" : "text-gray-400")}>
                                 {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0 && comparisonData.aggregatedRoiAnualizadoPercent !== -100)
                                   ? `${comparisonData.aggregatedRoiAnualizadoPercent.toFixed(2)}%`
                                   : (comparisonData.aggregatedRoiAnualizadoPercent === -100 ? '-100.00%' : 'N/A')}
                               </TableCell>
                             </TableRow>
                             <TableRow className="border-purple-700/20">
-                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de Lucro</TableCell>
-                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaLucroBtc > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5 whitespace-nowrap">Média Diária de Lucro</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5 whitespace-nowrap", comparisonData.aggregatedMediaDiariaLucroBtc > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaLucroBtc < 0 ? "text-red-400" : "text-gray-400")}>
                                 {comparisonData.aggregatedDiasDeInvestimento > 0
                                   ? formatValue(convertFromBtc(comparisonData.aggregatedMediaDiariaLucroBtc))
                                   : 'N/A'}
                               </TableCell>
                             </TableRow>
                             <TableRow className="border-b-0">
-                              <TableCell className="font-medium text-gray-400 text-xs py-2.5">Média Diária de ROI</TableCell>
-                              <TableCell className={cn("text-right text-xs py-2.5", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
+                              <TableCell className="font-medium text-gray-400 text-xs py-2.5 whitespace-nowrap">Média Diária de ROI</TableCell>
+                              <TableCell className={cn("text-right text-xs py-2.5 whitespace-nowrap", comparisonData.aggregatedMediaDiariaRoiPercent > 0 ? "text-green-400" : comparisonData.aggregatedMediaDiariaRoiPercent < 0 ? "text-red-400" : "text-gray-400")}>
                                 {(comparisonData.aggregatedDiasDeInvestimento > 0 && comparisonData.totalInvestmentsBtc > 0)
                                   ? `${comparisonData.aggregatedMediaDiariaRoiPercent.toFixed(4)}%`
                                   : 'N/A'}
@@ -1264,45 +1401,46 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
             </div>
           )}
           
+          {/* Tabela de resumo individual com scrolling melhorado */}
           <div className="overflow-x-auto mt-4 rounded-lg border border-purple-800/30">
-            <ScrollArea className="h-[180px] w-full" orientation="both">
-              <div className="min-w-[500px]">
+            <ScrollArea className="max-h-[300px] w-full" orientation="both">
+              <div className="min-w-[700px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[200px]">Relatório</TableHead>
-                      <TableHead>Investimentos (BTC)</TableHead>
-                      <TableHead>Lucros (BTC)</TableHead>
-                      <TableHead>ROI</TableHead>
-                      <TableHead>Saldo (BTC)</TableHead>
-                      <TableHead>Saldo (USD)</TableHead>
-                      <TableHead># Aportes</TableHead>
-                      <TableHead># Lucros</TableHead>
+                      <TableHead className="w-[200px] sticky left-0 bg-black/40 backdrop-blur-sm z-10">Relatório</TableHead>
+                      <TableHead className="whitespace-nowrap">Investimentos (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">Lucros (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">ROI</TableHead>
+                      <TableHead className="whitespace-nowrap">Saldo (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">Saldo (USD)</TableHead>
+                      <TableHead className="whitespace-nowrap"># Aportes</TableHead>
+                      <TableHead className="whitespace-nowrap"># Lucros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comparisonDataForTabs.summaries.map(summary => (
                       <TableRow key={summary.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium sticky left-0 bg-black/40 backdrop-blur-sm z-10">
                           <div className="flex items-center">
                             <div 
                               className="w-3 h-3 rounded-full mr-2" 
                               style={{ backgroundColor: summary.color }}
                             ></div>
-                            {summary.name}
+                            <span className="truncate max-w-[150px]">{summary.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
-                        <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        <TableCell className="whitespace-nowrap">{formatCryptoAmount(summary.investments.btc)}</TableCell>
+                        <TableCell className={`whitespace-nowrap ${summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {formatCryptoAmount(summary.profits.btc)}
                         </TableCell>
-                        <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        <TableCell className={`whitespace-nowrap ${summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {summary.roi.toFixed(2)}%
                         </TableCell>
-                        <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
-                        <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
-                        <TableCell>{summary.investmentCount}</TableCell>
-                        <TableCell>{summary.profitCount}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCryptoAmount(summary.balance.btc)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                        <TableCell className="whitespace-nowrap">{summary.investmentCount}</TableCell>
+                        <TableCell className="whitespace-nowrap">{summary.profitCount}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1314,93 +1452,111 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         
         <TabsContent value="charts" className="pt-2">
           <div className="space-y-6">
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <h4 className="text-sm font-medium mb-3">Comparação de Investimentos e Lucros</h4>
-              <div className="h-[200px] sm:h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={comparisonDataForTabs.barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(value) => value.length > (isMobile ? 6 : 10) ? `${value.substring(0, isMobile ? 6 : 10)}...` : value}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 10 }} 
-                      width={isMobile ? 30 : 40}
-                    />
-                    <Tooltip 
-                      formatter={(value, name) => {
-                        const formattedValue = `${Number(value).toFixed(8)} BTC`;
-                        const formattedName = 
-                          name === 'investimentos' ? 'Investimentos' : 
-                          name === 'lucros' ? 'Lucros' : 
-                          name === 'total' ? 'Saldo Total' : 
-                          name === 'roi' ? 'ROI' : name;
-                        return [formattedValue, formattedName];
-                      }}
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                        borderColor: 'rgba(124, 58, 237, 0.5)',
-                        borderRadius: '0.375rem',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                      }}
-                      itemStyle={{ color: '#FFFFFF' }}
-                      labelStyle={{ color: '#FFFFFF' }}
-                      cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
-                    />
-                    <Bar dataKey="investimentos" name="Investimentos" fill="#8884d8" />
-                    <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <Card className="bg-purple-900/20 border border-purple-800/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Comparação de Investimentos e Lucros</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="overflow-x-auto">
+                  <div className="h-[200px] sm:h-[250px] min-w-[400px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparisonDataForTabs.barChartData}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fontSize: isMobile ? 8 : 10 }}
+                          tickFormatter={(value) => value.length > (isMobile ? 6 : 10) ? `${value.substring(0, isMobile ? 6 : 10)}...` : value}
+                          interval={0}
+                          angle={isMobile ? -45 : 0}
+                          textAnchor={isMobile ? 'end' : 'middle'}
+                          height={isMobile ? 60 : 40}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: isMobile ? 8 : 10 }} 
+                          width={isMobile ? 30 : 40}
+                        />
+                        <Tooltip 
+                          formatter={(value, name) => {
+                            const formattedValue = `${Number(value).toFixed(8)} BTC`;
+                            const formattedName = 
+                              name === 'investimentos' ? 'Investimentos' : 
+                              name === 'lucros' ? 'Lucros' : 
+                              name === 'total' ? 'Saldo Total' : 
+                              name === 'roi' ? 'ROI' : name;
+                            return [formattedValue, formattedName];
+                          }}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                            borderColor: 'rgba(124, 58, 237, 0.5)',
+                            borderRadius: '0.375rem',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                            fontSize: isMobile ? '11px' : '12px'
+                          }}
+                          itemStyle={{ color: '#FFFFFF', fontSize: isMobile ? '10px' : '12px' }}
+                          labelStyle={{ color: '#FFFFFF', fontSize: isMobile ? '10px' : '12px' }}
+                          cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
+                        />
+                        <Legend 
+                          wrapperStyle={{ fontSize: isMobile ? 9 : 12 }}
+                        />
+                        <Bar dataKey="investimentos" name="Investimentos" fill="#8884d8" />
+                        <Bar dataKey="lucros" name="Lucros" fill="#82ca9d" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             
-            <div className="p-4 rounded-lg bg-purple-900/20 border border-purple-800/30">
-              <h4 className="text-sm font-medium mb-3">Distribuição de Saldo</h4>
-              <div className="h-[200px] sm:h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={comparisonDataForTabs.pieData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={isMobile ? 60 : 80}
-                      dataKey="value"
-                      nameKey="name"
-                      label={isMobile ? false : (entry) => entry.name}
-                      labelLine={!isMobile}
-                    >
-                      {comparisonDataForTabs.pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value: number, name: string) => {
-                        return [
-                          <span style={{ color: '#FFFFFF' }}>{`${value.toFixed(8)} BTC`}</span>, 
-                          <span style={{ color: '#FFFFFF' }}>{name}</span>
-                        ];
-                      }}
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                        borderColor: 'rgba(124, 58, 237, 0.5)',
-                        borderRadius: '0.375rem',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                        color: '#FFFFFF'
-                      }}
-                      cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ fontSize: isMobile ? 10 : 12 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <Card className="bg-purple-900/20 border border-purple-800/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Distribuição de Saldo</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="overflow-x-auto">
+                  <div className="h-[200px] sm:h-[250px] min-w-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={comparisonDataForTabs.pieData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={isMobile ? 50 : 80}
+                          dataKey="value"
+                          nameKey="name"
+                          label={isMobile ? false : (entry) => entry.name}
+                          labelLine={!isMobile}
+                        >
+                          {comparisonDataForTabs.pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number, name: string) => {
+                            return [
+                              <span style={{ color: '#FFFFFF' }}>{`${value.toFixed(8)} BTC`}</span>, 
+                              <span style={{ color: '#FFFFFF' }}>{name}</span>
+                            ];
+                          }}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                            borderColor: 'rgba(124, 58, 237, 0.5)',
+                            borderRadius: '0.375rem',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                            color: '#FFFFFF',
+                            fontSize: isMobile ? '11px' : '12px'
+                          }}
+                          cursor={{ fill: 'rgba(124, 58, 237, 0.4)', stroke: 'rgba(139, 92, 246, 0.6)', strokeWidth: 1.5 }}
+                        />
+                        <Legend 
+                          wrapperStyle={{ fontSize: isMobile ? 9 : 12 }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
         
@@ -1408,66 +1564,66 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           <div className="overflow-x-auto rounded-lg border border-purple-800/30">
             <ScrollArea className="h-[400px] w-full" orientation="both">
               {/* Versão para telas grandes */}
-              <div className="hidden lg:block min-w-[600px]">
+              <div className="hidden lg:block min-w-[800px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[200px]">Relatório</TableHead>
-                      <TableHead>Investimentos (BTC)</TableHead>
-                      <TableHead>Lucros (BTC)</TableHead>
-                      <TableHead>ROI</TableHead>
-                      <TableHead>Saldo (BTC)</TableHead>
-                      <TableHead>Saldo (USD)</TableHead>
-                      <TableHead># Aportes</TableHead>
-                      <TableHead># Lucros</TableHead>
+                      <TableHead className="w-[200px] sticky left-0 bg-black/40 backdrop-blur-sm z-10">Relatório</TableHead>
+                      <TableHead className="whitespace-nowrap">Investimentos (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">Lucros (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">ROI</TableHead>
+                      <TableHead className="whitespace-nowrap">Saldo (BTC)</TableHead>
+                      <TableHead className="whitespace-nowrap">Saldo (USD)</TableHead>
+                      <TableHead className="whitespace-nowrap"># Aportes</TableHead>
+                      <TableHead className="whitespace-nowrap"># Lucros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comparisonDataForTabs.summaries.map(summary => (
                       <TableRow key={summary.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium sticky left-0 bg-black/40 backdrop-blur-sm z-10">
                           <div className="flex items-center">
                             <div 
                               className="w-3 h-3 rounded-full mr-2" 
                               style={{ backgroundColor: summary.color }}
                             ></div>
-                            {summary.name}
+                            <span className="truncate max-w-[150px]">{summary.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{formatCryptoAmount(summary.investments.btc)}</TableCell>
-                        <TableCell className={summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        <TableCell className="whitespace-nowrap">{formatCryptoAmount(summary.investments.btc)}</TableCell>
+                        <TableCell className={`whitespace-nowrap ${summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {formatCryptoAmount(summary.profits.btc)}
                         </TableCell>
-                        <TableCell className={summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        <TableCell className={`whitespace-nowrap ${summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {summary.roi.toFixed(2)}%
                         </TableCell>
-                        <TableCell>{formatCryptoAmount(summary.balance.btc)}</TableCell>
-                        <TableCell>{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
-                        <TableCell>{summary.investmentCount}</TableCell>
-                        <TableCell>{summary.profitCount}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCryptoAmount(summary.balance.btc)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCurrencyAmount(summary.balance.usd, "USD")}</TableCell>
+                        <TableCell className="whitespace-nowrap">{summary.investmentCount}</TableCell>
+                        <TableCell className="whitespace-nowrap">{summary.profitCount}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
               
-              {/* Versão compacta para telas médias e pequenas */}
-              <div className="block lg:hidden min-w-[500px]">
+              {/* Versão compacta para telas médias e pequenas com melhor scrolling */}
+              <div className="block lg:hidden min-w-[600px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Relatório</TableHead>
-                      <TableHead>Invest.</TableHead>
-                      <TableHead>Lucro</TableHead>
-                      <TableHead>ROI</TableHead>
-                      <TableHead>Saldo</TableHead>
-                      <TableHead>Aportes</TableHead>
+                      <TableHead className="sticky left-0 bg-black/40 backdrop-blur-sm z-10 whitespace-nowrap">Relatório</TableHead>
+                      <TableHead className="whitespace-nowrap">Invest.</TableHead>
+                      <TableHead className="whitespace-nowrap">Lucro</TableHead>
+                      <TableHead className="whitespace-nowrap">ROI</TableHead>
+                      <TableHead className="whitespace-nowrap">Saldo</TableHead>
+                      <TableHead className="whitespace-nowrap">Aportes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comparisonDataForTabs.summaries.map(summary => (
                       <TableRow key={summary.id}>
-                        <TableCell className="font-medium py-2">
+                        <TableCell className="font-medium py-2 sticky left-0 bg-black/40 backdrop-blur-sm z-10">
                           <div className="flex items-center">
                             <div 
                               className="w-3 h-3 rounded-full mr-1" 
@@ -1476,20 +1632,20 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             <span className="text-sm truncate max-w-[80px]">{summary.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="py-2 text-xs">
+                        <TableCell className="py-2 text-xs whitespace-nowrap">
                           {summary.investments.btc < 0.01 && summary.investments.btc > 0
                             ? `丰${(summary.investments.btc * 100000000).toFixed(0)}`
                             : formatCryptoAmount(summary.investments.btc)}
                         </TableCell>
-                        <TableCell className={`py-2 text-xs ${summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <TableCell className={`py-2 text-xs whitespace-nowrap ${summary.profits.btc >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {summary.profits.btc < 0.01 && summary.profits.btc > -0.01 && summary.profits.btc !== 0
                             ? (summary.profits.btc >= 0 ? "+" : "-") + `丰${(Math.abs(summary.profits.btc) * 100000000).toFixed(0)}`
                             : (summary.profits.btc >= 0 ? "+" : "") + formatCryptoAmount(summary.profits.btc)}
                         </TableCell>
-                        <TableCell className={`py-2 text-xs ${summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        <TableCell className={`py-2 text-xs whitespace-nowrap ${summary.roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {summary.roi >= 0 ? "+" : ""}{summary.roi.toFixed(2)}%
                         </TableCell>
-                        <TableCell className="py-2 text-xs">
+                        <TableCell className="py-2 text-xs whitespace-nowrap">
                           <TooltipProvider>
                             <UITooltip>
                               <TooltipTrigger asChild>
@@ -1506,7 +1662,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
                             </UITooltip>
                           </TooltipProvider>
                         </TableCell>
-                        <TableCell className="py-2 text-xs">
+                        <TableCell className="py-2 text-xs whitespace-nowrap">
                           {summary.investmentCount}/{summary.profitCount}
                         </TableCell>
                       </TableRow>
@@ -1519,7 +1675,7 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           
           <div className="mt-4 text-xs text-muted-foreground">
             <div className="flex items-center">
-              <Info className="h-3 w-3 mr-1.5" />
+              <Info className="h-3 w-3 mr-1.5 flex-shrink-0" />
               <span>
                 Valores em BTC. Valores pequenos em satoshis (丰). Use o modo USD/BRL nas configurações para outras moedas.
               </span>
