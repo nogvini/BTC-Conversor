@@ -114,12 +114,40 @@ interface ComparisonDataResult {
 
 // NOVA FUNÇÃO AUXILIAR
 const parseReportDateStringToUTCDate = (dateString: string): Date => {
-  if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+  if (!dateString || typeof dateString !== 'string') {
+    console.warn(`Invalid date string encountered in reports-comparison: ${dateString}`);
+    return new Date(NaN); 
+  }
+
+  // Verificar se é uma data ISO completa (YYYY-MM-DDTHH:mm:ss.sssZ) ou apenas YYYY-MM-DD
+  const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+  const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+  
+  if (isoRegex.test(dateString)) {
+    // Data ISO completa - usar apenas a parte da data
+    const dateOnly = dateString.split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    
+    if (!year || !month || !day || year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+      console.warn(`Invalid ISO date parts in reports-comparison: ${dateString}`);
+      return new Date(NaN);
+    }
+    
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  } else if (dateOnlyRegex.test(dateString)) {
+    // Data apenas YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    
+    if (!year || !month || !day || year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+      console.warn(`Invalid date parts in reports-comparison: ${dateString}`);
+      return new Date(NaN);
+    }
+    
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  } else {
     console.warn(`Invalid date string format encountered in reports-comparison: ${dateString}`);
     return new Date(NaN); 
   }
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 };
 
 // ADICIONAR FUNÇÃO formatTempoInvestimento

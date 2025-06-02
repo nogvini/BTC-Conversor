@@ -1,7 +1,15 @@
-import { Report, Investment, ProfitRecord, CurrencyUnit } from './calculator-types';
-import { OperationData, HistoricalDataPoint } from './export-types'; // Supondo que HistoricalDataPoint também está em export-types ou api-types
-import { getHistoricalBitcoinDataForRange } from './client-api';
-import { CalculatedReportData, ReportMetadata } from './export-types';
+import type { 
+  Report, 
+  Investment, 
+  ProfitRecord, 
+  CurrencyUnit,
+  OperationData,
+  ExportedReport,
+  ReportMetadata,
+  CalculatedReportData
+} from './calculator-types';
+import { getHistoricalBitcoinDataForRange } from './server-api'; // Mudança: usar server-api ao invés de client-api
+import { HistoricalDataPoint } from './export-types'; // Supondo que HistoricalDataPoint também está em export-types ou api-types
 
 /**
  * Define a estrutura do objeto de entrada para o processamento do relatório.
@@ -170,8 +178,8 @@ export async function prepareReportFoundationData(
           
           try {
             // Importar a função para buscar cotação atual
-            const { getCurrentBitcoinPrice } = await import('./client-api');
-            const currentPrice = await getCurrentBitcoinPrice(true);
+            const { getCurrentBitcoinPrice } = await import('./server-api');
+            const currentPrice = await getCurrentBitcoinPrice('usd');
             
             if (currentPrice) {
               const currentPriceUSD = currentPrice.usd;

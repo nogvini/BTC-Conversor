@@ -833,5 +833,48 @@ export async function forceUpdateAllData(): Promise<AppData> {
 
 // Adicionar função para buscar o preço atual do Bitcoin (usada em outros lugares)
 export async function getCurrentBitcoinPrice(currency = 'usd'): Promise<BitcoinPrice | null > { 
-    return updateCurrentPrice(); // Simplificado para usar a mesma lógica de updateCurrentPrice
+  console.log(`[server-api getCurrentBitcoinPrice] Fetching current Bitcoin price in ${currency}`);
+  try {
+    const appData = await getAppData();
+    if (appData && appData.currentPrice) {
+      console.log(`[server-api getCurrentBitcoinPrice] Returning cached price: USD ${appData.currentPrice.usd}, BRL ${appData.currentPrice.brl}`);
+      return appData.currentPrice;
+    } else {
+      console.warn(`[server-api getCurrentBitcoinPrice] No cached price found, forcing update`);
+      const updatedPrice = await updateCurrentPrice();
+      return updatedPrice;
+    }
+  } catch (error) {
+    console.error(`[server-api getCurrentBitcoinPrice] Error fetching current price:`, error);
+    return null;
+  }
+}
+
+/**
+ * Busca dados históricos do Bitcoin para um intervalo específico de datas
+ * Versão para uso no servidor (não usa URL relativa)
+ */
+export async function getHistoricalBitcoinDataForRange(
+  currency: 'usd' | 'brl',
+  fromDate: string, // Formato YYYY-MM-DD
+  toDate: string,   // Formato YYYY-MM-DD
+  forceUpdate: boolean = false
+): Promise<HistoricalDataPoint[]> {
+  try {
+    console.log(`[server-api getHistoricalBitcoinDataForRange] Buscando dados históricos para ${currency} de ${fromDate} até ${toDate}`);
+    
+    // Usar a função existente getHistoricalData com parâmetros de data
+    const result = await getHistoricalData(currency, { fromDate, toDate }, forceUpdate);
+    
+    if (result && result.data) {
+      console.log(`[server-api getHistoricalBitcoinDataForRange] Dados encontrados: ${result.data.length} registros`);
+      return result.data;
+    } else {
+      console.warn(`[server-api getHistoricalBitcoinDataForRange] Nenhum dado encontrado para o intervalo`);
+      return [];
+    }
+  } catch (error) {
+    console.error(`[server-api getHistoricalBitcoinDataForRange] Erro ao buscar dados históricos:`, error);
+    return [];
+  }
 }
