@@ -2240,19 +2240,17 @@ export default function ProfitCalculator({
       }
     } else {
       // Fallback para método legado
-      const success = updateReport(currentActiveReportObjectFromHook.id, {
+      updateReport(currentActiveReportObjectFromHook.id, {
         associatedLNMarketsConfigId: configId,
         associatedLNMarketsConfigName: config.name
       });
 
-      if (success) {
-        setSelectedConfigForImport(configId);
-        toast({
-          title: "Configuração Associada",
-          description: `Relatório agora está associado à configuração "${config.name}".`,
-          variant: "default",
-        });
-      }
+      setSelectedConfigForImport(configId);
+      toast({
+        title: "Configuração Associada",
+        description: `Relatório agora está associado à configuração "${config.name}".`,
+        variant: "default",
+      });
     }
   };
 
@@ -3088,7 +3086,7 @@ export default function ProfitCalculator({
       setProfitsListKey(newProfitsKey);
       
       // Limpar o flag de necessidade de atualização
-      setSyncedData(prev => prev ? { ...prev, needsRefresh: false } : null);
+      // setSyncedData(prev => prev ? { ...prev, needsRefresh: false } : null);
     }
   }, [syncedData, activeReportData]);
 
@@ -3145,39 +3143,25 @@ export default function ProfitCalculator({
     setProfitsListKey(`profits_${Date.now()}`);
     
     // Reset cache dos dados filtrados
-    setFilteredInvestmentsCache(null);
-    setFilteredProfitsCache(null);
+    // setFilteredInvestmentsCache(null);
+    // setFilteredProfitsCache(null);
     
     // Invalidar estatísticas
-    setInvestmentStats(null);
-    setProfitStats(null);
-  }, [activeReportData?.id, activeReportData?.lastModified]);
+    // setInvestmentStats(null);
+    // setProfitStats(null);
+  }, [activeReportData?.id]);
 
   // Lidar com dados sincronizados externos (como do bitcoin-converter)
   useEffect(() => {
     if (!btcToUsd || !brlToUsd || !appData) return;
 
     // Detectar se os dados estão sendo fornecidos pelo bitcoin-converter
-    const isFromBitcoinConverter = appData.source && 
-      ['bitcoin-converter', 'external-sync'].includes(appData.source);
+    // const isFromBitcoinConverter = appData.source && 
+    //   ['bitcoin-converter', 'external-sync'].includes(appData.source);
 
-    if (isFromBitcoinConverter) {
-      // Usar cotações sincronizadas do bitcoin-converter
-      setCurrentBtcToUsd(btcToUsd);
-      setCurrentBrlToUsd(brlToUsd);
-      setLastUpdate(appData.timestamp || new Date().toISOString());
-    } else if (appData.btcUsd && appData.usdBrl) {
-      // Usar cotações do appData
-      setCurrentBtcToUsd(appData.btcUsd);
-      setCurrentBrlToUsd(appData.usdBrl);
-      setLastUpdate(appData.timestamp || new Date().toISOString());
-    } else {
-      // Usar cotações passadas como props (fallback)
-      setCurrentBtcToUsd(btcToUsd);
-      setCurrentBrlToUsd(brlToUsd);
-      setLastUpdate(new Date().toISOString());
-    }
-  }, [btcToUsd, brlToUsd, appData]);
+    // Usar cotações passadas como props (fallback)
+    states.setCurrentRates({ btcToUsd, brlToUsd });
+  }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
