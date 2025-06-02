@@ -256,6 +256,134 @@ export function useReports() {
     emitEvent('report-added', name);
   }, [emitEvent]);
 
+  // Função para selecionar um relatório como ativo
+  const selectReport = useCallback((reportId: string) => {
+    setCollection(prevCollection => {
+      // Verificar se o relatório existe
+      const reportExists = prevCollection.reports.some(r => r.id === reportId);
+      if (!reportExists) {
+        toast({
+          title: "Erro",
+          description: "Relatório não encontrado",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      // Atualizar todos os relatórios para não estarem ativos
+      const updatedReports = prevCollection.reports.map(report => ({
+        ...report,
+        isActive: report.id === reportId
+      }));
+
+      const updatedCollection = {
+        ...prevCollection,
+        reports: updatedReports,
+        activeReportId: reportId,
+        lastUpdated: new Date().toISOString()
+      };
+
+      // Emitir evento de relatório selecionado
+      emitEvent('report-selected', reportId);
+
+      return updatedCollection;
+    });
+  }, [emitEvent]);
+
+  // Função para deletar um relatório
+  const deleteReport = useCallback((reportId: string) => {
+    setCollection(prevCollection => {
+      // Não permitir deletar o último relatório
+      if (prevCollection.reports.length <= 1) {
+        toast({
+          title: "Não é possível deletar",
+          description: "Deve haver pelo menos um relatório",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      const reportToDelete = prevCollection.reports.find(r => r.id === reportId);
+      if (!reportToDelete) {
+        toast({
+          title: "Erro",
+          description: "Relatório não encontrado",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      // Remover o relatório
+      const updatedReports = prevCollection.reports.filter(r => r.id !== reportId);
+      
+      // Se o relatório deletado era o ativo, selecionar o primeiro
+      let newActiveReportId = prevCollection.activeReportId;
+      if (prevCollection.activeReportId === reportId) {
+        newActiveReportId = updatedReports[0]?.id || '';
+        
+        // Atualizar o isActive para o novo relatório ativo
+        updatedReports.forEach(report => {
+          report.isActive = report.id === newActiveReportId;
+        });
+      }
+
+      toast({
+        title: "Relatório excluído",
+        description: `O relatório "${reportToDelete.name}" foi excluído com sucesso`,
+        variant: "success",
+      });
+
+      // Emitir evento de relatório deletado
+      emitEvent('report-deleted', reportId);
+      
+      // Se mudou o relatório ativo, emitir evento de seleção
+      if (newActiveReportId !== prevCollection.activeReportId) {
+        emitEvent('report-selected', newActiveReportId);
+      }
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        activeReportId: newActiveReportId,
+        lastUpdated: new Date().toISOString()
+      };
+    });
+  }, [emitEvent]);
+
+  // Função para atualizar um relatório existente
+  const updateReport = useCallback((reportId: string, updates: Partial<Report>) => {
+    setCollection(prevCollection => {
+      const reportIndex = prevCollection.reports.findIndex(r => r.id === reportId);
+      if (reportIndex === -1) {
+        toast({
+          title: "Erro",
+          description: "Relatório não encontrado",
+          variant: "destructive",
+        });
+        return prevCollection;
+      }
+
+      const updatedReports = [...prevCollection.reports];
+      updatedReports[reportIndex] = {
+        ...updatedReports[reportIndex],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+
+      toast({
+        title: "Relatório atualizado",
+        description: "As alterações foram salvas com sucesso",
+        variant: "success",
+      });
+
+      return {
+        ...prevCollection,
+        reports: updatedReports,
+        lastUpdated: new Date().toISOString()
+      };
+    });
+  }, []);
+
   // NOVA: Função para associar múltiplas APIs a um relatório
   const associateAPIToReport = useCallback((reportId: string, configId: string, configName: string) => {
     if (!reportId || !configId) return false;
