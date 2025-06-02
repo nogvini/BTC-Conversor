@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { useReports } from "@/hooks/use-reports";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getCurrentBitcoinPrice, exportReportToPdf } from "@/lib/client-api";
+import { getCurrentBitcoinPrice, exportReportToPdf, exportReportToPdfWithRates } from "@/lib/client-api";
 import { format } from "date-fns";
 import { generateExcelReport, ExcelExportOptions } from "@/lib/excel-export";
 import ExportOptionsDialog, { PDFExportOptions } from "@/components/export-options-dialog";
@@ -2944,6 +2944,23 @@ export default function ProfitCalculator({
         withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0,
       });
       
+      console.log('Cotações atuais disponíveis:', {
+        btcToUsd: states.currentRates.btcToUsd,
+        brlToUsd: states.currentRates.brlToUsd,
+        isUsingFallback: states.usingFallbackRates
+      });
+      
+      // VALIDAÇÃO CRÍTICA: Verificar se as cotações estão disponíveis
+      if (!states.currentRates.btcToUsd || !states.currentRates.brlToUsd) {
+        console.error('Cotações não disponíveis:', states.currentRates);
+        toast({
+          title: "⚠️ Cotações indisponíveis",
+          description: "Não foi possível obter as cotações atuais. Tente atualizar as cotações antes de exportar.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Log detalhado dos dados originais
       if (currentActiveReportObjectFromHook.investments?.length) {
         console.log('Primeiros 3 investimentos:', currentActiveReportObjectFromHook.investments.slice(0, 3));
@@ -3010,8 +3027,14 @@ export default function ProfitCalculator({
       
       console.log('Iniciando exportação para PDF com a função do client-api');
       
-      // Usar a nova função do client-api para exportação
-      const blob = await exportReportToPdf(reportData, options.currency, periodDescription);
+      // CORREÇÃO CRÍTICA: Usar a nova função melhorada que passa as cotações
+      const blob = await exportReportToPdfWithRates(
+        reportData, 
+        options.currency, 
+        periodDescription,
+        states.currentRates.btcToUsd,  // ADICIONAR COTAÇÃO BTC->USD
+        states.currentRates.brlToUsd   // ADICIONAR COTAÇÃO BRL->USD
+      );
       
       if (!blob) {
         throw new Error('Falha ao gerar o PDF - resultado vazio');

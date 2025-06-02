@@ -220,6 +220,137 @@ export async function getHistoricalBitcoinDataForRange(
 }
 
 /**
+ * Exporta um relatório para PDF (versão melhorada com cotações)
+ * @param reportData Dados do relatório a ser exportado
+ * @param displayCurrency Moeda para exibição (USD ou BRL)
+ * @param reportPeriodDescription Descrição opcional do período do relatório
+ * @param btcToUsd Cotação atual de BTC para USD
+ * @param brlToUsd Cotação atual de BRL para USD
+ * @returns URL do blob do PDF ou nulo em caso de erro
+ */
+export async function exportReportToPdfWithRates(
+  reportData: any,
+  displayCurrency: 'BRL' | 'USD',
+  reportPeriodDescription: string = '',
+  btcToUsd: number,
+  brlToUsd: number
+): Promise<Blob | null> {
+  try {
+    console.log('=== INICIANDO EXPORTAÇÃO PDF CLIENT-API (COM COTAÇÕES) ===');
+    console.log('Dados recebidos:', {
+      hasReportData: !!reportData,
+      displayCurrency,
+      reportPeriodDescription,
+      btcToUsd,
+      brlToUsd
+    });
+    
+    const url = '/api/export/report-pdf';
+    
+    // Verificações iniciais para evitar enviar dados inválidos
+    if (!reportData || typeof reportData !== 'object') {
+      throw new Error('Dados do relatório inválidos ou ausentes');
+    }
+    
+    // Validar cotações
+    if (!btcToUsd || btcToUsd <= 0) {
+      throw new Error('Cotação BTC->USD inválida ou zero');
+    }
+    
+    if (!brlToUsd || brlToUsd <= 0) {
+      throw new Error('Cotação BRL->USD inválida ou zero');
+    }
+    
+    console.log('Estrutura do reportData recebido:', {
+      id: reportData.id,
+      name: reportData.name,
+      hasInvestments: !!reportData.investments,
+      hasProfit: !!reportData.profits,
+      hasWithdrawals: !!reportData.withdrawals,
+      investmentsCount: Array.isArray(reportData.investments) ? reportData.investments.length : 'não é array',
+      profitsCount: Array.isArray(reportData.profits) ? reportData.profits.length : 'não é array',
+      withdrawalsCount: Array.isArray(reportData.withdrawals) ? reportData.withdrawals.length : 'não é array'
+    });
+    
+    if (Array.isArray(reportData.investments) && reportData.investments.length > 0) {
+      console.log('Primeiros 2 investimentos do client-api:', reportData.investments.slice(0, 2));
+    }
+    
+    if (Array.isArray(reportData.profits) && reportData.profits.length > 0) {
+      console.log('Primeiros 2 lucros do client-api:', reportData.profits.slice(0, 2));
+    }
+    
+    if (!reportData.name) {
+      console.warn('Relatório sem nome, adicionando nome padrão');
+      reportData.name = `Relatório Bitcoin ${new Date().toISOString().split('T')[0]}`;
+    }
+    
+    // Garantir que arrays essenciais existam
+    if (!Array.isArray(reportData.investments)) reportData.investments = [];
+    if (!Array.isArray(reportData.profits)) reportData.profits = [];
+    if (!Array.isArray(reportData.withdrawals)) reportData.withdrawals = [];
+    
+    const requestData = {
+      report: reportData,
+      displayCurrency,
+      reportPeriodDescription,
+      // ADICIONAR AS COTAÇÕES NO PAYLOAD
+      currentRates: {
+        btcToUsd,
+        brlToUsd,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log('Dados que serão enviados para a API:', {
+      reportId: requestData.report.id,
+      reportName: requestData.report.name,
+      investmentsToSend: requestData.report.investments.length,
+      profitsToSend: requestData.report.profits.length,
+      withdrawalsToSend: requestData.report.withdrawals.length,
+      displayCurrency: requestData.displayCurrency,
+      btcToUsd: requestData.currentRates.btcToUsd,
+      brlToUsd: requestData.currentRates.brlToUsd
+    });
+    
+    console.log('Enviando requisição de PDF...');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+    
+    if (!response.ok) {
+      let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = `${errorData.error}${errorData.details ? `: ${errorData.details}` : ''}`;
+        }
+      } catch (e) {
+        // Se não puder obter detalhes do erro como JSON, apenas use o status
+        console.warn('Não foi possível obter detalhes do erro como JSON');
+      }
+      
+      console.error('Erro na geração do PDF:', errorMessage);
+      throw new Error(`Falha ao gerar o PDF: ${errorMessage}`);
+    }
+    
+    console.log('PDF gerado com sucesso, obtendo blob...');
+    return await response.blob();
+    
+  } catch (error) {
+    console.error('Erro ao exportar relatório para PDF com cotações:', error);
+    // Retornar null em vez de lançar o erro, para que o chamador possa tentar tratar
+    throw new Error(`Erro ao exportar PDF: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * Exporta um relatório para PDF
  * @param reportData Dados do relatório a ser exportado
  * @param displayCurrency Moeda para exibição (USD ou BRL)

@@ -243,7 +243,15 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
   const comparisonData = useMemo((): ComparisonDataResult | null => {
     if (selectedReportIds.length === 0) return null;
 
+    console.log('[ReportsComparison] Calculando dados de comparação para:', selectedReportIds);
+    
     const selectedReports = reports.filter(r => selectedReportIds.includes(r.id));
+    console.log('[ReportsComparison] Relatórios selecionados:', selectedReports.map(r => ({
+      id: r.id,
+      name: r.name,
+      investmentsCount: r.investments?.length || 0,
+      profitsCount: r.profits?.length || 0
+    })));
     
     let minDateOverall = new Date(); // Renomeado para evitar conflito com minDate/maxDate no retorno
     let maxDateOverall = new Date(0); // Renomeado
@@ -254,19 +262,32 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         ...(report.profits?.map(p => parseReportDateStringToUTCDate(p.date)) || [])
       ].filter(date => !isNaN(date.getTime()));
       
+      console.log(`[ReportsComparison] Datas encontradas para ${report.name}:`, allDates.length);
+      
       if (allDates.length === 0) return;
 
       const reportMinDate = new Date(Math.min(...allDates.map(d => d.getTime())));
       const reportMaxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
       
+      console.log(`[ReportsComparison] Range de datas para ${report.name}:`, {
+        min: reportMinDate.toISOString(),
+        max: reportMaxDate.toISOString()
+      });
+      
       if (reportMinDate < minDateOverall) minDateOverall = reportMinDate;
       if (reportMaxDate > maxDateOverall) maxDateOverall = reportMaxDate;
+    });
+    
+    console.log('[ReportsComparison] Range geral de datas:', {
+      min: minDateOverall.toISOString(),
+      max: maxDateOverall.toISOString()
     });
     
     if (minDateOverall > maxDateOverall) { // Corrigido para usar Overall
       const today = new Date();
       minDateOverall = new Date(today.getFullYear(), today.getMonth() -1, 1);
       maxDateOverall = new Date(today.getFullYear(), today.getMonth(), 1);
+      console.log('[ReportsComparison] Usando range padrão (dados vazios)');
     }
     
     const months: Date[] = [];
@@ -277,6 +298,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       months.push(new Date(currentDate));
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
+    
+    console.log(`[ReportsComparison] Meses para processamento: ${months.length}`, months.map(m => format(m, 'MMM yyyy', { locale: ptBR })));
     
     const chartData: ChartDataPoint[] = months.map(month => {
       const monthLabel = format(month, 'MMM yyyy', { locale: ptBR });
@@ -306,13 +329,23 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           });
 
           const totalInvestmentsBtc = investmentsUntilMonth.reduce((sum, inv) => {
-            return sum + convertToBtc(inv.amount, inv.unit);
+            const btcAmount = convertToBtc(inv.amount, inv.unit);
+            console.log(`[Debug] Investimento: ${inv.amount} ${inv.unit} = ${btcAmount} BTC`);
+            return sum + btcAmount;
           }, 0);
           
           const totalProfitsBtc = profitsUntilMonth.reduce((sum, prof) => {
             const btcAmount = convertToBtc(prof.amount, prof.unit);
-            return sum + (prof.isProfit ? btcAmount : -btcAmount);
+            const contribution = prof.isProfit ? btcAmount : -btcAmount;
+            console.log(`[Debug] Lucro/Perda: ${prof.amount} ${prof.unit} = ${contribution} BTC (isProfit: ${prof.isProfit})`);
+            return sum + contribution;
           }, 0);
+          
+          console.log(`[ReportsComparison] ${monthLabel} - ${report.name}:`, {
+            investmentsBtc: totalInvestmentsBtc,
+            profitsBtc: totalProfitsBtc,
+            balanceBtc: totalInvestmentsBtc + totalProfitsBtc
+          });
           
           dataPoint[`investments_${reportId}`] = totalInvestmentsBtc;
           dataPoint[`profits_${reportId}`] = totalProfitsBtc;
@@ -351,6 +384,8 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
       
       return dataPoint;
     });
+    
+    console.log('[ReportsComparison] Dados do gráfico gerados:', chartData.slice(0, 3));
     
     const statsData: Record<string, ReportStatDetails> = {};
 

@@ -41,17 +41,28 @@ function convertToBTC(amount: number, unit: CurrencyUnit): number {
  * Prepara os dados base para a exportação de um relatório.
  * Busca cotações históricas e transforma transações em OperationData enriquecidas.
  * @param input Contém o relatório a ser processado.
+ * @param currentRates Cotações atuais para usar como fallback se cotações históricas não estiverem disponíveis.
  * @returns Uma promessa para ProcessedReportFoundation.
  */
 export async function prepareReportFoundationData(
-  input: ReportDataInput | any
+  input: ReportDataInput | any,
+  currentRates?: { btcToUsd: number; brlToUsd: number; timestamp: string }
 ): Promise<ProcessedReportFoundation> {
   console.log('=== PREPARANDO DADOS DO RELATÓRIO ===');
   console.log('Input recebido:', {
     hasInput: !!input,
     inputType: typeof input,
     hasReport: !!(input?.report || input),
+    hasCurrentRates: !!currentRates
   });
+  
+  if (currentRates) {
+    console.log('Cotações atuais recebidas como fallback:', {
+      btcToUsd: currentRates.btcToUsd,
+      brlToUsd: currentRates.brlToUsd,
+      timestamp: currentRates.timestamp
+    });
+  }
   
   // Verificação defensiva: se o input for null/undefined, criar um objeto vazio
   if (!input) {
@@ -133,41 +144,76 @@ export async function prepareReportFoundationData(
       console.log(`Cotações USD carregadas: ${historicalQuotesUSD.size} registros para o intervalo ${minDate} - ${maxDate}`);
       console.log(`Cotações BRL carregadas: ${historicalQuotesBRL.size} registros para o intervalo ${minDate} - ${maxDate}`);
 
-      // Se não conseguimos cotações históricas (ex: datas futuras), buscar cotação atual como fallback
+      // MELHORADO: Verificar se precisamos de fallback e usar cotações atuais se fornecidas
       if (historicalQuotesUSD.size === 0 && historicalQuotesBRL.size === 0) {
-        console.warn('Nenhuma cotação histórica encontrada, buscando cotação atual como fallback...');
+        console.warn('Nenhuma cotação histórica encontrada...');
         
-        try {
-          // Importar a função para buscar cotação atual
-          const { getCurrentBitcoinPrice } = await import('./client-api');
-          const currentPrice = await getCurrentBitcoinPrice(true);
+        if (currentRates && currentRates.btcToUsd > 0 && currentRates.brlToUsd > 0) {
+          console.log('Usando cotações atuais fornecidas como fallback');
           
-          if (currentPrice) {
-            const currentPriceUSD = currentPrice.usd;
-            const currentPriceBRL = currentPrice.brl;
+          // Calcular preço BTC em BRL: btcToUsd * brlToUsd
+          const currentPriceUSD = currentRates.btcToUsd;
+          const currentPriceBRL = currentRates.btcToUsd * currentRates.brlToUsd;
+          
+          console.log(`Aplicando cotações atuais: USD ${currentPriceUSD}, BRL ${currentPriceBRL}`);
+          
+          // Aplicar a cotação atual para todas as datas únicas das transações
+          const uniqueDates = [...new Set(transactionDates)];
+          uniqueDates.forEach(date => {
+            historicalQuotesUSD.set(date, currentPriceUSD);
+            historicalQuotesBRL.set(date, currentPriceBRL);
+          });
+          
+          console.log(`Aplicadas cotações atuais para ${uniqueDates.length} datas únicas`);
+        } else {
+          console.warn('Tentando buscar cotação atual da API como último recurso...');
+          
+          try {
+            // Importar a função para buscar cotação atual
+            const { getCurrentBitcoinPrice } = await import('./client-api');
+            const currentPrice = await getCurrentBitcoinPrice(true);
             
-            console.log(`Usando cotação atual como fallback: USD ${currentPriceUSD}, BRL ${currentPriceBRL}`);
-            
-            // Aplicar a cotação atual para todas as datas únicas das transações
-            const uniqueDates = [...new Set(transactionDates)];
-            uniqueDates.forEach(date => {
-              historicalQuotesUSD.set(date, currentPriceUSD);
-              historicalQuotesBRL.set(date, currentPriceBRL);
-            });
-            
-            console.log(`Aplicada cotação atual para ${uniqueDates.length} datas únicas`);
-          } else {
-            console.error('Não foi possível obter cotação atual como fallback');
+            if (currentPrice) {
+              const currentPriceUSD = currentPrice.usd;
+              const currentPriceBRL = currentPrice.brl;
+              
+              console.log(`Usando cotação atual da API: USD ${currentPriceUSD}, BRL ${currentPriceBRL}`);
+              
+              // Aplicar a cotação atual para todas as datas únicas das transações
+              const uniqueDates = [...new Set(transactionDates)];
+              uniqueDates.forEach(date => {
+                historicalQuotesUSD.set(date, currentPriceUSD);
+                historicalQuotesBRL.set(date, currentPriceBRL);
+              });
+              
+              console.log(`Aplicada cotação atual da API para ${uniqueDates.length} datas únicas`);
+            } else {
+              console.error('Não foi possível obter cotação atual da API');
+            }
+          } catch (fallbackError) {
+            console.error('Erro ao buscar cotação atual da API:', fallbackError);
           }
-        } catch (fallbackError) {
-          console.error('Erro ao buscar cotação atual como fallback:', fallbackError);
         }
       }
 
     } catch (error) {
       console.error('Falha ao buscar cotações históricas para o relatório:', error);
-      // Prosseguir sem cotações, pricePerUnit e totalAmount serão 0 ou indefinidos.
-      // Ou podemos optar por lançar o erro aqui e tratar no nível superior.
+      
+      // FALLBACK: Se falhou em buscar cotações históricas, tentar usar cotações atuais fornecidas
+      if (currentRates && currentRates.btcToUsd > 0 && currentRates.brlToUsd > 0) {
+        console.log('Erro ao buscar cotações históricas, usando cotações atuais fornecidas como fallback');
+        
+        const currentPriceUSD = currentRates.btcToUsd;
+        const currentPriceBRL = currentRates.btcToUsd * currentRates.brlToUsd;
+        
+        const uniqueDates = [...new Set(transactionDates)];
+        uniqueDates.forEach(date => {
+          historicalQuotesUSD.set(date, currentPriceUSD);
+          historicalQuotesBRL.set(date, currentPriceBRL);
+        });
+        
+        console.log(`Aplicadas cotações de fallback para ${uniqueDates.length} datas`);
+      }
     }
   } else {
     // Se não houver datas de transação, definir um intervalo padrão para hoje

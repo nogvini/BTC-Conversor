@@ -52,6 +52,12 @@ const exportRequestSchema = z.object({
   report: z.any(), 
   displayCurrency: z.enum(['BRL', 'USD']),
   reportPeriodDescription: z.string().optional(),
+  // NOVO: Adicionar schema para cotações atuais
+  currentRates: z.object({
+    btcToUsd: z.number().positive(),
+    brlToUsd: z.number().positive(),
+    timestamp: z.string()
+  }).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -73,8 +79,17 @@ export async function POST(request: NextRequest) {
     console.log('Estrutura do body:', {
       hasReport: !!body.report,
       displayCurrency: body.displayCurrency,
-      reportPeriodDescription: body.reportPeriodDescription
+      reportPeriodDescription: body.reportPeriodDescription,
+      hasCurrentRates: !!body.currentRates
     });
+    
+    if (body.currentRates) {
+      console.log('Cotações atuais recebidas:', {
+        btcToUsd: body.currentRates.btcToUsd,
+        brlToUsd: body.currentRates.brlToUsd,
+        timestamp: body.currentRates.timestamp
+      });
+    }
     
     if (body.report) {
       console.log('Detalhes do relatório recebido:', {
@@ -100,7 +115,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados de requisição inválidos', details: parsedBody.error.errors }, { status: 400 });
     }
 
-    const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription } = parsedBody.data;
+    const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription, currentRates } = parsedBody.data;
     
     if (!rawReport) {
       return NextResponse.json({ error: 'Dados do relatório ausentes' }, { status: 400 });
@@ -130,8 +145,8 @@ export async function POST(request: NextRequest) {
     
     console.log('Estrutura do relatório validada, preparando dados de fundação...');
 
-    // Etapa 1: Preparar dados base
-    const foundationData = await prepareReportFoundationData(report).catch(e => {
+    // CORREÇÃO CRÍTICA: Passar as cotações atuais para prepareReportFoundationData
+    const foundationData = await prepareReportFoundationData(report, currentRates).catch(e => {
       console.error('Erro ao preparar dados de fundação:', e);
       return null;
     });
