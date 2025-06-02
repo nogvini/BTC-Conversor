@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2, Zap, Plus, Edit, Star } from "lucide-react"
+import { Loader2, Camera, Save, User, Eye, EyeOff, Key, TestTube2, Shield, Trash2, Zap, Plus, Star } from "lucide-react"
 import { PageTransition } from "@/components/page-transition"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -159,7 +159,6 @@ export default function UserProfile() {
   
   // Estados para múltiplas configurações LN Markets
   const [multipleConfigs, setMultipleConfigs] = useState<LNMarketsMultipleConfig | null>(null);
-  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
   const [isAddingNewConfig, setIsAddingNewConfig] = useState(false);
   const [newConfigForm, setNewConfigForm] = useState({
     name: "",
@@ -167,8 +166,7 @@ export default function UserProfile() {
     key: "",
     secret: "",
     passphrase: "",
-    network: "mainnet" as "mainnet" | "testnet",
-    isActive: true
+    network: "mainnet" as "mainnet" | "testnet"
   });
   
   // Estado para controlar a exibição do diálogo de confirmação de exclusão
@@ -407,7 +405,7 @@ export default function UserProfile() {
         network: newConfigForm.network,
         isConfigured: true
       },
-      isActive: newConfigForm.isActive
+      isActive: true
     };
 
     const configId = addLNMarketsConfig(user.email, newConfig);
@@ -424,8 +422,7 @@ export default function UserProfile() {
         key: "",
         secret: "",
         passphrase: "",
-        network: "mainnet",
-        isActive: true
+        network: "mainnet" as "mainnet" | "testnet"
       });
       setIsAddingNewConfig(false);
       
@@ -438,30 +435,6 @@ export default function UserProfile() {
       toast({
         title: "Erro",
         description: "Não foi possível adicionar a configuração.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUpdateConfig = (configId: string, updates: Partial<LNMarketsAPIConfig>) => {
-    if (!user?.email) return;
-
-    const success = updateLNMarketsConfig(user.email, configId, updates);
-    
-    if (success) {
-      const updatedConfigs = retrieveLNMarketsMultipleConfigs(user.email);
-      setMultipleConfigs(updatedConfigs);
-      setEditingConfigId(null);
-      
-      toast({
-        title: "Configuração Atualizada",
-        description: "As alterações foram salvas com sucesso.",
-        variant: "default",
-      });
-    } else {
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar a configuração.",
         variant: "destructive",
       });
     }
@@ -515,10 +488,6 @@ export default function UserProfile() {
         variant: "default",
       });
     }
-  };
-
-  const handleToggleConfigActive = (configId: string, isActive: boolean) => {
-    handleUpdateConfig(configId, { isActive, lastUsed: isActive ? new Date().toISOString() : undefined });
   };
 
   // Se estiver carregando, mostrar um indicador
@@ -706,12 +675,6 @@ export default function UserProfile() {
                           {multipleConfigs.defaultConfigId === config.id && (
                             <Badge variant="default" className="text-xs shrink-0">Padrão</Badge>
                           )}
-                          <Badge 
-                            variant={config.isActive ? "default" : "secondary"}
-                            className="text-xs shrink-0"
-                          >
-                            {config.isActive ? "Ativa" : "Inativa"}
-                          </Badge>
                         </div>
                         {config.description && (
                           <p className="text-sm text-purple-300 break-words line-clamp-2 mb-1">
@@ -726,15 +689,6 @@ export default function UserProfile() {
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-2 shrink-0 config-actions">
-                        <Button
-                          onClick={() => handleToggleConfigActive(config.id, !config.isActive)}
-                          size="sm"
-                          variant="outline"
-                          className={`${config.isActive ? "border-red-500 text-red-400" : "border-green-500 text-green-400"} min-w-[40px]`}
-                        >
-                          {config.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        
                         {multipleConfigs.defaultConfigId !== config.id && (
                           <Button
                             onClick={() => handleSetDefaultConfig(config.id)}
@@ -746,16 +700,6 @@ export default function UserProfile() {
                             <Star className="h-4 w-4" />
                           </Button>
                         )}
-                        
-                        <Button
-                          onClick={() => setEditingConfigId(config.id)}
-                          size="sm"
-                          variant="outline"
-                          className="min-w-[40px]"
-                          title="Editar configuração"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
                         
                         <Button
                           onClick={() => initiateRemoveConfig(config.id, config.name)}
@@ -901,18 +845,6 @@ export default function UserProfile() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 mt-4">
-                  <label className="flex items-center gap-2 text-sm text-purple-300">
-                    <input
-                      type="checkbox"
-                      checked={newConfigForm.isActive}
-                      onChange={(e) => setNewConfigForm(prev => ({ ...prev, isActive: e.target.checked }))}
-                      className="rounded"
-                    />
-                    Configuração ativa
-                  </label>
-                </div>
-
                 <div className="flex items-center gap-3 mt-6">
                   <Button
                     onClick={handleAddNewConfig}
@@ -931,8 +863,7 @@ export default function UserProfile() {
                         key: "",
                         secret: "",
                         passphrase: "",
-                        network: "mainnet",
-                        isActive: true
+                        network: "mainnet" as "mainnet" | "testnet"
                       });
                     }}
                     variant="outline"

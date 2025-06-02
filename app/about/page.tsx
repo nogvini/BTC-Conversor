@@ -1,5 +1,6 @@
 import { Bitcoin, Calculator, Info, LineChart, Settings, Users, Handshake } from "lucide-react";
 import { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: "Sobre Nós - Raid Bitcoin Toolkit",
@@ -20,70 +21,81 @@ export default function AboutPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         
         {/* Card Conversor */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
-          <div className="flex items-center mb-3">
-            <Bitcoin className="h-8 w-8 text-amber-400 mr-3" />
-            <h2 className="text-xl font-semibold text-purple-300">Conversor BTC/SATS</h2>
+        <Link href="/converter" className="block">
+          <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all cursor-pointer">
+            <div className="flex items-center mb-3">
+              <Bitcoin className="h-8 w-8 text-amber-400 mr-3" />
+              <h2 className="text-xl font-semibold text-purple-300">Conversor BTC/SATS</h2>
+            </div>
+            <p className="text-gray-400">
+              Converta facilmente valores entre Bitcoin (BTC), Satoshis (SATS), Dólar Americano (USD) e Real Brasileiro (BRL).
+              Mantenha-se atualizado com as cotações mais recentes.
+            </p>
           </div>
-          <p className="text-gray-400">
-            Converta facilmente valores entre Bitcoin (BTC), Satoshis (SATS), Dólar Americano (USD) e Real Brasileiro (BRL).
-            Mantenha-se atualizado com as cotações mais recentes.
-          </p>
-        </div>
+        </Link>
         
         {/* Card Gráfico */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
-          <div className="flex items-center mb-3">
-            <LineChart className="h-8 w-8 text-green-500 mr-3" />
-            <h2 className="text-xl font-semibold text-purple-300">Gráfico Histórico</h2>
+        <Link href="/chart" className="block">
+          <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all cursor-pointer">
+            <div className="flex items-center mb-3">
+              <LineChart className="h-8 w-8 text-green-500 mr-3" />
+              <h2 className="text-xl font-semibold text-purple-300">Gráfico Histórico</h2>
+            </div>
+            <p className="text-gray-400">
+              Visualize a evolução do preço do Bitcoin ao longo do tempo. Analise tendências e tome decisões informadas sobre seus investimentos.
+            </p>
           </div>
-          <p className="text-gray-400">
-            Visualize a evolução do preço do Bitcoin ao longo do tempo. Analise tendências e tome decisões informadas sobre seus investimentos.
-          </p>
-        </div>
+        </Link>
         
         {/* Card Calculadora */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
-          <div className="flex items-center mb-3">
-            <Calculator className="h-8 w-8 text-blue-500 mr-3" />
-            <h2 className="text-xl font-semibold text-purple-300">Calculadora de Lucro</h2>
+        <Link href="/calculator" className="block">
+          <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all cursor-pointer">
+            <div className="flex items-center mb-3">
+              <Calculator className="h-8 w-8 text-blue-500 mr-3" />
+              <h2 className="text-xl font-semibold text-purple-300">Calculadora de Lucro</h2>
+            </div>
+            <p className="text-gray-400">
+              Estime o lucro potencial de seus investimentos em Bitcoin com base em diferentes cenários de compra e venda.
+            </p>
           </div>
-          <p className="text-gray-400">
-            Estime o lucro potencial de seus investimentos em Bitcoin com base em diferentes cenários de compra e venda.
-          </p>
-        </div>
+        </Link>
         
         {/* Card Perfil */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
-          <div className="flex items-center mb-3">
-            <Users className="h-8 w-8 text-purple-400 mr-3" />
-            <h2 className="text-xl font-semibold text-purple-300">Perfil de Usuário</h2>
+        <Link href="/profile" className="block">
+          <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all cursor-pointer">
+            <div className="flex items-center mb-3">
+              <Users className="h-8 w-8 text-purple-400 mr-3" />
+              <h2 className="text-xl font-semibold text-purple-300">Perfil de Usuário</h2>
+            </div>
+            <p className="text-gray-400">
+              Gerencie suas informações pessoais e visualize seus dados de forma segura.
+            </p>
           </div>
-          <p className="text-gray-400">
-            Gerencie suas informações pessoais e visualize seus dados de forma segura. (Funcionalidade em desenvolvimento)
-          </p>
-        </div>
+        </Link>
         
         {/* Card Configurações */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
-          <div className="flex items-center mb-3">
-            <Settings className="h-8 w-8 text-gray-500 mr-3" />
-            <h2 className="text-xl font-semibold text-purple-300">Configurações</h2>
+        <Link href="/settings" className="block">
+          <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all cursor-pointer">
+            <div className="flex items-center mb-3">
+              <Settings className="h-8 w-8 text-gray-500 mr-3" />
+              <h2 className="text-xl font-semibold text-purple-300">Configurações</h2>
+            </div>
+            <p className="text-gray-400">
+              Personalize a aparência e o comportamento da aplicação de acordo com suas preferências.
+            </p>
           </div>
-          <p className="text-gray-400">
-            Personalize a aparência e o comportamento da aplicação de acordo com suas preferências. (Funcionalidade em desenvolvimento)
-          </p>
-        </div>
+        </Link>
 
-        {/* Card Parceiros (Link) */}
-        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 transition-colors">
+        {/* Card Parceiros */}
+        <div className="bg-gray-950/50 dark:bg-black/40 p-6 rounded-lg border border-purple-700/30 shadow-lg shadow-purple-900/10 hover:border-purple-600/50 hover:bg-purple-900/10 transition-all opacity-75">
           <div className="flex items-center mb-3">
             <Handshake className="h-8 w-8 text-teal-500 mr-3" />
             <h2 className="text-xl font-semibold text-purple-300">Parceiros</h2>
           </div>
           <p className="text-gray-400">
-            Conheça as empresas e projetos que colaboram conosco para trazer a melhor experiência para você. (Em breve)
+            Conheça as empresas e projetos que colaboram conosco para trazer a melhor experiência para você.
           </p>
+          <p className="text-xs text-purple-400 mt-2 italic">Em breve</p>
         </div>
         
       </div>
