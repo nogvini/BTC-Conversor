@@ -55,6 +55,14 @@ const exportRequestSchema = z.object({
     brlToUsd: z.number().positive(),
     timestamp: z.string()
   }).optional(),
+  // NOVO: Adicionar schema para gráficos capturados
+  capturedCharts: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    dataUrl: z.string(),
+    width: z.number(),
+    height: z.number()
+  })).optional()
 });
 
 export async function POST(request: NextRequest) {
@@ -112,7 +120,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados de requisição inválidos', details: parsedBody.error.errors }, { status: 400 });
     }
 
-    const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription, currentRates } = parsedBody.data;
+    const { report: rawReport, displayCurrency, reportPeriodDescription: customPeriodDescription, currentRates, capturedCharts } = parsedBody.data;
     
     if (!rawReport) {
       return NextResponse.json({ error: 'Dados do relatório ausentes' }, { status: 400 });
@@ -150,13 +158,22 @@ export async function POST(request: NextRequest) {
     
     console.log('=== PROCESSANDO DADOS COM LÓGICA SIMPLES ===');
 
+    // Log dos gráficos recebidos
+    if (capturedCharts && capturedCharts.length > 0) {
+      console.log(`[PDF Export] ${capturedCharts.length} gráficos recebidos:`, 
+        capturedCharts.map(chart => ({ id: chart.id, title: chart.title, dataSize: chart.dataUrl.length })));
+    } else {
+      console.log('[PDF Export] Nenhum gráfico recebido');
+    }
+
     // USAR PROCESSAMENTO SIMPLES EM VEZ DO COMPLEXO
     const processedData = processSimpleReportData(
       report,
       displayCurrency,
       currentRates.btcToUsd,
       currentRates.brlToUsd,
-      customPeriodDescription
+      customPeriodDescription,
+      capturedCharts
     );
 
     console.log('Dados processados:', {

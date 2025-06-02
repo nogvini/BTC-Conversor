@@ -21,6 +21,13 @@ export interface SimpleReportData {
   currentBtcPrice: number;
   currentBtcPriceBrl: number;
   generatedAt: string;
+  capturedCharts?: Array<{
+    id: string;
+    title: string;
+    dataUrl: string;
+    width: number;
+    height: number;
+  }>;
 }
 
 // Função para parse seguro de data
@@ -94,7 +101,14 @@ export function processSimpleReportData(
   displayCurrency: 'BRL' | 'USD',
   btcToUsd: number,
   brlToUsd: number,
-  reportPeriodDescription?: string
+  reportPeriodDescription?: string,
+  capturedCharts?: Array<{
+    id: string;
+    title: string;
+    dataUrl: string;
+    width: number;
+    height: number;
+  }>
 ): SimpleReportData {
   console.log('=== PROCESSAMENTO SIMPLES DE RELATÓRIO ===');
   console.log('Relatório recebido:', {
@@ -218,7 +232,8 @@ export function processSimpleReportData(
     mediaDiariaRoiPercent,
     currentBtcPrice: btcToUsd,
     currentBtcPriceBrl: btcToUsd * brlToUsd,
-    generatedAt: new Date().toISOString()
+    generatedAt: new Date().toISOString(),
+    capturedCharts
   };
 
   console.log('Resultado final do processamento simples:', result);

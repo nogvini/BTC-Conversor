@@ -226,6 +226,7 @@ export async function getHistoricalBitcoinDataForRange(
  * @param reportPeriodDescription Descrição opcional do período do relatório
  * @param btcToUsd Cotação atual de BTC para USD
  * @param brlToUsd Cotação atual de BRL para USD
+ * @param capturedCharts Gráficos capturados (opcional)
  * @returns URL do blob do PDF ou nulo em caso de erro
  */
 export async function exportReportToPdfWithRates(
@@ -233,7 +234,8 @@ export async function exportReportToPdfWithRates(
   displayCurrency: 'BRL' | 'USD',
   reportPeriodDescription: string = '',
   btcToUsd: number,
-  brlToUsd: number
+  brlToUsd: number,
+  capturedCharts?: any[] // Adicionar parâmetro para gráficos capturados
 ): Promise<Blob | null> {
   try {
     console.log('=== INICIANDO EXPORTAÇÃO PDF CLIENT-API (COM COTAÇÕES) ===');
@@ -299,7 +301,9 @@ export async function exportReportToPdfWithRates(
         btcToUsd,
         brlToUsd,
         timestamp: new Date().toISOString()
-      }
+      },
+      // ADICIONAR GRÁFICOS CAPTURADOS
+      capturedCharts: capturedCharts || []
     };
     
     console.log('Dados que serão enviados para a API:', {

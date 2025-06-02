@@ -77,6 +77,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { useActiveTab } from "@/hooks/use-active-tab";
 import { useToast } from "@/hooks/use-toast";
 import * as ExcelJS from "exceljs";
+import { captureProfitCalculatorCharts, waitForChartsToRender, CapturedChart } from "@/lib/chart-capture";
 
 
 
@@ -2921,151 +2922,131 @@ export default function ProfitCalculator({
   
   // Função para exportar para PDF
   const handleExportPDF = async (options: PDFExportOptions) => {
-    if (!currentActiveReportObjectFromHook || isExporting) return;
+    console.log('[ExportPDF] Iniciando exportação PDF com opções:', options);
     
-    try {
-      setIsExporting(true);
-      
-      console.log('=== INÍCIO DA EXPORTAÇÃO PDF ===');
-      console.log('Relatório original recebido:', {
-        id: currentActiveReportObjectFromHook.id,
-        name: currentActiveReportObjectFromHook.name,
-        investmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
-        profitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
-        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0,
-      });
-      
-      console.log('Cotações atuais disponíveis:', {
-        btcToUsd: states.currentRates.btcToUsd,
-        brlToUsd: states.currentRates.brlToUsd,
-        isUsingFallback: states.usingFallbackRates
-      });
-      
-      // VALIDAÇÃO CRÍTICA: Verificar se as cotações estão disponíveis
-      if (!states.currentRates.btcToUsd || !states.currentRates.brlToUsd) {
-        console.error('Cotações não disponíveis:', states.currentRates);
-        toast({
-          title: "⚠️ Cotações indisponíveis",
-          description: "Não foi possível obter as cotações atuais. Tente atualizar as cotações antes de exportar.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Log detalhado dos dados originais
-      if (currentActiveReportObjectFromHook.investments?.length) {
-        console.log('Primeiros 3 investimentos:', currentActiveReportObjectFromHook.investments.slice(0, 3));
-      }
-      if (currentActiveReportObjectFromHook.profits?.length) {
-        console.log('Primeiros 3 lucros:', currentActiveReportObjectFromHook.profits.slice(0, 3));
-      }
-      if (currentActiveReportObjectFromHook.withdrawals?.length) {
-        console.log('Primeiros 3 saques:', currentActiveReportObjectFromHook.withdrawals.slice(0, 3));
-      }
-      
-      // Garantir que o relatório tenha todas as propriedades necessárias
-      const baseReport = {
-        id: currentActiveReportObjectFromHook.id || `report-${Date.now()}`,
-        name: currentActiveReportObjectFromHook.name || "Relatório",
-        description: currentActiveReportObjectFromHook.description || "",
-        createdAt: currentActiveReportObjectFromHook.createdAt || new Date().toISOString(),
-        updatedAt: currentActiveReportObjectFromHook.updatedAt || new Date().toISOString(),
-        isActive: currentActiveReportObjectFromHook.isActive || false,
-        investments: Array.isArray(currentActiveReportObjectFromHook.investments) ? currentActiveReportObjectFromHook.investments : [],
-        profits: Array.isArray(currentActiveReportObjectFromHook.profits) ? currentActiveReportObjectFromHook.profits : [],
-        withdrawals: Array.isArray(currentActiveReportObjectFromHook.withdrawals) ? currentActiveReportObjectFromHook.withdrawals : []
-      };
-      
-      // Preparar dados do relatório com base nas opções
-      const reportData = {
-        ...baseReport,
-        investments: options.includeInvestments ? baseReport.investments : [],
-        profits: options.includeProfits ? baseReport.profits : [],
-        withdrawals: options.includeWithdrawals ? baseReport.withdrawals : []
-      };
-      
-      console.log('Dados preparados para exportação:', {
-        id: reportData.id,
-        name: reportData.name,
-        investmentsIncluded: options.includeInvestments,
-        profitsIncluded: options.includeProfits,
-        withdrawalsIncluded: options.includeWithdrawals,
-        investmentsCount: reportData.investments.length,
-        profitsCount: reportData.profits.length,
-        withdrawalsCount: reportData.withdrawals.length,
-      });
-      
-      // Verificar se há dados para exportar
-      const totalOperations = reportData.investments.length + reportData.profits.length + reportData.withdrawals.length;
-      if (totalOperations === 0) {
-        console.warn('Nenhuma operação encontrada para exportar');
-        toast({
-          title: "⚠️ Aviso",
-          description: "Não há dados para exportar. Verifique se o relatório contém investimentos ou lucros.",
-          variant: "default",
-          className: "border-yellow-500/50 bg-yellow-900/20",
-        });
-        return;
-      }
-      
-      // Definir período do relatório
-      const periodDescription = options.dateRange 
-        ? `${format(options.dateRange.startDate, "dd/MM/yyyy")} - ${format(options.dateRange.endDate, "dd/MM/yyyy")}`
-        : 'Período completo';
-      
-      console.log('Período do relatório:', periodDescription);
-      console.log('Moeda de exibição:', options.currency);
-      
-      console.log('Iniciando exportação para PDF com a função do client-api');
-      
-      // CORREÇÃO CRÍTICA: Usar a nova função melhorada que passa as cotações
-      const blob = await exportReportToPdfWithRates(
-        reportData, 
-        options.currency, 
-        periodDescription,
-        states.currentRates.btcToUsd,  // ADICIONAR COTAÇÃO BTC->USD
-        states.currentRates.brlToUsd   // ADICIONAR COTAÇÃO BRL->USD
-      );
-      
-      if (!blob) {
-        throw new Error('Falha ao gerar o PDF - resultado vazio');
-      }
-      
-      console.log('PDF gerado com sucesso, tamanho do blob:', blob.size, 'bytes');
-      
-      // Criar um URL para o blob
-      const url = URL.createObjectURL(blob);
-      
-      // Criar um link para download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `relatorio-${reportData.name.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      console.log('=== EXPORTAÇÃO PDF CONCLUÍDA COM SUCESSO ===');
-      
+    // Validar se há dados para exportar
+    if (!currentActiveReportObjectFromHook) {
       toast({
-        title: "📄 PDF Exportado!",
-        description: `Relatório "${reportData.name}" exportado com sucesso.`,
-        variant: "default",
-        className: "border-blue-500/50 bg-blue-900/20",
+        title: "❌ Erro na exportação",
+        description: "Nenhum relatório ativo selecionado.",
+        variant: "destructive",
       });
+      return;
+    }
+
+    // Validar cotações atuais
+    const currentRates = states.currentRates;
+    if (!currentRates.btcToUsd || !currentRates.brlToUsd) {
+      toast({
+        title: "⚠️ Cotações indisponíveis",
+        description: "Não é possível exportar sem cotações atuais. Aguarde ou recarregue a página.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (currentRates.btcToUsd <= 0 || currentRates.brlToUsd <= 0) {
+      toast({
+        title: "⚠️ Cotações inválidas",
+        description: "As cotações atuais são inválidas. Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Mostrar loading
+    toast({
+      title: "📄 Gerando relatório PDF...",
+      description: "Por favor, aguarde enquanto seu relatório é processado.",
+    });
+
+    try {
+      let capturedCharts: CapturedChart[] = [];
+
+      // Se a opção de incluir gráficos estiver marcada, capturar os gráficos
+      if (options.includeCharts) {
+        console.log('[ExportPDF] Opção de gráficos habilitada, iniciando captura...');
+        
+        toast({
+          title: "📊 Capturando gráficos...",
+          description: "Aguarde enquanto os gráficos são preparados para o relatório.",
+        });
+
+        // Primeiro, garantir que estamos na aba de gráficos
+        const chartsTabTrigger = document.querySelector('[data-value=\"charts\"]') as HTMLElement;
+        if (chartsTabTrigger) {
+          chartsTabTrigger.click();
+          console.log('[ExportPDF] Mudando para aba de gráficos para captura');
+          
+          // Aguardar um pouco para a aba carregar
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Aguardar que os gráficos sejam renderizados
+        const chartsReady = await waitForChartsToRender(5000);
+        
+        if (chartsReady) {
+          console.log('[ExportPDF] Gráficos prontos, iniciando captura...');
+          capturedCharts = await captureProfitCalculatorCharts();
+          console.log(`[ExportPDF] ${capturedCharts.length} gráficos capturados`);
+        } else {
+          console.warn('[ExportPDF] Timeout aguardando gráficos, prosseguindo sem eles');
+          toast({
+            title: "⚠️ Gráficos não encontrados",
+            description: "Continuando a exportação sem os gráficos.",
+            variant: "default",
+          });
+        }
+      }
+
+      // Processar exportação com ou sem gráficos
+      console.log('[ExportPDF] Processando dados do relatório...');
+
+      const blob = await exportReportToPdfWithRates(
+        currentActiveReportObjectFromHook,
+        options.currency,
+        '', // período customizado pode ser implementado futuramente
+        currentRates.btcToUsd,
+        currentRates.brlToUsd,
+        capturedCharts // Adicionar gráficos capturados
+      );
+
+      if (blob) {
+        // Criar URL do blob e download
+        const url = URL.createObjectURL(blob);
+        
+        // Criar link de download temporário
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `relatorio-${currentActiveReportObjectFromHook.name?.replace(/[^a-zA-Z0-9]/g, '-') || 'bitcoin'}-${new Date().toISOString().split('T')[0]}.pdf`;
+        
+        // Adicionar ao DOM, fazer download e remover
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Limpar URL do blob
+        URL.revokeObjectURL(url);
+        
+        console.log('[ExportPDF] Download iniciado com sucesso');
+        
+        toast({
+          title: "✅ PDF exportado com sucesso!",
+          description: `Relatório "${currentActiveReportObjectFromHook.name}" baixado.${capturedCharts.length > 0 ? ` Incluindo ${capturedCharts.length} gráfico(s).` : ''}`,
+          variant: "default",
+        });
+      } else {
+        throw new Error('Blob do PDF não foi gerado corretamente');
+      }
+
     } catch (error) {
-      console.error('=== ERRO NA EXPORTAÇÃO PDF ===');
-      console.error('Erro detalhado:', error);
-      console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+      console.error('[ExportPDF] Erro na exportação:', error);
       
       toast({
         title: "❌ Erro na exportação",
-        description: `Falha ao gerar o PDF: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        description: error instanceof Error ? error.message : "Erro desconhecido ao gerar PDF.",
         variant: "destructive",
       });
-    } finally {
-      setIsExporting(false);
-      setShowExportDialog(false);
     }
   };
   
@@ -4422,7 +4403,7 @@ export default function ProfitCalculator({
                         </div>
                       </div>
                     ) : (
-                      <div className="h-[350px] w-full">
+                      <div id="main-evolution-chart" className="h-[350px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           {chartType === "area" ? (
                             <AreaChart data={getChartData.map(point => ({
@@ -4702,7 +4683,7 @@ export default function ProfitCalculator({
                           </div>
                         </div>
                       ) : (
-                        <div className="h-[250px] sm:h-[300px] w-full">
+                        <div id="pie-chart-composition" className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie

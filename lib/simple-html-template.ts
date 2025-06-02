@@ -180,6 +180,32 @@ export function generateSimpleReportHtml(data: SimpleReportData): string {
             opacity: 0.9;
         }
 
+        .charts-section {
+            margin: 30px 0;
+            page-break-inside: avoid;
+        }
+
+        .chart-container {
+            margin: 20px 0;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+
+        .chart-image {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
         @media print {
             body {
                 background: white;
@@ -191,6 +217,16 @@ export function generateSimpleReportHtml(data: SimpleReportData): string {
                 border: none;
                 margin: 0;
                 padding: 20px;
+            }
+
+            .charts-section {
+                page-break-before: auto;
+                page-break-after: auto;
+            }
+
+            .chart-container {
+                page-break-inside: avoid;
+                margin: 15px 0;
             }
         }
     </style>
@@ -317,6 +353,27 @@ export function generateSimpleReportHtml(data: SimpleReportData): string {
                 </div>
             </div>
         </div>
+
+        ${data.capturedCharts && data.capturedCharts.length > 0 ? `
+        <!-- Gráficos -->
+        <div class="section">
+            <h2>📊 Gráficos e Visualizações</h2>
+            
+            <div class="charts-section">
+                ${data.capturedCharts.map(chart => `
+                <div class="chart-container">
+                    <div class="chart-title">${chart.title}</div>
+                    <img 
+                        src="${chart.dataUrl}" 
+                        alt="${chart.title}"
+                        class="chart-image"
+                        style="width: ${Math.min(chart.width, 700)}px; height: auto;"
+                    />
+                </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
 
         <!-- Footer -->
         <div class="footer">
