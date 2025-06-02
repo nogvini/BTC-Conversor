@@ -2935,6 +2935,26 @@ export default function ProfitCalculator({
     try {
       setIsExporting(true);
       
+      console.log('=== INÍCIO DA EXPORTAÇÃO PDF ===');
+      console.log('Relatório original recebido:', {
+        id: currentActiveReportObjectFromHook.id,
+        name: currentActiveReportObjectFromHook.name,
+        investmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
+        profitsCount: currentActiveReportObjectFromHook.profits?.length || 0,
+        withdrawalsCount: currentActiveReportObjectFromHook.withdrawals?.length || 0,
+      });
+      
+      // Log detalhado dos dados originais
+      if (currentActiveReportObjectFromHook.investments?.length) {
+        console.log('Primeiros 3 investimentos:', currentActiveReportObjectFromHook.investments.slice(0, 3));
+      }
+      if (currentActiveReportObjectFromHook.profits?.length) {
+        console.log('Primeiros 3 lucros:', currentActiveReportObjectFromHook.profits.slice(0, 3));
+      }
+      if (currentActiveReportObjectFromHook.withdrawals?.length) {
+        console.log('Primeiros 3 saques:', currentActiveReportObjectFromHook.withdrawals.slice(0, 3));
+      }
+      
       // Garantir que o relatório tenha todas as propriedades necessárias
       const baseReport = {
         id: currentActiveReportObjectFromHook.id || `report-${Date.now()}`,
@@ -2943,26 +2963,52 @@ export default function ProfitCalculator({
         createdAt: currentActiveReportObjectFromHook.createdAt || new Date().toISOString(),
         updatedAt: currentActiveReportObjectFromHook.updatedAt || new Date().toISOString(),
         isActive: currentActiveReportObjectFromHook.isActive || false,
-        investments: [],
-        profits: [],
-        withdrawals: []
+        investments: Array.isArray(currentActiveReportObjectFromHook.investments) ? currentActiveReportObjectFromHook.investments : [],
+        profits: Array.isArray(currentActiveReportObjectFromHook.profits) ? currentActiveReportObjectFromHook.profits : [],
+        withdrawals: Array.isArray(currentActiveReportObjectFromHook.withdrawals) ? currentActiveReportObjectFromHook.withdrawals : []
       };
       
-      // Preparar dados do relatório
+      // Preparar dados do relatório com base nas opções
       const reportData = {
         ...baseReport,
-        ...currentActiveReportObjectFromHook,
-        investments: options.includeInvestments ? (currentActiveReportObjectFromHook.investments || []) : [],
-        profits: options.includeProfits ? (currentActiveReportObjectFromHook.profits || []) : [],
-        withdrawals: options.includeWithdrawals ? (currentActiveReportObjectFromHook.withdrawals || []) : []
+        investments: options.includeInvestments ? baseReport.investments : [],
+        profits: options.includeProfits ? baseReport.profits : [],
+        withdrawals: options.includeWithdrawals ? baseReport.withdrawals : []
       };
+      
+      console.log('Dados preparados para exportação:', {
+        id: reportData.id,
+        name: reportData.name,
+        investmentsIncluded: options.includeInvestments,
+        profitsIncluded: options.includeProfits,
+        withdrawalsIncluded: options.includeWithdrawals,
+        investmentsCount: reportData.investments.length,
+        profitsCount: reportData.profits.length,
+        withdrawalsCount: reportData.withdrawals.length,
+      });
+      
+      // Verificar se há dados para exportar
+      const totalOperations = reportData.investments.length + reportData.profits.length + reportData.withdrawals.length;
+      if (totalOperations === 0) {
+        console.warn('Nenhuma operação encontrada para exportar');
+        toast({
+          title: "⚠️ Aviso",
+          description: "Não há dados para exportar. Verifique se o relatório contém investimentos ou lucros.",
+          variant: "default",
+          className: "border-yellow-500/50 bg-yellow-900/20",
+        });
+        return;
+      }
       
       // Definir período do relatório
       const periodDescription = options.dateRange 
         ? `${format(options.dateRange.startDate, "dd/MM/yyyy")} - ${format(options.dateRange.endDate, "dd/MM/yyyy")}`
-        : undefined;
+        : 'Período completo';
       
-      console.log('Iniciando exportação para PDF com a nova função do client-api');
+      console.log('Período do relatório:', periodDescription);
+      console.log('Moeda de exibição:', options.currency);
+      
+      console.log('Iniciando exportação para PDF com a função do client-api');
       
       // Usar a nova função do client-api para exportação
       const blob = await exportReportToPdf(reportData, options.currency, periodDescription);
@@ -2970,6 +3016,8 @@ export default function ProfitCalculator({
       if (!blob) {
         throw new Error('Falha ao gerar o PDF - resultado vazio');
       }
+      
+      console.log('PDF gerado com sucesso, tamanho do blob:', blob.size, 'bytes');
       
       // Criar um URL para o blob
       const url = URL.createObjectURL(blob);
@@ -2983,6 +3031,8 @@ export default function ProfitCalculator({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
+      console.log('=== EXPORTAÇÃO PDF CONCLUÍDA COM SUCESSO ===');
+      
       toast({
         title: "📄 PDF Exportado!",
         description: `Relatório "${reportData.name}" exportado com sucesso.`,
@@ -2990,7 +3040,10 @@ export default function ProfitCalculator({
         className: "border-blue-500/50 bg-blue-900/20",
       });
     } catch (error) {
-      console.error('Erro ao exportar PDF:', error);
+      console.error('=== ERRO NA EXPORTAÇÃO PDF ===');
+      console.error('Erro detalhado:', error);
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+      
       toast({
         title: "❌ Erro na exportação",
         description: `Falha ao gerar o PDF: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
