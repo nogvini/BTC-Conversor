@@ -46,6 +46,13 @@ function convertToBTC(amount: number, unit: CurrencyUnit): number {
 export async function prepareReportFoundationData(
   input: ReportDataInput | any
 ): Promise<ProcessedReportFoundation> {
+  console.log('=== PREPARANDO DADOS DO RELATÓRIO ===');
+  console.log('Input recebido:', {
+    hasInput: !!input,
+    inputType: typeof input,
+    hasReport: !!(input?.report || input),
+  });
+  
   // Verificação defensiva: se o input for null/undefined, criar um objeto vazio
   if (!input) {
     console.warn('Input is null or undefined in prepareReportFoundationData');
@@ -53,7 +60,18 @@ export async function prepareReportFoundationData(
   }
 
   // Extrair o relatório, com uma verificação defensiva
-  const report = input.report || { investments: [], profits: [], withdrawals: [] };
+  const report = input.report || input || { investments: [], profits: [], withdrawals: [] };
+  
+  console.log('Relatório extraído:', {
+    id: report.id,
+    name: report.name,
+    hasInvestments: !!report.investments,
+    hasProfit: !!report.profits,
+    hasWithdrawals: !!report.withdrawals,
+    investmentsLength: Array.isArray(report.investments) ? report.investments.length : 'não é array',
+    profitsLength: Array.isArray(report.profits) ? report.profits.length : 'não é array',
+    withdrawalsLength: Array.isArray(report.withdrawals) ? report.withdrawals.length : 'não é array'
+  });
   
   const enrichedOperations: OperationData[] = [];
   const historicalQuotesUSD = new Map<string, number>();
@@ -127,6 +145,7 @@ export async function prepareReportFoundationData(
 
   // 3. Transformar Investments em OperationData
   if (Array.isArray(investments)) {
+    console.log(`Processando ${investments.length} investimentos...`);
     investments.forEach(inv => {
       if (!inv || typeof inv.date !== 'string' || typeof inv.amount !== 'number') {
         console.warn('Skipping invalid investment:', inv);
@@ -159,10 +178,15 @@ export async function prepareReportFoundationData(
                           // Para a exportação, podemos definir uma moeda principal para exibição.
       });
     });
+    console.log(`Investimentos processados: ${enrichedOperations.filter(op => op.type === 'buy').length} de ${investments.length}`);
+  } else {
+    console.warn('Investments não é um array ou está vazio:', investments);
   }
 
   // 4. Transformar ProfitRecords em OperationData
   if (Array.isArray(profits)) {
+    console.log(`Processando ${profits.length} lucros...`);
+    const initialOperationsCount = enrichedOperations.length;
     profits.forEach(prof => {
       if (!prof || typeof prof.date !== 'string' || typeof prof.amount !== 'number') {
         console.warn('Skipping invalid profit record:', prof);
@@ -193,6 +217,9 @@ export async function prepareReportFoundationData(
         isProfitContext: typeof prof.isProfit === 'boolean' ? prof.isProfit : true, // Default para true se não especificado
       });
     });
+    console.log(`Lucros processados: ${enrichedOperations.length - initialOperationsCount} de ${profits.length}`);
+  } else {
+    console.warn('Profits não é um array ou está vazio:', profits);
   }
   
   // Ordenar operações por data (importante para cálculos sequenciais de saldo)

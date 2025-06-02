@@ -232,13 +232,37 @@ export async function exportReportToPdf(
   reportPeriodDescription?: string
 ): Promise<Blob | null> {
   try {
-    console.log('Iniciando exportação para PDF...');
+    console.log('=== INICIANDO EXPORTAÇÃO PDF CLIENT-API ===');
+    console.log('Dados recebidos:', {
+      hasReportData: !!reportData,
+      displayCurrency,
+      reportPeriodDescription
+    });
     
     const url = '/api/export/report-pdf';
     
     // Verificações iniciais para evitar enviar dados inválidos
     if (!reportData || typeof reportData !== 'object') {
       throw new Error('Dados do relatório inválidos ou ausentes');
+    }
+    
+    console.log('Estrutura do reportData recebido:', {
+      id: reportData.id,
+      name: reportData.name,
+      hasInvestments: !!reportData.investments,
+      hasProfit: !!reportData.profits,
+      hasWithdrawals: !!reportData.withdrawals,
+      investmentsCount: Array.isArray(reportData.investments) ? reportData.investments.length : 'não é array',
+      profitsCount: Array.isArray(reportData.profits) ? reportData.profits.length : 'não é array',
+      withdrawalsCount: Array.isArray(reportData.withdrawals) ? reportData.withdrawals.length : 'não é array'
+    });
+    
+    if (Array.isArray(reportData.investments) && reportData.investments.length > 0) {
+      console.log('Primeiros 2 investimentos do client-api:', reportData.investments.slice(0, 2));
+    }
+    
+    if (Array.isArray(reportData.profits) && reportData.profits.length > 0) {
+      console.log('Primeiros 2 lucros do client-api:', reportData.profits.slice(0, 2));
     }
     
     if (!reportData.name) {
@@ -256,6 +280,15 @@ export async function exportReportToPdf(
       displayCurrency,
       reportPeriodDescription
     };
+    
+    console.log('Dados que serão enviados para a API:', {
+      reportId: requestData.report.id,
+      reportName: requestData.report.name,
+      investmentsToSend: requestData.report.investments.length,
+      profitsToSend: requestData.report.profits.length,
+      withdrawalsToSend: requestData.report.withdrawals.length,
+      displayCurrency: requestData.displayCurrency
+    });
     
     console.log('Enviando requisição de PDF...');
     

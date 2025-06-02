@@ -69,6 +69,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 });
     }
     
+    console.log('=== DADOS RECEBIDOS NA API ===');
+    console.log('Estrutura do body:', {
+      hasReport: !!body.report,
+      displayCurrency: body.displayCurrency,
+      reportPeriodDescription: body.reportPeriodDescription
+    });
+    
+    if (body.report) {
+      console.log('Detalhes do relatório recebido:', {
+        id: body.report.id,
+        name: body.report.name,
+        investmentsCount: body.report.investments?.length || 0,
+        profitsCount: body.report.profits?.length || 0,
+        withdrawalsCount: body.report.withdrawals?.length || 0
+      });
+      
+      if (body.report.investments?.length) {
+        console.log('Primeiros 2 investimentos da API:', body.report.investments.slice(0, 2));
+      }
+      if (body.report.profits?.length) {
+        console.log('Primeiros 2 lucros da API:', body.report.profits.slice(0, 2));
+      }
+    }
+    
     const parsedBody = exportRequestSchema.safeParse(body);
 
     if (!parsedBody.success) {
