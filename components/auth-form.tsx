@@ -169,10 +169,6 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
         return "Email ou senha incorretos."
       }
       
-      if (error.message.includes("already registered")) {
-        return "Este email já está cadastrado."
-      }
-      
       // Outros erros com mensagem - usar a própria mensagem
       if (error.message.length > 0) {
         return error.message
@@ -324,9 +320,40 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       const { error } = await signUp(data.email, data.password, data.name)
       
       if (error) {
-        throw error
+        // NOVA LÓGICA: Verificar se é erro de email já cadastrado
+        if (error.message && (
+          error.message.includes("already registered") || 
+          error.message.includes("User already registered") ||
+          error.message.includes("already been registered")
+        )) {
+          // Tratar como se fosse um cadastro bem-sucedido - solicitar verificação de email
+          console.log('[AuthForm] Email já cadastrado, solicitando verificação de email');
+          
+          // Ativar alerta de verificação de email e salvar o email
+          setShowEmailVerification(true)
+          setEmailForVerification(data.email)
+
+          // Mostrar o diálogo de verificação de email
+          setShowEmailVerificationDialog(true)
+          
+          toast({
+            title: "Verifique seu email",
+            description: "Se este email já está cadastrado, você receberá instruções para acessar sua conta. Caso contrário, clique no link de confirmação que enviamos.",
+            variant: "default",
+            duration: 8000, // Duração maior para dar tempo de ler
+          })
+          
+          // Limpar formulário e mudar para login
+          registerForm.reset()
+          setActiveTab("login")
+          return; // Sair da função sem lançar erro
+        } else {
+          // Para outros tipos de erro, lançar normalmente
+          throw error
+        }
       }
       
+      // Cadastro bem-sucedido (sem erros)
       // Ativar alerta de verificação de email e salvar o email
       setShowEmailVerification(true)
       setEmailForVerification(data.email)
@@ -345,7 +372,7 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
       registerForm.reset()
       setActiveTab("login")
     } catch (error: any) {
-      // Usar a função auxiliar para tratar o erro
+      // Usar a função auxiliar para tratar o erro (apenas para erros que não são "already registered")
       const message = handleSupabaseError(error)
       
       // Definir a mensagem de erro para exibição no formulário
