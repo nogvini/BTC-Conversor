@@ -3,8 +3,6 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  console.log('[Middleware] Verificando rota protegida:', pathname);
 
   try {
     // Verificar se as variáveis de ambiente estão disponíveis
@@ -12,7 +10,6 @@ export async function middleware(request: NextRequest) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('[Middleware] Variáveis Supabase não encontradas - permitindo acesso');
       // NÃO redirecionar, deixar o front-end lidar com isso
       return NextResponse.next();
     }
@@ -41,7 +38,6 @@ export async function middleware(request: NextRequest) {
     );
 
     // Obter o usuário com timeout muito curto
-    console.log('[Middleware] Verificando usuário...');
     
     // Promise com timeout de apenas 3 segundos
     const userPromise = supabase.auth.getUser();
@@ -56,29 +52,20 @@ export async function middleware(request: NextRequest) {
       ]) as any;
       
       if (userError) {
-        console.log('[Middleware] Erro ao obter usuário:', userError.message, '- permitindo acesso');
         return NextResponse.next(); // Permitir acesso e deixar front-end decidir
       }
 
       if (!user) {
-        console.log('[Middleware] Nenhum usuário autenticado - redirecionando para /auth');
         return NextResponse.redirect(new URL('/auth', request.url));
       }
 
-      // Log do usuário válido
-      console.log('[Middleware] Usuário autenticado encontrado:', user.email);
-      console.log('[Middleware] Permitindo acesso a:', pathname);
-      
       return response;
 
     } catch (timeoutError) {
-      console.log('[Middleware] Timeout na verificação - permitindo acesso');
       return NextResponse.next(); // Em caso de timeout, permitir e deixar front-end decidir
     }
 
   } catch (error) {
-    console.error('[Middleware] Erro crítico:', error);
-    console.log('[Middleware] Permitindo acesso devido a erro crítico');
     return NextResponse.next(); // Sempre permitir em caso de erro crítico
   }
 }
@@ -86,7 +73,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/profile',
-    '/settings', 
-    '/admin/:path*'
+    '/settings'
   ],
 }; 

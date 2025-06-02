@@ -3077,8 +3077,6 @@ export default function ProfitCalculator({
     
     // Se houver necessidade de atualização, atualizar os dados da interface
     if (syncedData && syncedData.needsRefresh) {
-      console.log('[ProfitCalculator] Atualizando interface após evento de sincronização');
-      
       // Incrementar o contador de atualizações
       refreshTriggerRef.current += 1;
       
@@ -3088,7 +3086,9 @@ export default function ProfitCalculator({
       
       setInvestmentListKey(newInvestmentKey);
       setProfitsListKey(newProfitsKey);
-      setNeedsRefresh(true);
+      
+      // Limpar o flag de necessidade de atualização
+      setSyncedData(prev => prev ? { ...prev, needsRefresh: false } : null);
     }
   }, [syncedData, activeReportData]);
 
@@ -3135,6 +3135,49 @@ export default function ProfitCalculator({
       }
     }
   }, [user?.email, reportsDataLoaded, currentActiveReportObjectFromHook, multipleConfigs, getReportAssociatedAPIs, getLastUsedConfigId]);
+
+  // Reagir às mudanças de dados do relatório
+  useEffect(() => {
+    if (!activeReportData) return;
+
+    // Forçar uma atualização completa
+    setInvestmentListKey(`investments_${Date.now()}`);
+    setProfitsListKey(`profits_${Date.now()}`);
+    
+    // Reset cache dos dados filtrados
+    setFilteredInvestmentsCache(null);
+    setFilteredProfitsCache(null);
+    
+    // Invalidar estatísticas
+    setInvestmentStats(null);
+    setProfitStats(null);
+  }, [activeReportData?.id, activeReportData?.lastModified]);
+
+  // Lidar com dados sincronizados externos (como do bitcoin-converter)
+  useEffect(() => {
+    if (!btcToUsd || !brlToUsd || !appData) return;
+
+    // Detectar se os dados estão sendo fornecidos pelo bitcoin-converter
+    const isFromBitcoinConverter = appData.source && 
+      ['bitcoin-converter', 'external-sync'].includes(appData.source);
+
+    if (isFromBitcoinConverter) {
+      // Usar cotações sincronizadas do bitcoin-converter
+      setCurrentBtcToUsd(btcToUsd);
+      setCurrentBrlToUsd(brlToUsd);
+      setLastUpdate(appData.timestamp || new Date().toISOString());
+    } else if (appData.btcUsd && appData.usdBrl) {
+      // Usar cotações do appData
+      setCurrentBtcToUsd(appData.btcUsd);
+      setCurrentBrlToUsd(appData.usdBrl);
+      setLastUpdate(appData.timestamp || new Date().toISOString());
+    } else {
+      // Usar cotações passadas como props (fallback)
+      setCurrentBtcToUsd(btcToUsd);
+      setCurrentBrlToUsd(brlToUsd);
+      setLastUpdate(new Date().toISOString());
+    }
+  }, [btcToUsd, brlToUsd, appData]);
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">

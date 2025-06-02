@@ -9,12 +9,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    // Melhorar a manipulação de erros do not-found
-    serverActions: {
-      allowedOrigins: ['localhost:3000', 'vercel.app'],
-    }
-  },
   // Permitir páginas 404 personalizadas
   async redirects() {
     return [];
