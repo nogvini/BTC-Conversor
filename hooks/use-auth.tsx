@@ -333,12 +333,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
           console.error('Erro no signUp da API do Supabase:', error);
-          // Melhorar a detecção de email já existente
-          if (error.message && (error.message.toLowerCase().includes('user already registered') || error.message.toLowerCase().includes('email rate limit exceeded') || (error.message.toLowerCase().includes('already exists') && error.message.toLowerCase().includes('email')) )) {
-            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou recuperar sua senha.');
-            setSession(prev => ({ ...prev, error: userExistsError, isLoading: false }));
-            toast({ title: "Erro no Cadastro", description: userExistsError.message, variant: "destructive" });
-            return { error: userExistsError };
+          // Melhorar a detecção de email já existente - mais conservador
+          if (error.message && (
+            error.message.toLowerCase().includes('user already registered') || 
+            error.message.toLowerCase().includes('email rate limit exceeded') || 
+            (error.message.toLowerCase().includes('already exists') && error.message.toLowerCase().includes('email'))
+          )) {
+            // NOVA LÓGICA: Para erros explícitos de "já registrado", tratamos como verificação de email
+            console.log('[Auth] Email já cadastrado detectado via erro API, solicitando verificação de email');
+            
+            // Toast e tratamento mais amigável - similar ao auth-form.tsx
+            toast({
+              title: "Verifique seu email",
+              description: "Se este email já está cadastrado, você receberá instruções para acessar sua conta. Caso contrário, clique no link de confirmação que enviamos.",
+              variant: "default",
+              duration: 8000,
+            });
+            
+            // Retornar como sucesso (null error) para que o componente trate como verificação de email
+            setSession(prev => ({ ...prev, isLoading: false }));
+            return { error: null };
           }
           // Usar handleAuthError para outras mensagens de erro
           const friendlyMessage = handleAuthError(error, 'Ocorreu um erro durante o cadastro.');
@@ -360,42 +374,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             last_sign_in_at: data.user.last_sign_in_at
           });
 
-          // Heurística para diferenciar novo usuário de um existente não confirmado
-          // Se updated_at for significativamente diferente de created_at,
-          // ou se email_confirmed_at já estiver preenchido,
-          // consideramos que é um usuário existente para o qual Supabase está reenviando confirmação.
+          // NOVA LÓGICA MAIS CONSERVADORA:
+          // Só consideramos como "usuário já existente" se:
+          // 1. O email já estiver confirmado (email_confirmed_at existe)
+          // 2. E houve login anterior (last_sign_in_at existe)
+          // 3. E a diferença entre updated_at e created_at é significativa (mais de 1 minuto)
+          
           const creationTime = new Date(data.user.created_at).getTime();
-          // Se updated_at não existir, usar creationTime para que a diferença seja 0
           const updateTime = new Date(data.user.updated_at || data.user.created_at).getTime();
           
-          // Condição revisada:
-          // 1. Se email_confirmed_at já existe, é um usuário confirmado (improvável aqui, mas seguro incluir).
-          // 2. Se updated_at é significativamente diferente de created_at, indica uma atualização posterior.
-          // 3. Se NENHUMA das anteriores, mas data.user existe e data.session é nulo,
-          //    e email_confirmed_at AINDA é nulo após a chamada signUp,
-          //    é altamente provável que seja um usuário existente não confirmado para o qual um novo email de confirmação foi enviado.
           const isConfirmed = !!data.user.email_confirmed_at;
-          const hasBeenUpdatedLater = (updateTime - creationTime > 1000); // 1 segundo de tolerância
-
-          // Se o email não está confirmado E não houve uma atualização significativa posteriormente,
-          // mas recebemos um objeto de usuário, é provável que seja um usuário existente não confirmado.
-          const isLikelyExistingUnconfirmedUser = !isConfirmed && !hasBeenUpdatedLater;
-
-          if (isConfirmed || hasBeenUpdatedLater || isLikelyExistingUnconfirmedUser) {
-            // Se estiver confirmado OU tiver sido atualizado depois OU for um provável existente não confirmado:
-            // Tratar como "já cadastrado".
-            // O log original foi ajustado para ser mais genérico sobre a razão.
-            console.warn(`[Auth] SignUp para e-mail (${email}) resultou em usuário sem sessão. Supabase data:`, data.user, `Condições: isConfirmed=${isConfirmed}, hasBeenUpdatedLater=${hasBeenUpdatedLater}, isLikelyExistingUnconfirmedUser=${isLikelyExistingUnconfirmedUser}`);
-            const userExistsError = new Error('Este email já está cadastrado. Tente fazer login ou use a opção de recuperar senha.');
-            setSession(prev => ({ ...prev, error: userExistsError, isLoading: false }));
-            toast({ title: "Erro no Cadastro", description: userExistsError.message, variant: "destructive" });
-            return { error: userExistsError };
+          const hasLoggedInBefore = !!data.user.last_sign_in_at;
+          const hasSignificantTimeDifference = (updateTime - creationTime > 60000); // 1 minuto
+          
+          // Só tratar como "já cadastrado" se TODAS as condições forem verdadeiras
+          if (isConfirmed && hasLoggedInBefore && hasSignificantTimeDifference) {
+            console.warn(`[Auth] SignUp para e-mail (${email}) detectado como usuário existente confirmado.`);
+            
+            // Toast mais amigável
+            toast({
+              title: "Verifique seu email",
+              description: "Este email já possui uma conta. Verifique sua caixa de entrada para instruções de acesso.",
+              variant: "default",
+              duration: 6000,
+            });
+            
+            setSession(prev => ({ ...prev, isLoading: false }));
+            return { error: null }; // Retornar como sucesso para que seja tratado como verificação
           } else {
             // Comportamento para novo usuário genuíno que precisa de confirmação
+            // Ou usuário existente não confirmado recebendo novo email
             console.log(`[Auth] Novo cadastro para ${email}, aguardando confirmação por email.`);
             toast({
-              title: "Cadastro iniciado!",
-              description: "Enviamos um email de confirmação para você. Por favor, verifique sua caixa de entrada.",
+              title: "Cadastro realizado com sucesso",
+              description: "Um link de confirmação foi enviado para seu email. Por favor, clique nele para ativar sua conta.",
+              variant: "success",
               duration: 7000,
             });
             // O trigger handle_new_user no Supabase deve criar o perfil.

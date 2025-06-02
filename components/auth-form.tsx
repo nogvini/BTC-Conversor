@@ -317,62 +317,37 @@ export function AuthForm({ type = "login" }: { type?: "login" | "register" }) {
 
     try {
       setIsLoading(true)
+      console.log('[AuthForm] Iniciando cadastro para:', data.email);
+      
       const { error } = await signUp(data.email, data.password, data.name)
       
+      console.log('[AuthForm] Resultado do signUp:', { hasError: !!error });
+      
       if (error) {
-        // NOVA LÓGICA: Verificar se é erro de email já cadastrado
-        if (error.message && (
-          error.message.includes("already registered") || 
-          error.message.includes("User already registered") ||
-          error.message.includes("already been registered")
-        )) {
-          // Tratar como se fosse um cadastro bem-sucedido - solicitar verificação de email
-          console.log('[AuthForm] Email já cadastrado, solicitando verificação de email');
-          
-          // Ativar alerta de verificação de email e salvar o email
-          setShowEmailVerification(true)
-          setEmailForVerification(data.email)
-
-          // Mostrar o diálogo de verificação de email
-          setShowEmailVerificationDialog(true)
-          
-          toast({
-            title: "Verifique seu email",
-            description: "Se este email já está cadastrado, você receberá instruções para acessar sua conta. Caso contrário, clique no link de confirmação que enviamos.",
-            variant: "default",
-            duration: 8000, // Duração maior para dar tempo de ler
-          })
-          
-          // Limpar formulário e mudar para login
-          registerForm.reset()
-          setActiveTab("login")
-          return; // Sair da função sem lançar erro
-        } else {
-          // Para outros tipos de erro, lançar normalmente
-          throw error
-        }
+        console.error('[AuthForm] Erro recebido do signUp:', error.message);
+        
+        // REMOVIDA A LÓGICA DUPLICADA DE "already registered" - agora é tratada no use-auth.tsx
+        // O use-auth.tsx já trata erros de "already registered" de forma amigável
+        throw error
       }
       
-      // Cadastro bem-sucedido (sem erros)
+      // Cadastro bem-sucedido (sem erros) - o use-auth.tsx já mostrou o toast apropriado
+      console.log('[AuthForm] Cadastro concluído com sucesso - ativando alerta de verificação');
+      
       // Ativar alerta de verificação de email e salvar o email
       setShowEmailVerification(true)
       setEmailForVerification(data.email)
 
-      // NOVO: Mostrar o diálogo de verificação de email
+      // Mostrar o diálogo de verificação de email
       setShowEmailVerificationDialog(true)
-      
-      toast({
-        title: "Cadastro realizado com sucesso",
-        description: "Um link de confirmação foi enviado para seu email. Por favor, clique nele para ativar sua conta.",
-        variant: "success",
-        duration: 6000, // Duração maior para dar tempo de ler
-      })
       
       // Limpar formulário e mudar para login
       registerForm.reset()
       setActiveTab("login")
     } catch (error: any) {
-      // Usar a função auxiliar para tratar o erro (apenas para erros que não são "already registered")
+      console.error('[AuthForm] Erro capturado no catch:', error.message);
+      
+      // Usar a função auxiliar para tratar o erro
       const message = handleSupabaseError(error)
       
       // Definir a mensagem de erro para exibição no formulário
