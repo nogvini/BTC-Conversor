@@ -106,6 +106,8 @@ export async function prepareReportFoundationData(
 
     // 2. Buscar cotações históricas para o intervalo (USD e BRL)
     try {
+      console.log(`Buscando cotações para o intervalo: ${minDate} - ${maxDate}`);
+      
       const [quotesUSD, quotesBRL] = await Promise.all([
         getHistoricalBitcoinDataForRange('usd', minDate, maxDate),
         getHistoricalBitcoinDataForRange('brl', minDate, maxDate),
@@ -131,6 +133,37 @@ export async function prepareReportFoundationData(
       console.log(`Cotações USD carregadas: ${historicalQuotesUSD.size} registros para o intervalo ${minDate} - ${maxDate}`);
       console.log(`Cotações BRL carregadas: ${historicalQuotesBRL.size} registros para o intervalo ${minDate} - ${maxDate}`);
 
+      // Se não conseguimos cotações históricas (ex: datas futuras), buscar cotação atual como fallback
+      if (historicalQuotesUSD.size === 0 && historicalQuotesBRL.size === 0) {
+        console.warn('Nenhuma cotação histórica encontrada, buscando cotação atual como fallback...');
+        
+        try {
+          // Importar a função para buscar cotação atual
+          const { getCurrentBitcoinPrice } = await import('./client-api');
+          const currentPrice = await getCurrentBitcoinPrice(true);
+          
+          if (currentPrice) {
+            const currentPriceUSD = currentPrice.usd;
+            const currentPriceBRL = currentPrice.brl;
+            
+            console.log(`Usando cotação atual como fallback: USD ${currentPriceUSD}, BRL ${currentPriceBRL}`);
+            
+            // Aplicar a cotação atual para todas as datas únicas das transações
+            const uniqueDates = [...new Set(transactionDates)];
+            uniqueDates.forEach(date => {
+              historicalQuotesUSD.set(date, currentPriceUSD);
+              historicalQuotesBRL.set(date, currentPriceBRL);
+            });
+            
+            console.log(`Aplicada cotação atual para ${uniqueDates.length} datas únicas`);
+          } else {
+            console.error('Não foi possível obter cotação atual como fallback');
+          }
+        } catch (fallbackError) {
+          console.error('Erro ao buscar cotação atual como fallback:', fallbackError);
+        }
+      }
+
     } catch (error) {
       console.error('Falha ao buscar cotações históricas para o relatório:', error);
       // Prosseguir sem cotações, pricePerUnit e totalAmount serão 0 ou indefinidos.
@@ -146,7 +179,7 @@ export async function prepareReportFoundationData(
   // 3. Transformar Investments em OperationData
   if (Array.isArray(investments)) {
     console.log(`Processando ${investments.length} investimentos...`);
-    investments.forEach(inv => {
+    investments.forEach((inv, index) => {
       if (!inv || typeof inv.date !== 'string' || typeof inv.amount !== 'number') {
         console.warn('Skipping invalid investment:', inv);
         return;
@@ -156,6 +189,17 @@ export async function prepareReportFoundationData(
       const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
       const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
       const quantityBTC = convertToBTC(inv.amount, inv.unit || 'BTC');
+
+      if (index < 3) { // Log dos primeiros 3 para debug
+        console.log(`Investimento ${index + 1}:`, {
+          date: dateOnly,
+          quantityBTC,
+          btcPriceUSD,
+          btcPriceBRL,
+          totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : 0,
+          totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : 0
+        });
+      }
 
       enrichedOperations.push({
         id: inv.id || `inv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -187,7 +231,7 @@ export async function prepareReportFoundationData(
   if (Array.isArray(profits)) {
     console.log(`Processando ${profits.length} lucros...`);
     const initialOperationsCount = enrichedOperations.length;
-    profits.forEach(prof => {
+    profits.forEach((prof, index) => {
       if (!prof || typeof prof.date !== 'string' || typeof prof.amount !== 'number') {
         console.warn('Skipping invalid profit record:', prof);
         return;
@@ -197,6 +241,17 @@ export async function prepareReportFoundationData(
       const btcPriceUSD = historicalQuotesUSD.get(dateOnly);
       const btcPriceBRL = historicalQuotesBRL.get(dateOnly);
       const quantityBTC = convertToBTC(prof.amount, prof.unit || 'BTC');
+
+      if (index < 3) { // Log dos primeiros 3 para debug
+        console.log(`Lucro ${index + 1}:`, {
+          date: dateOnly,
+          quantityBTC,
+          btcPriceUSD,
+          btcPriceBRL,
+          totalAmountUSD: btcPriceUSD ? quantityBTC * btcPriceUSD : 0,
+          totalAmountBRL: btcPriceBRL ? quantityBTC * btcPriceBRL : 0
+        });
+      }
 
       // Nota: isProfit indica se foi lucro em BTC. Para "venda", o valor em fiat é sempre positivo.
       enrichedOperations.push({
