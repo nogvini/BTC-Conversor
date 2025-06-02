@@ -3,14 +3,11 @@ export const maxDuration = 60; // Aumentar para 60 segundos para permitir o proc
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-// import ReactDOMServer from 'react-dom/server'; // Removido
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-// Removidas importações de React e componentes de UI para o template principal
-// import ReportHtmlTemplate from '@/components/report-html-template'; 
-// import MonthlyPLChart from '@/components/charts/monthly-pl-chart';
-// import React from 'react'; 
-// import { renderComponentToStaticMarkup } from '@/lib/server-render-utils';
+// Usar processamento simples
+import { processSimpleReportData } from '@/lib/simple-report-processing';
+import { generateSimpleReportHtml } from '@/lib/simple-html-template';
 import { buildReportHtml } from '@/lib/html-template-builder'; // Adicionado
 import { prepareReportFoundationData, calculateReportMetrics } from '@/lib/report-processing';
 import { ExportedReport, ReportMetadata, CalculatedReportData, OperationData } from '@/lib/export-types';
@@ -64,7 +61,7 @@ export async function POST(request: NextRequest) {
   let browser = null;
   
   try {
-    console.log('Iniciando processamento de exportação PDF');
+    console.log('=== INICIANDO PROCESSAMENTO SIMPLES DE EXPORTAÇÃO PDF ===');
     
     const body = await request.json().catch(e => {
       console.error('Erro ao fazer parse do corpo da requisição:', e);
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 });
     }
     
-    console.log('=== DADOS RECEBIDOS NA API ===');
+    console.log('=== DADOS RECEBIDOS NA API (PROCESSAMENTO SIMPLES) ===');
     console.log('Estrutura do body:', {
       hasReport: !!body.report,
       displayCurrency: body.displayCurrency,
@@ -127,6 +124,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Nome do relatório ausente' }, { status: 400 });
     }
     
+    // Verificar se temos cotações atuais
+    if (!currentRates || !currentRates.btcToUsd || !currentRates.brlToUsd) {
+      return NextResponse.json({ 
+        error: 'Cotações atuais necessárias para o processamento simples',
+        details: 'btcToUsd e brlToUsd são obrigatórios'
+      }, { status: 400 });
+    }
+    
     // Garantir que o relatório tenha as propriedades obrigatórias
     if (!Array.isArray(report.investments)) {
       console.warn('Array de investimentos ausente ou inválido, usando array vazio');
@@ -143,140 +148,89 @@ export async function POST(request: NextRequest) {
       report.withdrawals = [];
     }
     
-    console.log('Estrutura do relatório validada, preparando dados de fundação...');
+    console.log('=== PROCESSANDO DADOS COM LÓGICA SIMPLES ===');
 
-    // CORREÇÃO CRÍTICA: Passar as cotações atuais para prepareReportFoundationData
-    const foundationData = await prepareReportFoundationData(report, currentRates).catch(e => {
-      console.error('Erro ao preparar dados de fundação:', e);
-      return null;
+    // USAR PROCESSAMENTO SIMPLES EM VEZ DO COMPLEXO
+    const processedData = processSimpleReportData(
+      report,
+      displayCurrency,
+      currentRates.btcToUsd,
+      currentRates.brlToUsd,
+      customPeriodDescription
+    );
+
+    console.log('Dados processados:', {
+      reportName: processedData.reportName,
+      totalInvestmentsBtc: processedData.totalInvestmentsBtc,
+      totalProfitsBtc: processedData.totalProfitsBtc,
+      totalBalanceBtc: processedData.totalBalanceBtc,
+      roi: processedData.roi,
+      displayCurrency: processedData.displayCurrency
     });
-    
-    if (!foundationData) {
-      return NextResponse.json({ error: 'Falha ao preparar dados base do relatório' }, { status: 500 });
-    }
 
-    const enrichedOperations = foundationData.enrichedOperations || [];
-    const historicalQuotesUSD = foundationData.historicalQuotesUSD || new Map();
-    const historicalQuotesBRL = foundationData.historicalQuotesBRL || new Map();
-    const reportDateRange = foundationData.reportDateRange || { 
-      minDate: new Date().toISOString().split('T')[0], 
-      maxDate: new Date().toISOString().split('T')[0] 
-    };
+    // Gerar HTML usando template simples
+    console.log('=== GERANDO HTML COM TEMPLATE SIMPLES ===');
+    const htmlContent = generateSimpleReportHtml(processedData);
 
-    console.log('Dados de fundação processados, calculando métricas...');
+    console.log('HTML gerado com sucesso, tamanho:', htmlContent.length, 'caracteres');
 
-    // Etapa 2: Calcular métricas financeiras
-    const calculatedMetricsInput = {
-        enrichedOperations,
-        historicalQuotesUSD,
-        historicalQuotesBRL,
-        reportDateRange,
-        reportName: report.name, 
-        reportPeriodDescription: customPeriodDescription || `${reportDateRange?.minDate} - ${reportDateRange?.maxDate}`,
-        displayCurrency: displayCurrency,
-    };
-    
-    const calculatedReportData: CalculatedReportData = calculateReportMetrics(calculatedMetricsInput);
+    // Gerar PDF
+    console.log('=== INICIANDO GERAÇÃO DO PDF ===');
+    browser = await getBrowser();
+    const page = await browser.newPage();
 
-    console.log('Métricas calculadas, construindo objeto de relatório exportado...');
+    // Configurar a página
+    await page.setContent(htmlContent, {
+      waitUntil: ['domcontentloaded', 'networkidle0'],
+      timeout: 30000,
+    });
 
-    // Etapa 3: Montar o objeto ExportedReport
-    const reportMetadata: ReportMetadata = {
-      reportName: report.name,
-      generatedAt: new Date().toISOString(),
-      periodDescription: calculatedMetricsInput.reportPeriodDescription,
-      displayCurrency: displayCurrency,
-    };
+    // Gerar o PDF
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '1cm',
+        right: '1cm',
+        bottom: '1cm',
+        left: '1cm',
+      },
+    });
 
-    const exportedReportData: ExportedReport = {
-      metadata: reportMetadata,
-      data: calculatedReportData,
-      operations: enrichedOperations as OperationData[],
-      chartsSvg: {},
-    };
+    await page.close();
 
-    console.log('Objeto de relatório exportado construído, gerando HTML...');
+    console.log('=== PDF GERADO COM SUCESSO ===');
+    console.log('Tamanho do PDF:', pdfBuffer.length, 'bytes');
 
-    // Etapa 4: Gerar HTML
-    const htmlString = buildReportHtml(exportedReportData);
-    
-    if (!htmlString || htmlString.length < 100) {
-      console.error('HTML gerado inválido ou muito curto');
-      return NextResponse.json({ error: 'Falha ao gerar HTML do relatório' }, { status: 500 });
-    }
-
-    console.log('HTML gerado com sucesso, iniciando Puppeteer...');
-
-    // Etapa 5: Gerar PDF com Puppeteer
-    try {
-      browser = await getBrowser();
-      console.log('Browser iniciado, criando nova página...');
-      
-      const page = await browser.newPage();
-      console.log('Página criada, configurando conteúdo...');
-      
-      await page.setContent(htmlString, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000 // 30 segundos de timeout
-      });
-      
-      console.log('Conteúdo carregado na página, gerando PDF...');
-      
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20mm',
-          right: '20mm',
-          bottom: '20mm',
-          left: '20mm',
-        },
-        timeout: 30000 // 30 segundos de timeout
-      });
-      
-      console.log('PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes');
-      
-      await page.close();
-      
-      return new NextResponse(pdfBuffer, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${report.name.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf"`,
-        },
-      });
-    } catch (browserError) {
-      console.error('Erro ao processar com Puppeteer:', browserError);
-      
-      // Resetar a promessa do browser para forçar nova instância na próxima chamada
-      _browserPromise = null;
-      
-      throw browserError; // Relançar para tratamento no catch externo
-    }
+    // Retornar o PDF
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="relatorio-${processedData.reportName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      },
+    });
 
   } catch (error) {
-    console.error('Erro fatal ao gerar relatório PDF:', error);
-    
-    // Garantir que a página seja fechada em caso de erro
+    console.error('=== ERRO NA GERAÇÃO DO PDF (PROCESSAMENTO SIMPLES) ===');
+    console.error('Erro detalhado:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+
+    return NextResponse.json({
+      error: 'Erro interno do servidor ao gerar PDF',
+      details: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 });
+
+  } finally {
+    // Fechar o navegador se estiver aberto
     if (browser) {
       try {
-        const pages = await browser.pages();
-        await Promise.all(pages.map(page => page.close()));
+        await browser.close();
+        console.log('Navegador fechado com sucesso');
       } catch (closeError) {
-        console.error('Erro ao fechar páginas do browser:', closeError);
+        console.error('Erro ao fechar navegador:', closeError);
       }
     }
-    
-    // Resetar a promessa do browser para forçar nova instância na próxima chamada
-    _browserPromise = null;
-    
-    const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
-    const errorStack = error instanceof Error ? error.stack : 'Stack não disponível';
-    
-    return NextResponse.json({ 
-      error: 'Falha ao gerar relatório PDF', 
-      details: errorMessage,
-      stack: errorStack
-    }, { status: 500 });
   }
 } 

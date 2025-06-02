@@ -108,15 +108,32 @@ function selectBestTimestamp(
   console.log(`[selectBestTimestamp] ${context}: Campos disponíveis:`, possibleFields);
   console.log(`[selectBestTimestamp] ${context}: Ordem de prioridade:`, priorityOrder);
   
+  // Primeiro passo: verificar se há campos válidos não vazios
+  const nonEmptyFields = Object.entries(possibleFields).filter(([key, value]) => {
+    const isValid = value !== undefined && value !== null && value !== '' && value !== 0;
+    if (!isValid && value !== undefined) {
+      console.log(`[selectBestTimestamp] ${context}: Campo '${key}' inválido/vazio:`, value, typeof value);
+    }
+    return isValid;
+  });
+  
+  console.log(`[selectBestTimestamp] ${context}: Campos não vazios encontrados:`, nonEmptyFields.map(([k, v]) => `${k}: ${v}`));
+  
   for (const fieldName of priorityOrder) {
     const value = possibleFields[fieldName];
-    if (value !== undefined && value !== null && value !== '') {
-      console.log(`[selectBestTimestamp] ${context}: Selecionado campo '${fieldName}' com valor:`, value);
+    if (value !== undefined && value !== null && value !== '' && value !== 0) {
+      console.log(`[selectBestTimestamp] ${context}: ✅ Selecionado campo '${fieldName}' com valor:`, value, typeof value);
       return { timestamp: value, source: fieldName };
+    } else {
+      console.log(`[selectBestTimestamp] ${context}: ❌ Campo '${fieldName}' inválido:`, value, typeof value);
     }
   }
   
-  console.warn(`[selectBestTimestamp] ${context}: Nenhum campo de data válido encontrado, usando data atual`);
+  // Se chegou aqui, não há campos válidos
+  console.error(`[selectBestTimestamp] ${context}: ⚠️ PROBLEMA: Nenhum campo de data válido encontrado!`);
+  console.error(`[selectBestTimestamp] ${context}: Campos recebidos:`, JSON.stringify(possibleFields, null, 2));
+  console.error(`[selectBestTimestamp] ${context}: Usando data atual como fallback - ISTO PODE ESTAR CAUSANDO O PROBLEMA DAS DATAS!`);
+  
   return { timestamp: Date.now(), source: 'fallback_current_time' };
 }
 
@@ -290,7 +307,15 @@ export function convertTradeToProfit(trade: LNMarketsTrade, sourceInfo?: { confi
  * Converte depósito LN Markets para registro de investimento
  */
 export function convertDepositToInvestment(deposit: LNMarketsDeposit, sourceInfo?: { configId: string; configName: string }) {
+  console.log('[convertDepositToInvestment] 🔍 ANÁLISE DETALHADA DO DEPÓSITO');
   console.log('[convertDepositToInvestment] Depósito completo recebido:', deposit);
+  console.log('[convertDepositToInvestment] Campos de data disponíveis:', {
+    confirmed_at: deposit.confirmed_at,
+    timestamp: deposit.timestamp,
+    created_at: deposit.created_at,
+    updated_at: deposit.updated_at,
+    ts: deposit.ts // Às vezes vem como 'ts' em vez de 'timestamp'
+  });
 
   // Prioridade para timestamp de confirmação
   let timestampToUse: string | number | undefined;
@@ -299,28 +324,49 @@ export function convertDepositToInvestment(deposit: LNMarketsDeposit, sourceInfo
   const possibleDateFields = {
     confirmed_at: deposit.confirmed_at,
     timestamp: deposit.timestamp,
+    ts: deposit.ts, // ADICIONADO: Às vezes vem como 'ts'
     created_at: deposit.created_at,
     updated_at: deposit.updated_at
   };
 
+  // ADICIONADO: Log das verificações de cada campo individualmente
+  console.log('[convertDepositToInvestment] 📋 Verificação individual dos campos:');
+  Object.entries(possibleDateFields).forEach(([key, value]) => {
+    console.log(`  ${key}: ${value} (tipo: ${typeof value}) (válido: ${value !== undefined && value !== null && value !== '' && value !== 0})`);
+  });
+
   const { timestamp, source } = selectBestTimestamp(
     possibleDateFields,
-    ['confirmed_at', 'timestamp', 'created_at', 'updated_at'],
+    ['confirmed_at', 'timestamp', 'ts', 'created_at', 'updated_at'], // ADICIONADO: 'ts' na prioridade
     'convertDepositToInvestment'
   );
 
   timestampToUse = timestamp;
   dateSource = source;
 
+  console.log('[convertDepositToInvestment] 🎯 Campo selecionado:', {
+    campo: dateSource,
+    valor: timestampToUse,
+    tipo: typeof timestampToUse
+  });
+
   // Parsear data
   const depositDate = parseTimestamp(timestampToUse, `convertDepositToInvestment-${dateSource}`);
   
-  console.log('[convertDepositToInvestment] Data parseada:', {
+  console.log('[convertDepositToInvestment] 📅 Data parseada:', {
     originalTimestamp: timestampToUse,
     parsedDate: depositDate,
     formattedDate: depositDate.toISOString(),
-    dateSource
+    dateSource,
+    isToday: depositDate.toDateString() === new Date().toDateString() // ADICIONADO: Verificar se é hoje
   });
+
+  // Se a data for hoje, isso pode indicar um problema
+  if (depositDate.toDateString() === new Date().toDateString() && dateSource === 'fallback_current_time') {
+    console.error('[convertDepositToInvestment] ⚠️ ALERTA: Data definida como hoje devido ao fallback!');
+    console.error('[convertDepositToInvestment] Isso indica que nenhum campo de data válido foi encontrado no depósito.');
+    console.error('[convertDepositToInvestment] Depósito original completo:', JSON.stringify(deposit, null, 2));
+  }
 
   // Validar e criar ID único
   let depositIdentifier = deposit.uuid || deposit.id;

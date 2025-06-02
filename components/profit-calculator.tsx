@@ -1551,97 +1551,88 @@ export default function ProfitCalculator({
     
     console.log('[handleImportDeposits] Configuração obtida:', {
       hasConfig: !!config,
+      configId: config?.id,
       configName: config?.name,
-      hasActiveReport: !!currentActiveReportObjectFromHook,
-      reportName: currentActiveReportObjectFromHook?.name,
-      reportId: currentActiveReportObjectFromHook?.id
+      hasCredentials: !!config?.credentials,
+      isConfigured: config?.credentials?.isConfigured,
+      hasUser: !!user?.email
     });
     
     if (!config || !currentActiveReportObjectFromHook || !user?.email) {
       console.log('[handleImportDeposits] Configuração, relatório ou usuário ausente');
       toast({
-        title: "Configuração necessária",
-        description: "Selecione uma configuração LN Markets ativa e certifique-se de ter um relatório ativo.",
+        title: "⚠️ Configuração incompleta",
+        description: "Configure as credenciais da API antes de importar.",
         variant: "destructive",
       });
       return;
     }
 
-    // Inicializar progresso
-    setImportProgress(prev => ({
-      ...prev,
-      deposits: { current: 0, total: 0, percentage: 0, status: 'loading', message: 'Buscando dados...' }
-    }));
-      
     setIsImportingDeposits(true);
+    let imported = 0;
+    let duplicated = 0;
+    let errors = 0;
+    let skipped = 0;
+    let processed = 0;
+
     try {
+      // Fazer requisição para a API LN Markets usando a estrutura correta
       console.log('[handleImportDeposits] Fazendo requisição com credenciais:', {
         hasKey: !!config.credentials.key,
         hasSecret: !!config.credentials.secret,
         hasPassphrase: !!config.credentials.passphrase,
         network: config.credentials.network,
-        isConfigured: config.credentials.isConfigured
+        isConfigured: config.credentials.isConfigured,
+        userEmail: user.email.split('@')[0] + '@***'
       });
-      
+
+      // Usar a função correta com userEmail e configId
       const response = await fetchLNMarketsDeposits(user.email, config.id);
 
       console.log('[handleImportDeposits] Resposta recebida:', {
         success: response.success,
         hasData: !!response.data,
-        dataLength: response.data?.length,
-        error: response.error,
-        fullResponse: response
+        dataLength: response.data?.length || 0,
+        error: response.error
       });
 
       if (!response.success || !response.data) {
         console.error('[handleImportDeposits] Falha na resposta da API:', response);
-        // Atualizar status do progresso para erro
-        setImportProgress(prev => ({
-          ...prev,
-          deposits: { 
-            current: 0, 
-            total: 0, 
-            percentage: 0, 
-            status: 'error', 
-            message: 'Erro ao acessar a API' 
-          }
-        }));
-        // Mostrar mensagem de erro para o usuário
-        toast({
-          title: "Erro na API",
-          description: "Não foi possível buscar os dados de depósitos na API. Por favor, revise os dados inseridos e verifique se sua API possui as permissões necessárias.",
-          variant: "destructive",
-        });
-        throw new Error(response.error || "Erro ao buscar depósitos");
+        throw new Error(response.error || 'Erro ao buscar depósitos da API');
       }
 
       const deposits = response.data;
       const totalDeposits = deposits.length;
-      
+
       console.log('[handleImportDeposits] Processando depósitos:', {
-        totalDeposits,
-        firstDeposit: deposits[0],
-        depositsStructure: deposits.map((d: any) => ({
-          id: d.id,
-          amount: d.amount,
-          status: d.status,
-          created_at: d.created_at
-        }))
+        total: totalDeposits,
+        amostra: deposits.slice(0, 3) // Apenas 3 primeiros para não sobrecarregar logs
       });
 
-      // NOVO: Verificar estado atual do relatório antes de começar
-      console.log('[handleImportDeposits] Estado do relatório antes da importação:', {
-        reportId: currentActiveReportObjectFromHook.id,
-        currentInvestmentsCount: currentActiveReportObjectFromHook.investments?.length || 0,
-        existingInvestmentIds: currentActiveReportObjectFromHook.investments?.map(inv => inv.originalId) || [],
-        lastInvestment: currentActiveReportObjectFromHook.investments?.slice(-1)[0] || null
+      // ADICIONADO: Log detalhado dos primeiros depósitos RAW
+      console.log('[handleImportDeposits] 🔍 ANÁLISE DOS PRIMEIROS DEPÓSITOS RAW DA API:');
+      deposits.slice(0, 5).forEach((deposit: any, index: number) => {
+        console.log(`[handleImportDeposits] Depósito ${index + 1}:`, {
+          id: deposit.id,
+          uuid: deposit.uuid,
+          amount: deposit.amount,
+          status: deposit.status,
+          // Campos de data disponíveis
+          timestamp: deposit.timestamp,
+          ts: deposit.ts,
+          created_at: deposit.created_at,
+          updated_at: deposit.updated_at,
+          confirmed_at: deposit.confirmed_at,
+          // Outros campos importantes
+          type: deposit.type,
+          deposit_type: deposit.deposit_type,
+          is_confirmed: deposit.is_confirmed,
+          isConfirmed: deposit.isConfirmed,
+          success: deposit.success
+        });
       });
 
-      let imported = 0;
-      let duplicated = 0;
-      let errors = 0;
-      let processed = 0;
-      let skipped = 0; // Contador para depósitos não confirmados
+      // ... existing code ...
 
       // Atualizar progresso inicial
       setImportProgress(prev => ({
