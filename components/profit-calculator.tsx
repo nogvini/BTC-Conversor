@@ -468,6 +468,15 @@ export default function ProfitCalculator({
 
   // NOVO: Effect para detectar mudança do relatório ativo e forçar recarregamento
   useEffect(() => {
+    console.log('[ProfitCalculator - DEBUG] Effect de mudança executado:', {
+      effectiveActiveReportId,
+      currentActiveReportIdFromHook: currentActiveReportObjectFromHook?.id,
+      activeReportIdFromHook,
+      lastActiveReportId,
+      mudanca: effectiveActiveReportId !== lastActiveReportId,
+      reportName: effectiveActiveReport?.name
+    });
+
     if (effectiveActiveReportId && effectiveActiveReportId !== lastActiveReportId) {
       console.log('[ProfitCalculator] Relatório ativo mudou:', {
         de: lastActiveReportId,
@@ -510,7 +519,14 @@ export default function ProfitCalculator({
         duration: 3000,
       });
     }
-  }, [effectiveActiveReportId, lastActiveReportId, effectiveActiveReport?.name, toast]);
+  }, [
+    effectiveActiveReportId, 
+    currentActiveReportObjectFromHook?.id,
+    activeReportIdFromHook,
+    lastActiveReportId, 
+    effectiveActiveReport?.name, 
+    toast
+  ]);
 
   // NOVO: Effect de inicialização para definir o relatório ativo inicial
   useEffect(() => {
@@ -521,7 +537,13 @@ export default function ProfitCalculator({
         reportName: effectiveActiveReport?.name
       });
     }
-  }, [effectiveActiveReportId, lastActiveReportId, effectiveActiveReport?.name]);
+  }, [
+    effectiveActiveReportId, 
+    currentActiveReportObjectFromHook?.id,
+    activeReportIdFromHook,
+    lastActiveReportId, 
+    effectiveActiveReport?.name
+  ]);
 
   // NOVO: Effect principal para sincronização de dados
   useEffect(() => {
