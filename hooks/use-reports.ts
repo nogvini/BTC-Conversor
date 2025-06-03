@@ -258,9 +258,15 @@ export function useReports() {
 
   // Função para selecionar um relatório como ativo
   const selectReport = useCallback((reportId: string) => {
-    console.log('[useReports] selectReport chamado:', { reportId, currentActive: collection.activeReportId });
+    console.log('[useReports] selectReport chamado:', { reportId });
     
     setCollection(prevCollection => {
+      console.log('[useReports] Dentro do setCollection:', { 
+        reportId, 
+        currentActive: prevCollection.activeReportId,
+        reportExists: prevCollection.reports.some(r => r.id === reportId)
+      });
+      
       // Verificar se o relatório existe
       const reportExists = prevCollection.reports.some(r => r.id === reportId);
       if (!reportExists) {
@@ -270,6 +276,12 @@ export function useReports() {
           description: "Relatório não encontrado",
           variant: "destructive",
         });
+        return prevCollection;
+      }
+
+      // Se já é o relatório ativo, não fazer nada
+      if (prevCollection.activeReportId === reportId) {
+        console.log('[useReports] Relatório já está ativo:', reportId);
         return prevCollection;
       }
 
@@ -297,7 +309,7 @@ export function useReports() {
 
       return updatedCollection;
     });
-  }, [emitEvent, collection.activeReportId]);
+  }, [emitEvent, toast]);
 
   // Função para deletar um relatório
   const deleteReport = useCallback((reportId: string) => {
