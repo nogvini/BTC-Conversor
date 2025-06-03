@@ -3885,6 +3885,121 @@ export default function ProfitCalculator({
     });
   };
 
+  // Função para localizar exatamente onde o depósito 373e está na UI
+  const debugWhereToFindDeposit = async () => {
+    console.log('[debugWhereToFindDeposit] 🎯 LOCALIZANDO DEPÓSITO 373e NA INTERFACE');
+    
+    if (!user?.email) {
+      toast({
+        title: "⚠️ Usuário não autenticado",
+        description: "Faça login para localizar o depósito.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    if (!currentActiveReportObjectFromHook) {
+      console.log('[debugWhereToFindDeposit] ❌ NENHUM RELATÓRIO ATIVO');
+      return;
+    }
+
+    // Buscar o depósito no relatório ativo
+    const targetDeposit = currentActiveReportObjectFromHook.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+    
+    if (!targetDeposit) {
+      console.log('[debugWhereToFindDeposit] ❌ DEPÓSITO NÃO ENCONTRADO NO RELATÓRIO ATIVO');
+      return;
+    }
+
+    // Analisar todos os investimentos do relatório para localizar posição
+    const allInvestments = [...(currentActiveReportObjectFromHook.investments || [])];
+    
+    // Ordenar por data (mais recente primeiro, como na interface)
+    allInvestments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const depositIndex = allInvestments.findIndex(inv => inv.originalId === targetOriginalId);
+    const depositPosition = depositIndex + 1;
+    
+    console.log('[debugWhereToFindDeposit] 🎯 DEPÓSITO LOCALIZADO COM SUCESSO:', {
+      relatórioNome: currentActiveReportObjectFromHook.name,
+      relatórioId: currentActiveReportObjectFromHook.id,
+      posição: depositPosition,
+      totalInvestimentos: allInvestments.length,
+      depósito: {
+        id: targetDeposit.id,
+        originalId: targetDeposit.originalId,
+        data: targetDeposit.date,
+        valor: targetDeposit.amount,
+        unidade: targetDeposit.unit
+      }
+    });
+    
+    // Calcular em qual "página" estaria (assumindo 10 por página)
+    const itemsPerPage = 10;
+    const pageNumber = Math.ceil(depositPosition / itemsPerPage);
+    
+    console.log('[debugWhereToFindDeposit] 📄 LOCALIZAÇÃO NA TABELA:', {
+      posição: depositPosition,
+      página: pageNumber,
+      itensPorPágina: itemsPerPage,
+      estáNaPrimeiraPágina: depositPosition <= itemsPerPage
+    });
+    
+    // Verificar data para orientar busca
+    const depositDate = new Date(targetDeposit.date);
+    const today = new Date();
+    const daysDifference = Math.floor((today.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    console.log('[debugWhereToFindDeposit] 📅 INFORMAÇÕES DE DATA:', {
+      dataDoDepósito: depositDate.toLocaleDateString('pt-BR'),
+      diasAtrás: daysDifference,
+      ano: depositDate.getFullYear(),
+      mês: depositDate.toLocaleDateString('pt-BR', { month: 'long' })
+    });
+    
+    // Criar instruções específicas para o usuário
+    const instructions = [
+      `✅ Relatório correto: "${currentActiveReportObjectFromHook.name}"`,
+      `📊 Aba correta: "Aportes/Investimentos" (NÃO na aba Trades)`,
+      `📍 Posição: ${depositPosition}° registro de ${allInvestments.length} total`,
+      `📄 Página: ${pageNumber} (se houver paginação)`,
+      `📅 Data: ${depositDate.toLocaleDateString('pt-BR')} (${daysDifference} dias atrás)`,
+      `💰 Valor: ${targetDeposit.amount} ${targetDeposit.unit}`,
+      `🆔 ID visível: ${targetDeposit.id.slice(0, 8)}...`
+    ];
+    
+    console.log('[debugWhereToFindDeposit] 📋 INSTRUÇÕES PARA LOCALIZAR:');
+    instructions.forEach((instruction, index) => {
+      console.log(`${index + 1}. ${instruction}`);
+    });
+
+    // Verificar se há filtros que podem esconder o registro
+    console.log('[debugWhereToFindDeposit] 🔍 VERIFICANDO POSSÍVEIS FILTROS ATIVOS:');
+    console.log('- Verifique se há filtros de data ativos');
+    console.log('- Verifique se há filtros de valor mínimo/máximo');
+    console.log('- Verifique se a ordenação está por data (mais recente primeiro)');
+    console.log('- Verifique se está na primeira página da tabela');
+
+    toast({
+      title: "🎯 Depósito 373e Localizado!",
+      description: (
+        <div className="space-y-1">
+          <div>✅ Encontrado no relatório "{currentActiveReportObjectFromHook.name}"</div>
+          <div>📍 Posição: {depositPosition}° de {allInvestments.length}</div>
+          <div>📄 Página: {pageNumber}</div>
+          <div>📅 Data: {depositDate.toLocaleDateString('pt-BR')}</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Verifique o console para instruções detalhadas
+          </div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-green-500/50 bg-green-900/20",
+    });
+  };
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -4405,6 +4520,17 @@ export default function ProfitCalculator({
                         className="w-full text-xs bg-purple-900/20 border-purple-700/50 hover:bg-purple-800/30 text-purple-400"
                       >
                         🔍 Debug Sincronia UI
+                      </Button>
+                      
+                      {/* Botão para localizar depósito na interface */}
+                      <Button
+                        onClick={debugWhereToFindDeposit}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-green-900/20 border-green-700/50 hover:bg-green-800/30 text-green-400"
+                      >
+                        🎯 Onde Encontrar 373e
                       </Button>
                     </CardContent>
                   </Card>
