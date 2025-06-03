@@ -1488,60 +1488,116 @@ export default function ProfitCalculator({
 
   // Função auxiliar para verificar se um depósito está confirmado
   const isDepositConfirmed = (deposit: any): boolean => {
-    console.log('[isDepositConfirmed] Analisando depósito:', {
+    console.log('[isDepositConfirmed] 🔍 ANÁLISE DETALHADA DO DEPÓSITO:', {
       id: deposit.id,
+      uuid: deposit.uuid,
       type: deposit.type,
+      deposit_type: deposit.deposit_type,
       amount: deposit.amount,
+      status: deposit.status,
       // Todos os possíveis atributos de confirmação
       isConfirmed: deposit.isConfirmed,
       is_confirmed: deposit.is_confirmed,
       success: deposit.success,
-      status: deposit.status
+      // Campos de data que podem indicar processamento
+      created_at: deposit.created_at,
+      updated_at: deposit.updated_at,
+      confirmed_at: deposit.confirmed_at,
+      timestamp: deposit.timestamp,
+      ts: deposit.ts,
+      // Outros indicadores importantes
+      tx_id: deposit.tx_id,
+      txid: deposit.txid,
+      network: deposit.network,
+      // Verificar se tem todos os campos básicos
+      hasAllBasicFields: !!(deposit.id && deposit.amount && deposit.created_at)
     });
 
-    // Verificar diferentes atributos dependendo do tipo de depósito:
-    // 1. Depósitos on-chain (bitcoin): is_confirmed: true
-    // 2. Depósitos internos: success: true  
-    // 3. Depósitos lightning: status específico ou outros atributos
+    // 🔥 NOVA ABORDAGEM: SER MAIS INCLUSIVO
+    // Vamos só rejeitar depósitos que EXPLICITAMENTE sejam inválidos
     
-    // Se explicitamente não confirmado
-    if (deposit.isConfirmed === false) {
-      console.log('[isDepositConfirmed] ❌ Rejeitado: isConfirmed === false');
+    // ❌ Verificações de rejeição explícita (devem ser muito específicas)
+    
+    // Se explicitamente marcado como não confirmado com false
+    if (deposit.isConfirmed === false && deposit.is_confirmed === false && deposit.success === false) {
+      console.log('[isDepositConfirmed] ❌ REJEITADO: Todos os indicadores são false');
       return false;
     }
     
-    // Se é depósito on-chain confirmado (padrão para bitcoin)
+    // Se é status claramente de falha
+    const failureStatuses = ['failed', 'error', 'cancelled', 'rejected', 'invalid'];
+    if (deposit.status && failureStatuses.includes(deposit.status.toLowerCase())) {
+      console.log('[isDepositConfirmed] ❌ REJEITADO: Status de falha:', deposit.status);
+      return false;
+    }
+    
+    // Se não tem dados básicos obrigatórios
+    if (!deposit.id || !deposit.amount || isNaN(parseFloat(deposit.amount))) {
+      console.log('[isDepositConfirmed] ❌ REJEITADO: Falta dados básicos (id, amount válido)');
+      return false;
+    }
+    
+    // ✅ Verificações de aceitação positiva (qualquer uma serve)
+    
+    // Se explicitamente confirmado
     if (deposit.is_confirmed === true) {
-      console.log('[isDepositConfirmed] ✅ Confirmado: is_confirmed === true (on-chain)');
+      console.log('[isDepositConfirmed] ✅ ACEITO: is_confirmed === true (on-chain confirmado)');
       return true;
     }
     
-    // Se é depósito interno bem-sucedido
+    // Se operação foi bem-sucedida
     if (deposit.success === true) {
-      console.log('[isDepositConfirmed] ✅ Confirmado: success === true (internal)');
+      console.log('[isDepositConfirmed] ✅ ACEITO: success === true (operação bem-sucedida)');
       return true;
     }
     
-    // Se tem isConfirmed true (caso padrão antigo)
+    // Se tem isConfirmed true (versão legacy)
     if (deposit.isConfirmed === true) {
-      console.log('[isDepositConfirmed] ✅ Confirmado: isConfirmed === true (legacy)');
+      console.log('[isDepositConfirmed] ✅ ACEITO: isConfirmed === true (legacy)');
       return true;
     }
     
-    // Para depósitos bitcoin sem is_confirmed explícito, verificar se tem tx_id (indica confirmação)
-    if (deposit.type === 'bitcoin' && deposit.tx_id && !('is_confirmed' in deposit)) {
-      console.log('[isDepositConfirmed] ✅ Confirmado: depósito bitcoin com tx_id (assumindo confirmado)');
+    // Se é status claramente de sucesso
+    const successStatuses = ['confirmed', 'completed', 'success', 'settled', 'processed'];
+    if (deposit.status && successStatuses.includes(deposit.status.toLowerCase())) {
+      console.log('[isDepositConfirmed] ✅ ACEITO: Status de sucesso:', deposit.status);
       return true;
     }
     
-    // Se nenhum indicador negativo explícito, considerar confirmado (fallback conservador)
-    const hasNegativeIndicator = deposit.isConfirmed === false || deposit.is_confirmed === false || deposit.success === false;
-    if (!hasNegativeIndicator) {
-      console.log('[isDepositConfirmed] ✅ Confirmado: sem indicadores negativos (fallback)');
+    // Se tem tx_id/txid (indica transação processada)
+    if (deposit.tx_id || deposit.txid) {
+      console.log('[isDepositConfirmed] ✅ ACEITO: Tem ID de transação (tx_id/txid)');
       return true;
     }
     
-    console.log('[isDepositConfirmed] ❌ Rejeitado: não atende critérios de confirmação');
+    // Se tem data de confirmação
+    if (deposit.confirmed_at) {
+      console.log('[isDepositConfirmed] ✅ ACEITO: Tem data de confirmação (confirmed_at)');
+      return true;
+    }
+    
+    // 🎯 FALLBACK INCLUSIVO: Se chegou até aqui e tem dados básicos, aceitar
+    // Só rejeitamos se há indicadores explícitos de falha
+    const hasExplicitFailure = (
+      deposit.isConfirmed === false || 
+      deposit.is_confirmed === false || 
+      deposit.success === false ||
+      (deposit.status && failureStatuses.includes(deposit.status.toLowerCase()))
+    );
+    
+    if (!hasExplicitFailure) {
+      console.log('[isDepositConfirmed] ✅ ACEITO: Fallback inclusivo - sem indicadores de falha explícitos');
+      return true;
+    }
+    
+    // Se chegou até aqui, tem algum indicador de falha
+    console.log('[isDepositConfirmed] ❌ REJEITADO: Tem indicadores de falha:', {
+      isConfirmedFalse: deposit.isConfirmed === false,
+      is_confirmedFalse: deposit.is_confirmed === false,
+      successFalse: deposit.success === false,
+      statusIsFailure: deposit.status && failureStatuses.includes(deposit.status.toLowerCase())
+    });
+    
     return false;
   };
 
@@ -3246,55 +3302,156 @@ export default function ProfitCalculator({
   }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
 
   const handleDebugDeposits = async () => {
-    console.log('[DEBUG] Iniciando investigação de depósitos perdidos');
+    console.log('[handleDebugDeposits] 🔬 INICIANDO DEBUG COMPLETO DE DEPÓSITOS');
     
     const config = getCurrentImportConfig();
-    
-    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+    if (!config || !user?.email) {
       toast({
         title: "⚠️ Configuração incompleta",
-        description: "Configure as credenciais da API antes de investigar.",
+        description: "Configure as credenciais da API antes de debugar.",
         variant: "destructive",
       });
       return;
     }
 
+    setIsImportingDeposits(true);
+    
     try {
-      toast({
-        title: "🔬 Investigação iniciada",
-        description: "Executando debug de depósitos perdidos...",
-      });
+      // Buscar depósitos usando a busca super intensificada
+      console.log('[handleDebugDeposits] Executando busca super intensificada...');
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
 
-      // Usar a função de debug
-      const response = await fetchLNMarketsDeposits(user.email, config.id, true);
-
-      console.log('[DEBUG] Resposta da investigação:', response);
-
-      if (response.success && response.debugResults) {
-        const debugData = response.debugResults.data;
-        
+      if (!response.success || !response.data) {
+        console.error('[handleDebugDeposits] Erro na busca:', response.error);
         toast({
-          title: "🎯 Investigação concluída",
-          description: `Debug executado com sucesso. Verifique o console para detalhes.`,
+          title: "❌ Erro na busca",
+          description: response.error,
+          variant: "destructive",
         });
-
-        console.log('[DEBUG] 📊 RESUMO DA INVESTIGAÇÃO:');
-        console.log('[DEBUG] Melhor método:', debugData?.summary?.bestMethod);
-        console.log('[DEBUG] Máximo de depósitos encontrados:', debugData?.summary?.maxCount);
-        console.log('[DEBUG] Contagens por método:', debugData?.summary?.counts);
-        console.log('[DEBUG] Recomendação:', debugData?.summary?.recommendation);
-        
-      } else {
-        throw new Error(response.error || 'Erro na investigação de debug');
+        return;
       }
 
-    } catch (error: any) {
-      console.error('[DEBUG] Erro na investigação:', error);
+      const deposits = response.data;
+      console.log('[handleDebugDeposits] 🎯 DEPÓSITOS ENCONTRADOS:', deposits.length);
+      
+      // ANÁLISE DETALHADA DE CADA DEPÓSITO
+      console.log('[handleDebugDeposits] 📊 ANÁLISE DETALHADA DE TODOS OS DEPÓSITOS:');
+      
+      const analysisResults = deposits.map((deposit: any, index: number) => {
+        console.log(`\n[handleDebugDeposits] 🔍 DEPÓSITO ${index + 1}:`);
+        console.log('[handleDebugDeposits] Dados RAW:', {
+          id: deposit.id,
+          uuid: deposit.uuid,
+          amount: deposit.amount,
+          type: deposit.type,
+          deposit_type: deposit.deposit_type,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          updated_at: deposit.updated_at,
+          confirmed_at: deposit.confirmed_at,
+          timestamp: deposit.timestamp,
+          ts: deposit.ts,
+          isConfirmed: deposit.isConfirmed,
+          is_confirmed: deposit.is_confirmed,
+          success: deposit.success,
+          tx_id: deposit.tx_id,
+          txid: deposit.txid,
+          network: deposit.network
+        });
+        
+        // Testar a função isDepositConfirmed
+        const isAccepted = isDepositConfirmed(deposit);
+        
+        const analysis = {
+          index: index + 1,
+          id: deposit.id,
+          amount: deposit.amount,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          isAccepted,
+          reason: isAccepted ? 'ACEITO' : 'REJEITADO',
+          // Indicadores específicos
+          indicators: {
+            is_confirmed: deposit.is_confirmed,
+            success: deposit.success,
+            isConfirmed: deposit.isConfirmed,
+            has_tx_id: !!(deposit.tx_id || deposit.txid),
+            has_confirmed_at: !!deposit.confirmed_at,
+            status_seems_good: deposit.status && !['failed', 'error', 'cancelled', 'rejected', 'invalid'].includes(deposit.status.toLowerCase())
+          }
+        };
+        
+        console.log(`[handleDebugDeposits] 🎯 RESULTADO DEPÓSITO ${index + 1}:`, analysis);
+        return analysis;
+      });
+      
+      // RESUMO GERAL
+      const accepted = analysisResults.filter(r => r.isAccepted);
+      const rejected = analysisResults.filter(r => !r.isAccepted);
+      
+      console.log('[handleDebugDeposits] 📈 RESUMO GERAL:');
+      console.log('[handleDebugDeposits] Total encontrados:', deposits.length);
+      console.log('[handleDebugDeposits] Seriam aceitos:', accepted.length);
+      console.log('[handleDebugDeposits] Seriam rejeitados:', rejected.length);
+      
+      if (accepted.length > 0) {
+        console.log('[handleDebugDeposits] ✅ DEPÓSITOS QUE SERIAM ACEITOS:');
+        accepted.forEach(dep => {
+          console.log(`  - ID: ${dep.id}, Valor: ${dep.amount}, Status: ${dep.status}, Data: ${dep.created_at}`);
+        });
+      }
+      
+      if (rejected.length > 0) {
+        console.log('[handleDebugDeposits] ❌ DEPÓSITOS QUE SERIAM REJEITADOS:');
+        rejected.forEach(dep => {
+          console.log(`  - ID: ${dep.id}, Valor: ${dep.amount}, Status: ${dep.status}, Data: ${dep.created_at}`);
+        });
+      }
+      
+      // ANÁLISE ESPECÍFICA DO PROBLEMA
+      if (deposits.length === 6 && accepted.length === 5) {
+        console.log('[handleDebugDeposits] 🚨 PROBLEMA IDENTIFICADO: 6 depósitos encontrados, mas apenas 5 seriam aceitos!');
+        console.log('[handleDebugDeposits] O depósito rejeitado é:', rejected[0]);
+        
+        // Análise específica do depósito rejeitado
+        if (rejected.length > 0) {
+          const rejectedDeposit = deposits.find((d: any) => d.id === rejected[0].id);
+          console.log('[handleDebugDeposits] 🔬 ANÁLISE ESPECÍFICA DO DEPÓSITO REJEITADO:');
+          console.log('[handleDebugDeposits] Dados completos:', rejectedDeposit);
+          
+          // Re-testar para capturar logs específicos
+          console.log('[handleDebugDeposits] Re-testando lógica de confirmação...');
+          isDepositConfirmed(rejectedDeposit);
+        }
+      }
+      
       toast({
-        title: "❌ Erro na investigação",
-        description: error.message || 'Erro ao executar debug',
+        title: "🔬 Debug Concluído!",
+        description: (
+          <div className="space-y-1">
+            <div>{deposits.length} depósitos encontrados</div>
+            <div className="text-green-400">{accepted.length} seriam aceitos</div>
+            {rejected.length > 0 && (
+              <div className="text-red-400">{rejected.length} seriam rejeitados</div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Verifique o console para logs detalhados
+            </div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+
+    } catch (error: any) {
+      console.error('[handleDebugDeposits] Erro durante debug:', error);
+      toast({
+        title: "❌ Erro no Debug",
+        description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsImportingDeposits(false);
     }
   };
 
