@@ -3455,6 +3455,173 @@ export default function ProfitCalculator({
     }
   };
 
+  // Função específica para debugar o depósito problemático 373e
+  const debugSpecificDeposit = async () => {
+    console.log('[debugSpecificDeposit] 🔍 INVESTIGANDO DEPÓSITO ESPECÍFICO: 373e');
+    
+    const config = getCurrentImportConfig();
+    if (!config || !user?.email) {
+      toast({
+        title: "⚠️ Configuração incompleta",
+        description: "Configure as credenciais da API antes de debugar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Buscar todos os depósitos
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+
+      if (!response.success || !response.data) {
+        console.error('[debugSpecificDeposit] Erro na busca:', response.error);
+        return;
+      }
+
+      const deposits = response.data;
+      
+      // Procurar pelo depósito específico usando diferentes critérios
+      console.log('[debugSpecificDeposit] 🔍 PROCURANDO DEPÓSITO 373e...');
+      
+      const targetDeposit = deposits.find((d: any) => {
+        const idMatch = d.id === '373e' || d.id?.toString().includes('373e');
+        const hashMatch = d.tx_id === '49a3ff67baa640946a46509ee70fe4ad46bcb69ee2fcd3783ca8ef6a8940f5fd' || 
+                         d.txid === '49a3ff67baa640946a46509ee70fe4ad46bcb69ee2fcd3783ca8ef6a8940f5fd';
+        const amountMatch = Math.abs(parseFloat(d.amount) - 113.937) < 0.001; // Tolerância para floating point
+        
+        return idMatch || hashMatch || amountMatch;
+      });
+
+      if (!targetDeposit) {
+        console.log('[debugSpecificDeposit] ❌ DEPÓSITO NÃO ENCONTRADO!');
+        console.log('[debugSpecificDeposit] Depósitos disponíveis:');
+        deposits.forEach((d: any, i: number) => {
+          console.log(`  ${i + 1}. ID: ${d.id}, Valor: ${d.amount}, Data: ${d.created_at}, Hash: ${d.tx_id || d.txid}`);
+        });
+        
+        toast({
+          title: "❌ Depósito não encontrado",
+          description: "O depósito 373e não foi encontrado na busca da API",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('[debugSpecificDeposit] ✅ DEPÓSITO ENCONTRADO!');
+      console.log('[debugSpecificDeposit] 📊 DADOS COMPLETOS:', targetDeposit);
+
+      // Testar função de confirmação
+      console.log('[debugSpecificDeposit] 🧪 TESTANDO FUNÇÃO isDepositConfirmed...');
+      const isConfirmed = isDepositConfirmed(targetDeposit);
+      console.log('[debugSpecificDeposit] Resultado da confirmação:', isConfirmed);
+
+      // Testar conversão para investimento
+      console.log('[debugSpecificDeposit] 🔄 TESTANDO CONVERSÃO PARA INVESTIMENTO...');
+      try {
+        const investmentRecord = convertDepositToInvestment(targetDeposit, {
+          configId: config.id,
+          configName: config.name
+        });
+        console.log('[debugSpecificDeposit] ✅ Conversão bem-sucedida:', investmentRecord);
+
+        // Verificar se há problemas com a data
+        const depositDate = new Date(investmentRecord.date);
+        const now = new Date();
+        const isFutureDate = depositDate > now;
+        
+        console.log('[debugSpecificDeposit] 📅 ANÁLISE DE DATA:', {
+          dataOriginal: targetDeposit.created_at,
+          dataConvertida: investmentRecord.date,
+          dataFormatada: depositDate.toLocaleString('pt-BR'),
+          dataAtual: now.toLocaleString('pt-BR'),
+          éDataFutura: isFutureDate,
+          diferençaDias: Math.ceil((depositDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        });
+
+        if (isFutureDate) {
+          console.log('[debugSpecificDeposit] ⚠️ PROBLEMA IDENTIFICADO: DATA FUTURA!');
+          console.log('[debugSpecificDeposit] Este depósito tem data no futuro, o que pode estar causando problemas');
+        }
+
+        // Testar se já existe como duplicata
+        console.log('[debugSpecificDeposit] 🔍 VERIFICANDO DUPLICATAS...');
+        if (currentActiveReportObjectFromHook?.investments) {
+          const existingInvestment = currentActiveReportObjectFromHook.investments.find(inv => 
+            inv.originalId === investmentRecord.originalId
+          );
+          
+          if (existingInvestment) {
+            console.log('[debugSpecificDeposit] ⚠️ DUPLICATA ENCONTRADA:', existingInvestment);
+          } else {
+            console.log('[debugSpecificDeposit] ✅ Não é duplicata');
+          }
+        }
+
+        // Simular adição ao relatório
+        console.log('[debugSpecificDeposit] 🧪 SIMULANDO ADIÇÃO AO RELATÓRIO...');
+        const result = addInvestment(investmentRecord, currentActiveReportObjectFromHook?.id || '', { suppressToast: true });
+        console.log('[debugSpecificDeposit] Resultado da adição:', result);
+
+      } catch (conversionError) {
+        console.error('[debugSpecificDeposit] ❌ ERRO NA CONVERSÃO:', conversionError);
+      }
+
+      // Verificar possíveis filtros ou validações que podem estar rejeitando
+      console.log('[debugSpecificDeposit] 🔍 ANÁLISE DE POSSÍVEIS PROBLEMAS:');
+      
+      const problems = [];
+      
+      // Problema 1: Data futura
+      const depositDate = new Date(targetDeposit.created_at || targetDeposit.timestamp);
+      if (depositDate > new Date()) {
+        problems.push('Data no futuro (2025-03-01)');
+      }
+      
+      // Problema 2: Valor muito específico
+      if (targetDeposit.amount && targetDeposit.amount.toString().includes('.')) {
+        problems.push('Valor com casas decimais pode ter problemas de precisão');
+      }
+      
+      // Problema 3: ID curto
+      if (targetDeposit.id && targetDeposit.id.length < 6) {
+        problems.push('ID muito curto pode causar conflitos');
+      }
+      
+      // Problema 4: Status não convencional
+      if (targetDeposit.status && !['confirmed', 'completed', 'success'].includes(targetDeposit.status.toLowerCase())) {
+        problems.push(`Status "${targetDeposit.status}" pode não ser reconhecido como válido`);
+      }
+
+      console.log('[debugSpecificDeposit] 🚨 POSSÍVEIS PROBLEMAS IDENTIFICADOS:', problems);
+
+      toast({
+        title: "🔍 Debug do Depósito 373e",
+        description: (
+          <div className="space-y-1">
+            <div>✅ Depósito encontrado na API</div>
+            <div>{isConfirmed ? '✅' : '❌'} Passaria na validação</div>
+            <div>📅 Data: {depositDate.toLocaleDateString('pt-BR')}</div>
+            {problems.length > 0 && (
+              <div className="text-yellow-400">⚠️ {problems.length} problema(s) identificado(s)</div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Verifique o console para detalhes completos
+            </div>
+          </div>
+        ),
+        variant: problems.length > 0 ? "destructive" : "default",
+        className: problems.length > 0 ? "border-yellow-500/50 bg-yellow-900/20" : "border-blue-500/50 bg-blue-900/20",
+      });
+
+    } catch (error: any) {
+      console.error('[debugSpecificDeposit] Erro durante debug:', error);
+      toast({
+        title: "❌ Erro no Debug Específico",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
@@ -3943,6 +4110,17 @@ export default function ProfitCalculator({
                             Importar Aportes
                           </>
                         )}
+                      </Button>
+                      
+                      {/* Botão de debug específico para o depósito 373e */}
+                      <Button
+                        onClick={debugSpecificDeposit}
+                        disabled={isImportingDeposits || !selectedConfigForImport}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-yellow-900/20 border-yellow-700/50 hover:bg-yellow-800/30 text-yellow-400"
+                      >
+                        🔬 Debug Depósito 373e
                       </Button>
                     </CardContent>
                   </Card>
