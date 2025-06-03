@@ -2578,21 +2578,26 @@ export default function ProfitCalculator({
 
   // Função otimizada para obter dados filtrados por período com cache
   const getFilteredHistoryData = useMemo(() => {
-    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}-${activeReportData?.forceUpdateTrigger || 0}-${localForceUpdate}`;
+    // Usar dados efetivos (props ou hook) para garantir sincronização
+    const effectiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+    const effectiveAllReports = allReportsFromHook || [];
+    
+    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${effectiveReport?.id || 'none'}-${effectiveAllReports?.length || 0}-${activeReportData?.forceUpdateTrigger || 0}-${localForceUpdate}-${effectiveReport?.updatedAt || 0}`;
     
     if (filteredDataCache.current.has(cacheKey)) {
       return filteredDataCache.current.get(cacheKey);
     }
 
-    if (!currentActiveReportObjectFromHook && historyViewMode === "active") {
+    if (!effectiveReport && historyViewMode === "active") {
       const emptyResult = { investments: [], profits: [], withdrawals: [] };
       filteredDataCache.current.set(cacheKey, emptyResult);
       return emptyResult;
     }
 
+    // Usar dados efetivos para garantir que sempre temos os dados mais atualizados
     const reportsToAnalyze = historyViewMode === "all" 
-      ? allReportsFromHook || []
-      : currentActiveReportObjectFromHook ? [currentActiveReportObjectFromHook] : [];
+      ? effectiveAllReports
+      : effectiveReport ? [effectiveReport] : [];
 
     let startDate: Date;
     let endDate = new Date();
@@ -2628,22 +2633,27 @@ export default function ProfitCalculator({
     const allWithdrawals: any[] = [];
 
     reportsToAnalyze.forEach(report => {
+      // Garantir que sempre usamos os dados mais atualizados
+      const reportInvestments = report.investments || [];
+      const reportProfits = report.profits || [];
+      const reportWithdrawals = report.withdrawals || [];
+      
       // Filtrar investimentos
-      const filteredInvestments = (report.investments || []).filter(inv => {
+      const filteredInvestments = reportInvestments.filter(inv => {
         const invDate = new Date(inv.date);
         return invDate >= startDate && invDate <= endDate;
       });
       allInvestments.push(...filteredInvestments);
 
       // Filtrar lucros
-      const filteredProfits = (report.profits || []).filter(profit => {
+      const filteredProfits = reportProfits.filter(profit => {
         const profitDate = new Date(profit.date);
         return profitDate >= startDate && profitDate <= endDate;
       });
       allProfits.push(...filteredProfits);
 
       // Filtrar saques
-      const filteredWithdrawals = (report.withdrawals || []).filter(withdrawal => {
+      const filteredWithdrawals = reportWithdrawals.filter(withdrawal => {
         const withdrawalDate = new Date(withdrawal.date);
         return withdrawalDate >= startDate && withdrawalDate <= endDate;
       });
@@ -2667,6 +2677,8 @@ export default function ProfitCalculator({
     filteredDataCache.current.set(cacheKey, result);
     return result;
   }, [
+    // Usar dados efetivos para garantir sincronização
+    activeReportData?.report,
     currentActiveReportObjectFromHook, 
     allReportsFromHook, 
     historyViewMode, 
@@ -2674,26 +2686,33 @@ export default function ProfitCalculator({
     historyCustomStartDate, 
     historyCustomEndDate,
     activeReportData?.forceUpdateTrigger,
-    localForceUpdate
+    localForceUpdate,
+    // Adicionar updatedAt para detectar mudanças nos dados
+    activeReportData?.report?.updatedAt,
+    currentActiveReportObjectFromHook?.updatedAt
   ]);
 
   // Função otimizada para processar dados para os gráficos com cache
   const getChartData = useMemo((): ChartDataPoint[] => {
-    const cacheKey = `chart-${chartTimeframe}-${chartViewMode}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}-${localForceUpdate}`;
+    // Usar dados efetivos (props ou hook) para garantir sincronização
+    const effectiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+    const effectiveAllReports = allReportsFromHook || [];
+    
+    const cacheKey = `chart-${chartTimeframe}-${chartViewMode}-${effectiveReport?.id || 'none'}-${effectiveAllReports?.length || 0}-${localForceUpdate}-${effectiveReport?.updatedAt || 0}`;
     
     if (chartDataCache.current.has(cacheKey)) {
       return chartDataCache.current.get(cacheKey) || [];
     }
     
-    if (!currentActiveReportObjectFromHook && chartViewMode === "active") {
+    if (!effectiveReport && chartViewMode === "active") {
       chartDataCache.current.set(cacheKey, []);
       return [];
     }
     
     // Determinar quais relatórios processar com base no modo de visualização
     const reportsToProcess = chartViewMode === "active" 
-      ? (currentActiveReportObjectFromHook ? [currentActiveReportObjectFromHook] : [])
-      : (allReportsFromHook || []);
+      ? (effectiveReport ? [effectiveReport] : [])
+      : effectiveAllReports;
     
     if (reportsToProcess.length === 0) {
       chartDataCache.current.set(cacheKey, []);
@@ -2706,9 +2725,14 @@ export default function ProfitCalculator({
     const allWithdrawals: any[] = [];
     
     reportsToProcess.forEach(report => {
-      if (report.investments) allInvestments.push(...report.investments);
-      if (report.profits) allProfits.push(...report.profits);
-      if (report.withdrawals) allWithdrawals.push(...report.withdrawals);
+      // Garantir que sempre usamos os dados mais atualizados
+      const reportInvestments = report.investments || [];
+      const reportProfits = report.profits || [];
+      const reportWithdrawals = report.withdrawals || [];
+      
+      allInvestments.push(...reportInvestments);
+      allProfits.push(...reportProfits);
+      allWithdrawals.push(...reportWithdrawals);
     });
     
     // Ordenar todos os dados por data
@@ -2878,9 +2902,14 @@ export default function ProfitCalculator({
   }, [
     chartTimeframe, 
     chartViewMode, // NOVO: Considerar o modo de visualização na dependência
+    // Usar dados efetivos para garantir sincronização
+    activeReportData?.report,
     currentActiveReportObjectFromHook, 
     allReportsFromHook,
-    localForceUpdate
+    localForceUpdate,
+    // Adicionar updatedAt para detectar mudanças nos dados
+    activeReportData?.report?.updatedAt,
+    currentActiveReportObjectFromHook?.updatedAt
   ]);
 
   // Limpar cache quando dados importantes mudam
