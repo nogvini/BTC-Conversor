@@ -2587,7 +2587,7 @@ export default function ProfitCalculator({
 
   // Função otimizada para obter dados filtrados por período com cache
   const getFilteredHistoryData = useMemo(() => {
-    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}`;
+    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${currentActiveReportObjectFromHook?.id || 'none'}-${allReportsFromHook?.length || 0}-${activeReportData?.forceUpdateTrigger || 0}-${localForceUpdate}`;
     
     if (filteredDataCache.current.has(cacheKey)) {
       return filteredDataCache.current.get(cacheKey);
@@ -2681,7 +2681,9 @@ export default function ProfitCalculator({
     historyViewMode, 
     historyFilterPeriod, 
     historyCustomStartDate, 
-    historyCustomEndDate
+    historyCustomEndDate,
+    activeReportData?.forceUpdateTrigger,
+    localForceUpdate
   ]);
 
   // Função otimizada para processar dados para os gráficos com cache
