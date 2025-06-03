@@ -3293,20 +3293,6 @@ export default function ProfitCalculator({
     // Usar cotações passadas como props (fallback)
     states.setCurrentRates({ btcToUsd, brlToUsd });
   }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
-        <div className="space-y-1">
-          <div>✅ Encontrado no relatório "{currentActiveReportObjectFromHook.name}"</div>
-          <div>📍 Posição: {depositPosition}° de {allInvestments.length}</div>
-          <div>📄 Página: {pageNumber}</div>
-          <div>📅 Data: {depositDate.toLocaleDateString('pt-BR')}</div>
-          <div className="text-xs text-gray-400 mt-2">
-            Verifique o console para instruções detalhadas
-          </div>
-        </div>
-      ),
-      variant: "default",
-      className: "border-green-500/50 bg-green-900/20",
-    });
-  };
 
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
@@ -3795,10 +3781,6 @@ export default function ProfitCalculator({
                             Importar Aportes
                           </>
                         )}
-                      </Button>
-                      
-                      >
-                        🔬 Debug Depósito 373e
                       </Button>
                       
                   </Card>
