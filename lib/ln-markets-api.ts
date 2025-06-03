@@ -150,144 +150,239 @@ class LNMarketsClient {
   }
 
   /**
-   * Busca histórico de depósitos com busca intensificada
+   * Busca histórico de depósitos com busca SUPER INTENSIFICADA
    * Usando método da biblioteca oficial - GET /v2/user/deposit
-   * Implementa paginação e busca histórica ampliada
+   * Implementa múltiplas estratégias para garantir cobertura total
    */
   async getDeposits(): Promise<LNMarketsApiResponse<LNMarketsDeposit[]>> {
-    console.log('[LN Markets API] 🔍 BUSCA INTENSIFICADA DE DEPÓSITOS INICIADA');
+    console.log('[LN Markets API] 🔍 BUSCA SUPER INTENSIFICADA DE DEPÓSITOS INICIADA');
     
     try {
       const allDeposits: LNMarketsDeposit[] = [];
-      let currentOffset = 0;
-      const limit = 100; // Máximo por requisição
-      let hasMoreData = true;
-      let pageCount = 0;
-      const maxPages = 50; // Limite de segurança
+      const strategies = [
+        { name: 'ESTRATÉGIA 1: Busca padrão sem parâmetros', params: {} },
+        { name: 'ESTRATÉGIA 2: Busca com limite máximo', params: { limit: 1000 } },
+        { name: 'ESTRATÉGIA 3: Busca histórica 5 anos', params: { limit: 100, from: Math.floor(new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).getTime() / 1000) } },
+        { name: 'ESTRATÉGIA 4: Busca paginada intensiva', params: { limit: 100, offset: 0 } },
+        { name: 'ESTRATÉGIA 5: Busca sem filtros de data', params: { limit: 500 } }
+      ];
       
-      // Data histórica de 3 anos atrás para garantir busca completa
-      const historicalDate = new Date();
-      historicalDate.setFullYear(historicalDate.getFullYear() - 3);
-      const historicalTimestamp = Math.floor(historicalDate.getTime() / 1000); // Unix timestamp
+      console.log('[LN Markets API] 🎯 EXECUTANDO MÚLTIPLAS ESTRATÉGIAS DE BUSCA');
       
-      console.log('[LN Markets API] Parâmetros de busca intensificada:', {
-        maxPages,
-        limitPerPage: limit,
-        historicalDate: historicalDate.toISOString(),
-        historicalTimestamp
-      });
-      
-      while (hasMoreData && pageCount < maxPages) {
-        pageCount++;
-        console.log(`[LN Markets API] 📄 Página ${pageCount} - Buscando depósitos (offset: ${currentOffset}, limit: ${limit})`);
+      for (const strategy of strategies) {
+        console.log(`[LN Markets API] 🚀 ${strategy.name}`);
+        console.log(`[LN Markets API] Parâmetros:`, strategy.params);
         
         try {
-          // Fazer requisição com paginação e parâmetros de data
-          const pageResult = await this.client.userDepositHistory({
-            limit,
-            offset: currentOffset,
-            from: historicalTimestamp // Buscar desde data histórica
-          });
+          let strategyDeposits: LNMarketsDeposit[] = [];
           
-          console.log(`[LN Markets API] Página ${pageCount} - Resultado:`, {
-            hasData: !!pageResult,
-            isArray: Array.isArray(pageResult),
-            length: Array.isArray(pageResult) ? pageResult.length : 0,
-            totalColetados: allDeposits.length
-          });
-          
-          if (!pageResult || !Array.isArray(pageResult) || pageResult.length === 0) {
-            console.log(`[LN Markets API] Página ${pageCount} - Nenhum depósito encontrado, finalizando busca`);
-            hasMoreData = false;
-            break;
-          }
-          
-          // Adicionar depósitos únicos (evitar duplicatas)
-          const newDeposits = pageResult.filter(deposit => 
-            !allDeposits.some(existing => existing.id === deposit.id)
-          );
-          
-          allDeposits.push(...newDeposits);
-          
-          console.log(`[LN Markets API] Página ${pageCount} - Depósitos processados:`, {
-            novosDepósitos: newDeposits.length,
-            totalAcumulado: allDeposits.length,
-            temMaisDados: pageResult.length === limit
-          });
-          
-          // Log detalhado dos primeiros depósitos da página para debug
-          if (pageCount <= 2) {
-            pageResult.slice(0, 3).forEach((deposit, index) => {
-              console.log(`[LN Markets API] Página ${pageCount} - Depósito ${index + 1}:`, {
-                id: deposit.id,
-                amount: deposit.amount,
-                status: deposit.status,
-                created_at: deposit.created_at,
-                timestamp: deposit.timestamp
-              });
+          if (strategy.name.includes('ESTRATÉGIA 4')) {
+            // Estratégia paginada especial - múltiplas páginas
+            let currentOffset = 0;
+            let hasMoreData = true;
+            let pageCount = 0;
+            const maxPages = 100; // Aumentado para 100 páginas
+            
+            while (hasMoreData && pageCount < maxPages) {
+              pageCount++;
+              console.log(`[LN Markets API] 📄 ${strategy.name} - Página ${pageCount} (offset: ${currentOffset})`);
+              
+              try {
+                const pageResult = await this.client.userDepositHistory({
+                  limit: 100,
+                  offset: currentOffset
+                  // SEM parâmetro 'from' para não filtrar por data
+                });
+                
+                console.log(`[LN Markets API] Página ${pageCount} resultado:`, {
+                  hasData: !!pageResult,
+                  isArray: Array.isArray(pageResult),
+                  length: Array.isArray(pageResult) ? pageResult.length : 0
+                });
+                
+                if (!pageResult || !Array.isArray(pageResult) || pageResult.length === 0) {
+                  console.log(`[LN Markets API] Página ${pageCount} - Sem dados, finalizando estratégia`);
+                  hasMoreData = false;
+                  break;
+                }
+                
+                strategyDeposits.push(...pageResult);
+                
+                // Log dos primeiros depósitos da página
+                if (pageCount <= 3) {
+                  pageResult.slice(0, 2).forEach((deposit, index) => {
+                    console.log(`[LN Markets API] Página ${pageCount} - Sample ${index + 1}:`, {
+                      id: deposit.id,
+                      amount: deposit.amount,
+                      status: deposit.status,
+                      created_at: deposit.created_at,
+                      timestamp: deposit.timestamp
+                    });
+                  });
+                }
+                
+                if (pageResult.length < 100) {
+                  console.log(`[LN Markets API] Página ${pageCount} - Menos que 100 resultados (${pageResult.length}), finalizando`);
+                  hasMoreData = false;
+                } else {
+                  currentOffset += 100;
+                }
+                
+                // Delay entre páginas
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+              } catch (pageError: any) {
+                console.error(`[LN Markets API] Erro na página ${pageCount}:`, pageError);
+                hasMoreData = false;
+              }
+            }
+            
+            console.log(`[LN Markets API] ${strategy.name} CONCLUÍDA:`, {
+              páginasTotais: pageCount,
+              depósitosEncontrados: strategyDeposits.length
+            });
+            
+          } else {
+            // Estratégias diretas
+            const result = await this.client.userDepositHistory(strategy.params);
+            
+            if (result && Array.isArray(result)) {
+              strategyDeposits = result;
+            }
+            
+            console.log(`[LN Markets API] ${strategy.name} resultado:`, {
+              hasData: !!result,
+              isArray: Array.isArray(result),
+              length: Array.isArray(result) ? result.length : 0
             });
           }
           
-          // Verificar se há mais dados
-          if (pageResult.length < limit) {
-            console.log(`[LN Markets API] Página ${pageCount} - Menos resultados que o limite (${pageResult.length} < ${limit}), finalizando`);
-            hasMoreData = false;
-          } else {
-            currentOffset += limit;
+          // Adicionar novos depósitos únicos
+          const uniqueNewDeposits = strategyDeposits.filter(deposit => 
+            !allDeposits.some(existing => existing.id === deposit.id)
+          );
+          
+          allDeposits.push(...uniqueNewDeposits);
+          
+          console.log(`[LN Markets API] ${strategy.name} - Novos depósitos únicos adicionados:`, {
+            novos: uniqueNewDeposits.length,
+            totalAcumulado: allDeposits.length
+          });
+          
+          // Log dos depósitos mais antigos encontrados nesta estratégia
+          if (uniqueNewDeposits.length > 0) {
+            const sortedByDate = uniqueNewDeposits.sort((a, b) => {
+              const dateA = new Date(a.created_at || a.timestamp || 0).getTime();
+              const dateB = new Date(b.created_at || b.timestamp || 0).getTime();
+              return dateA - dateB;
+            });
+            
+            console.log(`[LN Markets API] ${strategy.name} - Depósito mais antigo desta estratégia:`, {
+              id: sortedByDate[0]?.id,
+              amount: sortedByDate[0]?.amount,
+              status: sortedByDate[0]?.status,
+              created_at: sortedByDate[0]?.created_at,
+              timestamp: sortedByDate[0]?.timestamp
+            });
           }
           
-        } catch (pageError: any) {
-          console.error(`[LN Markets API] Erro na página ${pageCount}:`, pageError);
+          // Delay entre estratégias
+          await new Promise(resolve => setTimeout(resolve, 500));
           
-          // Se for erro 404 ou similar, pode indicar fim dos dados
-          if (pageError.response?.status === 404 || pageError.message?.includes('No more data')) {
-            console.log(`[LN Markets API] Fim dos dados detectado na página ${pageCount}`);
-            hasMoreData = false;
-          } else {
-            // Para outros erros, re-lançar
-            throw pageError;
-          }
-        }
-        
-        // Pequeno delay entre requisições para evitar rate limiting
-        if (hasMoreData) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (strategyError: any) {
+          console.error(`[LN Markets API] Erro na ${strategy.name}:`, strategyError);
+          // Continuar com próxima estratégia
         }
       }
       
-      // Log final detalhado
-      console.log('[LN Markets API] 🎯 BUSCA INTENSIFICADA CONCLUÍDA:', {
-        totalDepósitos: allDeposits.length,
-        páginasPercorridas: pageCount,
-        atingiuLimiteSegurança: pageCount >= maxPages,
-        dataInícioBusca: historicalDate.toISOString(),
-        statusDistribution: allDeposits.reduce((acc, d) => {
-          acc[d.status] = (acc[d.status] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        primeirosDepósitos: allDeposits.slice(0, 3).map(d => ({
-          id: d.id,
-          amount: d.amount,
-          status: d.status,
-          created_at: d.created_at
-        })),
-        últimosDepósitos: allDeposits.slice(-3).map(d => ({
-          id: d.id,
-          amount: d.amount,
-          status: d.status,
-          created_at: d.created_at
-        }))
+      // ANÁLISE FINAL SUPER DETALHADA
+      console.log('[LN Markets API] 🎯 BUSCA SUPER INTENSIFICADA CONCLUÍDA');
+      console.log('[LN Markets API] 📊 ESTATÍSTICAS FINAIS:', {
+        totalDepósitosÚnicos: allDeposits.length,
+        estratégiasExecutadas: strategies.length
       });
       
-      return {
-        success: true,
-        data: allDeposits,
-      };
+      if (allDeposits.length > 0) {
+        // Ordenar todos os depósitos por data (do mais antigo ao mais recente)
+        const sortedAllDeposits = allDeposits.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.timestamp || 0).getTime();
+          const dateB = new Date(b.created_at || b.timestamp || 0).getTime();
+          return dateA - dateB;
+        });
+        
+        console.log('[LN Markets API] 📅 ANÁLISE CRONOLÓGICA COMPLETA:');
+        console.log('[LN Markets API] 🥇 DEPÓSITO MAIS ANTIGO ENCONTRADO:', {
+          id: sortedAllDeposits[0]?.id,
+          amount: sortedAllDeposits[0]?.amount,
+          status: sortedAllDeposits[0]?.status,
+          created_at: sortedAllDeposits[0]?.created_at,
+          timestamp: sortedAllDeposits[0]?.timestamp,
+          dataFormatada: sortedAllDeposits[0]?.created_at ? new Date(sortedAllDeposits[0].created_at).toLocaleString('pt-BR') : 'N/A'
+        });
+        
+        console.log('[LN Markets API] 🥈 SEGUNDO MAIS ANTIGO:', {
+          id: sortedAllDeposits[1]?.id,
+          amount: sortedAllDeposits[1]?.amount,
+          status: sortedAllDeposits[1]?.status,
+          created_at: sortedAllDeposits[1]?.created_at,
+          dataFormatada: sortedAllDeposits[1]?.created_at ? new Date(sortedAllDeposits[1].created_at).toLocaleString('pt-BR') : 'N/A'
+        });
+        
+        console.log('[LN Markets API] 🥉 TERCEIRO MAIS ANTIGO:', {
+          id: sortedAllDeposits[2]?.id,
+          amount: sortedAllDeposits[2]?.amount,
+          status: sortedAllDeposits[2]?.status,
+          created_at: sortedAllDeposits[2]?.created_at,
+          dataFormatada: sortedAllDeposits[2]?.created_at ? new Date(sortedAllDeposits[2].created_at).toLocaleString('pt-BR') : 'N/A'
+        });
+        
+        console.log('[LN Markets API] 🆕 DEPÓSITO MAIS RECENTE:', {
+          id: sortedAllDeposits[sortedAllDeposits.length - 1]?.id,
+          amount: sortedAllDeposits[sortedAllDeposits.length - 1]?.amount,
+          status: sortedAllDeposits[sortedAllDeposits.length - 1]?.status,
+          created_at: sortedAllDeposits[sortedAllDeposits.length - 1]?.created_at,
+          dataFormatada: sortedAllDeposits[sortedAllDeposits.length - 1]?.created_at ? new Date(sortedAllDeposits[sortedAllDeposits.length - 1].created_at).toLocaleString('pt-BR') : 'N/A'
+        });
+        
+        // Estatísticas de status
+        const statusDistribution = sortedAllDeposits.reduce((acc, d) => {
+          acc[d.status] = (acc[d.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        console.log('[LN Markets API] 📈 DISTRIBUIÇÃO DE STATUS:', statusDistribution);
+        
+        // Análise temporal
+        const dateRange = {
+          maisAntigo: sortedAllDeposits[0]?.created_at,
+          maisRecente: sortedAllDeposits[sortedAllDeposits.length - 1]?.created_at
+        };
+        
+        if (dateRange.maisAntigo && dateRange.maisRecente) {
+          const diasSpan = Math.floor((new Date(dateRange.maisRecente).getTime() - new Date(dateRange.maisAntigo).getTime()) / (1000 * 60 * 60 * 24));
+          console.log('[LN Markets API] ⏱️ INTERVALO TEMPORAL:', {
+            de: new Date(dateRange.maisAntigo).toLocaleString('pt-BR'),
+            até: new Date(dateRange.maisRecente).toLocaleString('pt-BR'),
+            diasDeIntervalo: diasSpan
+          });
+        }
+        
+        return {
+          success: true,
+          data: sortedAllDeposits, // Retornar ordenado cronologicamente
+        };
+      } else {
+        console.log('[LN Markets API] ⚠️ NENHUM DEPÓSITO ENCONTRADO EM NENHUMA ESTRATÉGIA');
+        return {
+          success: true,
+          data: [],
+        };
+      }
       
     } catch (error: any) {
-      console.error('[LN Markets API] ❌ ERRO NA BUSCA INTENSIFICADA:', error);
+      console.error('[LN Markets API] ❌ ERRO NA BUSCA SUPER INTENSIFICADA:', error);
       
-      // Fallback para método simples se a busca intensificada falhar
+      // Fallback para método simples
       console.log('[LN Markets API] 🔄 Tentando busca simples como fallback...');
       return this.executeWithErrorHandling(
         () => this.client.userDepositHistory(),
@@ -325,6 +420,152 @@ class LNMarketsClient {
       () => this.client.userGet(),
       'getUserInfo'
     );
+  }
+
+  /**
+   * Método de DEBUG para investigar endpoints e descobrir depósitos perdidos
+   * Testa diferentes métodos e endpoints disponíveis na API
+   */
+  async debugDepositEndpoints(): Promise<LNMarketsApiResponse<any>> {
+    console.log('[LN Markets API DEBUG] 🔬 INVESTIGAÇÃO DE ENDPOINTS PARA DEPÓSITOS PERDIDOS');
+    
+    const debugResults: any = {
+      endpoints: {},
+      methods: {},
+      summary: {}
+    };
+    
+    try {
+      // Teste 1: Método padrão sem parâmetros
+      console.log('[DEBUG] 🧪 Teste 1: userDepositHistory() sem parâmetros');
+      try {
+        const result1 = await this.client.userDepositHistory();
+        debugResults.endpoints.default = {
+          success: true,
+          count: Array.isArray(result1) ? result1.length : 0,
+          data: result1
+        };
+        console.log('[DEBUG] Resultado 1:', { hasData: !!result1, length: Array.isArray(result1) ? result1.length : 0 });
+      } catch (error) {
+        debugResults.endpoints.default = { success: false, error: error.message };
+        console.error('[DEBUG] Erro teste 1:', error);
+      }
+      
+      // Teste 2: Com limite muito alto
+      console.log('[DEBUG] 🧪 Teste 2: userDepositHistory() com limit 10000');
+      try {
+        const result2 = await this.client.userDepositHistory({ limit: 10000 });
+        debugResults.endpoints.highLimit = {
+          success: true,
+          count: Array.isArray(result2) ? result2.length : 0,
+          data: result2
+        };
+        console.log('[DEBUG] Resultado 2:', { hasData: !!result2, length: Array.isArray(result2) ? result2.length : 0 });
+      } catch (error) {
+        debugResults.endpoints.highLimit = { success: false, error: error.message };
+        console.error('[DEBUG] Erro teste 2:', error);
+      }
+      
+      // Teste 3: Diferentes offsets
+      console.log('[DEBUG] 🧪 Teste 3: userDepositHistory() com diferentes offsets');
+      const offsetResults = [];
+      for (let offset = 0; offset <= 500; offset += 100) {
+        try {
+          const result = await this.client.userDepositHistory({ limit: 100, offset });
+          offsetResults.push({
+            offset,
+            count: Array.isArray(result) ? result.length : 0,
+            hasData: Array.isArray(result) && result.length > 0
+          });
+          console.log(`[DEBUG] Offset ${offset}: ${Array.isArray(result) ? result.length : 0} depósitos`);
+          
+          if (!Array.isArray(result) || result.length === 0) {
+            console.log(`[DEBUG] Offset ${offset}: Fim dos dados detectado`);
+            break;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`[DEBUG] Erro offset ${offset}:`, error);
+          break;
+        }
+      }
+      debugResults.endpoints.offsetScan = offsetResults;
+      
+      // Teste 4: Com timestamp muito antigo (10 anos atrás)
+      console.log('[DEBUG] 🧪 Teste 4: userDepositHistory() com timestamp 10 anos atrás');
+      try {
+        const ancient = Math.floor(new Date(Date.now() - 10 * 365 * 24 * 60 * 60 * 1000).getTime() / 1000);
+        const result4 = await this.client.userDepositHistory({ limit: 1000, from: ancient });
+        debugResults.endpoints.ancientTimestamp = {
+          success: true,
+          timestamp: ancient,
+          count: Array.isArray(result4) ? result4.length : 0,
+          data: result4
+        };
+        console.log('[DEBUG] Resultado 4:', { timestamp: ancient, hasData: !!result4, length: Array.isArray(result4) ? result4.length : 0 });
+      } catch (error) {
+        debugResults.endpoints.ancientTimestamp = { success: false, error: error.message };
+        console.error('[DEBUG] Erro teste 4:', error);
+      }
+      
+      // Teste 5: Buscar informações do usuário para ver outros endpoints disponíveis
+      console.log('[DEBUG] 🧪 Teste 5: userGet() para verificar informações e possíveis endpoints');
+      try {
+        const userInfo = await this.client.userGet();
+        debugResults.methods.userInfo = {
+          success: true,
+          data: userInfo
+        };
+        console.log('[DEBUG] Informações do usuário obtidas:', typeof userInfo, Object.keys(userInfo || {}));
+      } catch (error) {
+        debugResults.methods.userInfo = { success: false, error: error.message };
+        console.error('[DEBUG] Erro ao obter info do usuário:', error);
+      }
+      
+      // Teste 6: Verificar se existem outros métodos relacionados a depósitos
+      console.log('[DEBUG] 🧪 Teste 6: Investigar métodos disponíveis no cliente');
+      const availableMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(this.client))
+        .filter(prop => typeof this.client[prop] === 'function')
+        .filter(prop => prop.toLowerCase().includes('deposit') || prop.toLowerCase().includes('history') || prop.toLowerCase().includes('transaction'));
+      
+      debugResults.methods.available = availableMethods;
+      console.log('[DEBUG] Métodos relacionados a depósitos/histórico encontrados:', availableMethods);
+      
+      // Resumo comparativo
+      console.log('[DEBUG] 📊 ANÁLISE COMPARATIVA DOS RESULTADOS:');
+      const counts = {
+        default: debugResults.endpoints.default?.count || 0,
+        highLimit: debugResults.endpoints.highLimit?.count || 0,
+        maxOffset: Math.max(...(debugResults.endpoints.offsetScan?.map(r => r.count) || [0])),
+        ancient: debugResults.endpoints.ancientTimestamp?.count || 0
+      };
+      
+      const maxCount = Math.max(...Object.values(counts));
+      const bestMethod = Object.keys(counts).find(key => counts[key] === maxCount);
+      
+      debugResults.summary = {
+        counts,
+        maxCount,
+        bestMethod,
+        recommendation: maxCount > 0 ? `Melhor método: ${bestMethod} com ${maxCount} depósitos` : 'Nenhum método retornou depósitos'
+      };
+      
+      console.log('[DEBUG] 🎯 RESUMO:', debugResults.summary);
+      
+      return {
+        success: true,
+        data: debugResults
+      };
+      
+    } catch (error: any) {
+      console.error('[DEBUG] ❌ Erro geral na investigação:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: debugResults
+      };
+    }
   }
 }
 

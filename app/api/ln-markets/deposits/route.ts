@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     console.log('[API /api/ln-markets/deposits] Iniciando requisição');
     
     const body = await request.json();
-    const { credentials } = body;
+    const { credentials, debug } = body;
 
     console.log('[API /api/ln-markets/deposits] Dados recebidos:', {
       hasCredentials: !!credentials,
@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
       hasSecret: !!credentials?.secret,
       hasPassphrase: !!credentials?.passphrase,
       network: credentials?.network,
-      isConfigured: credentials?.isConfigured
+      isConfigured: credentials?.isConfigured,
+      debugMode: !!debug
     });
 
     if (!credentials) {
@@ -48,8 +49,22 @@ export async function POST(request: NextRequest) {
     // Criar cliente LN Markets
     const client = createLNMarketsClient(credentials);
     
-    // Buscar depósitos usando o método correto da biblioteca oficial
-    console.log('[API /api/ln-markets/deposits] Buscando depósitos...');
+    // MODO DEBUG: Investigar endpoints e métodos
+    if (debug) {
+      console.log('[API /api/ln-markets/deposits] 🔬 EXECUTANDO MODO DEBUG - INVESTIGAÇÃO DE DEPÓSITOS PERDIDOS');
+      const debugResult = await client.debugDepositEndpoints();
+      
+      return NextResponse.json({
+        success: true,
+        debug: true,
+        data: debugResult.data || [],
+        debugResults: debugResult,
+        message: 'Investigação de debug concluída - verifique os logs do console'
+      });
+    }
+    
+    // Buscar depósitos usando a busca super intensificada
+    console.log('[API /api/ln-markets/deposits] Buscando depósitos com busca super intensificada...');
     const result = await client.getDeposits();
 
     if (!result.success) {
@@ -65,6 +80,7 @@ export async function POST(request: NextRequest) {
       isArray: Array.isArray(result.data),
       length: Array.isArray(result.data) ? result.data.length : 0,
       firstDeposit: Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : null,
+      lastDeposit: Array.isArray(result.data) && result.data.length > 0 ? result.data[result.data.length - 1] : null,
       allStatuses: Array.isArray(result.data) ? result.data.map(d => d.status) : [],
       statusDistribution: Array.isArray(result.data) ? 
         result.data.reduce((acc, d) => {
@@ -76,7 +92,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: result.data || [],
-      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0)
+      hasData: !!(result.data && Array.isArray(result.data) && result.data.length > 0),
+      superIntensiveSearch: true,
+      message: `Busca super intensificada concluída: ${Array.isArray(result.data) ? result.data.length : 0} depósitos encontrados`
     });
 
   } catch (error: any) {

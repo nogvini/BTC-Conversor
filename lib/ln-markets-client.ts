@@ -162,10 +162,17 @@ export async function fetchLNMarketsTrades(userEmail: string, configId: string, 
 
 /**
  * Busca depósitos da LN Markets via API route usando configuração específica
+ * @param userEmail - Email do usuário
+ * @param configId - ID da configuração
+ * @param debug - Modo debug para investigar depósitos perdidos
  */
-export async function fetchLNMarketsDeposits(userEmail: string, configId: string) {
+export async function fetchLNMarketsDeposits(userEmail: string, configId: string, debug?: boolean) {
   try {
-    console.log('[LN Markets Client] Iniciando busca de depósitos...', { userEmail: userEmail.split('@')[0] + '@***', configId });
+    console.log('[LN Markets Client] Iniciando busca de depósitos...', { 
+      userEmail: userEmail.split('@')[0] + '@***', 
+      configId,
+      debugMode: !!debug
+    });
     
     // Buscar as credenciais no localStorage (client-side)
     const multipleConfigs = retrieveLNMarketsMultipleConfigs(userEmail);
@@ -186,7 +193,8 @@ export async function fetchLNMarketsDeposits(userEmail: string, configId: string
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        credentials: config.credentials // Enviar credenciais completas
+        credentials: config.credentials, // Enviar credenciais completas
+        debug: debug // Enviar flag de debug
       }),
     });
 
@@ -207,11 +215,23 @@ export async function fetchLNMarketsDeposits(userEmail: string, configId: string
     }
 
     const data = await response.json();
-    console.log('[LN Markets Client] Dados de depósitos obtidos:', { 
-      success: data.success, 
-      hasData: !!data.data,
-      dataLength: data.data?.length 
-    });
+    
+    if (debug) {
+      console.log('[LN Markets Client] 🔬 RESULTADO DEBUG:', {
+        success: data.success,
+        hasData: !!data.data,
+        hasDebugResults: !!data.debugResults,
+        message: data.message
+      });
+    } else {
+      console.log('[LN Markets Client] Dados de depósitos obtidos:', { 
+        success: data.success, 
+        hasData: !!data.data,
+        dataLength: data.data?.length,
+        superIntensiveSearch: data.superIntensiveSearch,
+        message: data.message
+      });
+    }
 
     return data;
   } catch (error: any) {

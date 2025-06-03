@@ -3245,6 +3245,61 @@ export default function ProfitCalculator({
     states.setCurrentRates({ btcToUsd, brlToUsd });
   }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
 
+  const handleDebugDeposits = async () => {
+    console.log('[DEBUG] Iniciando investigação de depósitos perdidos');
+    
+    const config = getCurrentImportConfig();
+    
+    if (!config || !currentActiveReportObjectFromHook || !user?.email) {
+      toast({
+        title: "⚠️ Configuração incompleta",
+        description: "Configure as credenciais da API antes de investigar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "🔬 Investigação iniciada",
+        description: "Executando debug de depósitos perdidos...",
+      });
+
+      // Usar a função de debug
+      const response = await fetchLNMarketsDeposits(user.email, config.id, true);
+
+      console.log('[DEBUG] Resposta da investigação:', response);
+
+      if (response.success && response.debugResults) {
+        const debugData = response.debugResults.data;
+        
+        toast({
+          title: "🎯 Investigação concluída",
+          description: `Debug executado com sucesso. Verifique o console para detalhes.`,
+        });
+
+        console.log('[DEBUG] 📊 RESUMO DA INVESTIGAÇÃO:');
+        console.log('[DEBUG] Melhor método:', debugData?.summary?.bestMethod);
+        console.log('[DEBUG] Máximo de depósitos encontrados:', debugData?.summary?.maxCount);
+        console.log('[DEBUG] Contagens por método:', debugData?.summary?.counts);
+        console.log('[DEBUG] Recomendação:', debugData?.summary?.recommendation);
+        
+      } else {
+        throw new Error(response.error || 'Erro na investigação de debug');
+      }
+
+    } catch (error: any) {
+      console.error('[DEBUG] Erro na investigação:', error);
+      toast({
+        title: "❌ Erro na investigação",
+        description: error.message || 'Erro ao executar debug',
+        variant: "destructive",
+      });
+    }
+  };
+
+  const analyzeDepositStatuses = () => {};
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
