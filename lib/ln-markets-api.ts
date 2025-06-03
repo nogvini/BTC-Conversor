@@ -150,14 +150,150 @@ class LNMarketsClient {
   }
 
   /**
-   * Busca histórico de depósitos
+   * Busca histórico de depósitos com busca intensificada
    * Usando método da biblioteca oficial - GET /v2/user/deposit
+   * Implementa paginação e busca histórica ampliada
    */
   async getDeposits(): Promise<LNMarketsApiResponse<LNMarketsDeposit[]>> {
-    return this.executeWithErrorHandling(
-      () => this.client.userDepositHistory(),
-      'getDeposits'
-    );
+    console.log('[LN Markets API] 🔍 BUSCA INTENSIFICADA DE DEPÓSITOS INICIADA');
+    
+    try {
+      const allDeposits: LNMarketsDeposit[] = [];
+      let currentOffset = 0;
+      const limit = 100; // Máximo por requisição
+      let hasMoreData = true;
+      let pageCount = 0;
+      const maxPages = 50; // Limite de segurança
+      
+      // Data histórica de 3 anos atrás para garantir busca completa
+      const historicalDate = new Date();
+      historicalDate.setFullYear(historicalDate.getFullYear() - 3);
+      const historicalTimestamp = Math.floor(historicalDate.getTime() / 1000); // Unix timestamp
+      
+      console.log('[LN Markets API] Parâmetros de busca intensificada:', {
+        maxPages,
+        limitPerPage: limit,
+        historicalDate: historicalDate.toISOString(),
+        historicalTimestamp
+      });
+      
+      while (hasMoreData && pageCount < maxPages) {
+        pageCount++;
+        console.log(`[LN Markets API] 📄 Página ${pageCount} - Buscando depósitos (offset: ${currentOffset}, limit: ${limit})`);
+        
+        try {
+          // Fazer requisição com paginação e parâmetros de data
+          const pageResult = await this.client.userDepositHistory({
+            limit,
+            offset: currentOffset,
+            from: historicalTimestamp // Buscar desde data histórica
+          });
+          
+          console.log(`[LN Markets API] Página ${pageCount} - Resultado:`, {
+            hasData: !!pageResult,
+            isArray: Array.isArray(pageResult),
+            length: Array.isArray(pageResult) ? pageResult.length : 0,
+            totalColetados: allDeposits.length
+          });
+          
+          if (!pageResult || !Array.isArray(pageResult) || pageResult.length === 0) {
+            console.log(`[LN Markets API] Página ${pageCount} - Nenhum depósito encontrado, finalizando busca`);
+            hasMoreData = false;
+            break;
+          }
+          
+          // Adicionar depósitos únicos (evitar duplicatas)
+          const newDeposits = pageResult.filter(deposit => 
+            !allDeposits.some(existing => existing.id === deposit.id)
+          );
+          
+          allDeposits.push(...newDeposits);
+          
+          console.log(`[LN Markets API] Página ${pageCount} - Depósitos processados:`, {
+            novosDepósitos: newDeposits.length,
+            totalAcumulado: allDeposits.length,
+            temMaisDados: pageResult.length === limit
+          });
+          
+          // Log detalhado dos primeiros depósitos da página para debug
+          if (pageCount <= 2) {
+            pageResult.slice(0, 3).forEach((deposit, index) => {
+              console.log(`[LN Markets API] Página ${pageCount} - Depósito ${index + 1}:`, {
+                id: deposit.id,
+                amount: deposit.amount,
+                status: deposit.status,
+                created_at: deposit.created_at,
+                timestamp: deposit.timestamp
+              });
+            });
+          }
+          
+          // Verificar se há mais dados
+          if (pageResult.length < limit) {
+            console.log(`[LN Markets API] Página ${pageCount} - Menos resultados que o limite (${pageResult.length} < ${limit}), finalizando`);
+            hasMoreData = false;
+          } else {
+            currentOffset += limit;
+          }
+          
+        } catch (pageError: any) {
+          console.error(`[LN Markets API] Erro na página ${pageCount}:`, pageError);
+          
+          // Se for erro 404 ou similar, pode indicar fim dos dados
+          if (pageError.response?.status === 404 || pageError.message?.includes('No more data')) {
+            console.log(`[LN Markets API] Fim dos dados detectado na página ${pageCount}`);
+            hasMoreData = false;
+          } else {
+            // Para outros erros, re-lançar
+            throw pageError;
+          }
+        }
+        
+        // Pequeno delay entre requisições para evitar rate limiting
+        if (hasMoreData) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      // Log final detalhado
+      console.log('[LN Markets API] 🎯 BUSCA INTENSIFICADA CONCLUÍDA:', {
+        totalDepósitos: allDeposits.length,
+        páginasPercorridas: pageCount,
+        atingiuLimiteSegurança: pageCount >= maxPages,
+        dataInícioBusca: historicalDate.toISOString(),
+        statusDistribution: allDeposits.reduce((acc, d) => {
+          acc[d.status] = (acc[d.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        primeirosDepósitos: allDeposits.slice(0, 3).map(d => ({
+          id: d.id,
+          amount: d.amount,
+          status: d.status,
+          created_at: d.created_at
+        })),
+        últimosDepósitos: allDeposits.slice(-3).map(d => ({
+          id: d.id,
+          amount: d.amount,
+          status: d.status,
+          created_at: d.created_at
+        }))
+      });
+      
+      return {
+        success: true,
+        data: allDeposits,
+      };
+      
+    } catch (error: any) {
+      console.error('[LN Markets API] ❌ ERRO NA BUSCA INTENSIFICADA:', error);
+      
+      // Fallback para método simples se a busca intensificada falhar
+      console.log('[LN Markets API] 🔄 Tentando busca simples como fallback...');
+      return this.executeWithErrorHandling(
+        () => this.client.userDepositHistory(),
+        'getDeposits (fallback simples)'
+      );
+    }
   }
 
   /**

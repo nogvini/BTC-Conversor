@@ -1570,6 +1570,19 @@ export default function ProfitCalculator({
     }
 
     setIsImportingDeposits(true);
+    
+    // Mostrar progresso inicial da busca intensificada
+    setImportProgress(prev => ({
+      ...prev,
+      deposits: { 
+        current: 0, 
+        total: 0, 
+        percentage: 0, 
+        status: 'loading', 
+        message: '🔍 Iniciando busca intensificada de depósitos históricos...' 
+      }
+    }));
+
     let imported = 0;
     let duplicated = 0;
     let errors = 0;
@@ -1586,6 +1599,18 @@ export default function ProfitCalculator({
         isConfigured: config.credentials.isConfigured,
         userEmail: user.email.split('@')[0] + '@***'
       });
+
+      // Atualizar status para busca
+      setImportProgress(prev => ({
+        ...prev,
+        deposits: { 
+          current: 0, 
+          total: 0, 
+          percentage: 0, 
+          status: 'loading', 
+          message: '📡 Conectando com LN Markets - Busca intensificada ativa...' 
+        }
+      }));
 
       // Usar a função correta com userEmail e configId
       const response = await fetchLNMarketsDeposits(user.email, config.id);
@@ -1605,9 +1630,20 @@ export default function ProfitCalculator({
       const deposits = response.data;
       const totalDeposits = deposits.length;
 
-      console.log('[handleImportDeposits] Processando depósitos:', {
+      console.log('[handleImportDeposits] 🎯 BUSCA INTENSIFICADA CONCLUÍDA - Depósitos encontrados:', {
         total: totalDeposits,
-        amostra: deposits.slice(0, 3) // Apenas 3 primeiros para não sobrecarregar logs
+        primeiroDepósito: deposits[0] ? {
+          id: deposits[0].id,
+          amount: deposits[0].amount,
+          status: deposits[0].status,
+          created_at: deposits[0].created_at
+        } : null,
+        últimoDepósito: deposits[totalDeposits - 1] ? {
+          id: deposits[totalDeposits - 1].id,
+          amount: deposits[totalDeposits - 1].amount,
+          status: deposits[totalDeposits - 1].status,
+          created_at: deposits[totalDeposits - 1].created_at
+        } : null
       });
 
       // ADICIONADO: Log detalhado dos primeiros depósitos RAW
@@ -1633,9 +1669,7 @@ export default function ProfitCalculator({
         });
       });
 
-      // ... existing code ...
-
-      // Atualizar progresso inicial
+      // Atualizar progresso inicial para processamento
       setImportProgress(prev => ({
         ...prev,
         deposits: { 
@@ -1643,7 +1677,7 @@ export default function ProfitCalculator({
           total: totalDeposits, 
           percentage: 0, 
           status: 'loading', 
-          message: `Processando ${totalDeposits} depósitos...` 
+          message: `✅ ${totalDeposits} depósitos encontrados! Processando dados...` 
         }
       }));
 
