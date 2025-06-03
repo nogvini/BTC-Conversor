@@ -32,18 +32,8 @@ async function getBrowser() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-acceleration',
       '--disable-gpu',
-      '--disable-extensions',
-      '--disable-plugins',
-      '--disable-images', // Acelerar carregamento
-      '--disable-javascript', // Não precisamos de JS para PDF
-      '--run-all-compositor-stages-before-draw',
-      '--disable-background-timer-throttling',
-      '--disable-renderer-backgrounding',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-ipc-flooding-protection',
-      '--memory-pressure-off'
+      '--disable-extensions'
     ];
 
     const browser = await puppeteer.launch({
@@ -52,13 +42,7 @@ async function getBrowser() {
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
-      ignoreDefaultArgs: ['--disable-extensions'],
-      // CORREÇÃO: Configurações específicas para evitar "Target closed"
-      handleSIGINT: false,
-      handleSIGTERM: false,
-      handleSIGHUP: false,
-      dumpio: false, // Evitar logs desnecessários
-      pipe: false,   // Usar websocket em vez de pipe
+      // CORREÇÃO: Configurações simplificadas
       timeout: 30000 // Timeout para launch
     });
     
@@ -191,20 +175,8 @@ export async function POST(request: NextRequest) {
     // Criar página com configurações otimizadas
     page = await browser.newPage();
     
-    // CORREÇÃO: Configurar página para evitar problemas
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    // CORREÇÃO: Configuração simples e robusta da página
     await page.setViewport({ width: 1024, height: 768, deviceScaleFactor: 1 });
-    
-    // CORREÇÃO: Desabilitar recursos desnecessários
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['image', 'stylesheet', 'font', 'script'].includes(resourceType)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
 
     console.log('[PDF] Página configurada, carregando conteúdo HTML...');
 
@@ -216,8 +188,9 @@ export async function POST(request: NextRequest) {
     
     console.log('[PDF] Conteúdo carregado, aguardando estabilização...');
     
-    // CORREÇÃO: Aguardar um pouco para garantir que tudo foi renderizado
-    await page.waitForTimeout(2000);
+    // CORREÇÃO: Remover waitForTimeout que foi descontinuado
+    // Usar delay simples com Promise
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     console.log('[PDF] Gerando buffer do PDF...');
 
