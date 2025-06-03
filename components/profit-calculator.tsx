@@ -3623,6 +3623,142 @@ export default function ProfitCalculator({
     }
   };
 
+  // Função para debugar lógica de duplicatas incorreta
+  const debugDuplicateLogic = async () => {
+    console.log('[debugDuplicateLogic] 🔍 INVESTIGANDO LÓGICA DE DUPLICATAS');
+    
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "⚠️ Nenhum relatório ativo",
+        description: "Selecione um relatório para investigar duplicatas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    console.log('[debugDuplicateLogic] 📊 RELATÓRIO ATIVO:', {
+      id: currentActiveReportObjectFromHook.id,
+      name: currentActiveReportObjectFromHook.name,
+      totalInvestments: currentActiveReportObjectFromHook.investments?.length || 0
+    });
+
+    // Verificar se existe nos investimentos atuais
+    const existingInvestments = currentActiveReportObjectFromHook.investments || [];
+    console.log('[debugDuplicateLogic] 🔍 INVESTIGANDO INVESTIMENTOS EXISTENTES:');
+    
+    existingInvestments.forEach((inv, index) => {
+      console.log(`[debugDuplicateLogic] Investimento ${index + 1}:`, {
+        id: inv.id,
+        originalId: inv.originalId,
+        amount: inv.amount,
+        date: inv.date,
+        importedAt: inv.importedAt,
+        matches: inv.originalId === targetOriginalId
+      });
+    });
+
+    // Buscar especificamente pelo originalId problemático
+    const duplicateFound = existingInvestments.find(inv => inv.originalId === targetOriginalId);
+    
+    console.log('[debugDuplicateLogic] 🎯 RESULTADO DA BUSCA POR DUPLICATA:');
+    if (duplicateFound) {
+      console.log('[debugDuplicateLogic] ⚠️ DUPLICATA ENCONTRADA (INCORRETAMENTE?):', duplicateFound);
+      
+      // Verificar se é realmente o mesmo depósito ou um problema de ID
+      console.log('[debugDuplicateLogic] 🔬 ANÁLISE DETALHADA DA SUPOSTA DUPLICATA:', {
+        id: duplicateFound.id,
+        originalId: duplicateFound.originalId,
+        amount: duplicateFound.amount,
+        date: duplicateFound.date,
+        unit: duplicateFound.unit,
+        importedAt: duplicateFound.importedAt,
+        sourceConfigId: duplicateFound.sourceConfigId,
+        sourceConfigName: duplicateFound.sourceConfigName
+      });
+      
+      // Verificar se é exatamente o mesmo registro (mesmo timestamp de importação)
+      const sameAmount = Math.abs(duplicateFound.amount - 0.00113937) < 0.0000001;
+      const sameDate = duplicateFound.date === '2025-03-01T17:45:30.973Z';
+      
+      console.log('[debugDuplicateLogic] 🧪 COMPARAÇÃO DE DADOS:', {
+        valorIgual: sameAmount,
+        dataIgual: sameDate,
+        originalIdIgual: duplicateFound.originalId === targetOriginalId,
+        éMesmoRegistro: sameAmount && sameDate && duplicateFound.originalId === targetOriginalId
+      });
+      
+    } else {
+      console.log('[debugDuplicateLogic] ✅ NENHUMA DUPLICATA ENCONTRADA - DEVE SER BUG!');
+    }
+
+    // Testar a função addInvestment para ver por que ela detecta duplicata
+    console.log('[debugDuplicateLogic] 🧪 TESTANDO FUNÇÃO addInvestment...');
+    
+    const testInvestment = {
+      id: 'test_deposit_373e',
+      originalId: targetOriginalId,
+      date: '2025-03-01T17:45:30.973Z',
+      amount: 0.00113937,
+      unit: 'BTC',
+      importedAt: new Date().toISOString(),
+      sourceConfigId: 'test',
+      sourceConfigName: 'Test Config'
+    };
+    
+    // Simular adição para capturar a lógica
+    const addResult = addInvestment(testInvestment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+    console.log('[debugDuplicateLogic] 📊 RESULTADO DO TESTE DE ADIÇÃO:', addResult);
+
+    // Verificar todos os relatórios (não apenas o ativo) para ver se existe em outro lugar
+    console.log('[debugDuplicateLogic] 🔍 VERIFICANDO TODOS OS RELATÓRIOS...');
+    if (typeof window !== 'undefined' && user?.email) {
+      const allReportsKey = `reports_${user.email}`;
+      const allReportsData = localStorage.getItem(allReportsKey);
+      
+      if (allReportsData) {
+        try {
+          const allReports = JSON.parse(allReportsData);
+          let foundInOtherReport = false;
+          
+          allReports.forEach((report: any) => {
+            const hasDeposit = report.investments?.find((inv: any) => inv.originalId === targetOriginalId);
+            if (hasDeposit) {
+              console.log('[debugDuplicateLogic] 🚨 ENCONTRADO EM OUTRO RELATÓRIO:', {
+                reportId: report.id,
+                reportName: report.name,
+                investment: hasDeposit
+              });
+              foundInOtherReport = true;
+            }
+          });
+          
+          if (!foundInOtherReport) {
+            console.log('[debugDuplicateLogic] ✅ NÃO ENCONTRADO EM NENHUM RELATÓRIO - DEFINITIVAMENTE UM BUG!');
+          }
+        } catch (error) {
+          console.error('[debugDuplicateLogic] Erro ao verificar outros relatórios:', error);
+        }
+      }
+    }
+
+    toast({
+      title: "🔍 Debug de Duplicatas",
+      description: (
+        <div className="space-y-1">
+          <div>{duplicateFound ? '⚠️' : '✅'} {duplicateFound ? 'Duplicata detectada' : 'Nenhuma duplicata encontrada'}</div>
+          <div>📊 {existingInvestments.length} investimentos no relatório</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Verifique o console para análise completa
+          </div>
+        </div>
+      ),
+      variant: duplicateFound ? "destructive" : "default",
+      className: duplicateFound ? "border-red-500/50 bg-red-900/20" : "border-green-500/50 bg-green-900/20",
+    });
+  };
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -4121,6 +4257,17 @@ export default function ProfitCalculator({
                         className="w-full text-xs bg-yellow-900/20 border-yellow-700/50 hover:bg-yellow-800/30 text-yellow-400"
                       >
                         🔬 Debug Depósito 373e
+                      </Button>
+                      
+                      {/* Botão de debug da lógica de duplicatas */}
+                      <Button
+                        onClick={debugDuplicateLogic}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-red-900/20 border-red-700/50 hover:bg-red-800/30 text-red-400"
+                      >
+                        🚨 Debug Duplicatas
                       </Button>
                     </CardContent>
                   </Card>
