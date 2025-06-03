@@ -440,6 +440,10 @@ export default function ProfitCalculator({
     forceUpdateCount: 0
   });
 
+  // NOVO: Estado para controle de recarregamento do componente
+  const [componentKey, setComponentKey] = useState(0);
+  const [lastActiveReportId, setLastActiveReportId] = useState<string | null>(null);
+
   // Estados para diálogos de confirmação de exclusão em massa
   const [showConfirmDeleteInvestments, setShowConfirmDeleteInvestments] = useState(false);
   const [showConfirmDeleteProfits, setShowConfirmDeleteProfits] = useState(false);
@@ -461,6 +465,63 @@ export default function ProfitCalculator({
   // Determinar qual fonte de dados usar (props ou hook)
   const effectiveActiveReportId = activeReportData?.id || currentActiveReportObjectFromHook?.id;
   const effectiveActiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+
+  // NOVO: Effect para detectar mudança do relatório ativo e forçar recarregamento
+  useEffect(() => {
+    if (effectiveActiveReportId && effectiveActiveReportId !== lastActiveReportId) {
+      console.log('[ProfitCalculator] Relatório ativo mudou:', {
+        de: lastActiveReportId,
+        para: effectiveActiveReportId,
+        nomeRelatorio: effectiveActiveReport?.name
+      });
+
+      // Limpar todos os caches quando o relatório ativo mudar
+      chartDataCache.current.clear();
+      filteredDataCache.current.clear();
+      
+      // Forçar recarregamento do componente
+      setComponentKey(prev => prev + 1);
+      setLocalForceUpdate(prev => prev + 1);
+      
+      // Resetar estados de filtros e visualização para valores padrão
+      setHistoryFilterPeriod("3m");
+      setHistoryViewMode("active");
+      setHistoryActiveTab("overview");
+      setChartViewMode("active");
+      setChartDisplayUnit("btc");
+      setChartType("bar");
+      setChartTimeframe("monthly");
+      
+      // Atualizar estado de sincronização
+      setSyncState(prev => ({
+        ...prev,
+        lastUpdate: Date.now(),
+        isStale: false,
+        forceUpdateCount: prev.forceUpdateCount + 1
+      }));
+
+      // Atualizar o último relatório ativo
+      setLastActiveReportId(effectiveActiveReportId);
+
+      // Mostrar notificação de mudança
+      toast({
+        title: "Relatório alterado",
+        description: `Agora visualizando: ${effectiveActiveReport?.name || 'Relatório'}`,
+        duration: 3000,
+      });
+    }
+  }, [effectiveActiveReportId, lastActiveReportId, effectiveActiveReport?.name, toast]);
+
+  // NOVO: Effect de inicialização para definir o relatório ativo inicial
+  useEffect(() => {
+    if (effectiveActiveReportId && lastActiveReportId === null) {
+      setLastActiveReportId(effectiveActiveReportId);
+      console.log('[ProfitCalculator] Relatório ativo inicial definido:', {
+        reportId: effectiveActiveReportId,
+        reportName: effectiveActiveReport?.name
+      });
+    }
+  }, [effectiveActiveReportId, lastActiveReportId, effectiveActiveReport?.name]);
 
   // NOVO: Effect principal para sincronização de dados
   useEffect(() => {
