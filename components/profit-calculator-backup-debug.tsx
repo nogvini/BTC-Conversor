@@ -2431,6 +2431,15 @@ export default function ProfitCalculator({
 
   // Funções stub vazias para as funções removidas que são referenciadas na interface
   // Estas funções serão removidas junto com suas referências na interface em breve
+  const analyzeDepositStatuses = () => {};
+  const verifyImportIntegrity = () => {};
+  const testAddInvestment = () => {};
+  const debugTradesFromAPI = () => {};
+  const testTradeConversionAndSave = () => {};
+  const importTestedTrades = () => {};
+  const importTestedDeposits = () => {};
+  const debugWithdrawalsFromAPI = () => {};
+  const importTestedWithdrawals = () => {};
   
   // Stub melhorado da função antiga de monitoramento
   // Foi substituída por atualizações diretas ao estado de progresso
@@ -3293,6 +3302,691 @@ export default function ProfitCalculator({
     // Usar cotações passadas como props (fallback)
     states.setCurrentRates({ btcToUsd, brlToUsd });
   }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
+
+  const handleDebugDeposits = async () => {
+    console.log('[handleDebugDeposits] 🔬 INICIANDO DEBUG COMPLETO DE DEPÓSITOS');
+    
+    const config = getCurrentImportConfig();
+    if (!config || !user?.email) {
+      toast({
+        title: "⚠️ Configuração incompleta",
+        description: "Configure as credenciais da API antes de debugar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImportingDeposits(true);
+    
+    try {
+      // Buscar depósitos usando a busca super intensificada
+      console.log('[handleDebugDeposits] Executando busca super intensificada...');
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+
+      if (!response.success || !response.data) {
+        console.error('[handleDebugDeposits] Erro na busca:', response.error);
+        toast({
+          title: "❌ Erro na busca",
+          description: response.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const deposits = response.data;
+      console.log('[handleDebugDeposits] 🎯 DEPÓSITOS ENCONTRADOS:', deposits.length);
+      
+      // ANÁLISE DETALHADA DE CADA DEPÓSITO
+      console.log('[handleDebugDeposits] 📊 ANÁLISE DETALHADA DE TODOS OS DEPÓSITOS:');
+      
+      const analysisResults = deposits.map((deposit: any, index: number) => {
+        console.log(`\n[handleDebugDeposits] 🔍 DEPÓSITO ${index + 1}:`);
+        console.log('[handleDebugDeposits] Dados RAW:', {
+          id: deposit.id,
+          uuid: deposit.uuid,
+          amount: deposit.amount,
+          type: deposit.type,
+          deposit_type: deposit.deposit_type,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          updated_at: deposit.updated_at,
+          confirmed_at: deposit.confirmed_at,
+          timestamp: deposit.timestamp,
+          ts: deposit.ts,
+          isConfirmed: deposit.isConfirmed,
+          is_confirmed: deposit.is_confirmed,
+          success: deposit.success,
+          tx_id: deposit.tx_id,
+          txid: deposit.txid,
+          network: deposit.network
+        });
+        
+        // Testar a função isDepositConfirmed
+        const isAccepted = isDepositConfirmed(deposit);
+        
+        const analysis = {
+          index: index + 1,
+          id: deposit.id,
+          amount: deposit.amount,
+          status: deposit.status,
+          created_at: deposit.created_at,
+          isAccepted,
+          reason: isAccepted ? 'ACEITO' : 'REJEITADO',
+          // Indicadores específicos
+          indicators: {
+            is_confirmed: deposit.is_confirmed,
+            success: deposit.success,
+            isConfirmed: deposit.isConfirmed,
+            has_tx_id: !!(deposit.tx_id || deposit.txid),
+            has_confirmed_at: !!deposit.confirmed_at,
+            status_seems_good: deposit.status && !['failed', 'error', 'cancelled', 'rejected', 'invalid'].includes(deposit.status.toLowerCase())
+          }
+        };
+        
+        console.log(`[handleDebugDeposits] 🎯 RESULTADO DEPÓSITO ${index + 1}:`, analysis);
+        return analysis;
+      });
+      
+      // RESUMO GERAL
+      const accepted = analysisResults.filter(r => r.isAccepted);
+      const rejected = analysisResults.filter(r => !r.isAccepted);
+      
+      console.log('[handleDebugDeposits] 📈 RESUMO GERAL:');
+      console.log('[handleDebugDeposits] Total encontrados:', deposits.length);
+      console.log('[handleDebugDeposits] Seriam aceitos:', accepted.length);
+      console.log('[handleDebugDeposits] Seriam rejeitados:', rejected.length);
+      
+      if (accepted.length > 0) {
+        console.log('[handleDebugDeposits] ✅ DEPÓSITOS QUE SERIAM ACEITOS:');
+        accepted.forEach(dep => {
+          console.log(`  - ID: ${dep.id}, Valor: ${dep.amount}, Status: ${dep.status}, Data: ${dep.created_at}`);
+        });
+      }
+      
+      if (rejected.length > 0) {
+        console.log('[handleDebugDeposits] ❌ DEPÓSITOS QUE SERIAM REJEITADOS:');
+        rejected.forEach(dep => {
+          console.log(`  - ID: ${dep.id}, Valor: ${dep.amount}, Status: ${dep.status}, Data: ${dep.created_at}`);
+        });
+      }
+      
+      // ANÁLISE ESPECÍFICA DO PROBLEMA
+      if (deposits.length === 6 && accepted.length === 5) {
+        console.log('[handleDebugDeposits] 🚨 PROBLEMA IDENTIFICADO: 6 depósitos encontrados, mas apenas 5 seriam aceitos!');
+        console.log('[handleDebugDeposits] O depósito rejeitado é:', rejected[0]);
+        
+        // Análise específica do depósito rejeitado
+        if (rejected.length > 0) {
+          const rejectedDeposit = deposits.find((d: any) => d.id === rejected[0].id);
+          console.log('[handleDebugDeposits] 🔬 ANÁLISE ESPECÍFICA DO DEPÓSITO REJEITADO:');
+          console.log('[handleDebugDeposits] Dados completos:', rejectedDeposit);
+          
+          // Re-testar para capturar logs específicos
+          console.log('[handleDebugDeposits] Re-testando lógica de confirmação...');
+          isDepositConfirmed(rejectedDeposit);
+        }
+      }
+      
+      toast({
+        title: "🔬 Debug Concluído!",
+        description: (
+          <div className="space-y-1">
+            <div>{deposits.length} depósitos encontrados</div>
+            <div className="text-green-400">{accepted.length} seriam aceitos</div>
+            {rejected.length > 0 && (
+              <div className="text-red-400">{rejected.length} seriam rejeitados</div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Verifique o console para logs detalhados
+            </div>
+          </div>
+        ),
+        variant: "default",
+        className: "border-blue-500/50 bg-blue-900/20",
+      });
+
+    } catch (error: any) {
+      console.error('[handleDebugDeposits] Erro durante debug:', error);
+      toast({
+        title: "❌ Erro no Debug",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingDeposits(false);
+    }
+  };
+
+  // Função específica para debugar o depósito problemático 373e
+  const debugSpecificDeposit = async () => {
+    console.log('[debugSpecificDeposit] 🔍 INVESTIGANDO DEPÓSITO ESPECÍFICO: 373e');
+    
+    const config = getCurrentImportConfig();
+    if (!config || !user?.email) {
+      toast({
+        title: "⚠️ Configuração incompleta",
+        description: "Configure as credenciais da API antes de debugar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Buscar todos os depósitos
+      const response = await fetchLNMarketsDeposits(user.email, config.id);
+
+      if (!response.success || !response.data) {
+        console.error('[debugSpecificDeposit] Erro na busca:', response.error);
+        return;
+      }
+
+      const deposits = response.data;
+      
+      // Procurar pelo depósito específico usando diferentes critérios
+      console.log('[debugSpecificDeposit] 🔍 PROCURANDO DEPÓSITO 373e...');
+      
+      const targetDeposit = deposits.find((d: any) => {
+        const idMatch = d.id === '373e' || d.id?.toString().includes('373e');
+        const hashMatch = d.tx_id === '49a3ff67baa640946a46509ee70fe4ad46bcb69ee2fcd3783ca8ef6a8940f5fd' || 
+                         d.txid === '49a3ff67baa640946a46509ee70fe4ad46bcb69ee2fcd3783ca8ef6a8940f5fd';
+        const amountMatch = Math.abs(parseFloat(d.amount) - 113.937) < 0.001; // Tolerância para floating point
+        
+        return idMatch || hashMatch || amountMatch;
+      });
+
+      if (!targetDeposit) {
+        console.log('[debugSpecificDeposit] ❌ DEPÓSITO NÃO ENCONTRADO!');
+        console.log('[debugSpecificDeposit] Depósitos disponíveis:');
+        deposits.forEach((d: any, i: number) => {
+          console.log(`  ${i + 1}. ID: ${d.id}, Valor: ${d.amount}, Data: ${d.created_at}, Hash: ${d.tx_id || d.txid}`);
+        });
+        
+        toast({
+          title: "❌ Depósito não encontrado",
+          description: "O depósito 373e não foi encontrado na busca da API",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('[debugSpecificDeposit] ✅ DEPÓSITO ENCONTRADO!');
+      console.log('[debugSpecificDeposit] 📊 DADOS COMPLETOS:', targetDeposit);
+
+      // Testar função de confirmação
+      console.log('[debugSpecificDeposit] 🧪 TESTANDO FUNÇÃO isDepositConfirmed...');
+      const isConfirmed = isDepositConfirmed(targetDeposit);
+      console.log('[debugSpecificDeposit] Resultado da confirmação:', isConfirmed);
+
+      // Testar conversão para investimento
+      console.log('[debugSpecificDeposit] 🔄 TESTANDO CONVERSÃO PARA INVESTIMENTO...');
+      try {
+        const investmentRecord = convertDepositToInvestment(targetDeposit, {
+          configId: config.id,
+          configName: config.name
+        });
+        console.log('[debugSpecificDeposit] ✅ Conversão bem-sucedida:', investmentRecord);
+
+        // Verificar se há problemas com a data
+        const depositDate = new Date(investmentRecord.date);
+        const now = new Date();
+        const isFutureDate = depositDate > now;
+        
+        console.log('[debugSpecificDeposit] 📅 ANÁLISE DE DATA:', {
+          dataOriginal: targetDeposit.created_at,
+          dataConvertida: investmentRecord.date,
+          dataFormatada: depositDate.toLocaleString('pt-BR'),
+          dataAtual: now.toLocaleString('pt-BR'),
+          éDataFutura: isFutureDate,
+          diferençaDias: Math.ceil((depositDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        });
+
+        if (isFutureDate) {
+          console.log('[debugSpecificDeposit] ⚠️ PROBLEMA IDENTIFICADO: DATA FUTURA!');
+          console.log('[debugSpecificDeposit] Este depósito tem data no futuro, o que pode estar causando problemas');
+        }
+
+        // Testar se já existe como duplicata
+        console.log('[debugSpecificDeposit] 🔍 VERIFICANDO DUPLICATAS...');
+        if (currentActiveReportObjectFromHook?.investments) {
+          const existingInvestment = currentActiveReportObjectFromHook.investments.find(inv => 
+            inv.originalId === investmentRecord.originalId
+          );
+          
+          if (existingInvestment) {
+            console.log('[debugSpecificDeposit] ⚠️ DUPLICATA ENCONTRADA:', existingInvestment);
+          } else {
+            console.log('[debugSpecificDeposit] ✅ Não é duplicata');
+          }
+        }
+
+        // Simular adição ao relatório
+        console.log('[debugSpecificDeposit] 🧪 SIMULANDO ADIÇÃO AO RELATÓRIO...');
+        const result = addInvestment(investmentRecord, currentActiveReportObjectFromHook?.id || '', { suppressToast: true });
+        console.log('[debugSpecificDeposit] Resultado da adição:', result);
+
+      } catch (conversionError) {
+        console.error('[debugSpecificDeposit] ❌ ERRO NA CONVERSÃO:', conversionError);
+      }
+
+      // Verificar possíveis filtros ou validações que podem estar rejeitando
+      console.log('[debugSpecificDeposit] 🔍 ANÁLISE DE POSSÍVEIS PROBLEMAS:');
+      
+      const problems = [];
+      
+      // Problema 1: Data futura
+      const depositDate = new Date(targetDeposit.created_at || targetDeposit.timestamp);
+      if (depositDate > new Date()) {
+        problems.push('Data no futuro (2025-03-01)');
+      }
+      
+      // Problema 2: Valor muito específico
+      if (targetDeposit.amount && targetDeposit.amount.toString().includes('.')) {
+        problems.push('Valor com casas decimais pode ter problemas de precisão');
+      }
+      
+      // Problema 3: ID curto
+      if (targetDeposit.id && targetDeposit.id.length < 6) {
+        problems.push('ID muito curto pode causar conflitos');
+      }
+      
+      // Problema 4: Status não convencional
+      if (targetDeposit.status && !['confirmed', 'completed', 'success'].includes(targetDeposit.status.toLowerCase())) {
+        problems.push(`Status "${targetDeposit.status}" pode não ser reconhecido como válido`);
+      }
+
+      console.log('[debugSpecificDeposit] 🚨 POSSÍVEIS PROBLEMAS IDENTIFICADOS:', problems);
+
+      toast({
+        title: "🔍 Debug do Depósito 373e",
+        description: (
+          <div className="space-y-1">
+            <div>✅ Depósito encontrado na API</div>
+            <div>{isConfirmed ? '✅' : '❌'} Passaria na validação</div>
+            <div>📅 Data: {depositDate.toLocaleDateString('pt-BR')}</div>
+            {problems.length > 0 && (
+              <div className="text-yellow-400">⚠️ {problems.length} problema(s) identificado(s)</div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              Verifique o console para detalhes completos
+            </div>
+          </div>
+        ),
+        variant: problems.length > 0 ? "destructive" : "default",
+        className: problems.length > 0 ? "border-yellow-500/50 bg-yellow-900/20" : "border-blue-500/50 bg-blue-900/20",
+      });
+
+    } catch (error: any) {
+      console.error('[debugSpecificDeposit] Erro durante debug:', error);
+      toast({
+        title: "❌ Erro no Debug Específico",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para debugar lógica de duplicatas incorreta
+  const debugDuplicateLogic = async () => {
+    console.log('[debugDuplicateLogic] 🔍 INVESTIGANDO LÓGICA DE DUPLICATAS');
+    
+    if (!currentActiveReportObjectFromHook) {
+      toast({
+        title: "⚠️ Nenhum relatório ativo",
+        description: "Selecione um relatório para investigar duplicatas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    console.log('[debugDuplicateLogic] 📊 RELATÓRIO ATIVO:', {
+      id: currentActiveReportObjectFromHook.id,
+      name: currentActiveReportObjectFromHook.name,
+      totalInvestments: currentActiveReportObjectFromHook.investments?.length || 0
+    });
+
+    // Verificar se existe nos investimentos atuais
+    const existingInvestments = currentActiveReportObjectFromHook.investments || [];
+    console.log('[debugDuplicateLogic] 🔍 INVESTIGANDO INVESTIMENTOS EXISTENTES:');
+    
+    existingInvestments.forEach((inv, index) => {
+      console.log(`[debugDuplicateLogic] Investimento ${index + 1}:`, {
+        id: inv.id,
+        originalId: inv.originalId,
+        amount: inv.amount,
+        date: inv.date,
+        importedAt: inv.importedAt,
+        matches: inv.originalId === targetOriginalId
+      });
+    });
+
+    // Buscar especificamente pelo originalId problemático
+    const duplicateFound = existingInvestments.find(inv => inv.originalId === targetOriginalId);
+    
+    console.log('[debugDuplicateLogic] 🎯 RESULTADO DA BUSCA POR DUPLICATA:');
+    if (duplicateFound) {
+      console.log('[debugDuplicateLogic] ⚠️ DUPLICATA ENCONTRADA (INCORRETAMENTE?):', duplicateFound);
+      
+      // Verificar se é realmente o mesmo depósito ou um problema de ID
+      console.log('[debugDuplicateLogic] 🔬 ANÁLISE DETALHADA DA SUPOSTA DUPLICATA:', {
+        id: duplicateFound.id,
+        originalId: duplicateFound.originalId,
+        amount: duplicateFound.amount,
+        date: duplicateFound.date,
+        unit: duplicateFound.unit,
+        importedAt: duplicateFound.importedAt,
+        sourceConfigId: duplicateFound.sourceConfigId,
+        sourceConfigName: duplicateFound.sourceConfigName
+      });
+      
+      // Verificar se é exatamente o mesmo registro (mesmo timestamp de importação)
+      const sameAmount = Math.abs(duplicateFound.amount - 0.00113937) < 0.0000001;
+      const sameDate = duplicateFound.date === '2025-03-01T17:45:30.973Z';
+      
+      console.log('[debugDuplicateLogic] 🧪 COMPARAÇÃO DE DADOS:', {
+        valorIgual: sameAmount,
+        dataIgual: sameDate,
+        originalIdIgual: duplicateFound.originalId === targetOriginalId,
+        éMesmoRegistro: sameAmount && sameDate && duplicateFound.originalId === targetOriginalId
+      });
+      
+    } else {
+      console.log('[debugDuplicateLogic] ✅ NENHUMA DUPLICATA ENCONTRADA - DEVE SER BUG!');
+    }
+
+    // Testar a função addInvestment para ver por que ela detecta duplicata
+    console.log('[debugDuplicateLogic] 🧪 TESTANDO FUNÇÃO addInvestment...');
+    
+    const testInvestment = {
+      id: 'test_deposit_373e',
+      originalId: targetOriginalId,
+      date: '2025-03-01T17:45:30.973Z',
+      amount: 0.00113937,
+      unit: 'BTC' as CurrencyUnit
+    };
+    
+    // Simular adição para capturar a lógica
+    const addResult = addInvestment(testInvestment, currentActiveReportObjectFromHook.id, { suppressToast: true });
+    console.log('[debugDuplicateLogic] 📊 RESULTADO DO TESTE DE ADIÇÃO:', addResult);
+
+    // Verificar todos os relatórios (não apenas o ativo) para ver se existe em outro lugar
+    console.log('[debugDuplicateLogic] 🔍 VERIFICANDO TODOS OS RELATÓRIOS...');
+    if (typeof window !== 'undefined' && user?.email) {
+      const allReportsKey = `reports_${user.email}`;
+      const allReportsData = localStorage.getItem(allReportsKey);
+      
+      if (allReportsData) {
+        try {
+          const allReports = JSON.parse(allReportsData);
+          let foundInOtherReport = false;
+          
+          allReports.forEach((report: any) => {
+            const hasDeposit = report.investments?.find((inv: any) => inv.originalId === targetOriginalId);
+            if (hasDeposit) {
+              console.log('[debugDuplicateLogic] 🚨 ENCONTRADO EM OUTRO RELATÓRIO:', {
+                reportId: report.id,
+                reportName: report.name,
+                investment: hasDeposit
+              });
+              foundInOtherReport = true;
+            }
+          });
+          
+          if (!foundInOtherReport) {
+            console.log('[debugDuplicateLogic] ✅ NÃO ENCONTRADO EM NENHUM RELATÓRIO - DEFINITIVAMENTE UM BUG!');
+          }
+        } catch (error) {
+          console.error('[debugDuplicateLogic] Erro ao verificar outros relatórios:', error);
+        }
+      }
+    }
+
+    toast({
+      title: "🔍 Debug de Duplicatas",
+      description: (
+        <div className="space-y-1">
+          <div>{duplicateFound ? '⚠️' : '✅'} {duplicateFound ? 'Duplicata detectada' : 'Nenhuma duplicata encontrada'}</div>
+          <div>📊 {existingInvestments.length} investimentos no relatório</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Verifique o console para análise completa
+          </div>
+        </div>
+      ),
+      variant: duplicateFound ? "destructive" : "default",
+      className: duplicateFound ? "border-red-500/50 bg-red-900/20" : "border-green-500/50 bg-green-900/20",
+    });
+  };
+
+  // Função para debugar sincronia entre localStorage e estado React
+  const debugStateSyncIssue = async () => {
+    console.log('[debugStateSyncIssue] 🔍 INVESTIGANDO DESSINCRONIA ESTADO vs STORAGE');
+    
+    if (!user?.email) {
+      toast({
+        title: "⚠️ Usuário não autenticado",
+        description: "Faça login para investigar a sincronia.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    // 1. Verificar localStorage diretamente
+    console.log('[debugStateSyncIssue] 📦 VERIFICANDO LOCALSTORAGE DIRETO:');
+    const reportsKey = `reports_${user.email}`;
+    const storageData = localStorage.getItem(reportsKey);
+    
+    if (storageData) {
+      try {
+        const allReports = JSON.parse(storageData);
+        console.log('[debugStateSyncIssue] 📊 Relatórios no localStorage:', allReports.length);
+        
+        let foundInStorage = false;
+        allReports.forEach((report: any, index: number) => {
+          const hasTarget = report.investments?.find((inv: any) => inv.originalId === targetOriginalId);
+          if (hasTarget) {
+            console.log(`[debugStateSyncIssue] 🎯 ENCONTRADO NO STORAGE - Relatório ${index + 1}:`, {
+              reportId: report.id,
+              reportName: report.name,
+              totalInvestments: report.investments?.length || 0,
+              targetInvestment: hasTarget
+            });
+            foundInStorage = true;
+          }
+        });
+        
+        if (!foundInStorage) {
+          console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO LOCALSTORAGE');
+        }
+      } catch (error) {
+        console.error('[debugStateSyncIssue] Erro ao parsear localStorage:', error);
+      }
+    }
+
+    // 2. Verificar estado React atual
+    console.log('[debugStateSyncIssue] ⚛️ VERIFICANDO ESTADO REACT:');
+    console.log('[debugStateSyncIssue] Relatório ativo no hook:', {
+      exists: !!currentActiveReportObjectFromHook,
+      id: currentActiveReportObjectFromHook?.id,
+      name: currentActiveReportObjectFromHook?.name,
+      investmentsCount: currentActiveReportObjectFromHook?.investments?.length || 0
+    });
+
+    if (currentActiveReportObjectFromHook) {
+      const hasTargetInReact = currentActiveReportObjectFromHook.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+      if (hasTargetInReact) {
+        console.log('[debugStateSyncIssue] 🎯 ENCONTRADO NO ESTADO REACT:', hasTargetInReact);
+      } else {
+        console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO ESTADO REACT');
+      }
+    }
+
+    // 3. Verificar prop activeReportData
+    console.log('[debugStateSyncIssue] 🎣 VERIFICANDO PROP activeReportData:');
+    console.log('[debugStateSyncIssue] activeReportData:', {
+      exists: !!activeReportData,
+      id: activeReportData?.id,
+      reportExists: !!activeReportData?.report,
+      reportName: activeReportData?.report?.name,
+      investmentsCount: activeReportData?.report?.investments?.length || 0,
+      forceUpdateTrigger: activeReportData?.forceUpdateTrigger
+    });
+
+    if (activeReportData?.report) {
+      const hasTargetInActiveData = activeReportData.report.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+      if (hasTargetInActiveData) {
+        console.log('[debugStateSyncIssue] 🎯 ENCONTRADO NO activeReportData:', hasTargetInActiveData);
+      } else {
+        console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO activeReportData');
+      }
+    }
+
+    // 4. Forçar recarregamento dos dados
+    console.log('[debugStateSyncIssue] 🔄 TESTANDO RECARGA DOS DADOS...');
+    
+    // Simular atualização forçada
+    try {
+      // Verificar se existe função de reload dos relatórios
+      if (window.location) {
+        console.log('[debugStateSyncIssue] 📍 Localização atual:', window.location.href);
+      }
+      
+      // Mostrar diferenças encontradas
+      const storageCount = storageData ? JSON.parse(storageData).reduce((acc: number, r: any) => acc + (r.investments?.length || 0), 0) : 0;
+      const reactCount = currentActiveReportObjectFromHook?.investments?.length || 0;
+      const activeDataCount = activeReportData?.report?.investments?.length || 0;
+      
+      console.log('[debugStateSyncIssue] 📊 COMPARAÇÃO DE CONTADORES:', {
+        localStorage: storageCount,
+        estadoReact: reactCount,
+        activeReportData: activeDataCount,
+        diferençaStorage_React: storageCount - reactCount,
+        diferençaStorage_ActiveData: storageCount - activeDataCount
+      });
+      
+    } catch (error) {
+      console.error('[debugStateSyncIssue] Erro na verificação:', error);
+    }
+
+    toast({
+      title: "🔍 Debug de Sincronia",
+      description: (
+        <div className="space-y-1">
+          <div>📦 Dados no localStorage verificados</div>
+          <div>⚛️ Estado React analisado</div>
+          <div>🎣 Prop activeReportData verificada</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Verifique o console para detalhes da dessincronia
+          </div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-purple-500/50 bg-purple-900/20",
+    });
+  };
+
+  // Função para localizar exatamente onde o depósito 373e está na UI
+  const debugWhereToFindDeposit = async () => {
+    console.log('[debugWhereToFindDeposit] 🎯 LOCALIZANDO DEPÓSITO 373e NA INTERFACE');
+    
+    if (!user?.email) {
+      toast({
+        title: "⚠️ Usuário não autenticado",
+        description: "Faça login para localizar o depósito.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    if (!currentActiveReportObjectFromHook) {
+      console.log('[debugWhereToFindDeposit] ❌ NENHUM RELATÓRIO ATIVO');
+      return;
+    }
+
+    // Buscar o depósito no relatório ativo
+    const targetDeposit = currentActiveReportObjectFromHook.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+    
+    if (!targetDeposit) {
+      console.log('[debugWhereToFindDeposit] ❌ DEPÓSITO NÃO ENCONTRADO NO RELATÓRIO ATIVO');
+      return;
+    }
+
+    // Analisar todos os investimentos do relatório para localizar posição
+    const allInvestments = [...(currentActiveReportObjectFromHook.investments || [])];
+    
+    // Ordenar por data (mais recente primeiro, como na interface)
+    allInvestments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const depositIndex = allInvestments.findIndex(inv => inv.originalId === targetOriginalId);
+    const depositPosition = depositIndex + 1;
+    
+    console.log('[debugWhereToFindDeposit] 🎯 DEPÓSITO LOCALIZADO COM SUCESSO:', {
+      relatórioNome: currentActiveReportObjectFromHook.name,
+      relatórioId: currentActiveReportObjectFromHook.id,
+      posição: depositPosition,
+      totalInvestimentos: allInvestments.length,
+      depósito: {
+        id: targetDeposit.id,
+        originalId: targetDeposit.originalId,
+        data: targetDeposit.date,
+        valor: targetDeposit.amount,
+        unidade: targetDeposit.unit
+      }
+    });
+    
+    // Calcular em qual "página" estaria (assumindo 10 por página)
+    const itemsPerPage = 10;
+    const pageNumber = Math.ceil(depositPosition / itemsPerPage);
+    
+    console.log('[debugWhereToFindDeposit] 📄 LOCALIZAÇÃO NA TABELA:', {
+      posição: depositPosition,
+      página: pageNumber,
+      itensPorPágina: itemsPerPage,
+      estáNaPrimeiraPágina: depositPosition <= itemsPerPage
+    });
+    
+    // Verificar data para orientar busca
+    const depositDate = new Date(targetDeposit.date);
+    const today = new Date();
+    const daysDifference = Math.floor((today.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    console.log('[debugWhereToFindDeposit] 📅 INFORMAÇÕES DE DATA:', {
+      dataDoDepósito: depositDate.toLocaleDateString('pt-BR'),
+      diasAtrás: daysDifference,
+      ano: depositDate.getFullYear(),
+      mês: depositDate.toLocaleDateString('pt-BR', { month: 'long' })
+    });
+    
+    // Criar instruções específicas para o usuário
+    const instructions = [
+      `✅ Relatório correto: "${currentActiveReportObjectFromHook.name}"`,
+      `📊 Aba correta: "Aportes/Investimentos" (NÃO na aba Trades)`,
+      `📍 Posição: ${depositPosition}° registro de ${allInvestments.length} total`,
+      `📄 Página: ${pageNumber} (se houver paginação)`,
+      `📅 Data: ${depositDate.toLocaleDateString('pt-BR')} (${daysDifference} dias atrás)`,
+      `💰 Valor: ${targetDeposit.amount} ${targetDeposit.unit}`,
+      `🆔 ID visível: ${targetDeposit.id.slice(0, 8)}...`
+    ];
+    
+    console.log('[debugWhereToFindDeposit] 📋 INSTRUÇÕES PARA LOCALIZAR:');
+    instructions.forEach((instruction, index) => {
+      console.log(`${index + 1}. ${instruction}`);
+    });
+
+    // Verificar se há filtros que podem esconder o registro
+    console.log('[debugWhereToFindDeposit] 🔍 VERIFICANDO POSSÍVEIS FILTROS ATIVOS:');
+    console.log('- Verifique se há filtros de data ativos');
+    console.log('- Verifique se há filtros de valor mínimo/máximo');
+    console.log('- Verifique se a ordenação está por data (mais recente primeiro)');
+    console.log('- Verifique se está na primeira página da tabela');
+
+    toast({
+      title: "🎯 Depósito 373e Localizado!",
+      description: (
         <div className="space-y-1">
           <div>✅ Encontrado no relatório "{currentActiveReportObjectFromHook.name}"</div>
           <div>📍 Posição: {depositPosition}° de {allInvestments.length}</div>
@@ -3797,10 +4491,50 @@ export default function ProfitCalculator({
                         )}
                       </Button>
                       
+                      {/* Botão de debug específico para o depósito 373e */}
+                      <Button
+                        onClick={debugSpecificDeposit}
+                        disabled={isImportingDeposits || !selectedConfigForImport}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-yellow-900/20 border-yellow-700/50 hover:bg-yellow-800/30 text-yellow-400"
                       >
                         🔬 Debug Depósito 373e
                       </Button>
                       
+                      {/* Botão de debug da lógica de duplicatas */}
+                      <Button
+                        onClick={debugDuplicateLogic}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-red-900/20 border-red-700/50 hover:bg-red-800/30 text-red-400"
+                      >
+                        🚨 Debug Duplicatas
+                      </Button>
+                      
+                      {/* Botão de debug da sincronia estado-storage */}
+                      <Button
+                        onClick={debugStateSyncIssue}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-purple-900/20 border-purple-700/50 hover:bg-purple-800/30 text-purple-400"
+                      >
+                        🔍 Debug Sincronia UI
+                      </Button>
+                      
+                      {/* Botão para localizar depósito na interface */}
+                      <Button
+                        onClick={debugWhereToFindDeposit}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-green-900/20 border-green-700/50 hover:bg-green-800/30 text-green-400"
+                      >
+                        🎯 Onde Encontrar 373e
+                      </Button>
+                    </CardContent>
                   </Card>
 
                   {/* Card Saques */}
