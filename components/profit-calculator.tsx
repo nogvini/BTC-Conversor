@@ -3782,7 +3782,7 @@ export default function ProfitCalculator({
                           </>
                         )}
                       </Button>
-                      
+                    </CardContent>
                   </Card>
 
                   {/* Card Saques */}
