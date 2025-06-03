@@ -3701,10 +3701,7 @@ export default function ProfitCalculator({
       originalId: targetOriginalId,
       date: '2025-03-01T17:45:30.973Z',
       amount: 0.00113937,
-      unit: 'BTC',
-      importedAt: new Date().toISOString(),
-      sourceConfigId: 'test',
-      sourceConfigName: 'Test Config'
+      unit: 'BTC' as CurrencyUnit
     };
     
     // Simular adição para capturar a lógica
@@ -3756,6 +3753,135 @@ export default function ProfitCalculator({
       ),
       variant: duplicateFound ? "destructive" : "default",
       className: duplicateFound ? "border-red-500/50 bg-red-900/20" : "border-green-500/50 bg-green-900/20",
+    });
+  };
+
+  // Função para debugar sincronia entre localStorage e estado React
+  const debugStateSyncIssue = async () => {
+    console.log('[debugStateSyncIssue] 🔍 INVESTIGANDO DESSINCRONIA ESTADO vs STORAGE');
+    
+    if (!user?.email) {
+      toast({
+        title: "⚠️ Usuário não autenticado",
+        description: "Faça login para investigar a sincronia.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const targetOriginalId = '373eb488-a5cd-44dd-b02e-b8b049a7a2c0';
+    
+    // 1. Verificar localStorage diretamente
+    console.log('[debugStateSyncIssue] 📦 VERIFICANDO LOCALSTORAGE DIRETO:');
+    const reportsKey = `reports_${user.email}`;
+    const storageData = localStorage.getItem(reportsKey);
+    
+    if (storageData) {
+      try {
+        const allReports = JSON.parse(storageData);
+        console.log('[debugStateSyncIssue] 📊 Relatórios no localStorage:', allReports.length);
+        
+        let foundInStorage = false;
+        allReports.forEach((report: any, index: number) => {
+          const hasTarget = report.investments?.find((inv: any) => inv.originalId === targetOriginalId);
+          if (hasTarget) {
+            console.log(`[debugStateSyncIssue] 🎯 ENCONTRADO NO STORAGE - Relatório ${index + 1}:`, {
+              reportId: report.id,
+              reportName: report.name,
+              totalInvestments: report.investments?.length || 0,
+              targetInvestment: hasTarget
+            });
+            foundInStorage = true;
+          }
+        });
+        
+        if (!foundInStorage) {
+          console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO LOCALSTORAGE');
+        }
+      } catch (error) {
+        console.error('[debugStateSyncIssue] Erro ao parsear localStorage:', error);
+      }
+    }
+
+    // 2. Verificar estado React atual
+    console.log('[debugStateSyncIssue] ⚛️ VERIFICANDO ESTADO REACT:');
+    console.log('[debugStateSyncIssue] Relatório ativo no hook:', {
+      exists: !!currentActiveReportObjectFromHook,
+      id: currentActiveReportObjectFromHook?.id,
+      name: currentActiveReportObjectFromHook?.name,
+      investmentsCount: currentActiveReportObjectFromHook?.investments?.length || 0
+    });
+
+    if (currentActiveReportObjectFromHook) {
+      const hasTargetInReact = currentActiveReportObjectFromHook.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+      if (hasTargetInReact) {
+        console.log('[debugStateSyncIssue] 🎯 ENCONTRADO NO ESTADO REACT:', hasTargetInReact);
+      } else {
+        console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO ESTADO REACT');
+      }
+    }
+
+    // 3. Verificar prop activeReportData
+    console.log('[debugStateSyncIssue] 🎣 VERIFICANDO PROP activeReportData:');
+    console.log('[debugStateSyncIssue] activeReportData:', {
+      exists: !!activeReportData,
+      id: activeReportData?.id,
+      reportExists: !!activeReportData?.report,
+      reportName: activeReportData?.report?.name,
+      investmentsCount: activeReportData?.report?.investments?.length || 0,
+      forceUpdateTrigger: activeReportData?.forceUpdateTrigger
+    });
+
+    if (activeReportData?.report) {
+      const hasTargetInActiveData = activeReportData.report.investments?.find((inv: Investment) => inv.originalId === targetOriginalId);
+      if (hasTargetInActiveData) {
+        console.log('[debugStateSyncIssue] 🎯 ENCONTRADO NO activeReportData:', hasTargetInActiveData);
+      } else {
+        console.log('[debugStateSyncIssue] ❌ NÃO ENCONTRADO NO activeReportData');
+      }
+    }
+
+    // 4. Forçar recarregamento dos dados
+    console.log('[debugStateSyncIssue] 🔄 TESTANDO RECARGA DOS DADOS...');
+    
+    // Simular atualização forçada
+    try {
+      // Verificar se existe função de reload dos relatórios
+      if (window.location) {
+        console.log('[debugStateSyncIssue] 📍 Localização atual:', window.location.href);
+      }
+      
+      // Mostrar diferenças encontradas
+      const storageCount = storageData ? JSON.parse(storageData).reduce((acc: number, r: any) => acc + (r.investments?.length || 0), 0) : 0;
+      const reactCount = currentActiveReportObjectFromHook?.investments?.length || 0;
+      const activeDataCount = activeReportData?.report?.investments?.length || 0;
+      
+      console.log('[debugStateSyncIssue] 📊 COMPARAÇÃO DE CONTADORES:', {
+        localStorage: storageCount,
+        estadoReact: reactCount,
+        activeReportData: activeDataCount,
+        diferençaStorage_React: storageCount - reactCount,
+        diferençaStorage_ActiveData: storageCount - activeDataCount
+      });
+      
+    } catch (error) {
+      console.error('[debugStateSyncIssue] Erro na verificação:', error);
+    }
+
+    toast({
+      title: "🔍 Debug de Sincronia",
+      description: (
+        <div className="space-y-1">
+          <div>📦 Dados no localStorage verificados</div>
+          <div>⚛️ Estado React analisado</div>
+          <div>🎣 Prop activeReportData verificada</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Verifique o console para detalhes da dessincronia
+          </div>
+        </div>
+      ),
+      variant: "default",
+      className: "border-purple-500/50 bg-purple-900/20",
     });
   };
 
@@ -4268,6 +4394,17 @@ export default function ProfitCalculator({
                         className="w-full text-xs bg-red-900/20 border-red-700/50 hover:bg-red-800/30 text-red-400"
                       >
                         🚨 Debug Duplicatas
+                      </Button>
+                      
+                      {/* Botão de debug da sincronia estado-storage */}
+                      <Button
+                        onClick={debugStateSyncIssue}
+                        disabled={isImportingDeposits}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-purple-900/20 border-purple-700/50 hover:bg-purple-800/30 text-purple-400"
+                      >
+                        🔍 Debug Sincronia UI
                       </Button>
                     </CardContent>
                   </Card>
