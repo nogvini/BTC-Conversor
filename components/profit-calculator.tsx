@@ -4014,7 +4014,6 @@ export default function ProfitCalculator({
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Data</TableHead>
-                                <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
                                 <TableHead>Valor ({states.displayCurrency})</TableHead>
@@ -4023,7 +4022,7 @@ export default function ProfitCalculator({
                             <TableBody>
                               {getFilteredHistoryData.investments.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                  <TableCell colSpan={4} className="text-center py-8 text-gray-400">
                                     Nenhum investimento encontrado no período selecionado
                                   </TableCell>
                                 </TableRow>
@@ -4036,7 +4035,6 @@ export default function ProfitCalculator({
                                 return (
                                   <TableRow key={investment.id}>
                                     <TableCell>{formatDateFn(new Date(investment.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{investment.amount.toLocaleString()}</TableCell>
                                     <TableCell>{investment.unit}</TableCell>
                                     <TableCell className="text-blue-400">₿{btcAmount.toFixed(8)}</TableCell>
                                       <TableCell className="text-blue-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
@@ -4106,7 +4104,6 @@ export default function ProfitCalculator({
                               <TableRow>
                                 <TableHead>Data</TableHead>
                                 <TableHead>Tipo</TableHead>
-                                <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
                                 <TableHead>Valor ({states.displayCurrency})</TableHead>
@@ -4115,7 +4112,7 @@ export default function ProfitCalculator({
                             <TableBody>
                               {getFilteredHistoryData.profits.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
                                     Nenhum registro de lucro/perda encontrado no período selecionado
                                   </TableCell>
                                 </TableRow>
@@ -4133,7 +4130,6 @@ export default function ProfitCalculator({
                                         {profit.isProfit ? "Lucro" : "Perda"}
                                       </Badge>
                                     </TableCell>
-                                    <TableCell>{profit.amount.toLocaleString()}</TableCell>
                                     <TableCell>{profit.unit}</TableCell>
                                     <TableCell className={profit.isProfit ? "text-green-400" : "text-red-400"}>
                                       ₿{btcAmount.toFixed(8)}
@@ -4206,7 +4202,6 @@ export default function ProfitCalculator({
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Data</TableHead>
-                                <TableHead>Valor</TableHead>
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
                                 <TableHead>Valor ({states.displayCurrency})</TableHead>
@@ -4215,7 +4210,7 @@ export default function ProfitCalculator({
                             <TableBody>
                               {getFilteredHistoryData.withdrawals.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                                  <TableCell colSpan={4} className="text-center py-8 text-gray-400">
                                     Nenhum saque encontrado no período selecionado
                                   </TableCell>
                                 </TableRow>
@@ -4228,7 +4223,6 @@ export default function ProfitCalculator({
                                 return (
                                   <TableRow key={withdrawal.id}>
                                     <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{withdrawal.amount.toLocaleString()}</TableCell>
                                     <TableCell>{withdrawal.unit}</TableCell>
                                     <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
                                       <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
