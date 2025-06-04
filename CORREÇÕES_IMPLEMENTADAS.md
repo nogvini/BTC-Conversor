@@ -74,10 +74,23 @@ const [localForceUpdate, setLocalForceUpdate] = useState(0);
 
 ## Como Testar
 
-1. **Alterar entre relatórios**: O componente deve recarregar instantaneamente
-2. **Observar toasts**: Deve aparecer apenas uma notificação por mudança
-3. **Verificar performance**: Sem lag ou travamentos
-4. **Console logs**: Devem mostrar as mudanças sendo detectadas corretamente
+1. **Acessar a aba "Calculadora"**: A versão corrigida está sendo usada temporariamente
+2. **Usar o Gerenciador de Relatórios**: Troque entre diferentes relatórios usando o seletor
+3. **Observar recarregamento instantâneo**: 
+   - Component key e Force update devem incrementar
+   - Dados dos relatórios devem atualizar imediatamente
+   - Toast deve aparecer apenas uma vez por mudança
+4. **Verificar console**: Logs devem mostrar as mudanças sendo detectadas
+5. **Testar com dados reais**: Criar/selecionar relatórios com investimentos e lucros
+
+## Funcionalidades do Componente de Teste
+
+✅ **ReportManager completo** - Trocar entre relatórios  
+✅ **Informações em tempo real** - Dados atualizados instantaneamente  
+✅ **Debug visual** - Component key, timestamps e IDs  
+✅ **Dados detalhados** - Investimentos, lucros e retiradas  
+✅ **Toast único** - Sem duplicações  
+✅ **Performance otimizada** - Debounce e cleanup automático
 
 ## Próximos Passos
 

@@ -470,13 +470,26 @@ export default function ProfitCalculatorFixed({
           Component key: {componentKey} | Force update: {localForceUpdate}
         </p>
       </div>
-      
-      {/* Aqui continuaremos com o resto do componente */}
+
+      {/* ADICIONADO: ReportManager para permitir trocar relatórios */}
       <Card className="bg-black/30 border border-purple-700/40">
         <CardHeader>
-          <CardTitle>Teste de Recarregamento</CardTitle>
+          <CardTitle>Gerenciador de Relatórios</CardTitle>
           <CardDescription>
-            Este é um componente de teste para verificar se o recarregamento está funcionando.
+            Troque entre relatórios para testar o recarregamento do componente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ReportManager />
+        </CardContent>
+      </Card>
+      
+      {/* Card de informações do relatório ativo */}
+      <Card className="bg-black/30 border border-purple-700/40">
+        <CardHeader>
+          <CardTitle>Informações do Relatório Ativo</CardTitle>
+          <CardDescription>
+            Dados do relatório selecionado - deve atualizar instantaneamente ao trocar.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -500,8 +513,108 @@ export default function ProfitCalculatorFixed({
               valueColor="text-yellow-400"
             />
           </div>
+          
+          {/* Informações adicionais para debug */}
+          <div className="mt-4 p-4 bg-gray-900/50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-300 mb-2">Debug Info:</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+              <div>Último ID: {lastActiveReportId || 'N/A'}</div>
+              <div>Atual ID: {effectiveActiveReportId || 'N/A'}</div>
+              <div>Nome: {effectiveActiveReport?.name || 'N/A'}</div>
+              <div>Timestamp: {new Date().toLocaleTimeString()}</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Card de teste de dados */}
+      {effectiveActiveReport && (
+        <Card className="bg-black/30 border border-purple-700/40">
+          <CardHeader>
+            <CardTitle>Dados do Relatório</CardTitle>
+            <CardDescription>
+              Conteúdo detalhado do relatório selecionado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="investments" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="investments">Investimentos</TabsTrigger>
+                <TabsTrigger value="profits">Lucros</TabsTrigger>
+                <TabsTrigger value="withdrawals">Retiradas</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="investments" className="mt-4">
+                <div className="space-y-2">
+                  {effectiveActiveReport.investments?.length > 0 ? (
+                    effectiveActiveReport.investments.slice(0, 5).map((investment, index) => (
+                      <div key={index} className="p-2 bg-gray-800/50 rounded text-sm">
+                        <div className="flex justify-between">
+                          <span>Data: {investment.date}</span>
+                          <span>Valor: {investment.amount} {investment.currency}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-400 text-center py-4">Nenhum investimento encontrado</p>
+                  )}
+                  {effectiveActiveReport.investments?.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center">
+                      ... e mais {effectiveActiveReport.investments.length - 5} investimentos
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="profits" className="mt-4">
+                <div className="space-y-2">
+                  {effectiveActiveReport.profits?.length > 0 ? (
+                    effectiveActiveReport.profits.slice(0, 5).map((profit, index) => (
+                      <div key={index} className="p-2 bg-gray-800/50 rounded text-sm">
+                        <div className="flex justify-between">
+                          <span>Data: {profit.date}</span>
+                          <span className={profit.amount >= 0 ? "text-green-400" : "text-red-400"}>
+                            {profit.amount >= 0 ? '+' : ''}{profit.amount} {profit.currency}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-400 text-center py-4">Nenhum lucro encontrado</p>
+                  )}
+                  {effectiveActiveReport.profits?.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center">
+                      ... e mais {effectiveActiveReport.profits.length - 5} lucros
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="withdrawals" className="mt-4">
+                <div className="space-y-2">
+                  {effectiveActiveReport.withdrawals?.length > 0 ? (
+                    effectiveActiveReport.withdrawals.slice(0, 5).map((withdrawal, index) => (
+                      <div key={index} className="p-2 bg-gray-800/50 rounded text-sm">
+                        <div className="flex justify-between">
+                          <span>Data: {withdrawal.date}</span>
+                          <span>Valor: {withdrawal.amount} {withdrawal.currency}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-400 text-center py-4">Nenhuma retirada encontrada</p>
+                  )}
+                  {effectiveActiveReport.withdrawals?.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center">
+                      ... e mais {effectiveActiveReport.withdrawals.length - 5} retiradas
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 } 
