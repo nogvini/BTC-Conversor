@@ -8,7 +8,7 @@ import type {
 
 export const useProfitCalculatorStates = () => {
   // Estados principais
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<string>("import");
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
   const [currentRates, setCurrentRates] = useState({ btcToUsd: 65000, brlToUsd: 5.2 });

@@ -38,7 +38,8 @@ import {
   Loader2,
   RefreshCw,
   File,
-  Calculator
+  Calculator,
+  Import as ImportIcon
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -4002,13 +4003,9 @@ export default function ProfitCalculator({
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-7 bg-black/40">
-              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-              <TabsTrigger value="investments">Investimentos</TabsTrigger>
-              <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
-              <TabsTrigger value="withdrawals">Saques</TabsTrigger>
-              <TabsTrigger value="history">Histórico</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-black/40">
               <TabsTrigger value="import">Importação</TabsTrigger>
+              <TabsTrigger value="history">Histórico</TabsTrigger>
               <TabsTrigger value="charts">Gráficos</TabsTrigger>
             </TabsList>
 
@@ -4020,11 +4017,11 @@ export default function ProfitCalculator({
                   <Card className="bg-black/30 border border-purple-700/40">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Users className="h-5 w-5" />
-                        Configuração LN Markets
+                        <ImportIcon className="h-5 w-5" />
+                        Importação LN Markets
                       </CardTitle>
                       <CardDescription>
-                        Selecione qual configuração usar para importação
+                        Importe seus dados diretamente da API da LN Markets. Configure a API uma vez e use múltiplas vezes.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
