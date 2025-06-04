@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import HistoricalRatesChart from "./historical-rates-chart"
-import ProfitCalculator from "./profit-calculator"
+// TEMPORÁRIO: Testando componente corrigido
+import ProfitCalculatorFixed from "./profit-calculator-fixed"
 import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
@@ -1026,7 +1026,7 @@ export default function BitcoinConverter() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-4 md:pt-6">
-                          <ProfitCalculator
+                          <ProfitCalculatorFixed
                             key={`calculator-sync-${activeReportId || 'no-report'}-${activeReport?.lastUpdated || activeReport?.updatedAt || 'no-timestamp'}-${forceRender}`}
                             btcToUsd={rates.BTC_USD} 
                             brlToUsd={rates.BRL_USD} 
