@@ -2487,8 +2487,8 @@ export default function ProfitCalculator({
     
     // CRITÉRIO ÚNICO: Trade deve estar fechado (closed=true)
     const isClosed = trade.closed === true || trade.closed === 'true' || 
-                     trade.closed === 1 || trade.closed === '1' || 
-                     trade.status === 'closed' || trade.status === 'done';
+                     trade.closed === 1 || trade.status === 'closed' ||
+                     trade.status === 'done' || trade.state === 'closed';
     
     if (!isClosed) {
       return { isValid: false, reason: 'Trade não está fechado' };
@@ -3570,6 +3570,271 @@ export default function ProfitCalculator({
     };
   }, [historyFilterPeriod, historyCustomStartDate, historyCustomEndDate]);
 
+  // FUNÇÃO PARA CALCULAR EFICIÊNCIA TEMPORAL (EVOLUÇÃO AO LONGO DO TEMPO)
+  const calculateTemporalEfficiency = useMemo(() => {
+    const effectiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+    const effectiveAllReports = allReportsFromHook || [];
+    
+    const reportsToAnalyze = historyViewMode === "all" 
+      ? effectiveAllReports
+      : effectiveReport ? [effectiveReport] : [];
+
+    if (reportsToAnalyze.length === 0) return [];
+
+    // Coletar todos os dados relevantes
+    const allInvestments: any[] = [];
+    const allProfits: any[] = [];
+
+    reportsToAnalyze.forEach(report => {
+      const reportInvestments = report.investments || [];
+      const reportProfits = report.profits || [];
+      
+      allInvestments.push(...reportInvestments);
+      allProfits.push(...reportProfits);
+    });
+
+    // Aplicar filtros de período
+    let startDate: Date;
+    let endDate = new Date();
+
+    if (historyFilterPeriod === "custom") {
+      startDate = historyCustomStartDate || new Date();
+      endDate = historyCustomEndDate || new Date();
+    } else {
+      const today = new Date();
+      switch (historyFilterPeriod) {
+        case "1m":
+          startDate = subMonths(today, 1);
+          break;
+        case "3m":
+          startDate = subMonths(today, 3);
+          break;
+        case "6m":
+          startDate = subMonths(today, 6);
+          break;
+        case "1y":
+          startDate = subMonths(today, 12);
+          break;
+        default: // "all"
+          startDate = new Date(0);
+          break;
+      }
+    }
+
+    // Filtrar dados pelo período
+    const filteredInvestments = allInvestments.filter(inv => {
+      const invDate = new Date(inv.date);
+      return invDate >= startDate && invDate <= endDate;
+    });
+
+    const filteredProfits = allProfits.filter(profit => {
+      const profitDate = new Date(profit.date);
+      return profitDate >= startDate && profitDate <= endDate;
+    });
+
+    if (filteredInvestments.length === 0 && filteredProfits.length === 0) return [];
+
+    // Determinar intervalo baseado no período total dos dados filtrados
+    const allDates = [
+      ...filteredInvestments.map(inv => new Date(inv.date).getTime()),
+      ...filteredProfits.map(profit => new Date(profit.date).getTime())
+    ];
+    
+    if (allDates.length === 0) return [];
+    
+    const firstDate = new Date(Math.min(...allDates));
+    const lastDate = new Date(Math.max(...allDates));
+    const totalDays = Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Definir intervalos baseado na duração total
+    let intervalDays;
+    if (totalDays <= 30) intervalDays = 7; // Semanal para períodos curtos
+    else if (totalDays <= 90) intervalDays = 15; // Quinzenal para períodos médios
+    else if (totalDays <= 365) intervalDays = 30; // Mensal para períodos longos
+    else intervalDays = 90; // Trimestral para períodos muito longos
+
+    const intervals: Array<{
+      start: Date;
+      end: Date;
+      investments: any[];
+      profits: any[];
+      weightedEfficiency: number;
+      countEfficiency: number;
+      totalInvested: number;
+      profitableValue: number;
+      label: string;
+      period: string;
+    }> = [];
+
+    // Criar intervalos
+    let currentDate = new Date(firstDate);
+    while (currentDate <= lastDate) {
+      const intervalEnd = new Date(currentDate);
+      intervalEnd.setDate(intervalEnd.getDate() + intervalDays);
+      
+      // Filtrar dados para este intervalo
+      const intervalInvestments = filteredInvestments.filter(inv => {
+        const invDate = new Date(inv.date);
+        return invDate >= currentDate && invDate < intervalEnd;
+      });
+
+      const intervalProfits = filteredProfits.filter(profit => {
+        const profitDate = new Date(profit.date);
+        return profitDate >= currentDate && profitDate < intervalEnd;
+      });
+
+      if (intervalInvestments.length > 0 || intervalProfits.length > 0) {
+        // Calcular métricas para este intervalo
+        const metrics = calculateROIMetrics({ 
+          investments: intervalInvestments, 
+          profits: intervalProfits 
+        });
+
+        intervals.push({
+          start: new Date(currentDate),
+          end: new Date(intervalEnd),
+          investments: intervalInvestments,
+          profits: intervalProfits,
+          weightedEfficiency: metrics.investmentEfficiency,
+          countEfficiency: metrics.countEfficiency,
+          totalInvested: metrics.totalInvested,
+          profitableValue: metrics.profitableInvestmentValue,
+          label: formatDateFn(currentDate, "dd/MM"),
+          period: intervalDays <= 7 ? "Semanal" : intervalDays <= 15 ? "Quinzenal" : intervalDays <= 30 ? "Mensal" : "Trimestral"
+        });
+      }
+
+      currentDate = new Date(intervalEnd);
+    }
+
+    return intervals;
+  }, [
+    activeReportData?.report,
+    currentActiveReportObjectFromHook, 
+    allReportsFromHook, 
+    historyViewMode,
+    historyFilterPeriod,
+    historyCustomStartDate,
+    historyCustomEndDate,
+    calculateROIMetrics
+  ]);
+
+  // Função otimizada para obter dados filtrados por período com cache
+  const getFilteredHistoryData = useMemo(() => {
+    // Usar dados efetivos (props ou hook) para garantir sincronização
+    const effectiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
+    const effectiveAllReports = allReportsFromHook || [];
+    
+    const cacheKey = `${historyViewMode}-${historyFilterPeriod}-${historyCustomStartDate?.getTime()}-${historyCustomEndDate?.getTime()}-${effectiveReport?.id || 'none'}-${effectiveAllReports?.length || 0}-${activeReportData?.forceUpdateTrigger || 0}-${localForceUpdate}-${effectiveReport?.updatedAt || 0}`;
+    
+    if (filteredDataCache.current.has(cacheKey)) {
+      return filteredDataCache.current.get(cacheKey);
+    }
+
+    if (!effectiveReport && historyViewMode === "active") {
+      const emptyResult = { investments: [], profits: [], withdrawals: [] };
+      filteredDataCache.current.set(cacheKey, emptyResult);
+      return emptyResult;
+    }
+
+    // Usar dados efetivos para garantir que sempre temos os dados mais atualizados
+    const reportsToAnalyze = historyViewMode === "all" 
+      ? effectiveAllReports
+      : effectiveReport ? [effectiveReport] : [];
+
+    let startDate: Date;
+    let endDate = new Date();
+
+    // Determinar período de filtro
+    if (historyFilterPeriod === "custom") {
+      startDate = historyCustomStartDate || new Date();
+      endDate = historyCustomEndDate || new Date();
+    } else {
+      const today = new Date();
+      switch (historyFilterPeriod) {
+        case "1m":
+          startDate = subMonths(today, 1);
+          break;
+        case "3m":
+          startDate = subMonths(today, 3);
+          break;
+        case "6m":
+          startDate = subMonths(today, 6);
+          break;
+        case "1y":
+          startDate = subMonths(today, 12);
+          break;
+        default: // "all"
+          startDate = new Date(0);
+          break;
+      }
+    }
+
+    // Filtrar dados de todos os relatórios selecionados
+    const allInvestments: Investment[] = [];
+    const allProfits: ProfitRecord[] = [];
+    const allWithdrawals: any[] = [];
+
+    reportsToAnalyze.forEach(report => {
+      // Garantir que sempre usamos os dados mais atualizados
+      const reportInvestments = report.investments || [];
+      const reportProfits = report.profits || [];
+      const reportWithdrawals = report.withdrawals || [];
+      
+      // Filtrar investimentos
+      const filteredInvestments = reportInvestments.filter(inv => {
+        const invDate = new Date(inv.date);
+        return invDate >= startDate && invDate <= endDate;
+      });
+      allInvestments.push(...filteredInvestments);
+
+      // Filtrar lucros
+      const filteredProfits = reportProfits.filter(profit => {
+        const profitDate = new Date(profit.date);
+        return profitDate >= startDate && profitDate <= endDate;
+      });
+      allProfits.push(...filteredProfits);
+
+      // Filtrar saques
+      const filteredWithdrawals = reportWithdrawals.filter(withdrawal => {
+        const withdrawalDate = new Date(withdrawal.date);
+        return withdrawalDate >= startDate && withdrawalDate <= endDate;
+      });
+      allWithdrawals.push(...filteredWithdrawals);
+    });
+
+    const result = {
+      investments: allInvestments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      profits: allProfits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      withdrawals: allWithdrawals.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    };
+
+    // Limitar cache para evitar memory leak
+    if (filteredDataCache.current.size > 20) {
+      const firstKey = filteredDataCache.current.keys().next().value;
+      if (firstKey) {
+      filteredDataCache.current.delete(firstKey);
+      }
+    }
+    
+    filteredDataCache.current.set(cacheKey, result);
+    return result;
+  }, [
+    // Usar dados efetivos para garantir sincronização
+    activeReportData?.report,
+    currentActiveReportObjectFromHook, 
+    allReportsFromHook, 
+    historyViewMode, 
+    historyFilterPeriod, 
+    historyCustomStartDate, 
+    historyCustomEndDate,
+    activeReportData?.forceUpdateTrigger,
+    localForceUpdate,
+    // Adicionar updatedAt para detectar mudanças nos dados
+    activeReportData?.report?.updatedAt,
+    currentActiveReportObjectFromHook?.updatedAt
+  ]);
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -3853,19 +4118,12 @@ export default function ProfitCalculator({
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm">
-              <TabsTrigger value="import" className="text-white data-[state=active]:bg-purple-700">
-                <Zap className="mr-2 h-4 w-4" />
-                Importação
-              </TabsTrigger>
-              <TabsTrigger value="history" className="text-white data-[state=active]:bg-purple-700">
-                <BarChart2 className="mr-2 h-4 w-4" />
-                Histórico
-              </TabsTrigger>
-              <TabsTrigger value="charts" className="text-white data-[state=active]:bg-purple-700">
-                <PieChartIcon className="mr-2 h-4 w-4" />
-                Gráficos
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 bg-black/40">
+              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="investments">Investimentos</TabsTrigger>
+              <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
+              <TabsTrigger value="withdrawals">Saques</TabsTrigger>
+              <TabsTrigger value="evolution">Evolução</TabsTrigger>
             </TabsList>
 
             {/* ABA IMPORTAÇÃO */}
@@ -4313,11 +4571,12 @@ export default function ProfitCalculator({
 
                 {/* Tabelas de Dados */}
                 <Tabs value={historyActiveTab} onValueChange={setHistoryActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4 bg-black/40">
+                  <TabsList className="grid w-full grid-cols-5 bg-black/40">
                     <TabsTrigger value="overview">Visão Geral</TabsTrigger>
                     <TabsTrigger value="investments">Investimentos</TabsTrigger>
                     <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
                     <TabsTrigger value="withdrawals">Saques</TabsTrigger>
+                    <TabsTrigger value="evolution">Evolução</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="overview" className="mt-4">
@@ -4809,6 +5068,197 @@ export default function ProfitCalculator({
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
+                  </TabsContent>
+
+                  <TabsContent value="evolution">
+                    <Card className="bg-black/30 border border-purple-700/40">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          📊 Evolução da Eficiência de Investimentos
+                        </CardTitle>
+                        <CardDescription>
+                          Análise temporal da eficiência dos investimentos - mostra como a eficiência evolui ao longo do tempo
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {calculateTemporalEfficiency.length === 0 ? (
+                          <div className="h-[350px] w-full flex items-center justify-center">
+                            <div className="text-center space-y-3">
+                              <div className="text-gray-400 text-lg">📈</div>
+                              <div className="text-gray-400 text-sm">
+                                Dados insuficientes para análise temporal
+                              </div>
+                              <div className="text-gray-500 text-xs">
+                                A evolução da eficiência requer pelo menos dois períodos com dados
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Métricas de Resumo */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-black/20 rounded-lg border border-purple-700/20">
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400">Períodos Analisados</div>
+                                <div className="text-lg font-bold text-purple-400">{calculateTemporalEfficiency.length}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400">Eficiência Média</div>
+                                <div className="text-lg font-bold text-green-400">
+                                  {(calculateTemporalEfficiency.reduce((sum, item) => sum + item.weightedEfficiency, 0) / calculateTemporalEfficiency.length).toFixed(1)}%
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400">Melhor Período</div>
+                                <div className="text-lg font-bold text-green-400">
+                                  {Math.max(...calculateTemporalEfficiency.map(item => item.weightedEfficiency)).toFixed(1)}%
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400">Pior Período</div>
+                                <div className="text-lg font-bold text-red-400">
+                                  {Math.min(...calculateTemporalEfficiency.map(item => item.weightedEfficiency)).toFixed(1)}%
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Gráfico de Linha */}
+                            <div id="efficiency-evolution-chart" className="h-[350px] w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={calculateTemporalEfficiency}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                                  <XAxis 
+                                    dataKey="label" 
+                                    stroke="#9CA3AF"
+                                    fontSize={10}
+                                    tick={{ fontSize: 10 }}
+                                    interval="preserveStartEnd"
+                                    tickFormatter={(value) => {
+                                      if (isMobile) {
+                                        return value.length > 6 ? `${value.substring(0, 6)}...` : value;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <YAxis 
+                                    stroke="#9CA3AF"
+                                    fontSize={10}
+                                    tick={{ fontSize: 9 }}
+                                    width={isMobile ? 60 : 80}
+                                    domain={[0, 100]}
+                                    tickFormatter={(value) => `${value}%`}
+                                  />
+                                  <Tooltip 
+                                    contentStyle={{
+                                      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                      border: '1px solid rgba(124, 58, 237, 0.5)',
+                                      borderRadius: '0.375rem',
+                                      color: '#F3F4F6',
+                                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                                    }}
+                                    cursor={{ fill: 'rgba(124, 58, 237, 0.3)' }}
+                                    formatter={(value: number, name: string) => {
+                                      if (name === 'weightedEfficiency') return [`${value.toFixed(1)}%`, 'Eficiência Ponderada'];
+                                      if (name === 'countEfficiency') return [`${value.toFixed(1)}%`, 'Eficiência por Quantidade'];
+                                      if (name === 'totalInvested') return [`₿${value.toFixed(8)}`, 'Total Investido'];
+                                      if (name === 'profitableValue') return [`₿${value.toFixed(8)}`, 'Valor Lucrativo'];
+                                      return [value, name];
+                                    }}
+                                    labelFormatter={(label) => `Período: ${label}`}
+                                  />
+                                  <Legend />
+                                  <Line 
+                                    type="monotone" 
+                                    dataKey="weightedEfficiency" 
+                                    stroke="#10B981" 
+                                    strokeWidth={3}
+                                    dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                                    activeDot={{ r: 6, stroke: '#10B981', strokeWidth: 2 }}
+                                    name="Eficiência Ponderada"
+                                  />
+                                  <Line 
+                                    type="monotone" 
+                                    dataKey="countEfficiency" 
+                                    stroke="#8B5CF6" 
+                                    strokeWidth={2}
+                                    strokeDasharray="5 5"
+                                    dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 3 }}
+                                    name="Eficiência por Quantidade"
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+
+                            {/* Tabela de Dados Detalhados */}
+                            <div className="border border-purple-700/20 rounded-lg overflow-hidden">
+                              <div className="bg-black/20 p-3 border-b border-purple-700/20">
+                                <h4 className="text-sm font-medium text-gray-300">Dados Detalhados por Período</h4>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-black/30 sticky top-0">
+                                    <tr>
+                                      <th className="text-left p-2 text-gray-400">Período</th>
+                                      <th className="text-right p-2 text-gray-400">Efic. Ponderada</th>
+                                      <th className="text-right p-2 text-gray-400">Efic. Quantidade</th>
+                                      <th className="text-right p-2 text-gray-400">Investimentos</th>
+                                      <th className="text-right p-2 text-gray-400">Valor Lucrativo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {calculateTemporalEfficiency.map((item, index) => (
+                                      <tr key={index} className={index % 2 === 0 ? "bg-black/10" : ""}>
+                                        <td className="p-2 text-gray-300">
+                                          {item.label}
+                                          <div className="text-xs text-gray-500">{item.period}</div>
+                                        </td>
+                                        <td className={`text-right p-2 ${
+                                          item.weightedEfficiency >= 50 ? "text-green-400" : 
+                                          item.weightedEfficiency >= 25 ? "text-yellow-400" : "text-red-400"
+                                        }`}>
+                                          {item.weightedEfficiency.toFixed(1)}%
+                                        </td>
+                                        <td className={`text-right p-2 ${
+                                          item.countEfficiency >= 50 ? "text-green-400" : 
+                                          item.countEfficiency >= 25 ? "text-yellow-400" : "text-red-400"
+                                        }`}>
+                                          {item.countEfficiency.toFixed(1)}%
+                                        </td>
+                                        <td className="text-right p-2 text-blue-400">
+                                          {item.investments.length}
+                                        </td>
+                                        <td className="text-right p-2 text-green-400">
+                                          ₿{item.profitableValue.toFixed(8)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Informações Adicionais */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-400">
+                              <div className="space-y-2">
+                                <h5 className="font-medium text-gray-300">Sobre a Eficiência Ponderada</h5>
+                                <ul className="space-y-1 list-disc list-inside">
+                                  <li>Considera o valor investido, não apenas quantidade</li>
+                                  <li>Associa lucros com investimentos por janela temporal</li>
+                                  <li>Intervalos adaptativos baseados no período total</li>
+                                </ul>
+                              </div>
+                              <div className="space-y-2">
+                                <h5 className="font-medium text-gray-300">Periodicidade</h5>
+                                <ul className="space-y-1 list-disc list-inside">
+                                  <li>≤30 dias: Análise semanal</li>
+                                  <li>≤90 dias: Análise quinzenal</li>
+                                  <li>&gt;365 dias: Análise trimestral</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </TabsContent>
                 </Tabs>
               </div>
