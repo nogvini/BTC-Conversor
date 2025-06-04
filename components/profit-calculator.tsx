@@ -2701,18 +2701,67 @@ export default function ProfitCalculator({
       const successRate = totalTrades > 0 ? (successfulTrades / totalTrades) * 100 : 0;
       
       // Calcular eficiência de investimento
+      const totalInvestedValue = totalInvested;
+      
+      // Calcular valor dos investimentos que geraram lucro usando associação temporal
+      let profitableInvestmentValue = 0;
+      const profitableInvestmentIds = new Set<string>();
+      
+      data.profits.forEach(profit => {
+        if (profit.isProfit) {
+          const profitDate = new Date(profit.date);
+          
+          // Procurar investimentos em uma janela temporal (30 dias antes do lucro)
+          data.investments.forEach(inv => {
+            const invDate = new Date(inv.date);
+            const daysDiff = (profitDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff >= 0 && daysDiff <= 30) {
+              const invKey = `${inv.date}-${inv.amount}-${inv.unit}`;
+              if (!profitableInvestmentIds.has(invKey)) {
+                profitableInvestmentIds.add(invKey);
+                profitableInvestmentValue += convertToBtc(inv.amount, inv.unit);
+              }
+            }
+          });
+        }
+      });
+      
+      // Fallback proporcional se não conseguir associar
+      if (profitableInvestmentValue === 0 && totalProfits > 0 && totalInvested > 0) {
+        const profitValue = data.profits.reduce((sum: number, profit: any) => {
+          const btcAmount = convertToBtc(profit.amount, profit.unit);
+          return sum + (profit.isProfit ? btcAmount : 0);
+        }, 0);
+        
+        const lossValue = data.profits.reduce((sum: number, profit: any) => {
+          const btcAmount = convertToBtc(profit.amount, profit.unit);
+          return sum + (!profit.isProfit ? btcAmount : 0);
+        }, 0);
+        
+        const totalProfitLoss = profitValue + lossValue;
+        if (totalProfitLoss > 0) {
+          profitableInvestmentValue = totalInvested * (profitValue / totalProfitLoss);
+        }
+      }
+      
+      // Eficiência ponderada e tradicional
+      const weightedEfficiency = totalInvestedValue > 0 ? (profitableInvestmentValue / totalInvestedValue) * 100 : 0;
       const totalInvestments = data.investments.length;
       const profitableInvestments = data.profits.filter((p: any) => p.isProfit).length;
-      const investmentEfficiency = totalInvestments > 0 ? (profitableInvestments / totalInvestments) * 100 : 0;
+      const countEfficiency = totalInvestments > 0 ? (profitableInvestments / totalInvestments) * 100 : 0;
       
       return {
         roi,
         annualizedROI,
         successRate,
-        investmentEfficiency,
+        investmentEfficiency: weightedEfficiency,
+        countEfficiency,
         periodDays,
         totalInvested,
-        totalProfits
+        totalProfits,
+        profitableInvestmentValue,
+        totalInvestedValue
       };
     };
   }, [historyFilterPeriod, historyCustomStartDate, historyCustomEndDate]);
@@ -4435,7 +4484,28 @@ export default function ProfitCalculator({
                                       {(() => {
                                         const metrics = calculateROIMetrics(getFilteredHistoryData);
                                         return `${metrics.investmentEfficiency.toFixed(1)}%`;
-                                      })()} de investimentos lucrativos
+                                      })()} por valor investido
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Eficiência (Qtd):</span>
+                                    <span className={(() => {
+                                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                      return metrics.countEfficiency >= 50 ? "text-green-400" : metrics.countEfficiency >= 25 ? "text-yellow-400" : "text-red-400";
+                                    })()}>
+                                      {(() => {
+                                        const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                        return `${metrics.countEfficiency.toFixed(1)}%`;
+                                      })()} por quantidade
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Valor Lucrativo:</span>
+                                    <span className="text-green-400">
+                                      {(() => {
+                                        const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                        return `₿${metrics.profitableInvestmentValue.toFixed(8)}`;
+                                      })()}
                                     </span>
                                   </div>
                                   {historyFilterPeriod === "custom" && historyCustomStartDate && historyCustomEndDate && (
