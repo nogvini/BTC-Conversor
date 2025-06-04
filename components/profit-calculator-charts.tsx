@@ -71,6 +71,13 @@ export default function ProfitCalculatorCharts({
     profits: true,
     balance: true
   });
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+
+  // Effect para reagir a mudanças de relatório
+  useEffect(() => {
+    console.log('[ProfitCalculatorCharts] Relatório alterado:', effectiveActiveReportId, effectiveActiveReport?.name);
+    setDataRefreshKey(prev => prev + 1);
+  }, [effectiveActiveReportId, effectiveActiveReport?.name, effectiveActiveReport?.updatedAt]);
 
   // Dados mockados para demonstração
   const mockChartData: ChartDataPoint[] = useMemo(() => {

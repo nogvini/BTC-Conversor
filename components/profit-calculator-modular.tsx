@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -8,9 +8,6 @@ import { useReports } from "@/hooks/use-reports";
 import { useAuth } from "@/hooks/use-auth";
 import { useDefaultCurrency } from "@/hooks/use-default-currency";
 import { Calculator, Upload, BarChart2, Calendar } from "lucide-react";
-
-// Hook personalizado para mudança de relatório
-import { useReportChange } from "@/hooks/use-report-change";
 
 // Componentes modulares
 import ProfitCalculatorImport from "./profit-calculator-import";
@@ -42,8 +39,14 @@ export default function ProfitCalculatorModular({
   // Estados para controle de re-renderização
   const [componentKey, setComponentKey] = useState(0);
   const [localForceUpdate, setLocalForceUpdate] = useState(0);
-  const [lastActiveReportId, setLastActiveReportId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("history");
+  
+  // Refs para rastrear mudanças
+  const lastActiveReportIdRef = useRef<string | null>(null);
+  const lastActiveReportNameRef = useRef<string | null>(null);
+  const lastActiveReportUpdatedRef = useRef<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastToastTimeRef = useRef<number>(0);
 
   // Hook de relatórios
   const { 
@@ -54,35 +57,87 @@ export default function ProfitCalculatorModular({
   } = useReports();
 
   // Determinar qual fonte de dados usar
-  const effectiveActiveReportId = activeReportData?.id || currentActiveReportObjectFromHook?.id;
+  const effectiveActiveReportId = activeReportData?.id || activeReportIdFromHook;
   const effectiveActiveReport = activeReportData?.report || currentActiveReportObjectFromHook;
 
-  // Hook personalizado para mudança de relatório
-  const { handleReportChange } = useReportChange({
-    onReportChange: (reportId, reportName) => {
-      console.log('[ProfitCalculatorModular] Relatório mudou via callback:', { reportId, reportName });
-      
-      // Forçar recarregamento
-      setComponentKey(prev => prev + 1);
-      setLocalForceUpdate(prev => prev + 1);
-    },
-    enableToast: true,
-    debounceMs: 150
-  });
-
-  // Effect para detectar mudança de relatório
-  useEffect(() => {
-    handleReportChange(
-      effectiveActiveReportId,
-      lastActiveReportId,
-      effectiveActiveReport?.name
-    );
+  // Função para detectar mudanças de relatório com debounce
+  const detectReportChange = () => {
+    const currentId = effectiveActiveReportId;
+    const currentName = effectiveActiveReport?.name;
+    const currentUpdated = effectiveActiveReport?.updatedAt || effectiveActiveReport?.lastUpdated;
     
-    // Atualizar o último relatório ativo conhecido
-    if (effectiveActiveReportId !== lastActiveReportId) {
-      setLastActiveReportId(effectiveActiveReportId);
+    const previousId = lastActiveReportIdRef.current;
+    const previousName = lastActiveReportNameRef.current;
+    const previousUpdated = lastActiveReportUpdatedRef.current;
+
+    // Verificar se houve mudança significativa
+    const hasChanged = (
+      currentId !== previousId ||
+      currentName !== previousName ||
+      currentUpdated !== previousUpdated
+    );
+
+    if (hasChanged && currentId) {
+      console.log('[ProfitCalculatorModular] Mudança detectada:', {
+        de: { id: previousId, name: previousName, updated: previousUpdated },
+        para: { id: currentId, name: currentName, updated: currentUpdated }
+      });
+
+      // Limpar timeout anterior
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+
+      // Aplicar debounce
+      toastTimeoutRef.current = setTimeout(() => {
+        // Forçar recarregamento dos componentes
+        setComponentKey(prev => prev + 1);
+        setLocalForceUpdate(prev => prev + 1);
+
+        // Mostrar toast apenas se não for a primeira carga e passou tempo suficiente
+        const now = Date.now();
+        const shouldShowToast = (
+          previousId !== null && 
+          currentName && 
+          previousId !== currentId &&
+          (now - lastToastTimeRef.current) > 2000 // Mínimo 2 segundos entre toasts
+        );
+
+        if (shouldShowToast) {
+          lastToastTimeRef.current = now;
+          toast({
+            title: "Relatório alterado",
+            description: `Agora visualizando: ${currentName}`,
+            duration: 3000,
+          });
+        }
+      }, 150); // Debounce de 150ms
     }
-  }, [effectiveActiveReportId, lastActiveReportId, effectiveActiveReport?.name, handleReportChange]);
+
+    // Atualizar refs
+    lastActiveReportIdRef.current = currentId;
+    lastActiveReportNameRef.current = currentName;
+    lastActiveReportUpdatedRef.current = currentUpdated;
+  };
+
+  // Effect para detectar mudanças de relatório
+  useEffect(() => {
+    detectReportChange();
+  }, [
+    effectiveActiveReportId, 
+    effectiveActiveReport?.name, 
+    effectiveActiveReport?.updatedAt,
+    effectiveActiveReport?.lastUpdated
+  ]);
+
+  // Cleanup de timeouts
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Props compartilhadas para todos os componentes modulares
   const sharedProps = {
@@ -106,7 +161,7 @@ export default function ProfitCalculatorModular({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="space-y-1">
               <p className="text-sm text-gray-400">Relatório Ativo</p>
               <p className="font-medium text-purple-300">
@@ -120,6 +175,12 @@ export default function ProfitCalculatorModular({
             <div className="space-y-1">
               <p className="text-sm text-gray-400">Force Update</p>
               <p className="font-mono text-xs text-green-400">{localForceUpdate}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-gray-400">Relatório ID</p>
+              <p className="font-mono text-xs text-yellow-400">
+                {effectiveActiveReportId?.substring(0, 8) || 'N/A'}...
+              </p>
             </div>
           </div>
           
@@ -148,7 +209,7 @@ export default function ProfitCalculatorModular({
         {/* Histórico e Dados */}
         <TabsContent value="history" className="mt-6">
           <ProfitCalculatorHistory 
-            key={`history-${componentKey}-${effectiveActiveReportId || 'no-report'}`}
+            key={`history-${componentKey}-${effectiveActiveReportId || 'no-report'}-${localForceUpdate}`}
             {...sharedProps}
           />
         </TabsContent>
@@ -156,7 +217,7 @@ export default function ProfitCalculatorModular({
         {/* Gráficos */}
         <TabsContent value="charts" className="mt-6">
           <ProfitCalculatorCharts 
-            key={`charts-${componentKey}-${effectiveActiveReportId || 'no-report'}`}
+            key={`charts-${componentKey}-${effectiveActiveReportId || 'no-report'}-${localForceUpdate}`}
             {...sharedProps}
           />
         </TabsContent>
@@ -164,7 +225,7 @@ export default function ProfitCalculatorModular({
         {/* Importação */}
         <TabsContent value="import" className="mt-6">
           <ProfitCalculatorImport 
-            key={`import-${componentKey}-${effectiveActiveReportId || 'no-report'}`}
+            key={`import-${componentKey}-${effectiveActiveReportId || 'no-report'}-${localForceUpdate}`}
             {...sharedProps}
           />
         </TabsContent>
@@ -178,8 +239,8 @@ export default function ProfitCalculatorModular({
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <p><strong>Último ID:</strong> {lastActiveReportId || 'N/A'}</p>
-              <p><strong>Atual ID:</strong> {effectiveActiveReportId || 'N/A'}</p>
+              <p><strong>Current ID:</strong> {effectiveActiveReportId || 'N/A'}</p>
+              <p><strong>Current Name:</strong> {effectiveActiveReport?.name || 'N/A'}</p>
               <p><strong>Timestamp:</strong> {new Date().toLocaleTimeString()}</p>
             </div>
             <div>

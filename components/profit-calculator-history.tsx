@@ -91,6 +91,13 @@ export default function ProfitCalculatorHistory({
   const [historyCustomStartDate, setHistoryCustomStartDate] = useState<Date | undefined>(undefined);
   const [historyCustomEndDate, setHistoryCustomEndDate] = useState<Date | undefined>(undefined);
   const [historyActiveTab, setHistoryActiveTab] = useState<string>("overview");
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+
+  // Effect para reagir a mudanças de relatório
+  useEffect(() => {
+    console.log('[ProfitCalculatorHistory] Relatório alterado:', effectiveActiveReportId, effectiveActiveReport?.name);
+    setDataRefreshKey(prev => prev + 1);
+  }, [effectiveActiveReportId, effectiveActiveReport?.name, effectiveActiveReport?.updatedAt]);
 
   // Dados mockados para demonstração
   const mockInvestments = useMemo(() => [

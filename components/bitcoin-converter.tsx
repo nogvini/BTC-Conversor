@@ -1031,6 +1031,11 @@ export default function BitcoinConverter() {
                             btcToUsd={rates.BTC_USD} 
                             brlToUsd={rates.BRL_USD} 
                             appData={appData}
+                            activeReportData={{
+                              id: activeReportId,
+                              report: activeReport,
+                              forceUpdateTrigger: forceRender
+                            }}
                           />
                         </CardContent>
                       </Card>

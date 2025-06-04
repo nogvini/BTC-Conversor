@@ -186,6 +186,7 @@ export default function ProfitCalculatorImport({
     deposits: { current: 0, total: 0, percentage: 0, status: 'idle' },
     withdrawals: { current: 0, total: 0, percentage: 0, status: 'idle' }
   });
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +194,16 @@ export default function ProfitCalculatorImport({
   const internalFileInputRef = useRef<HTMLInputElement>(null);
   const investmentCsvFileInputRef = useRef<HTMLInputElement>(null);
   const backupExcelFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Effect para reagir a mudanças de relatório
+  useEffect(() => {
+    console.log('[ProfitCalculatorImport] Relatório alterado:', effectiveActiveReportId, effectiveActiveReport?.name);
+    setDataRefreshKey(prev => prev + 1);
+    
+    // Limpar configuração selecionada ao trocar de relatório
+    setSelectedConfigForImport(null);
+    setImportStats(null);
+  }, [effectiveActiveReportId, effectiveActiveReport?.name, effectiveActiveReport?.updatedAt]);
 
   // Carregar credenciais ao montar o componente
   useEffect(() => {
