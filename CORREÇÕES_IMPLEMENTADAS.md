@@ -175,6 +175,7 @@ export interface WithdrawalRecord {
 - ✅ Suporte para período personalizado (custom)  
 - ✅ ROI consolidado para "todos os relatórios"
 - ✅ Atualização em tempo real ao alterar filtros
+- ✅ **CORRIGIDO**: ROI individual por relatório agora respeita filtros de período
 
 ##### **ROI Anualizado Inteligente**
 - ✅ Cálculo automático de ROI anualizado baseado no período
@@ -193,8 +194,11 @@ export interface WithdrawalRecord {
 - ✅ **ROI Anualizado**: Projeção anual baseada no período
 - ✅ **Duração do Período**: Dias exatos para períodos customizados
 
-##### **Comparação Multi-Relatórios**
+##### **Comparação Multi-Relatórios** ✅ CORRIGIDO
 - ✅ Performance individual por relatório no modo "all"
+- ✅ **NOVO**: ROI individual respeitando filtros de período
+- ✅ **NOVO**: Indicador "(sem dados)" quando não há dados no período
+- ✅ **NOVO**: Legenda explicativa do período usado no cálculo
 - ✅ Lista compacta com ROI de cada relatório
 - ✅ Identificação visual de relatórios mais/menos rentáveis
 - ✅ Análise consolidada de múltiplos relatórios
@@ -294,4 +298,52 @@ Contexto: 90 dias de análise com ROI anualizado
 
 **Status Final**: 🎉 **SISTEMA ROI COMPLETAMENTE AVANÇADO E CONTEXTUAL**
 
-*O sistema agora oferece análise ROI profissional com contexto temporal, comparação entre estratégias e métricas avançadas de performance.* 
+*O sistema agora oferece análise ROI profissional com contexto temporal, comparação entre estratégias e métricas avançadas de performance.*
+
+## 🔧 **CORREÇÃO CRÍTICA: ROI Individual por Relatório** ✅ RESOLVIDO
+
+### **Problema Identificado**
+- ROI individual dos relatórios na seção "Performance por Relatório" não atualizava com base nos filtros de período aplicados
+- Os cálculos usavam todos os dados do relatório, ignorando filtros como "Últimos 3 meses", "Período personalizado", etc.
+
+### **Causa Raiz**
+```typescript
+// ANTES (Incorreto)
+const reportMetrics = calculateROIMetrics({
+  investments: report.investments || [],  // Todos os dados
+  profits: report.profits || []           // Todos os dados
+});
+```
+
+### **Solução Implementada**
+1. **Nova Função `getFilteredReportData`**: Filtra dados de relatório individual baseado nos filtros ativos
+2. **Aplicação Correta dos Filtros**: Cada relatório individual agora respeita o período selecionado
+3. **Indicadores Visuais**: Mostra "(sem dados)" quando não há transações no período filtrado
+4. **Legenda Contextual**: Informa qual período foi usado no cálculo
+
+```typescript
+// DEPOIS (Correto)
+const filteredReportData = getFilteredReportData(report);  // Aplica filtros
+const reportMetrics = calculateROIMetrics(filteredReportData);
+```
+
+### **Melhorias Implementadas**
+- ✅ **Filtro Temporal**: ROI individual respeitando período selecionado
+- ✅ **Indicador de Dados Vazios**: "(sem dados)" quando período não tem transações
+- ✅ **Legenda Explicativa**: "ROI baseado no período: Últimos 3 meses"
+- ✅ **Consistência**: Mesmo algoritmo de filtro usado no ROI consolidado
+- ✅ **Performance**: Função memoizada para evitar recálculos desnecessários
+
+### **Benefícios da Correção**
+- **Precisão**: ROI individual agora reflete corretamente o período filtrado
+- **Comparabilidade**: Todos os ROIs (consolidado e individuais) usam o mesmo período
+- **Transparência**: Usuário sabe exatamente qual período está sendo analisado
+- **UX Melhorada**: Feedback visual quando não há dados no período
+
+### **Cenários de Teste**
+1. **Filtro "Últimos 3 meses"**: ROI individual mostra apenas transações dos últimos 90 dias
+2. **Período Personalizado**: ROI individual respeita datas customizadas selecionadas
+3. **"Todo período"**: ROI individual usa todos os dados históricos
+4. **Sem dados no período**: Mostra "(sem dados)" em vez de ROI incorreto
+
+--- 

@@ -3464,6 +3464,63 @@ export default function ProfitCalculator({
     states.setCurrentRates({ btcToUsd, brlToUsd });
   }, [btcToUsd, brlToUsd, appData, states.setCurrentRates]);
 
+  // FUNÇÃO PARA FILTRAR DADOS DE UM RELATÓRIO ESPECÍFICO BASEADO NOS FILTROS ATIVOS
+  const getFilteredReportData = useMemo(() => {
+    return (report: any) => {
+      let startDate: Date;
+      let endDate = new Date();
+
+      // Determinar período de filtro (mesma lógica de getFilteredHistoryData)
+      if (historyFilterPeriod === "custom") {
+        startDate = historyCustomStartDate || new Date();
+        endDate = historyCustomEndDate || new Date();
+      } else {
+        const today = new Date();
+        switch (historyFilterPeriod) {
+          case "1m":
+            startDate = subMonths(today, 1);
+            break;
+          case "3m":
+            startDate = subMonths(today, 3);
+            break;
+          case "6m":
+            startDate = subMonths(today, 6);
+            break;
+          case "1y":
+            startDate = subMonths(today, 12);
+            break;
+          default: // "all"
+            startDate = new Date(0);
+            break;
+        }
+      }
+
+      // Filtrar investimentos do relatório
+      const filteredInvestments = (report.investments || []).filter((inv: any) => {
+        const invDate = new Date(inv.date);
+        return invDate >= startDate && invDate <= endDate;
+      });
+
+      // Filtrar lucros do relatório
+      const filteredProfits = (report.profits || []).filter((profit: any) => {
+        const profitDate = new Date(profit.date);
+        return profitDate >= startDate && profitDate <= endDate;
+      });
+
+      // Filtrar saques do relatório
+      const filteredWithdrawals = (report.withdrawals || []).filter((withdrawal: any) => {
+        const withdrawalDate = new Date(withdrawal.date);
+        return withdrawalDate >= startDate && withdrawalDate <= endDate;
+      });
+
+      return {
+        investments: filteredInvestments,
+        profits: filteredProfits,
+        withdrawals: filteredWithdrawals
+      };
+    };
+  }, [historyFilterPeriod, historyCustomStartDate, historyCustomEndDate]);
+
     return (
     <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
@@ -4254,10 +4311,10 @@ export default function ProfitCalculator({
                                   <h4 className="text-sm font-medium text-gray-400 mb-2">Performance por Relatório</h4>
                                   <div className="space-y-1 max-h-32 overflow-y-auto">
                                     {allReportsFromHook.map(report => {
-                                      const reportMetrics = calculateROIMetrics({
-                                        investments: report.investments || [],
-                                        profits: report.profits || []
-                                      });
+                                      // Aplicar filtros de período aos dados do relatório individual
+                                      const filteredReportData = getFilteredReportData(report);
+                                      const reportMetrics = calculateROIMetrics(filteredReportData);
+                                      
                                       return (
                                         <div key={report.id} className="flex justify-between text-xs">
                                           <span className="text-gray-300 truncate max-w-[100px]" title={report.name}>
@@ -4265,10 +4322,26 @@ export default function ProfitCalculator({
                                           </span>
                                           <span className={reportMetrics.roi >= 0 ? "text-green-400" : "text-red-400"}>
                                             {reportMetrics.roi >= 0 ? '+' : ''}{reportMetrics.roi.toFixed(1)}%
+                                            {filteredReportData.investments.length === 0 && filteredReportData.profits.length === 0 && (
+                                              <span className="text-gray-500 ml-1">(sem dados)</span>
+                                            )}
                                           </span>
                                         </div>
                                       );
                                     })}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-2">
+                                    ROI baseado no período: {(() => {
+                                      switch (historyFilterPeriod) {
+                                        case "1m": return "Último mês";
+                                        case "3m": return "Últimos 3 meses";
+                                        case "6m": return "Últimos 6 meses";
+                                        case "1y": return "Último ano";
+                                        case "all": return "Todo período";
+                                        case "custom": return "Período personalizado";
+                                        default: return "Período selecionado";
+                                      }
+                                    })()}
                                   </div>
                                 </div>
                               )}
