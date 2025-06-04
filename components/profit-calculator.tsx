@@ -3548,7 +3548,7 @@ export default function ProfitCalculator({
                            importStats.trades.stoppedReason === 'duplicates' ? '⚠️ Duplicatas' : 
                            importStats.trades.stoppedReason === 'maxPages' ? '📄 Limite' : '✅ Completo'}
                   </div>
-                )}
+                      )}
                     </div>
                   </div>
                 )}
@@ -4179,6 +4179,28 @@ export default function ProfitCalculator({
                                     ₿{getFilteredHistoryData.withdrawals.reduce((sum: number, w: any) => sum + convertToBtc(w.amount, w.unit), 0).toFixed(8)}
                                   </span>
                                 </div>
+                                <div className="flex justify-between border-t border-gray-700/50 pt-2 mt-2">
+                                  <span className="font-medium">ROI (%):</span>
+                                  <span className={(() => {
+                                    const totalInvested = getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0);
+                                    const totalProfits = getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
+                                      const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                    }, 0);
+                                    const roi = totalInvested > 0 ? (totalProfits / totalInvested) * 100 : 0;
+                                    return roi >= 0 ? "text-green-400 font-medium" : "text-red-400 font-medium";
+                                  })()}>
+                                    {(() => {
+                                      const totalInvested = getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0);
+                                      const totalProfits = getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
+                                        const btcAmount = convertToBtc(profit.amount, profit.unit);
+                                        return sum + (profit.isProfit ? btcAmount : -btcAmount);
+                                      }, 0);
+                                      const roi = totalInvested > 0 ? (totalProfits / totalInvested) * 100 : 0;
+                                      return `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`;
+                                    })()}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -4400,12 +4422,13 @@ export default function ProfitCalculator({
                                 <TableHead>Unidade</TableHead>
                                 <TableHead>Valor (BTC)</TableHead>
                                 <TableHead>Valor ({states.displayCurrency})</TableHead>
+                                <TableHead>Destino</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {getFilteredHistoryData.withdrawals.length === 0 ? (
                                 <TableRow>
-                                  <TableCell colSpan={4} className="text-center py-8 text-gray-400">
+                                  <TableCell colSpan={5} className="text-center py-8 text-gray-400">
                                     Nenhum saque encontrado no período selecionado
                                   </TableCell>
                                 </TableRow>
@@ -4421,6 +4444,11 @@ export default function ProfitCalculator({
                                     <TableCell>{withdrawal.unit}</TableCell>
                                     <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
                                       <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={withdrawal.destination === 'wallet' ? 'default' : 'destructive'}>
+                                        {withdrawal.destination === 'wallet' ? 'Carteira' : 'Exchange'}
+                                      </Badge>
+                                    </TableCell>
                                   </TableRow>
                                 );
                                 })

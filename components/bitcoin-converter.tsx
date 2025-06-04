@@ -12,7 +12,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import HistoricalRatesChart from "./historical-rates-chart"
 // TEMPORÁRIO: Testando componente modular
-import ProfitCalculatorModular from "./profit-calculator-modular"
+import ProfitCalculator from "./profit-calculator"
 import { fetchAllAppData, getCurrentBitcoinPrice } from "@/lib/client-api"
 import { type AppData } from "@/lib/api"
 import { ResponsiveContainer } from "@/components/ui/responsive-container"
@@ -1025,25 +1025,18 @@ export default function BitcoinConverter() {
                             Calcule seus lucros e perdas de operações e investimentos.
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="pt-4 md:pt-6">
-                          <ProfitCalculatorModular
-                            key={`calculator-sync-${activeReportId || 'no-report'}-${activeReport?.lastUpdated || activeReport?.updatedAt || 'no-timestamp'}-${forceRender}`}
-                            btcToUsd={rates.BTC_USD} 
-                            brlToUsd={rates.BRL_USD} 
+                        <CardContent className="pt-4 md:pt-0 pb-4">
+                          <ProfitCalculator
+                            btcToUsd={rates.BTC_USD}
+                            brlToUsd={rates.BRL_USD}
                             appData={appData}
-                            activeReportData={{
-                              id: activeReportId,
-                              report: activeReport,
-                              forceUpdateTrigger: forceRender
-                            }}
+                            activeReportData={activeReport}
                           />
                         </CardContent>
                       </Card>
                     </Suspense>
                   ) : (
-                    <div className="flex items-center justify-center min-h-[300px]">
-                      <div className="animate-pulse h-10 w-10 rounded-full bg-purple-500/20"></div>
-                    </div>
+                    <div className="text-center py-8">Carregando dados...</div>
                   )}
                 </TabsContent>
                 

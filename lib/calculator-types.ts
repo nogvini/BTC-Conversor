@@ -49,6 +49,7 @@ export interface WithdrawalRecord {
   fee?: number; // Taxa do saque
   type?: 'onchain' | 'lightning'; // Tipo de saque
   txid?: string; // ID da transação
+  destination?: 'wallet' | 'exchange'; // Destino do saque
   // Campos para preço histórico
   priceAtDate?: number;
   priceAtDateCurrency?: DisplayCurrency;
