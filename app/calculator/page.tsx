@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import ProfitCalculator from "@/components/profit-calculator";
+import ProfitCalculatorWrapper from "@/components/profit-calculator-wrapper";
 import { getCurrentBitcoinPrice } from "@/lib/client-api";
 import { PageTransition } from "@/components/page-transition";
 
@@ -68,7 +68,7 @@ export default function CalculatorPage() {
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
           </div>
         ) : (
-          <ProfitCalculator 
+          <ProfitCalculatorWrapper 
             btcToUsd={btcToUsd} 
             brlToUsd={brlToUsd} 
             appData={appData || undefined}
