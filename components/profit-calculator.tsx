@@ -300,19 +300,17 @@ function ImportProgressIndicator({ progress, type }: { progress: ImportProgress;
 }
 
 // COMPONENTE AUXILIAR PARA ESTATÍSTICAS DO HISTÓRICO
-function HistoryStatsCard({ title, value, icon, change, valueColor, isROI, hasBackground }: {
+function HistoryStatsCard({ title, value, icon, change, valueColor, isROI }: {
   title: string;
   value: string;
   icon: React.ReactNode;
   change?: number;
   valueColor?: string;
   isROI?: boolean;
-  hasBackground?: boolean;
 }) {
   return (
     <div className={cn("p-4 border rounded-lg", 
-      isROI ? "bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/50" :
-      hasBackground ? "bg-black/30 border-purple-700/40" : "bg-black/20 border-purple-700/30"
+      isROI ? "bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/50" : "bg-black/20 border-purple-700/30"
     )}>
       <div className="flex items-center justify-between mb-2">
         <span className={cn("text-sm", isROI ? "text-purple-200 font-medium" : "text-gray-400")}>
@@ -4444,7 +4442,7 @@ export default function ProfitCalculator({
                     }, 0), states.displayCurrency)}
                     icon={<Upload className="h-4 w-4 text-orange-400" />}
                     valueColor="text-orange-400"
-                    hasBackground={true}
+                    isROI={true}
                   />
                   
                   <HistoryStatsCard
@@ -4452,7 +4450,7 @@ export default function ProfitCalculator({
                     value={`${getFilteredHistoryData.investments.length + getFilteredHistoryData.profits.length + getFilteredHistoryData.withdrawals.length}`}
                     icon={<Users className="h-4 w-4 text-purple-400" />}
                     valueColor="text-purple-400"
-                    hasBackground={true}
+                    isROI={true}
                   />
                 </div>
 
