@@ -4002,12 +4002,15 @@ export default function ProfitCalculator({
 
           {/* Conteúdo das abas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 bg-black/40">
+            <TabsList className="grid w-full grid-cols-8 bg-black/40">
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
               <TabsTrigger value="investments">Investimentos</TabsTrigger>
               <TabsTrigger value="profits">Lucros/Perdas</TabsTrigger>
               <TabsTrigger value="withdrawals">Saques</TabsTrigger>
               <TabsTrigger value="evolution">Evolução</TabsTrigger>
+              <TabsTrigger value="history">Histórico</TabsTrigger>
+              <TabsTrigger value="import">Importação</TabsTrigger>
+              <TabsTrigger value="charts">Gráficos</TabsTrigger>
             </TabsList>
 
             {/* ABA IMPORTAÇÃO */}
