@@ -37,7 +37,8 @@ import {
   FileDown,
   Loader2,
   RefreshCw,
-  File
+  File,
+  Calculator
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -298,18 +299,25 @@ function ImportProgressIndicator({ progress, type }: { progress: ImportProgress;
 }
 
 // COMPONENTE AUXILIAR PARA ESTATÍSTICAS DO HISTÓRICO
-function HistoryStatsCard({ title, value, icon, change, valueColor }: {
+function HistoryStatsCard({ title, value, icon, change, valueColor, isROI }: {
   title: string;
   value: string;
   icon: React.ReactNode;
   change?: number;
   valueColor?: string;
+  isROI?: boolean;
 }) {
   return (
-    <div className="p-4 bg-black/20 border border-purple-700/30 rounded-lg">
+    <div className={cn("p-4 border rounded-lg", 
+      isROI ? "bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/50" : "bg-black/20 border-purple-700/30"
+    )}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-400">{title}</span>
-        {icon}
+        <span className={cn("text-sm", isROI ? "text-purple-200 font-medium" : "text-gray-400")}>
+          {title}
+        </span>
+        <div className={cn("p-1 rounded", isROI ? "bg-purple-500/20" : "")}>
+          {icon}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <span className={cn("text-lg font-semibold", valueColor || "text-white")}>
@@ -324,6 +332,11 @@ function HistoryStatsCard({ title, value, icon, change, valueColor }: {
           </div>
         )}
       </div>
+      {isROI && change !== undefined && change !== 0 && (
+        <div className="mt-2 text-xs text-gray-400">
+          Anualizado: {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+        </div>
+      )}
     </div>
   );
 }
@@ -481,7 +494,7 @@ export default function ProfitCalculator({
       console.log('[ProfitCalculator] Relatório ativo mudou:', {
         de: lastActiveReportId,
         para: effectiveActiveReportId,
-        nomeRelatorio: effectiveActiveReport?.name
+        nomeRelatorio: effectiveActiveReport?.name || 'Relatório'
       });
 
       // Limpar todos os caches quando o relatório ativo mudar
@@ -2659,6 +2672,51 @@ export default function ProfitCalculator({
   const chartDataCache = useRef<Map<string, ChartDataPoint[]>>(new Map());
   const filteredDataCache = useRef<Map<string, any>>(new Map());
 
+  // FUNÇÃO UTILITÁRIA PARA CALCULAR MÉTRICAS DE ROI
+  const calculateROIMetrics = useMemo(() => {
+    return (data: { investments: any[], profits: any[] }) => {
+      const totalInvested = data.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0);
+      const totalProfits = data.profits.reduce((sum: number, profit: any) => {
+        const btcAmount = convertToBtc(profit.amount, profit.unit);
+        return sum + (profit.isProfit ? btcAmount : -btcAmount);
+      }, 0);
+      
+      const roi = totalInvested > 0 ? (totalProfits / totalInvested) * 100 : 0;
+      
+      // Calcular ROI anualizado baseado no período
+      let periodDays = 365; // padrão para "all"
+      if (historyFilterPeriod === "1m") periodDays = 30;
+      else if (historyFilterPeriod === "3m") periodDays = 90;
+      else if (historyFilterPeriod === "6m") periodDays = 180;
+      else if (historyFilterPeriod === "1y") periodDays = 365;
+      else if (historyFilterPeriod === "custom" && historyCustomStartDate && historyCustomEndDate) {
+        periodDays = Math.max(1, Math.round((historyCustomEndDate.getTime() - historyCustomStartDate.getTime()) / (1000 * 60 * 60 * 24)));
+      }
+      
+      const annualizedROI = periodDays > 0 && periodDays !== 365 ? (roi * 365) / periodDays : roi;
+      
+      // Calcular taxa de sucesso
+      const totalTrades = data.profits.length;
+      const successfulTrades = data.profits.filter((p: any) => p.isProfit).length;
+      const successRate = totalTrades > 0 ? (successfulTrades / totalTrades) * 100 : 0;
+      
+      // Calcular eficiência de investimento
+      const totalInvestments = data.investments.length;
+      const profitableInvestments = data.profits.filter((p: any) => p.isProfit).length;
+      const investmentEfficiency = totalInvestments > 0 ? (profitableInvestments / totalInvestments) * 100 : 0;
+      
+      return {
+        roi,
+        annualizedROI,
+        successRate,
+        investmentEfficiency,
+        periodDays,
+        totalInvested,
+        totalProfits
+      };
+    };
+  }, [historyFilterPeriod, historyCustomStartDate, historyCustomEndDate]);
+
   // Função otimizada para obter dados filtrados por período com cache
   const getFilteredHistoryData = useMemo(() => {
     // Usar dados efetivos (props ou hook) para garantir sincronização
@@ -4067,7 +4125,7 @@ export default function ProfitCalculator({
                 </Card>
 
                 {/* Estatísticas do Período */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <HistoryStatsCard
                     title="Total Investido"
                     value={formatCurrency(getFilteredHistoryData.investments.reduce((sum: number, inv: any) => {
@@ -4077,6 +4135,7 @@ export default function ProfitCalculator({
                     }, 0), states.displayCurrency)}
                     icon={<TrendingDown className="h-4 w-4 text-blue-400" />}
                     valueColor="text-blue-400"
+                    isROI={true}
                   />
                   
                   <HistoryStatsCard
@@ -4092,6 +4151,39 @@ export default function ProfitCalculator({
                       const btcAmount = convertToBtc(profit.amount, profit.unit);
                       return sum + (profit.isProfit ? btcAmount : -btcAmount);
                     }, 0) >= 0 ? "text-green-400" : "text-red-400"}
+                    isROI={true}
+                  />
+                  
+                  <HistoryStatsCard
+                    title={(() => {
+                      const period = (() => {
+                        switch (historyFilterPeriod) {
+                          case "1m": return "Mensal";
+                          case "3m": return "3 Meses";
+                          case "6m": return "6 Meses";
+                          case "1y": return "Anual";
+                          case "all": return "Total";
+                          case "custom": return "Personalizado";
+                          default: return "Período";
+                        }
+                      })();
+                      const source = historyViewMode === "active" ? "Ativo" : "Geral";
+                      return `ROI ${period} (${source})`;
+                    })()}
+                    value={(() => {
+                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                      return `${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(2)}%`;
+                    })()}
+                    icon={<Calculator className="h-4 w-4" />}
+                    valueColor={(() => {
+                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                      return metrics.roi >= 0 ? "text-green-400" : "text-red-400";
+                    })()}
+                    change={(() => {
+                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                      return metrics.periodDays !== 365 ? metrics.annualizedROI : undefined;
+                    })()}
+                    isROI={true}
                   />
                   
                   <HistoryStatsCard
@@ -4126,6 +4218,11 @@ export default function ProfitCalculator({
                     <Card className="bg-black/30 border border-purple-700/40">
                       <CardHeader>
                         <CardTitle>Resumo do Período</CardTitle>
+                        {historyViewMode === "all" && allReportsFromHook && allReportsFromHook.length > 1 && (
+                          <div className="text-sm text-purple-300">
+                            Análise consolidada de {allReportsFromHook.length} relatórios
+                          </div>
+                        )}
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-4">
@@ -4150,6 +4247,31 @@ export default function ProfitCalculator({
                                   <span className="text-orange-400">{getFilteredHistoryData.withdrawals.length}</span>
                                 </div>
                               </div>
+                              
+                              {/* Comparação de performance por relatório quando no modo "all" */}
+                              {historyViewMode === "all" && allReportsFromHook && allReportsFromHook.length > 1 && (
+                                <div className="mt-4">
+                                  <h4 className="text-sm font-medium text-gray-400 mb-2">Performance por Relatório</h4>
+                                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {allReportsFromHook.map(report => {
+                                      const reportMetrics = calculateROIMetrics({
+                                        investments: report.investments || [],
+                                        profits: report.profits || []
+                                      });
+                                      return (
+                                        <div key={report.id} className="flex justify-between text-xs">
+                                          <span className="text-gray-300 truncate max-w-[100px]" title={report.name}>
+                                            {report.name}
+                                          </span>
+                                          <span className={reportMetrics.roi >= 0 ? "text-green-400" : "text-red-400"}>
+                                            {reportMetrics.roi >= 0 ? '+' : ''}{reportMetrics.roi.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             
                             <div>
@@ -4182,24 +4304,78 @@ export default function ProfitCalculator({
                                 <div className="flex justify-between border-t border-gray-700/50 pt-2 mt-2">
                                   <span className="font-medium">ROI (%):</span>
                                   <span className={(() => {
-                                    const totalInvested = getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0);
-                                    const totalProfits = getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
-                                      const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                      return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                    }, 0);
-                                    const roi = totalInvested > 0 ? (totalProfits / totalInvested) * 100 : 0;
-                                    return roi >= 0 ? "text-green-400 font-medium" : "text-red-400 font-medium";
+                                    const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                    return metrics.roi >= 0 ? "text-green-400 font-medium" : "text-red-400 font-medium";
                                   })()}>
                                     {(() => {
-                                      const totalInvested = getFilteredHistoryData.investments.reduce((sum: number, inv: any) => sum + convertToBtc(inv.amount, inv.unit), 0);
-                                      const totalProfits = getFilteredHistoryData.profits.reduce((sum: number, profit: any) => {
-                                        const btcAmount = convertToBtc(profit.amount, profit.unit);
-                                        return sum + (profit.isProfit ? btcAmount : -btcAmount);
-                                      }, 0);
-                                      const roi = totalInvested > 0 ? (totalProfits / totalInvested) * 100 : 0;
-                                      return `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`;
+                                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                      return `${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(2)}%`;
                                     })()}
                                   </span>
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                  <span>Período: {(() => {
+                                    switch (historyFilterPeriod) {
+                                      case "1m": return "Último mês";
+                                      case "3m": return "Últimos 3 meses";
+                                      case "6m": return "Últimos 6 meses";
+                                      case "1y": return "Último ano";
+                                      case "all": return "Todo período";
+                                      case "custom": return `${historyCustomStartDate ? formatDateFn(historyCustomStartDate, "dd/MM/yy") : "?"} - ${historyCustomEndDate ? formatDateFn(historyCustomEndDate, "dd/MM/yy") : "?"}`;
+                                      default: return "Período";
+                                    }
+                                  })()}</span>
+                                  <span>Fonte: {historyViewMode === "active" ? "Relatório ativo" : "Todos os relatórios"}</span>
+                                </div>
+                                {/* Métricas adicionais do ROI */}
+                                <div className="border-t border-gray-700/50 pt-2 mt-2 space-y-1">
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">ROI Anualizado:</span>
+                                    <span className={(() => {
+                                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                      return metrics.annualizedROI >= 0 ? "text-green-400" : "text-red-400";
+                                    })()}>
+                                      {(() => {
+                                        const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                        return `${metrics.annualizedROI >= 0 ? '+' : ''}${metrics.annualizedROI.toFixed(2)}%`;
+                                      })()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Taxa de Sucesso:</span>
+                                    <span className={(() => {
+                                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                      return metrics.successRate >= 50 ? "text-green-400" : metrics.successRate >= 25 ? "text-yellow-400" : "text-red-400";
+                                    })()}>
+                                      {(() => {
+                                        const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                        return `${metrics.successRate.toFixed(1)}%`;
+                                      })()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Eficiência:</span>
+                                    <span className={(() => {
+                                      const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                      return metrics.investmentEfficiency >= 50 ? "text-green-400" : metrics.investmentEfficiency >= 25 ? "text-yellow-400" : "text-red-400";
+                                    })()}>
+                                      {(() => {
+                                        const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                        return `${metrics.investmentEfficiency.toFixed(1)}%`;
+                                      })()} de investimentos lucrativos
+                                    </span>
+                                  </div>
+                                  {historyFilterPeriod === "custom" && historyCustomStartDate && historyCustomEndDate && (
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-gray-400">Duração:</span>
+                                      <span className="text-gray-300">
+                                        {(() => {
+                                          const metrics = calculateROIMetrics(getFilteredHistoryData);
+                                          return `${metrics.periodDays} dias`;
+                                        })()}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>

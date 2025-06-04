@@ -163,3 +163,135 @@ export interface WithdrawalRecord {
 
 **Última atualização**: Implementação do campo destino nos saques e ROI no histórico
 **Versão**: Componente único otimizado com melhorias UX/UI 
+
+## 🚀 **MELHORIAS AVANÇADAS DE ROI** ✅ IMPLEMENTADO
+
+### 9. **Sistema ROI Dinâmico e Contextual**
+
+#### **Funcionalidades Implementadas**:
+
+##### **ROI Atualizado Dinamicamente**
+- ✅ ROI calculado conforme filtros de período aplicados
+- ✅ Suporte para período personalizado (custom)  
+- ✅ ROI consolidado para "todos os relatórios"
+- ✅ Atualização em tempo real ao alterar filtros
+
+##### **ROI Anualizado Inteligente**
+- ✅ Cálculo automático de ROI anualizado baseado no período
+- ✅ Períodos suportados: 1m (30d), 3m (90d), 6m (180d), 1y (365d), custom
+- ✅ Exibição contextual quando período ≠ 365 dias
+
+##### **Card ROI Destacado**
+- ✅ Card ROI especial nas estatísticas do período
+- ✅ Título dinâmico: "ROI [Período] ([Fonte])"
+- ✅ Visual diferenciado com gradiente purple/blue
+- ✅ Indicador de ROI anualizado como "change"
+
+##### **Métricas Avançadas**
+- ✅ **Taxa de Sucesso**: % de operações lucrativas
+- ✅ **Eficiência de Investimento**: % de investimentos que geraram lucro
+- ✅ **ROI Anualizado**: Projeção anual baseada no período
+- ✅ **Duração do Período**: Dias exatos para períodos customizados
+
+##### **Comparação Multi-Relatórios**
+- ✅ Performance individual por relatório no modo "all"
+- ✅ Lista compacta com ROI de cada relatório
+- ✅ Identificação visual de relatórios mais/menos rentáveis
+- ✅ Análise consolidada de múltiplos relatórios
+
+#### **Interface Aprimorada**:
+
+##### **Card ROI Contextual**
+```typescript
+Título: "ROI Mensal (Ativo)" | "ROI Personalizado (Geral)" 
+Valor: "+15.25%" (colorido)
+Anualizado: "+182.50%" (quando aplicável)
+Visual: Gradiente especial + ícone calculadora
+```
+
+##### **Seção Valores Totais (BTC)**
+- ✅ ROI principal com cores dinâmicas
+- ✅ Informações de contexto (período + fonte)
+- ✅ ROI anualizado
+- ✅ Taxa de sucesso com cores condicionais
+- ✅ Eficiência de investimentos
+- ✅ Duração em dias (períodos custom)
+
+##### **Comparação de Relatórios**
+```
+Performance por Relatório:
+├── Relatório A    +12.5%
+├── Relatório B    -3.2%
+└── Relatório C    +8.7%
+```
+
+#### **Função Utilitária**
+```typescript
+calculateROIMetrics(data) => {
+  roi: number;                    // ROI básico (%)
+  annualizedROI: number;         // ROI anualizado (%)
+  successRate: number;           // Taxa de sucesso (%)
+  investmentEfficiency: number;  // Eficiência (%)
+  periodDays: number;           // Duração em dias
+  totalInvested: number;        // Total investido (BTC)
+  totalProfits: number;         // Total lucros/perdas (BTC)
+}
+```
+
+#### **Benefícios da Implementação**:
+
+##### **Análise Temporal**
+- **Períodos Flexíveis**: 1m, 3m, 6m, 1y, all, custom
+- **ROI Anualizado**: Comparação padronizada independente do período
+- **Contexto Visual**: Identificação clara da fonte e período dos dados
+
+##### **Análise Comparativa**
+- **Multi-Relatórios**: Performance consolidada e individual
+- **Eficiência**: Métricas de sucesso operacional
+- **Tendências**: Identificação de estratégias mais rentáveis
+
+##### **Experiência do Usuário**
+- **Visual Destacado**: Card ROI com design especial
+- **Informações Contextuais**: Período, fonte e métricas claras
+- **Cores Intuitivas**: Verde (lucro), vermelho (perda), amarelo (neutro)
+
+#### **Cenários de Uso**:
+
+##### **Análise de Período Específico**
+```
+Filtro: "Últimos 3 meses" + "Relatório Ativo"
+Resultado: ROI dos últimos 90 dias do relatório atual
+Anualizado: Projeção anual baseada na performance trimestral
+```
+
+##### **Comparação Estratégica**
+```
+Filtro: "Todo período" + "Todos os relatórios"
+Resultado: Performance consolidada de toda a carteira
+Comparação: ROI individual de cada estratégia/relatório
+```
+
+##### **Análise Personalizada**
+```
+Filtro: "01/01/2024 - 31/03/2024" + "Todos os relatórios"
+Resultado: Performance do Q1 2024 de toda a carteira
+Contexto: 90 dias de análise com ROI anualizado
+```
+
+#### **Arquivos Modificados**:
+- `components/profit-calculator.tsx` - Sistema ROI avançado
+- `CORREÇÕES_IMPLEMENTADAS.md` - Documentação atualizada
+
+#### **Métricas de Performance**:
+| Métrica | Antes | Depois | Melhoria |
+|---------|-------|--------|----------|
+| **ROI Analysis** | Estático | Dinâmico + Contextual | **Nova funcionalidade** |
+| **Comparação Temporal** | Inexistente | ROI Anualizado | **Nova funcionalidade** |
+| **Multi-Relatórios** | Básico | Comparativo | **Nova funcionalidade** |
+| **Métricas Avançadas** | ROI simples | 7 métricas | **600% mais informação** |
+
+---
+
+**Status Final**: 🎉 **SISTEMA ROI COMPLETAMENTE AVANÇADO E CONTEXTUAL**
+
+*O sistema agora oferece análise ROI profissional com contexto temporal, comparação entre estratégias e métricas avançadas de performance.* 
