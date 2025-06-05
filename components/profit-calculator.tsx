@@ -299,7 +299,7 @@ function ImportProgressIndicator({ progress, type }: { progress: ImportProgress;
   );
 }
 
-// COMPONENTE AUXILIAR PARA ESTATÍSTICAS DO HISTÓRICO
+// COMPONENTE AUXILIAR PARA ESTATÍSTICAS DO HISTÓRICO - RESPONSIVO
 function HistoryStatsCard({ title, value, icon, change, valueColor, isROI }: {
   title: string;
   value: string;
@@ -309,33 +309,37 @@ function HistoryStatsCard({ title, value, icon, change, valueColor, isROI }: {
   isROI?: boolean;
 }) {
   return (
-    <div className={cn("p-4 border rounded-lg", 
+    <div className={cn("p-3 sm:p-4 border rounded-lg", 
       isROI ? "bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/50" : "bg-black/20 border-purple-700/30"
     )}>
       <div className="flex items-center justify-between mb-2">
-        <span className={cn("text-sm", isROI ? "text-purple-200 font-medium" : "text-gray-400")}>
+        <span className={cn("text-xs sm:text-sm truncate", isROI ? "text-purple-200 font-medium" : "text-gray-400")}>
           {title}
         </span>
-        <div className={cn("p-1 rounded", isROI ? "bg-purple-500/20" : "")}>
-          {icon}
+        <div className={cn("p-1 rounded flex-shrink-0", isROI ? "bg-purple-500/20" : "")}>
+          <div className="h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center">
+            {icon}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={cn("text-lg font-semibold", valueColor || "text-white")}>
+        <span className={cn("text-base sm:text-lg font-semibold truncate", valueColor || "text-white")}>
           {value}
         </span>
         {change !== undefined && (
-          <div className={cn("flex items-center text-xs", 
+          <div className={cn("flex items-center text-xs flex-shrink-0", 
             change > 0 ? "text-green-400" : change < 0 ? "text-red-400" : "text-gray-400"
           )}>
             {change > 0 ? <ArrowUp className="h-3 w-3" /> : change < 0 ? <ArrowDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-            {Math.abs(change).toFixed(1)}%
+            <span className="hidden sm:inline">{Math.abs(change).toFixed(1)}%</span>
           </div>
         )}
       </div>
       {isROI && change !== undefined && change !== 0 && (
         <div className="mt-2 text-xs text-gray-400">
-          Anualizado: {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+          <span className="hidden sm:inline">Anualizado: </span>
+          <span className="sm:hidden">Anual: </span>
+          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
         </div>
       )}
     </div>
@@ -3721,7 +3725,7 @@ export default function ProfitCalculator({
   ]);
 
     return (
-    <div className="w-full max-w-6xl mx-auto p-4 space-y-6">
+    <div className="w-full max-w-6xl mx-auto p-2 sm:p-4 space-y-4 sm:space-y-6">
       {/* NOVO: Sistema integrado de gerenciamento de relatórios */}
       {isComparisonMode ? (
         <ReportsComparison 
@@ -3830,7 +3834,7 @@ export default function ProfitCalculator({
                   Limpar
                 </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs">
                 {importStats.trades && importStats.trades.total > 0 && (
                   <div className="p-3 bg-green-900/20 rounded border border-green-700/30">
                     <div className="text-green-400 font-medium mb-2 flex items-center gap-2">
@@ -4002,11 +4006,21 @@ export default function ProfitCalculator({
           )}
 
           {/* Conteúdo das abas */}
+          {/* MOBILE: Tabs responsivas */}
           <Tabs value={states.activeTab} onValueChange={states.setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40">
-              <TabsTrigger value="import">Importação</TabsTrigger>
-              <TabsTrigger value="history">Histórico</TabsTrigger>
-              <TabsTrigger value="charts">Gráficos</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-black/40 h-auto">
+              <TabsTrigger value="import" className="text-xs sm:text-sm py-2 px-2 sm:px-4">
+                <span className="hidden sm:inline">Importação</span>
+                <span className="sm:hidden">📥</span>
+              </TabsTrigger>
+              <TabsTrigger value="history" className="text-xs sm:text-sm py-2 px-2 sm:px-4">
+                <span className="hidden sm:inline">Histórico</span>
+                <span className="sm:hidden">📊</span>
+              </TabsTrigger>
+              <TabsTrigger value="charts" className="text-xs sm:text-sm py-2 px-2 sm:px-4">
+                <span className="hidden sm:inline">Gráficos</span>
+                <span className="sm:hidden">📈</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* ABA IMPORTAÇÃO */}
@@ -4125,18 +4139,18 @@ export default function ProfitCalculator({
                   </Card>
                 )}
 
-                {/* Cards de Importação LN Markets */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* MOBILE: Cards de Importação responsivos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {/* Botão de exportação tradicional em breve será implementado */}
                   
-                  {/* Card Trades */}
-                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors flex flex-col min-h-[280px]">
+                  {/* Card Trades - Responsivo */}
+                  <Card className="bg-black/30 border border-green-700/40 hover:border-green-600/60 transition-colors flex flex-col min-h-[240px] sm:min-h-[280px]">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-green-400">
-                        <TrendingUp className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-green-400 text-sm sm:text-base">
+                        <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
                         Trades
                       </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
+                      <CardDescription className="min-h-[2rem] sm:min-h-[2.5rem] flex items-center text-xs sm:text-sm">
                         Importar histórico de trades fechados com lucro/prejuízo
                       </CardDescription>
                     </CardHeader>
@@ -4164,14 +4178,14 @@ export default function ProfitCalculator({
                     </CardContent>
                   </Card>
 
-                  {/* Card Depósitos */}
-                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors flex flex-col min-h-[280px]">
+                  {/* Card Depósitos - Responsivo */}
+                  <Card className="bg-black/30 border border-blue-700/40 hover:border-blue-600/60 transition-colors flex flex-col min-h-[240px] sm:min-h-[280px]">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-blue-400">
-                        <Download className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-blue-400 text-sm sm:text-base">
+                        <Download className="h-4 w-4 sm:h-5 sm:w-5" />
                         Aportes
                       </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
+                      <CardDescription className="min-h-[2rem] sm:min-h-[2.5rem] flex items-center text-xs sm:text-sm">
                         Importar depósitos confirmados como investimentos
                       </CardDescription>
                     </CardHeader>
@@ -4202,14 +4216,14 @@ export default function ProfitCalculator({
                     </CardContent>
                   </Card>
 
-                  {/* Card Saques */}
-                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors flex flex-col min-h-[280px]">
+                  {/* Card Saques - Responsivo */}
+                  <Card className="bg-black/30 border border-orange-700/40 hover:border-orange-600/60 transition-colors flex flex-col min-h-[240px] sm:min-h-[280px]">
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-orange-400">
-                        <Upload className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-orange-400 text-sm sm:text-base">
+                        <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
                         Saques
                       </CardTitle>
-                      <CardDescription className="min-h-[2.5rem] flex items-center">
+                      <CardDescription className="min-h-[2rem] sm:min-h-[2.5rem] flex items-center text-xs sm:text-sm">
                         Importar saques confirmados
                       </CardDescription>
                     </CardHeader>
@@ -4689,7 +4703,7 @@ export default function ProfitCalculator({
                         )}
                       </CardHeader>
                       <CardContent>
-                        <ScrollArea className="h-[400px]">
+                        <ScrollArea className="h-[300px] sm:h-[350px] lg:h-[400px]">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -4778,15 +4792,15 @@ export default function ProfitCalculator({
                         )}
                       </CardHeader>
                       <CardContent>
-                        <ScrollArea className="h-[400px]">
+                        <ScrollArea className="h-[300px] sm:h-[350px] lg:h-[400px]">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Unidade</TableHead>
-                                <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency})</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Data</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Tipo</TableHead>
+                                <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Unidade</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Valor (BTC)</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Valor ({states.displayCurrency})</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -4877,15 +4891,15 @@ export default function ProfitCalculator({
                         )}
                       </CardHeader>
                       <CardContent>
-                        <ScrollArea className="h-[400px]">
+                        <ScrollArea className="h-[300px] sm:h-[350px] lg:h-[400px]">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Unidade</TableHead>
-                                <TableHead>Valor (BTC)</TableHead>
-                                <TableHead>Valor ({states.displayCurrency})</TableHead>
-                                <TableHead>Destino</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Data</TableHead>
+                                <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Unidade</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Valor (BTC)</TableHead>
+                                <TableHead className="text-xs sm:text-sm">Valor ({states.displayCurrency})</TableHead>
+                                <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Destino</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -4903,12 +4917,14 @@ export default function ProfitCalculator({
                                 
                                 return (
                                   <TableRow key={withdrawal.id}>
-                                    <TableCell>{formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}</TableCell>
-                                    <TableCell>{withdrawal.unit}</TableCell>
-                                    <TableCell className="text-orange-400">₿{btcAmount.toFixed(8)}</TableCell>
-                                      <TableCell className="text-orange-400">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
-                                    <TableCell>
-                                      <Badge variant={withdrawal.destination === 'wallet' ? 'default' : 'destructive'}>
+                                    <TableCell className="text-xs sm:text-sm">
+                                      {isMobile ? formatDateFn(new Date(withdrawal.date), "dd/MM") : formatDateFn(new Date(withdrawal.date), "dd/MM/yyyy")}
+                                    </TableCell>
+                                    <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{withdrawal.unit}</TableCell>
+                                    <TableCell className="text-orange-400 text-xs sm:text-sm">₿{btcAmount.toFixed(isMobile ? 4 : 8)}</TableCell>
+                                    <TableCell className="text-orange-400 text-xs sm:text-sm">{formatCurrency(currencyValue, states.displayCurrency)}</TableCell>
+                                    <TableCell className="hidden lg:table-cell">
+                                      <Badge variant={withdrawal.destination === 'wallet' ? 'default' : 'destructive'} className="text-xs">
                                         {withdrawal.destination === 'wallet' ? 'Carteira' : 'Exchange'}
                                       </Badge>
                                     </TableCell>
@@ -4981,33 +4997,33 @@ export default function ProfitCalculator({
                         ) : (
                           <div className="space-y-4">
                             {/* Métricas de Resumo */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-black/20 rounded-lg border border-purple-700/20">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 p-3 sm:p-4 bg-black/20 rounded-lg border border-purple-700/20">
                               <div className="text-center">
                                 <div className="text-xs text-gray-400">Períodos Analisados</div>
-                                <div className="text-lg font-bold text-purple-400">{calculateTemporalEfficiency.length}</div>
+                                <div className="text-base sm:text-lg font-bold text-purple-400">{calculateTemporalEfficiency.length}</div>
                               </div>
                               <div className="text-center">
                                 <div className="text-xs text-gray-400">Eficiência Média</div>
-                                <div className="text-lg font-bold text-green-400">
+                                <div className="text-base sm:text-lg font-bold text-green-400">
                                   {(calculateTemporalEfficiency.reduce((sum, item) => sum + item.weightedEfficiency, 0) / calculateTemporalEfficiency.length).toFixed(1)}%
                                 </div>
                               </div>
                               <div className="text-center">
                                 <div className="text-xs text-gray-400">Melhor Período</div>
-                                <div className="text-lg font-bold text-green-400">
+                                <div className="text-base sm:text-lg font-bold text-green-400">
                                   {Math.max(...calculateTemporalEfficiency.map(item => item.weightedEfficiency)).toFixed(1)}%
                                 </div>
                               </div>
                               <div className="text-center">
                                 <div className="text-xs text-gray-400">Pior Período</div>
-                                <div className="text-lg font-bold text-red-400">
+                                <div className="text-base sm:text-lg font-bold text-red-400">
                                   {Math.min(...calculateTemporalEfficiency.map(item => item.weightedEfficiency)).toFixed(1)}%
                                 </div>
                               </div>
                             </div>
 
                             {/* Gráfico de Linha */}
-                            <div id="efficiency-evolution-chart" className="h-[350px] w-full">
+                            <div id="efficiency-evolution-chart" className="h-[250px] sm:h-[300px] lg:h-[350px] w-full">
                               <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={calculateTemporalEfficiency}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />

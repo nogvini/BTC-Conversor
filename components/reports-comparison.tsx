@@ -773,73 +773,79 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </Button>
       </div>
       
-      <div className="flex justify-between items-center">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="px-2 hidden md:flex" 
-          onClick={onBack}
-        >
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Voltar
-        </Button>
-        
-        <h2 className="text-xl font-semibold text-center">Comparação de Relatórios</h2>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          className="px-2"
-          onClick={() => setShowSettings(!showSettings)}
-        >
-          <Sliders className="h-4 w-4" />
-          <span className="sr-only">Configurações</span>
-        </Button>
+      {/* MOBILE: Cabeçalho responsivo */}
+      <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:justify-between md:items-center">
+        <div className="flex items-center justify-between">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="px-2 hidden md:flex" 
+            onClick={onBack}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Voltar
+          </Button>
+          
+          <h2 className="text-lg md:text-xl font-semibold md:text-center flex-1 md:flex-none">
+            Comparação de Relatórios
+          </h2>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-2 md:px-3"
+            onClick={() => setShowSettings(!showSettings)}
+          >
+            <Sliders className="h-4 w-4" />
+            <span className="sr-only md:not-sr-only md:ml-2 text-xs hidden md:inline">Configurações</span>
+          </Button>
+        </div>
       </div>
       
+      {/* MOBILE: Configurações adaptáveis */}
       {showSettings && (
         <Card className="bg-black/40 border-purple-700/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Configurações de Visualização</CardTitle>
+            <CardTitle className="text-base md:text-lg">Configurações de Visualização</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Modo de Comparação</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Modo de Comparação</Label>
                 <RadioGroup 
                   value={comparisonMode} 
                   onValueChange={(v) => setComparisonMode(v as ComparisonMode)}
-                  className="flex flex-col space-y-1"
+                  className="flex flex-col space-y-2"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="accumulated" id="mode-accumulated" />
-                    <Label htmlFor="mode-accumulated" className="text-sm">Acumulado</Label>
+                    <Label htmlFor="mode-accumulated" className="text-sm cursor-pointer">Acumulado</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="monthly" id="mode-monthly" />
-                    <Label htmlFor="mode-monthly" className="text-sm">Por mês</Label>
+                    <Label htmlFor="mode-monthly" className="text-sm cursor-pointer">Por mês</Label>
                   </div>
                 </RadioGroup>
               </div>
               
-              <div className="space-y-2">
-                <Label>Unidade de Exibição</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Unidade de Exibição</Label>
                 <RadioGroup 
                   value={displayUnit} 
                   onValueChange={(v) => setDisplayUnit(v as DisplayUnit)}
-                  className="flex flex-col space-y-1"
+                  className="flex flex-col space-y-2"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="btc" id="unit-btc" />
-                    <Label htmlFor="unit-btc" className="text-sm">BTC/Satoshis</Label>
+                    <Label htmlFor="unit-btc" className="text-sm cursor-pointer">BTC/Satoshis</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="usd" id="unit-usd" />
-                    <Label htmlFor="unit-usd" className="text-sm">USD (Dólares)</Label>
+                    <Label htmlFor="unit-usd" className="text-sm cursor-pointer">USD (Dólares)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="brl" id="unit-brl" />
-                    <Label htmlFor="unit-brl" className="text-sm">BRL (Reais)</Label>
+                    <Label htmlFor="unit-brl" className="text-sm cursor-pointer">BRL (Reais)</Label>
                   </div>
                 </RadioGroup>
               </div>
@@ -848,17 +854,18 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </Card>
       )}
       
+      {/* MOBILE: Layout adaptável para seleção e gráfico */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        {/* Seleção de Relatórios */}
+        {/* Seleção de Relatórios - Responsivo */}
         <Card className="lg:col-span-1 bg-black/40 border-purple-700/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Selecionar Relatórios</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-base lg:text-lg">Selecionar Relatórios</CardTitle>
+            <CardDescription className="text-sm">
               Escolha até 3 relatórios para comparar
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[200px] sm:h-[300px] pr-4 -mr-4">
+            <ScrollArea className="h-[180px] sm:h-[240px] lg:h-[300px] pr-4 -mr-4">
               <div className="space-y-2">
                 {reports.map(report => (
                   <div 
@@ -898,30 +905,32 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
           </CardContent>
         </Card>
         
-        {/* Gráfico de Comparação */}
+        {/* Gráfico de Comparação - Responsivo */}
         <Card className="lg:col-span-2 bg-black/40 border-purple-700/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex justify-between items-center">
+            <CardTitle className="text-base lg:text-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <span>Evolução do Saldo</span>
-              <Badge variant="outline" className="text-xs bg-black/30 border-purple-700/50">
+              <Badge variant="outline" className="text-xs bg-black/30 border-purple-700/50 self-start sm:self-auto">
                 {comparisonMode === "accumulated" ? "Acumulado" : "Mensal"}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-1">
+          <CardContent className="px-1 md:px-3">
             {selectedReportIds.length === 0 ? (
-              <div className="flex items-center justify-center h-[200px] sm:h-[300px] text-center">
+              <div className="flex items-center justify-center h-[180px] sm:h-[240px] lg:h-[300px] text-center">
                 <div className="space-y-2">
-                  <CircleSlash2 className="h-10 w-10 text-gray-500 mx-auto" />
-                  <p className="text-gray-400">Selecione pelo menos um relatório para visualizar o gráfico</p>
+                  <CircleSlash2 className="h-8 w-8 lg:h-10 lg:w-10 text-gray-500 mx-auto" />
+                  <p className="text-gray-400 text-sm lg:text-base px-4">
+                    Selecione pelo menos um relatório para visualizar o gráfico
+                  </p>
                 </div>
               </div>
             ) : !comparisonData ? (
-              <div className="flex items-center justify-center h-[200px] sm:h-[300px]">
-                <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
+              <div className="flex items-center justify-center h-[180px] sm:h-[240px] lg:h-[300px]">
+                <RefreshCw className="h-6 w-6 lg:h-8 lg:w-8 text-purple-500 animate-spin" />
               </div>
             ) : (
-              <div className="h-[200px] sm:h-[300px]">
+              <div className="h-[180px] sm:h-[240px] lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={comparisonData.chartData}
@@ -1294,25 +1303,29 @@ export function ReportsComparison({ onBack, btcToUsd, brlToUsd }: ReportsCompari
         </Card>
       )}
       
+      {/* MOBILE: Tabs responsivas */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-3 h-auto gap-2 bg-transparent">
+        <TabsList className="grid grid-cols-3 h-auto gap-1 sm:gap-2 bg-transparent w-full">
           <TabsTrigger
             value="summary"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 px-2 sm:px-4 text-xs sm:text-sm transition-colors`}
           >
-            Resumo
+            <span className="hidden sm:inline">Resumo</span>
+            <span className="sm:hidden">📊</span>
           </TabsTrigger>
           <TabsTrigger
             value="charts"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 px-2 sm:px-4 text-xs sm:text-sm transition-colors`}
           >
-            Gráficos
+            <span className="hidden sm:inline">Gráficos</span>
+            <span className="sm:hidden">📈</span>
           </TabsTrigger>
           <TabsTrigger
             value="details"
-            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 text-xs sm:text-sm`}
+            className={`data-[state=active]:bg-purple-800 data-[state=active]:text-white bg-black/30 border border-purple-700/50 py-2 px-2 sm:px-4 text-xs sm:text-sm transition-colors`}
           >
-            Detalhes
+            <span className="hidden sm:inline">Detalhes</span>
+            <span className="sm:hidden">📋</span>
           </TabsTrigger>
         </TabsList>
         
